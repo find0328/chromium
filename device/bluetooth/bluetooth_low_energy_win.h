@@ -27,10 +27,8 @@ class DEVICE_BLUETOOTH_EXPORT DeviceRegistryPropertyValue {
   // containing the property value and |value_size| is the number of bytes in
   // |value|. Note the returned instance takes ownership of the bytes in
   // |value|.
-  static scoped_ptr<DeviceRegistryPropertyValue> Create(
-      DWORD property_type,
-      scoped_ptr<uint8_t[]> value,
-      size_t value_size);
+  static scoped_ptr<DeviceRegistryPropertyValue>
+  Create(DWORD property_type, scoped_ptr<uint8_t[]> value, size_t value_size);
   ~DeviceRegistryPropertyValue();
 
   // Returns the vaue type a REG_xxx value (e.g. REG_SZ, REG_DWORD, ...)
@@ -83,6 +81,8 @@ struct BluetoothLowEnergyServiceInfo {
   ~BluetoothLowEnergyServiceInfo();
 
   BTH_LE_UUID uuid;
+  USHORT attribute_handle;
+  base::FilePath path;
 };
 
 struct BluetoothLowEnergyDeviceInfo {
@@ -104,6 +104,7 @@ struct BluetoothLowEnergyDeviceInfo {
 // Note: This function returns an error if Bluetooth Low Energy is not supported
 // on this Windows platform.
 bool EnumerateKnownBluetoothLowEnergyDevices(
+    GUID guid,
     ScopedVector<BluetoothLowEnergyDeviceInfo>* devices,
     std::string* error);
 
@@ -122,6 +123,60 @@ ExtractBluetoothAddressFromDeviceInstanceIdForTesting(
     const std::string& instance_id,
     BLUETOOTH_ADDRESS* btha,
     std::string* error);
+
+HRESULT ReadPrimaryServicesOfADevice(HANDLE device_handle,
+                                     BTH_LE_GATT_SERVICE** out_primary_services,
+                                     USHORT* out_counts);
+
+HRESULT ReadCharacteristicsOfAService(
+    HANDLE device_handle,
+    const PBTH_LE_GATT_SERVICE service_uuid,
+    BTH_LE_GATT_CHARACTERISTIC** out_included_characteristics,
+    USHORT* out_counts);
+
+HRESULT ReadIncludedServicesOfAService(
+    HANDLE device_handle,
+    const PBTH_LE_GATT_SERVICE service_uuid,
+    BTH_LE_GATT_SERVICE** out_included_services,
+    USHORT* out_counts);
+
+HRESULT ReadTheValueOfACharacteristic(
+    HANDLE device_handle,
+    const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+    BTH_LE_GATT_CHARACTERISTIC_VALUE** out_characteristic_value);
+
+HRESULT WriteTheValueOfACharacteristic(
+    HANDLE device_handle,
+    const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+    BTH_LE_GATT_CHARACTERISTIC_VALUE* new_value);
+
+HRESULT ReliableWriteTheValueOfACharacteristic(
+    HANDLE device_handle,
+    const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+    BTH_LE_GATT_CHARACTERISTIC_VALUE* new_value);
+
+HRESULT ReadDescriptorsOfACharacteristic(
+    HANDLE device_handle,
+    const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+    BTH_LE_GATT_DESCRIPTOR** out_included_descriptors,
+    USHORT* out_counts);
+
+HRESULT ReadTheValueOfADescriptor(HANDLE device_handle,
+                                  const PBTH_LE_GATT_DESCRIPTOR descriptor,
+                                  BTH_LE_GATT_DESCRIPTOR_VALUE** out_value);
+
+HRESULT WriteTheDescriptorValue(HANDLE device_handle,
+                                const PBTH_LE_GATT_DESCRIPTOR descriptor,
+                                BTH_LE_GATT_DESCRIPTOR_VALUE* new_value);
+
+HRESULT RegisterGattEvents(HANDLE device_handle,
+                           BTH_LE_GATT_EVENT_TYPE type,
+                           PVOID event_parameter,
+                           PFNBLUETOOTH_GATT_EVENT_CALLBACK callback,
+                           PVOID context,
+                           BLUETOOTH_GATT_EVENT_HANDLE* out_handle);
+
+HRESULT UnregisterGattEvent(BLUETOOTH_GATT_EVENT_HANDLE event_handle);
 
 }  // namespace win
 }  // namespace device

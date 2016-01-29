@@ -32,8 +32,11 @@ class Thread;
 namespace device {
 
 class BluetoothAdapterWinTest;
-class BluetoothDevice;
+class BluetoothDeviceWin;
 class BluetoothSocketThread;
+class BluetoothRemoteGattCharacteristicWin;
+class BluetoothRemoteGattDescriptorWin;
+class BluetoothRemoteGattServiceWin;
 
 class DEVICE_BLUETOOTH_EXPORT BluetoothAdapterWin
     : public BluetoothAdapter,
@@ -93,6 +96,34 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapterWin
     return socket_thread_;
   }
 
+  // The follwing methods are used to send various GATT observer events to
+  // observers.
+  void NotifyGattServiceAdded(BluetoothDeviceWin* device,
+                              BluetoothRemoteGattServiceWin* service);
+  void NotifyGattServiceRemoved(BluetoothDeviceWin* device,
+                                BluetoothRemoteGattServiceWin* service);
+  void NotifyGattServicesDiscovered(BluetoothDeviceWin* device);
+  void NotifyGattDiscoveryCompleteForService(
+      BluetoothRemoteGattServiceWin* service);
+  void NotifyGattServiceChanged(BluetoothRemoteGattServiceWin* service);
+  void NotifyGattCharacteristicAdded(
+      BluetoothRemoteGattCharacteristicWin* characteristic);
+  void NotifyGattCharacteristicRemoved(
+      BluetoothRemoteGattCharacteristicWin* characteristic);
+  void NotifyGattCharacteristicValueChanged(
+      BluetoothRemoteGattCharacteristicWin* characteristic,
+      const std::vector<uint8_t>& value);
+  void NotifyGattDescriptorAdded(BluetoothRemoteGattDescriptorWin* descriptor);
+  void NotifyGattDescriptorRemoved(
+      BluetoothRemoteGattDescriptorWin* descriptor);
+  void NotifyGattDescriptorValueChanged(
+      BluetoothRemoteGattDescriptorWin* descriptor,
+      const std::vector<uint8_t>& value);
+
+  BluetoothTaskManagerWin* GetWinBluetoothTaskManager() {
+    return task_manager_.get();
+  }
+
  protected:
   // BluetoothAdapter:
   void RemovePairingDelegateInternal(
@@ -100,6 +131,9 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdapterWin
 
  private:
   friend class BluetoothAdapterWinTest;
+  friend class BluetoothDeviceWinTest;
+  friend class BluetoothRemoteGattServiceWinTest;
+  friend class BluetoothRemoteGattCharacteristicWinTest;
 
   enum DiscoveryStatus {
     NOT_DISCOVERING,

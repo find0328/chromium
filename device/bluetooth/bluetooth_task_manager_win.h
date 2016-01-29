@@ -18,6 +18,7 @@
 #include "base/win/scoped_handle.h"
 #include "device/bluetooth/bluetooth_adapter.h"
 #include "device/bluetooth/bluetooth_export.h"
+#include "device/bluetooth/bluetooth_low_energy_win.h"
 
 namespace base {
 
@@ -56,6 +57,8 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothTaskManagerWin
     std::vector<uint8_t> sdp_bytes;
     // Properties specific to Bluetooth LE devices.
     BluetoothUUID gatt_uuid;
+    uint16_t gatt_attribute_handle;
+    base::FilePath path;
   };
 
   struct DEVICE_BLUETOOTH_EXPORT DeviceState {
@@ -112,6 +115,105 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothTaskManagerWin
   void PostStartDiscoveryTask();
   void PostStopDiscoveryTask();
 
+  // Callbacks of asynchronous operations of GATT services, characteristics and
+  // descriptors.
+  typedef base::Callback<void(HRESULT)> HResultCallback;
+  typedef base::Callback<void(PBTH_LE_GATT_SERVICE, uint16_t, HRESULT)>
+      GetGattIncludedServicesCallback;
+  typedef base::Callback<void(PBTH_LE_GATT_CHARACTERISTIC, uint16_t, HRESULT)>
+      GetGattIncludedCharacteristicsCallback;
+  typedef base::Callback<void(PBTH_LE_GATT_CHARACTERISTIC_VALUE, HRESULT)>
+      ReadCharacteristicValueCallback;
+  typedef base::Callback<void(PBTH_LE_GATT_DESCRIPTOR, uint16_t, HRESULT)>
+      GetGattIncludedDescriptorsCallback;
+  typedef base::Callback<void(PBTH_LE_GATT_DESCRIPTOR_VALUE, HRESULT)>
+      ReadDescriptorValueCallback;
+  typedef base::Callback<void(BLUETOOTH_GATT_EVENT_HANDLE, HRESULT)>
+      GattEventRegistrationCallback;
+
+  // Get all included services of a given service. The service is uniquely
+  // identified by its |uuid| and |attribute_handle| on service device
+  // |service_path|. The result is returned asynchronously through |callback|.
+  void PostGetGattIncludedServices(
+      const base::FilePath& service_path,
+      const BluetoothUUID& uuid,
+      uint16_t attribute_handle,
+      const GetGattIncludedServicesCallback& callback);
+
+  // Get all included characteristics of a given service. The service is
+  // uniquely identified by its |uuid| and |attribute_handle| on service device
+  // |service_path|. The result is returned asynchronously through |callback|.
+  void PostGetGattIncludedCharacteristics(
+      const base::FilePath& service_path,
+      const BluetoothUUID& uuid,
+      uint16_t attribute_handle,
+      const GetGattIncludedCharacteristicsCallback& callback);
+
+  // Read the value of a given |characteristic| in service |service_path|. The
+  // result is returned asynchronously through |callback|.
+  void PostReadCharacteristicValue(
+      const base::FilePath& device_path,
+      const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+      const ReadCharacteristicValueCallback& callback);
+
+  // Write the value of a given |characteristic| in service |service_path| with
+  // the |new_value|. The operation result is returned asynchronously through
+  // |callback|.
+  void PostWriteCharacteristicValue(
+      const base::FilePath& service_path,
+      const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+      const std::vector<uint8_t>& new_value,
+      const HResultCallback& callback);
+
+  // Reliable write the value of a given |characteristic| in service
+  // |service_path| with the |new_value|. The operation result is returned
+  // asynchronously through |callback|.
+  void PostReliableWriteCharacteristicValue(
+      const base::FilePath& service_path,
+      const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+      const std::vector<uint8_t>& new_value,
+      const HResultCallback& callback);
+
+  // Get included descriptors of a given |characterisitc| in service
+  // |service_path|. The result is returned asynchronously through |callback|.
+  void PostGetGattIncludedDescriptors(
+      const base::FilePath& service_path,
+      const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+      const GetGattIncludedDescriptorsCallback& callback);
+
+  // Read a given |descriptor| value in service |service_path|. The result is
+  // returned asynchronously through |callback|.
+  void PostReadDescriptorValue(const base::FilePath& service_path,
+                               const PBTH_LE_GATT_DESCRIPTOR descriptor,
+                               const ReadDescriptorValueCallback& callback);
+
+  // Write a given |descriptor| value in service |service_path| with the
+  // |new_value|. The operation result is returned asynchronously through
+  // |callback|.
+  void PostWriteDescriptorValue(const base::FilePath& service_path,
+                                const PBTH_LE_GATT_DESCRIPTOR descriptor,
+                                const std::vector<uint8_t>& new_value,
+                                const HResultCallback& callback);
+
+  // Register a given |characteristic|'s value change notification of a service
+  // |service_path| with |registered_callback|. |context| is the given void
+  // pointer send back to caller through |registered_callback|. The operation
+  // result is returned asynchronously through |callback|.
+  void PostRegisterCharacteristicValueChangedEvent(
+      const base::FilePath& service_path,
+      const PBTH_LE_GATT_CHARACTERISTIC characteristic,
+      const GattEventRegistrationCallback& callback,
+      PFNBLUETOOTH_GATT_EVENT_CALLBACK registered_callback,
+      void* context);
+
+  // Unregister characteristic value change notification. |event_handle| was
+  // returned by PostRegisterCharacteristicValueChangedEvent.
+  void UnregisterCharacteristicValueChangedEvent(
+      BLUETOOTH_GATT_EVENT_HANDLE event_handle);
+
+  BluetoothUUID BluetoothLowEnergyUuidToBluetoothUuid(
+      const BTH_LE_UUID& bth_le_uuid);
+
  private:
   friend class base::RefCountedThreadSafe<BluetoothTaskManagerWin>;
   friend class BluetoothTaskManagerWinTest;
@@ -138,6 +240,46 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothTaskManagerWin
   void SetPowered(bool powered,
                   const base::Closure& callback,
                   const BluetoothAdapter::ErrorCallback& error_callback);
+
+  // Gatt services related functions.
+  void GetGattIncludedServices(base::FilePath service_path,
+                               BluetoothUUID uuid,
+                               uint16_t attribute_handle,
+                               const GetGattIncludedServicesCallback& callback);
+  void GetGattIncludedCharacteristics(
+      base::FilePath device_path,
+      BluetoothUUID uuid,
+      uint16_t attribute_handle,
+      const GetGattIncludedCharacteristicsCallback& callback);
+  void ReadCharacteristicValue(base::FilePath service_path,
+                               BTH_LE_GATT_CHARACTERISTIC characteristic,
+                               const ReadCharacteristicValueCallback& callback);
+  void WriteCharacteristicValue(base::FilePath device_path,
+                                BTH_LE_GATT_CHARACTERISTIC characteristic,
+                                std::vector<uint8_t> new_value,
+                                const HResultCallback& callback);
+  void ReliableWriteCharacteristicValue(
+      base::FilePath service_path,
+      BTH_LE_GATT_CHARACTERISTIC characteristic,
+      std::vector<uint8_t> new_value,
+      const HResultCallback& callback);
+  void GetGattIncludedDescriptors(
+      base::FilePath service_path,
+      BTH_LE_GATT_CHARACTERISTIC characteristic,
+      const GetGattIncludedDescriptorsCallback& callback);
+  void ReadDescriptorValue(base::FilePath service_path,
+                           BTH_LE_GATT_DESCRIPTOR descriptor,
+                           const ReadDescriptorValueCallback& callback);
+  void WriteDescriptorValue(base::FilePath service_path,
+                            BTH_LE_GATT_DESCRIPTOR descriptor,
+                            std::vector<uint8_t> new_value,
+                            const HResultCallback& callback);
+  void RegisterCharacteristicValueChangedEvent(
+      base::FilePath service_path,
+      BTH_LE_GATT_CHARACTERISTIC characteristic,
+      const GattEventRegistrationCallback& callback,
+      PFNBLUETOOTH_GATT_EVENT_CALLBACK registered_callback,
+      void* context);
 
   // Starts discovery. Once the discovery starts, it issues a discovery inquiry
   // with a short timeout, then issues more inquiries with greater timeout
@@ -194,7 +336,11 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothTaskManagerWin
   // Discover Bluetooth Low Energy services for the given |device_path|.
   bool DiscoverLowEnergyDeviceServices(
       const base::FilePath& device_path,
+      const std::string device_address,
       ScopedVector<ServiceRecordState>* service_record_states);
+
+  bool BluetoothUUIDToBLEUUIDWin(const BluetoothUUID& uuid,
+                                 BTH_LE_UUID* win_uuid);
 
   // UI task runner reference.
   scoped_refptr<base::SequencedTaskRunner> ui_task_runner_;

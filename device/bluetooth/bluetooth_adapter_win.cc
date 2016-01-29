@@ -17,7 +17,9 @@
 #include "device/bluetooth/bluetooth_discovery_session_outcome.h"
 #include "device/bluetooth/bluetooth_socket_thread.h"
 #include "device/bluetooth/bluetooth_socket_win.h"
-#include "device/bluetooth/bluetooth_task_manager_win.h"
+#include "device/bluetooth/bluetooth_remote_gatt_characteristic_win.h"
+#include "device/bluetooth/bluetooth_remote_gatt_descriptor_win.h"
+#include "device/bluetooth/bluetooth_remote_gatt_service_win.h"
 #include "device/bluetooth/bluetooth_uuid.h"
 
 namespace device {
@@ -373,6 +375,90 @@ void BluetoothAdapterWin::MaybePostStopDiscoveryTask() {
 
   discovery_status_ = DISCOVERY_STOPPING;
   task_manager_->PostStopDiscoveryTask();
+}
+
+void BluetoothAdapterWin::NotifyGattServiceAdded(
+    BluetoothDeviceWin* device,
+    BluetoothRemoteGattServiceWin* service) {
+  DCHECK(service);
+  DCHECK(device);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattServiceAdded(this, device, service));
+}
+
+void BluetoothAdapterWin::NotifyGattServiceRemoved(
+    BluetoothDeviceWin* device,
+    BluetoothRemoteGattServiceWin* service) {
+  DCHECK(service);
+  DCHECK(device);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattServiceRemoved(this, device, service));
+}
+
+void BluetoothAdapterWin::NotifyGattServicesDiscovered(
+    BluetoothDeviceWin* device) {
+  DCHECK(device);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattServicesDiscovered(this, device));
+}
+
+void BluetoothAdapterWin::NotifyGattDiscoveryCompleteForService(
+    BluetoothRemoteGattServiceWin* service) {
+  DCHECK(service);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattDiscoveryCompleteForService(this, service));
+}
+
+void BluetoothAdapterWin::NotifyGattServiceChanged(
+    BluetoothRemoteGattServiceWin* service) {
+  DCHECK(service);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattServiceChanged(this, service));
+}
+
+void BluetoothAdapterWin::NotifyGattCharacteristicAdded(
+    BluetoothRemoteGattCharacteristicWin* characteristic) {
+  DCHECK(characteristic);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattCharacteristicAdded(this, characteristic));
+}
+
+void BluetoothAdapterWin::NotifyGattCharacteristicRemoved(
+    BluetoothRemoteGattCharacteristicWin* characteristic) {
+  DCHECK(characteristic);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattCharacteristicRemoved(this, characteristic));
+}
+
+void BluetoothAdapterWin::NotifyGattCharacteristicValueChanged(
+    BluetoothRemoteGattCharacteristicWin* characteristic,
+    const std::vector<uint8_t>& value) {
+  DCHECK(characteristic);
+  FOR_EACH_OBSERVER(
+      BluetoothAdapter::Observer, observers_,
+      GattCharacteristicValueChanged(this, characteristic, value));
+}
+
+void BluetoothAdapterWin::NotifyGattDescriptorAdded(
+    BluetoothRemoteGattDescriptorWin* descriptor) {
+  DCHECK(descriptor);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattDescriptorAdded(this, descriptor));
+}
+
+void BluetoothAdapterWin::NotifyGattDescriptorRemoved(
+    BluetoothRemoteGattDescriptorWin* descriptor) {
+  DCHECK(descriptor);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattDescriptorRemoved(this, descriptor));
+}
+
+void BluetoothAdapterWin::NotifyGattDescriptorValueChanged(
+    BluetoothRemoteGattDescriptorWin* descriptor,
+    const std::vector<uint8_t>& value) {
+  DCHECK(descriptor);
+  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
+                    GattDescriptorValueChanged(this, descriptor, value));
 }
 
 }  // namespace device

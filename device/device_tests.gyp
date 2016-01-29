@@ -48,6 +48,8 @@
         'bluetooth/bluetooth_gatt_descriptor_unittest.cc',
         'bluetooth/bluetooth_gatt_service_unittest.cc',
         'bluetooth/bluetooth_low_energy_win_unittest.cc',
+        'bluetooth/bluetooth_remote_gatt_characteristic_win_unittest.cc',
+        'bluetooth/bluetooth_remote_gatt_service_win_unittest.cc',
         'bluetooth/bluetooth_service_record_win_unittest.cc',
         'bluetooth/bluetooth_task_manager_win_unittest.cc',
         'bluetooth/bluetooth_uuid_unittest.cc',

@@ -12,6 +12,7 @@
 #include "base/sequenced_task_runner.h"
 #include "base/strings/stringprintf.h"
 #include "device/bluetooth/bluetooth_adapter_win.h"
+#include "device/bluetooth/bluetooth_remote_gatt_service_win.h"
 #include "device/bluetooth/bluetooth_service_record_win.h"
 #include "device/bluetooth/bluetooth_socket_thread.h"
 #include "device/bluetooth/bluetooth_socket_win.h"
@@ -300,6 +301,65 @@ void BluetoothDeviceWin::UpdateServices(
     service_record_list_.push_back(service_record);
     uuids_.push_back(service_record->uuid());
   }
+
+  if (!device_state.is_bluetooth_classic())
+    UpdateGattServices(device_state);
+}
+
+void BluetoothDeviceWin::UpdateGattServices(
+    const BluetoothTaskManagerWin::DeviceState& device_state) {
+  // Remove no longer exist gatt services first.
+  if (gatt_services_.size() != 0) {
+    std::vector<std::string> removed_services;
+    for (auto gatt_service : gatt_services_) {
+      BluetoothUUID uuid = gatt_service.second->GetUUID();
+      ScopedVector<BluetoothTaskManagerWin::ServiceRecordState>::const_iterator
+          iter = device_state.service_record_states.begin();
+      for (; iter != device_state.service_record_states.end(); ++iter) {
+        if (uuid == (*iter)->gatt_uuid)
+          break;
+      }
+      if (iter == device_state.service_record_states.end()) {
+        removed_services.push_back(gatt_service.first);
+      }
+    }
+    for (auto key : removed_services) {
+      gatt_services_.erase(key);
+    }
+    // Update previously discovered services.
+    for (auto gatt_service : gatt_services_) {
+      static_cast<BluetoothRemoteGattServiceWin*>(gatt_service.second)
+          ->Update();
+    }
+  }
+
+  // Return if no new services have been added.
+  if (gatt_services_.size() == device_state.service_record_states.size())
+    return;
+
+  // Add new services.
+  for (ScopedVector<BluetoothTaskManagerWin::ServiceRecordState>::const_iterator
+           iter = device_state.service_record_states.begin();
+       iter != device_state.service_record_states.end(); ++iter) {
+    GattServiceMap::iterator it = gatt_services_.begin();
+    for (; it != gatt_services_.end(); it++) {
+      if ((*iter)->gatt_uuid == it->second->GetUUID())
+        break;
+    }
+    if (it == gatt_services_.end()) {
+      BluetoothRemoteGattServiceWin* primary_service =
+          new BluetoothRemoteGattServiceWin(
+              this, (*iter)->path, (*iter)->gatt_uuid,
+              (*iter)->gatt_attribute_handle, true, nullptr, ui_task_runner_);
+      gatt_services_.add(primary_service->GetIdentifier(),
+                         scoped_ptr<BluetoothGattService>(primary_service));
+      static_cast<BluetoothAdapterWin*>(adapter_)
+          ->NotifyGattServiceAdded(this, primary_service);
+    }
+  }
+
+  static_cast<BluetoothAdapterWin*>(adapter_)
+      ->NotifyGattServicesDiscovered(this);
 }
 
 }  // namespace device

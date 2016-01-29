@@ -12,13 +12,13 @@
 
 #include "base/macros.h"
 #include "base/observer_list.h"
+#include "device/bluetooth/bluetooth_adapter_win.h"
 #include "device/bluetooth/bluetooth_device.h"
 #include "device/bluetooth/bluetooth_export.h"
 #include "device/bluetooth/bluetooth_task_manager_win.h"
 
 namespace device {
 
-class BluetoothAdapterWin;
 class BluetoothServiceRecordWin;
 class BluetoothSocketThread;
 
@@ -89,6 +89,10 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin : public BluetoothDevice {
   // |device_state|.
   void Update(const BluetoothTaskManagerWin::DeviceState& device_state);
 
+  const BluetoothAdapterWin* GetAdapter() {
+    return static_cast<BluetoothAdapterWin*>(adapter_);
+  }
+
  protected:
   // BluetoothDevice override
   std::string GetDeviceName() const override;
@@ -97,6 +101,10 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothDeviceWin : public BluetoothDevice {
 
  private:
   friend class BluetoothAdapterWin;
+  friend class BluetoothDeviceWinTest;
+
+  void UpdateGattServices(
+      const BluetoothTaskManagerWin::DeviceState& device_state);
 
   typedef ScopedVector<BluetoothServiceRecordWin> ServiceRecordList;
 
