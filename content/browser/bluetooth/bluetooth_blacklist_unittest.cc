@@ -13,9 +13,10 @@ namespace content {
 
 TEST(BluetoothBlacklistTest, MyBluetoothBlacklistTest) {
   BluetoothBlacklist blacklist;
-  EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb")));
-  EXPECT_TRUE(blacklist.IsExcludedFromReads(BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb")));
-  EXPECT_TRUE(blacklist.IsExcludedFromWrites(BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb")));
+  BluetoothUUID excluded_UUID("00001800-0000-1000-8000-00805f9b34fb");
+  EXPECT_TRUE(blacklist.IsExcluded(excluded_UUID));
+  EXPECT_TRUE(blacklist.IsExcludedFromReads(excluded_UUID));
+  EXPECT_TRUE(blacklist.IsExcludedFromWrites(excluded_UUID));
 }
 
 }  // namespace content
