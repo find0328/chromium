@@ -8,6 +8,7 @@
 #include <map>
 
 #include "base/macros.h"
+#include "content/common/content_export.h"
 #include "device/bluetooth/bluetooth_uuid.h"
 
 namespace content {
@@ -16,8 +17,9 @@ namespace content {
 // specification:
 // https://webbluetoothcg.github.io/web-bluetooth/#the-gatt-blacklist
 //
-// Client code may query UUIDs to determine if they are valid to be used.
-class BluetoothBlacklist final {
+// Client code may query UUIDs to determine if they are excluded from use by the
+// blacklist.
+class CONTENT_EXPORT BluetoothBlacklist final {
  public:
   // Blacklist value terminology from Web Bluetooth specification:
   // https://webbluetoothcg.github.io/web-bluetooth/#the-gatt-blacklist

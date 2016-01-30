@@ -4,15 +4,21 @@
 
 #include "content/browser/bluetooth/bluetooth_blacklist.h"
 
+#include "base/logging.h"
+
 using device::BluetoothUUID;
 
 namespace content {
 
 BluetoothBlacklist::BluetoothBlacklist() {
+  // Blacklist UUIDs updated 2016-01-30 from:
+  // https://github.com/WebBluetoothCG/registries/blob/master/gatt_blacklist.txt
+  auto emplace_result = blacklisted_uuids_.emplace(std::make_pair(
+      BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb"), Value::EXCLUDE));
+  DCHECK(emplace_result.second);  // Assert that there was no duplicate.
 }
 
-BluetoothBlacklist::~BluetoothBlacklist() {
-}
+BluetoothBlacklist::~BluetoothBlacklist() {}
 
 bool BluetoothBlacklist::IsExcluded(const BluetoothUUID& uuid) const {
   const auto& it = blacklisted_uuids_.find(uuid);
