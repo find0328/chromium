@@ -4,7 +4,6 @@
 
 #include "content/browser/bluetooth/bluetooth_blacklist.h"
 
-
 using device::BluetoothUUID;
 
 namespace content {
@@ -12,21 +11,24 @@ namespace content {
 BluetoothBlacklist::BluetoothBlacklist() {
 }
 
-bool BluetoothBlacklist::IsExcluded(const BluetoothUUID& uuid) {
+BluetoothBlacklist::~BluetoothBlacklist() {
+}
+
+bool BluetoothBlacklist::IsExcluded(const BluetoothUUID& uuid) const {
   const auto& it = blacklisted_uuids_.find(uuid);
   if (it == blacklisted_uuids_.end())
     return false;
   return it->second == Value::EXCLUDE;
 }
 
-bool BluetoothBlacklist::IsExcludedFromReads(const BluetoothUUID& uuid) {
+bool BluetoothBlacklist::IsExcludedFromReads(const BluetoothUUID& uuid) const {
   const auto& it = blacklisted_uuids_.find(uuid);
   if (it == blacklisted_uuids_.end())
     return false;
   return it->second == Value::EXCLUDE || it->second == Value::EXCLUDE_READS;
 }
 
-bool BluetoothBlacklist::IsExcludedFromWrites(const BluetoothUUID& uuid) {
+bool BluetoothBlacklist::IsExcludedFromWrites(const BluetoothUUID& uuid) const {
   const auto& it = blacklisted_uuids_.find(uuid);
   if (it == blacklisted_uuids_.end())
     return false;

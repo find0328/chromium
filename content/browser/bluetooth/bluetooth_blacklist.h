@@ -7,6 +7,7 @@
 
 #include <map>
 
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_uuid.h"
 
 namespace content {
@@ -18,11 +19,6 @@ namespace content {
 // Client code may query UUIDs to determine if they are valid to be used.
 class BluetoothBlacklist final {
  public:
-  struct Value {
-    bool exclude_read : 1;
-    bool exclude_write : 1;
-  }
-
   // Blacklist value terminology from Web Bluetooth specification:
   // https://webbluetoothcg.github.io/web-bluetooth/#the-gatt-blacklist
   enum class Value {
@@ -32,21 +28,22 @@ class BluetoothBlacklist final {
   };
 
   BluetoothBlacklist();
+  ~BluetoothBlacklist();
 
   // Returns if an UUID is excluded from all operations.
-  bool Excluded(const BluetoothUUID&);
+  bool IsExcluded(const device::BluetoothUUID&) const;
 
   // Returns if an UUID is excluded from read operations.
-  bool ExcludedFromReads(const BluetoothUUID&);
+  bool IsExcludedFromReads(const device::BluetoothUUID&) const;
 
   // Returns if an UUID is excluded from write operations.
-  bool ExcludedFromWrites(const BluetoothUUID&);
+  bool IsExcludedFromWrites(const device::BluetoothUUID&) const;
 
  private:
   // Map of UUID to blacklisted value.
   std::map<device::BluetoothUUID, Value> blacklisted_uuids_;
 
-  DISALLOW_COPY_AND_ASSIGN(BluetoothDispatcherHost);
+  DISALLOW_COPY_AND_ASSIGN(BluetoothBlacklist);
 };
 
 }  // namespace content
