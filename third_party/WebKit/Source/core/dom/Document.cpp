@@ -276,7 +276,7 @@ static inline bool isValidNameStart(UChar32 c)
         return false;
 
     // rule (d) above
-    DecompositionType decompType = decompositionType(c);
+    CharDecompositionType decompType = decompositionType(c);
     if (decompType == DecompositionFont || decompType == DecompositionCompat)
         return false;
 
@@ -307,7 +307,7 @@ static inline bool isValidNamePart(UChar32 c)
         return false;
 
     // rule (d) above
-    DecompositionType decompType = decompositionType(c);
+    CharDecompositionType decompType = decompositionType(c);
     if (decompType == DecompositionFont || decompType == DecompositionCompat)
         return false;
 
@@ -452,7 +452,6 @@ Document::Document(const DocumentInit& initializer, DocumentClassFlags documentC
     , m_didAssociateFormControlsTimer(this, &Document::didAssociateFormControlsTimerFired)
     , m_timers(timerTaskRunner()->adoptClone())
     , m_hasViewportUnits(false)
-    , m_styleRecalcElementCounter(0)
     , m_parserSyncPolicy(AllowAsynchronousParsing)
     , m_nodeCount(0)
 {
@@ -1637,6 +1636,12 @@ void Document::inheritHtmlAndBodyElementStyles(StyleRecalcChange change)
         } else {
             ASSERT(element == documentElement());
             overflowStyle = documentElementStyle.get();
+
+            // The body element has its own scrolling box, independent from the viewport.
+            // This is a bit of a weird edge case in the CSS spec that we might want to try to
+            // eliminate some day (eg. for ScrollTopLeftInterop - see http://crbug.com/157855).
+            if (bodyStyle && !bodyStyle->isOverflowVisible())
+                UseCounter::count(*this, UseCounter::BodyScrollsInAdditionToViewport);
         }
     }
 
@@ -1769,8 +1774,8 @@ void Document::updateLayoutTree(StyleRecalcChange change)
     TRACE_EVENT_BEGIN1("blink,devtools.timeline", "UpdateLayoutTree", "beginData", InspectorRecalculateStylesEvent::data(frame()));
     TRACE_EVENT_SCOPED_SAMPLING_STATE("blink", "UpdateLayoutTree");
 
-    // FIXME: Remove m_styleRecalcElementCounter, we should just use the accessCount() on the resolver.
-    m_styleRecalcElementCounter = 0;
+    unsigned startElementCount = styleEngine().styleForElementCount();
+
     InspectorInstrumentationCookie cookie = InspectorInstrumentation::willRecalculateStyle(this);
 
     DocumentAnimations::updateAnimationTimingIfNeeded(*this);
@@ -1802,8 +1807,10 @@ void Document::updateLayoutTree(StyleRecalcChange change)
 
     ASSERT(!DocumentAnimations::needsAnimationTimingUpdate(*this));
 
-    TRACE_EVENT_END1("blink,devtools.timeline", "UpdateLayoutTree", "elementCount", m_styleRecalcElementCounter);
-    InspectorInstrumentation::didRecalculateStyle(cookie, m_styleRecalcElementCounter);
+    unsigned elementCount = styleEngine().styleForElementCount() - startElementCount;
+
+    TRACE_EVENT_END1("blink,devtools.timeline", "UpdateLayoutTree", "elementCount", elementCount);
+    InspectorInstrumentation::didRecalculateStyle(cookie, elementCount);
 
 #if ENABLE(ASSERT)
     assertLayoutTreeUpdated(*this);
@@ -1816,7 +1823,7 @@ void Document::updateStyle(StyleRecalcChange change)
         return;
 
     TRACE_EVENT_BEGIN0("blink,blink_style", "Document::updateStyle");
-    unsigned initialResolverAccessCount = styleEngine().resolverAccessCount();
+    unsigned initialElementCount = styleEngine().styleForElementCount();
 
     HTMLFrameOwnerElement::UpdateSuspendScope suspendWidgetHierarchyUpdates;
     m_lifecycle.advanceTo(DocumentLifecycle::InStyleRecalc);
@@ -1845,7 +1852,7 @@ void Document::updateStyle(StyleRecalcChange change)
 
     bool shouldRecordStats;
     TRACE_EVENT_CATEGORY_GROUP_ENABLED("blink,blink_style", &shouldRecordStats);
-    resolver.setStatsEnabled(shouldRecordStats);
+    styleEngine().setStatsEnabled(shouldRecordStats);
 
     if (Element* documentElement = this->documentElement()) {
         inheritHtmlAndBodyElementStyles(change);
@@ -1874,11 +1881,11 @@ void Document::updateStyle(StyleRecalcChange change)
     m_lifecycle.advanceTo(DocumentLifecycle::StyleClean);
     if (shouldRecordStats) {
         TRACE_EVENT_END2("blink,blink_style", "Document::updateStyle",
-            "resolverAccessCount", styleEngine().resolverAccessCount() - initialResolverAccessCount,
-            "counters", resolver.stats()->toTracedValue());
+            "resolverAccessCount", styleEngine().styleForElementCount() - initialElementCount,
+            "counters", styleEngine().stats()->toTracedValue());
     } else {
         TRACE_EVENT_END1("blink,blink_style", "Document::updateStyle",
-            "resolverAccessCount", styleEngine().resolverAccessCount() - initialResolverAccessCount);
+            "resolverAccessCount", styleEngine().styleForElementCount() - initialElementCount);
     }
 }
 
@@ -2410,7 +2417,7 @@ ScriptableDocumentParser* Document::scriptableDocumentParser() const
     return parser() ? parser()->asScriptableDocumentParser() : 0;
 }
 
-void Document::open(Document* ownerDocument, ExceptionState& exceptionState)
+void Document::open(Document* enteredDocument, ExceptionState& exceptionState)
 {
     if (importLoader()) {
         exceptionState.throwDOMException(InvalidStateError, "Imported document doesn't support open().");
@@ -2422,10 +2429,14 @@ void Document::open(Document* ownerDocument, ExceptionState& exceptionState)
         return;
     }
 
-    if (ownerDocument) {
-        setURL(ownerDocument->url());
-        m_cookieURL = ownerDocument->cookieURL();
-        setSecurityOrigin(ownerDocument->securityOrigin());
+    if (enteredDocument) {
+        if (!securityOrigin()->canAccess(enteredDocument->securityOrigin())) {
+            exceptionState.throwSecurityError("Can only call open() on same-origin documents.");
+            return;
+        }
+        setSecurityOrigin(enteredDocument->securityOrigin());
+        setURL(enteredDocument->url());
+        m_cookieURL = enteredDocument->cookieURL();
     }
 
     open();
@@ -2837,7 +2848,7 @@ int Document::elapsedTime() const
     return static_cast<int>((currentTime() - m_startTime) * 1000);
 }
 
-void Document::write(const SegmentedString& text, Document* ownerDocument, ExceptionState& exceptionState)
+void Document::write(const SegmentedString& text, Document* enteredDocument, ExceptionState& exceptionState)
 {
     if (importLoader()) {
         exceptionState.throwDOMException(InvalidStateError, "Imported document doesn't support write().");
@@ -2846,6 +2857,11 @@ void Document::write(const SegmentedString& text, Document* ownerDocument, Excep
 
     if (!isHTMLDocument()) {
         exceptionState.throwDOMException(InvalidStateError, "Only HTML documents support write().");
+        return;
+    }
+
+    if (enteredDocument && !securityOrigin()->canAccess(enteredDocument->securityOrigin())) {
+        exceptionState.throwSecurityError("Can only call write() on same-origin documents.");
         return;
     }
 
@@ -2865,23 +2881,23 @@ void Document::write(const SegmentedString& text, Document* ownerDocument, Excep
     }
 
     if (!hasInsertionPoint)
-        open(ownerDocument, ASSERT_NO_EXCEPTION);
+        open(enteredDocument, ASSERT_NO_EXCEPTION);
 
     ASSERT(m_parser);
     m_parser->insert(text);
 }
 
-void Document::write(const String& text, Document* ownerDocument, ExceptionState& exceptionState)
+void Document::write(const String& text, Document* enteredDocument, ExceptionState& exceptionState)
 {
-    write(SegmentedString(text), ownerDocument, exceptionState);
+    write(SegmentedString(text), enteredDocument, exceptionState);
 }
 
-void Document::writeln(const String& text, Document* ownerDocument, ExceptionState& exceptionState)
+void Document::writeln(const String& text, Document* enteredDocument, ExceptionState& exceptionState)
 {
-    write(text, ownerDocument, exceptionState);
+    write(text, enteredDocument, exceptionState);
     if (exceptionState.hadException())
         return;
-    write("\n", ownerDocument);
+    write("\n", enteredDocument);
 }
 
 void Document::write(LocalDOMWindow* callingWindow, const Vector<String>& text, ExceptionState& exceptionState)
@@ -2922,7 +2938,7 @@ EventTarget* Document::errorEventTarget()
     return domWindow();
 }
 
-void Document::logExceptionToConsole(const String& errorMessage, int scriptId, const String& sourceURL, int lineNumber, int columnNumber, PassRefPtrWillBeRawPtr<ScriptCallStack> callStack)
+void Document::logExceptionToConsole(const String& errorMessage, int scriptId, const String& sourceURL, int lineNumber, int columnNumber, PassRefPtr<ScriptCallStack> callStack)
 {
     RefPtrWillBeRawPtr<ConsoleMessage> consoleMessage = ConsoleMessage::create(JSMessageSource, ErrorMessageLevel, errorMessage, sourceURL, lineNumber, columnNumber);
     consoleMessage->setScriptId(scriptId);
@@ -4449,6 +4465,7 @@ bool Document::execCommand(const String& commandName, bool, const String& value,
     // Postpone DOM mutation events, which can execute scripts and change
     // DOM tree against implementation assumption.
     EventQueueScope eventQueueScope;
+    Editor::tidyUpHTMLStructure(*this);
     Editor::Command editorCommand = command(this, commandName);
     Platform::current()->histogramSparse("WebCore.Document.execCommand", editorCommand.idForHistogram());
     return editorCommand.execute(value);
@@ -4556,10 +4573,12 @@ String Document::designMode() const
 void Document::setDesignMode(const String& value)
 {
     bool newValue = m_designMode;
-    if (equalIgnoringCase(value, "on"))
+    if (equalIgnoringCase(value, "on")) {
         newValue = true;
-    else if (equalIgnoringCase(value, "off"))
+        UseCounter::count(*this, UseCounter::DocumentDesignModeEnabeld);
+    } else if (equalIgnoringCase(value, "off")) {
         newValue = false;
+    }
     if (newValue == m_designMode)
         return;
     m_designMode = newValue;
@@ -4748,7 +4767,7 @@ void Document::finishedParsing()
     m_elementDataCacheClearTimer.startOneShot(10, BLINK_FROM_HERE);
 
     // Parser should have picked up all preloads by now
-    m_fetcher->clearPreloads();
+    m_fetcher->clearPreloads(ResourceFetcher::ClearSpeculativeMarkupPreloads);
 }
 
 void Document::elementDataCacheClearTimerFired(Timer<Document>*)

@@ -3,22 +3,23 @@
 # found in the LICENSE file.
 
 """A library for cross-platform browser tests."""
+import logging
 import os
 import sys
+
 
 # Ensure Python >= 2.7.
 if sys.version_info < (2, 7):
   print >> sys.stderr, 'Need Python 2.7 or greater.'
   sys.exit(-1)
 
-from telemetry.internal.util import global_hooks
-global_hooks.InstallHooks()
 
-# Add dependencies into our path.
-from telemetry.core import util
+def _JoinPath(*path_parts):
+  return os.path.abspath(os.path.join(*path_parts))
+
 
 def _AddDirToPythonPath(*path_parts):
-  path = os.path.abspath(os.path.join(*path_parts))
+  path = _JoinPath(*path_parts)
   if os.path.isdir(path) and path not in sys.path:
     # Some call sites that use Telemetry assume that sys.path[0] is the
     # directory containing the script, so we add these extra paths to right
@@ -26,6 +27,21 @@ def _AddDirToPythonPath(*path_parts):
     sys.path.insert(1, path)
 
 
+# Add Catapult dependencies to our path.
+# util depends on catapult_base, so we can't use it to get the catapult dir.
+_CATAPULT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             '..', '..', '..', 'third_party', 'catapult')
+_AddDirToPythonPath(_CATAPULT_DIR, 'catapult_base')
+_AddDirToPythonPath(_CATAPULT_DIR, 'dependency_manager')
+_AddDirToPythonPath(_CATAPULT_DIR, 'devil')
+_AddDirToPythonPath(_CATAPULT_DIR, 'tracing')
+
+
+from telemetry.core import util
+from telemetry.internal.util import global_hooks
+
+
+# Add Telemetry third party dependencies into our path.
 _AddDirToPythonPath(util.GetTelemetryThirdPartyDir(), 'altgraph')
 _AddDirToPythonPath(util.GetTelemetryThirdPartyDir(), 'mock')
 _AddDirToPythonPath(util.GetTelemetryThirdPartyDir(), 'modulegraph')
@@ -38,8 +54,10 @@ _AddDirToPythonPath(util.GetTelemetryThirdPartyDir(), 'typ')
 _AddDirToPythonPath(util.GetTelemetryThirdPartyDir(), 'webpagereplay')
 _AddDirToPythonPath(util.GetTelemetryThirdPartyDir(), 'websocket-client')
 
-_AddDirToPythonPath(os.path.dirname(__file__), os.path.pardir, os.path.pardir,
-                    os.path.pardir, 'build', 'android')
+# Install Telemtry global hooks.
+global_hooks.InstallHooks()
 
-_AddDirToPythonPath(os.path.dirname(__file__), os.path.pardir, os.path.pardir,
-                    os.path.pardir, 'third_party', 'catapult', 'tracing')
+logging.warn(
+    'Telemetry has moved to Catapult, and will be deleted from Chromium on '
+    '2016-01-29. Please use Telemetry from third_party/catapult/telemetry '
+    'instead.')

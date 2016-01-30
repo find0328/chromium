@@ -165,7 +165,6 @@ void LayoutTextControlSingleLine::layout()
         if (innerEditorLayoutObject)
             innerEditorSize = innerEditorLayoutObject->size();
         placeholderBox->mutableStyleRef().setWidth(Length(innerEditorSize.width() - placeholderBox->borderAndPaddingWidth(), Fixed));
-        placeholderBox->mutableStyleRef().setHeight(Length(innerEditorSize.height() - placeholderBox->borderAndPaddingHeight(), Fixed));
         bool neededLayout = placeholderBox->needsLayout();
         placeholderBox->layoutIfNeeded();
         LayoutPoint textOffset;
@@ -175,6 +174,16 @@ void LayoutTextControlSingleLine::layout()
             textOffset += toLayoutSize(editingViewPortElement()->layoutBox()->location());
         if (containerLayoutObject)
             textOffset += toLayoutSize(containerLayoutObject->location());
+        if (innerEditorLayoutObject) {
+            // We use inlineBlockBaseline() for innerEditor because it has no
+            // inline boxes when we show the placeholder.
+            int innerEditorBaseline = innerEditorLayoutObject->inlineBlockBaseline(HorizontalLine);
+            // We use firstLineBoxBaseline() for placeholder.
+            // TODO(tkent): It's inconsistent with innerEditorBaseline. However
+            // placeholderBox->inlineBlockBase() is unexpectedly larger.
+            int placeholderBaseline = placeholderBox->firstLineBoxBaseline();
+            textOffset += LayoutSize(0, innerEditorBaseline - placeholderBaseline);
+        }
         placeholderBox->setLocation(textOffset);
 
         // The placeholder gets layout last, after the parent text control and its other children,
@@ -405,9 +414,16 @@ void LayoutTextControlSingleLine::setScrollTop(LayoutUnit newTop)
         innerEditorElement()->setScrollTop(newTop);
 }
 
+void LayoutTextControlSingleLine::addOverflowFromChildren()
+{
+    // If the INPUT content height is smaller than the font height, the
+    // inner-editor element overflows the INPUT box intentionally, however it
+    // shouldn't affect outside of the INPUT box.  So we ignore child overflow.
+}
+
 HTMLInputElement* LayoutTextControlSingleLine::inputElement() const
 {
     return toHTMLInputElement(node());
 }
 
-}
+} // namespace blink

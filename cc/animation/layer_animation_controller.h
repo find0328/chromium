@@ -5,9 +5,9 @@
 #ifndef CC_ANIMATION_LAYER_ANIMATION_CONTROLLER_H_
 #define CC_ANIMATION_LAYER_ANIMATION_CONTROLLER_H_
 
+#include <unordered_set>
 #include <vector>
 
-#include "base/containers/hash_tables.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
@@ -46,8 +46,6 @@ class CC_EXPORT LayerAnimationController
   void AddAnimation(scoped_ptr<Animation> animation);
   void PauseAnimation(int animation_id, base::TimeDelta time_offset);
   void RemoveAnimation(int animation_id);
-  void RemoveAnimation(int animation_id,
-                       Animation::TargetProperty target_property);
   void AbortAnimation(int animation_id);
   void AbortAnimations(Animation::TargetProperty target_property);
 
@@ -177,7 +175,7 @@ class CC_EXPORT LayerAnimationController
   virtual ~LayerAnimationController();
 
  private:
-  typedef base::hash_set<int> TargetProperties;
+  using TargetProperties = std::unordered_set<int>;
 
   void PushNewAnimationsToImplThread(
       LayerAnimationController* controller_impl) const;

@@ -22,6 +22,7 @@
 #include "cc/debug/layer_tree_debug_state.h"
 #include "cc/debug/micro_benchmark_impl.h"
 #include "cc/debug/traced_value.h"
+#include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/input/scroll_state.h"
 #include "cc/layers/layer.h"
 #include "cc/layers/layer_utils.h"
@@ -57,10 +58,9 @@ LayerImpl::LayerImpl(LayerTreeImpl* tree_impl,
       layer_tree_impl_(tree_impl),
       scroll_offset_(scroll_offset),
       scroll_clip_layer_id_(Layer::INVALID_ID),
-      main_thread_scrolling_reasons_(InputHandler::NOT_SCROLLING_ON_MAIN),
-      have_wheel_event_handlers_(false),
+      main_thread_scrolling_reasons_(
+          MainThreadScrollingReason::kNotScrollingOnMain),
       have_scroll_event_handlers_(false),
-      scroll_blocks_on_(SCROLL_BLOCKS_ON_NONE),
       user_scrollable_horizontal_(true),
       user_scrollable_vertical_(true),
       stacking_order_changed_(false),
@@ -86,20 +86,20 @@ LayerImpl::LayerImpl(LayerTreeImpl* tree_impl,
       transform_tree_index_(-1),
       effect_tree_index_(-1),
       clip_tree_index_(-1),
+      scroll_tree_index_(-1),
       draw_depth_(0.f),
       needs_push_properties_(false),
       num_dependents_need_push_properties_(0),
       sorting_context_id_(0),
       current_draw_mode_(DRAW_MODE_NONE),
       element_id_(0),
-      mutable_properties_(kMutablePropertyNone),
+      mutable_properties_(MutableProperty::kNone),
       force_render_surface_(false),
       frame_timing_requests_dirty_(false),
       visited_(false),
       layer_or_descendant_is_drawn_(false),
-      layer_or_descendant_has_input_handler_(false),
-      sorted_for_recursion_(false),
-      is_hidden_from_property_trees_(false) {
+      layer_or_descendant_has_touch_handler_(false),
+      sorted_for_recursion_(false) {
   DCHECK_GT(layer_id_, 0);
   DCHECK(layer_tree_impl_);
   layer_tree_impl_->RegisterLayer(this);
@@ -273,6 +273,11 @@ void LayerImpl::SetClipTreeIndex(int index) {
 
 void LayerImpl::SetEffectTreeIndex(int index) {
   effect_tree_index_ = index;
+  SetNeedsPushProperties();
+}
+
+void LayerImpl::SetScrollTreeIndex(int index) {
+  scroll_tree_index_ = index;
   SetNeedsPushProperties();
 }
 
@@ -505,11 +510,10 @@ void LayerImpl::ApplySentScrollDeltasFromAbortedCommit() {
 
 InputHandler::ScrollStatus LayerImpl::TryScroll(
     const gfx::PointF& screen_space_point,
-    InputHandler::ScrollInputType type,
-    ScrollBlocksOn effective_block_mode) const {
+    InputHandler::ScrollInputType type) const {
   InputHandler::ScrollStatus scroll_status;
   scroll_status.main_thread_scrolling_reasons =
-      InputHandler::NOT_SCROLLING_ON_MAIN;
+      MainThreadScrollingReason::kNotScrollingOnMain;
   if (should_scroll_on_main_thread()) {
     TRACE_EVENT0("cc", "LayerImpl::TryScroll: Failed ShouldScrollOnMainThread");
     scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
@@ -523,7 +527,7 @@ InputHandler::ScrollStatus LayerImpl::TryScroll(
     TRACE_EVENT0("cc", "LayerImpl::TryScroll: Ignored NonInvertibleTransform");
     scroll_status.thread = InputHandler::SCROLL_IGNORED;
     scroll_status.main_thread_scrolling_reasons =
-        InputHandler::NON_INVERTIBLE_TRANSFORM;
+        MainThreadScrollingReason::kNonInvertibleTransform;
     return scroll_status;
   }
 
@@ -546,32 +550,25 @@ InputHandler::ScrollStatus LayerImpl::TryScroll(
                    "LayerImpl::tryScroll: Failed NonFastScrollableRegion");
       scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
       scroll_status.main_thread_scrolling_reasons =
-          InputHandler::NON_FAST_SCROLLABLE_REGION;
+          MainThreadScrollingReason::kNonFastScrollableRegion;
       return scroll_status;
     }
   }
 
-  if (have_scroll_event_handlers() &&
-      effective_block_mode & SCROLL_BLOCKS_ON_SCROLL_EVENT) {
-    TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed ScrollEventHandlers");
-    scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
-    scroll_status.main_thread_scrolling_reasons = InputHandler::EVENT_HANDLERS;
-    return scroll_status;
-  }
-
   if ((type == InputHandler::WHEEL || type == InputHandler::ANIMATED_WHEEL) &&
-      have_wheel_event_handlers() &&
-      effective_block_mode & SCROLL_BLOCKS_ON_WHEEL_EVENT) {
+      layer_tree_impl_->have_wheel_event_handlers()) {
     TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed WheelEventHandlers");
     scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
-    scroll_status.main_thread_scrolling_reasons = InputHandler::EVENT_HANDLERS;
+    scroll_status.main_thread_scrolling_reasons =
+        MainThreadScrollingReason::kEventHandlers;
     return scroll_status;
   }
 
   if (!scrollable()) {
     TRACE_EVENT0("cc", "LayerImpl::tryScroll: Ignored not scrollable");
     scroll_status.thread = InputHandler::SCROLL_IGNORED;
-    scroll_status.main_thread_scrolling_reasons = InputHandler::NOT_SCROLLABLE;
+    scroll_status.main_thread_scrolling_reasons =
+        MainThreadScrollingReason::kNotScrollable;
     return scroll_status;
   }
 
@@ -581,7 +578,8 @@ InputHandler::ScrollStatus LayerImpl::TryScroll(
                  "LayerImpl::tryScroll: Ignored. Technically scrollable,"
                  " but has no affordance in either direction.");
     scroll_status.thread = InputHandler::SCROLL_IGNORED;
-    scroll_status.main_thread_scrolling_reasons = InputHandler::NOT_SCROLLABLE;
+    scroll_status.main_thread_scrolling_reasons =
+        MainThreadScrollingReason::kNotScrollable;
     return scroll_status;
   }
 
@@ -616,9 +614,7 @@ void LayerImpl::PushPropertiesTo(LayerImpl* layer) {
   layer->SetBackgroundFilters(background_filters());
   layer->SetMasksToBounds(masks_to_bounds_);
   layer->set_main_thread_scrolling_reasons(main_thread_scrolling_reasons_);
-  layer->SetHaveWheelEventHandlers(have_wheel_event_handlers_);
   layer->SetHaveScrollEventHandlers(have_scroll_event_handlers_);
-  layer->SetScrollBlocksOn(scroll_blocks_on_);
   layer->SetNonFastScrollableRegion(non_fast_scrollable_region_);
   layer->SetTouchEventHandlerRegion(touch_event_handler_region_);
   layer->SetContentsOpaque(contents_opaque_);
@@ -652,8 +648,8 @@ void LayerImpl::PushPropertiesTo(LayerImpl* layer) {
   layer->SetTransformTreeIndex(transform_tree_index_);
   layer->SetClipTreeIndex(clip_tree_index_);
   layer->SetEffectTreeIndex(effect_tree_index_);
+  layer->SetScrollTreeIndex(scroll_tree_index_);
   layer->set_offset_to_transform_parent(offset_to_transform_parent_);
-  layer->set_is_hidden_from_property_trees(is_hidden_from_property_trees_);
 
   LayerImpl* scroll_parent = nullptr;
   if (scroll_parent_) {
@@ -767,24 +763,11 @@ base::DictionaryValue* LayerImpl::LayerTreeAsJson() const {
   if (scrollable())
     result->SetBoolean("Scrollable", true);
 
-  if (have_wheel_event_handlers_)
-    result->SetBoolean("WheelHandler", have_wheel_event_handlers_);
   if (have_scroll_event_handlers_)
     result->SetBoolean("ScrollHandler", have_scroll_event_handlers_);
   if (!touch_event_handler_region_.IsEmpty()) {
     scoped_ptr<base::Value> region = touch_event_handler_region_.AsValue();
     result->Set("TouchRegion", region.release());
-  }
-
-  if (scroll_blocks_on_) {
-    list = new base::ListValue;
-    if (scroll_blocks_on_ & SCROLL_BLOCKS_ON_START_TOUCH)
-      list->AppendString("StartTouch");
-    if (scroll_blocks_on_ & SCROLL_BLOCKS_ON_WHEEL_EVENT)
-      list->AppendString("WheelEvent");
-    if (scroll_blocks_on_ & SCROLL_BLOCKS_ON_SCROLL_EVENT)
-      list->AppendString("ScrollEvent");
-    result->Set("ScrollBlocksOn", list);
   }
 
   list = new base::ListValue;
@@ -956,7 +939,7 @@ void LayerImpl::UpdatePropertyTreeOpacity() {
     // started, but might have finished since then on the compositor thread.
     if (node->owner_id != id())
       return;
-    node->data.opacity = opacity_;
+    node->data.opacity = EffectiveOpacity();
     effect_tree.set_needs_update(true);
   }
 }
@@ -985,7 +968,10 @@ void LayerImpl::OnFilterAnimated(const FilterOperations& filters) {
 
 void LayerImpl::OnOpacityAnimated(float opacity) {
   SetOpacity(opacity);
-  UpdatePropertyTreeOpacity();
+  // When hide_layer_and_subtree is true, the effective opacity is zero and we
+  // need not update the opacity on property trees.
+  if (!hide_layer_and_subtree_)
+    UpdatePropertyTreeOpacity();
 }
 
 void LayerImpl::OnTransformAnimated(const gfx::Transform& transform) {
@@ -1240,6 +1226,10 @@ void LayerImpl::SetOpacity(float opacity) {
 
   opacity_ = opacity;
   NoteLayerPropertyChangedForSubtree();
+}
+
+float LayerImpl::EffectiveOpacity() const {
+  return hide_layer_and_subtree_ ? 0.f : opacity_;
 }
 
 bool LayerImpl::OpacityIsAnimating() const {
@@ -1714,7 +1704,7 @@ void LayerImpl::AsValueInto(base::trace_event::TracedValue* state) const {
   state->SetInteger("gpu_memory_usage",
                     base::saturated_cast<int>(GPUMemoryUsageInBytes()));
 
-  if (mutable_properties_ != kMutablePropertyNone) {
+  if (mutable_properties_ != MutableProperty::kNone) {
     state->SetInteger("element_id", base::saturated_cast<int>(element_id_));
     state->SetInteger("mutable_properties", mutable_properties_);
   }
@@ -1736,13 +1726,6 @@ void LayerImpl::AsValueInto(base::trace_event::TracedValue* state) const {
     touch_event_handler_region_.AsValueInto(state);
     state->EndArray();
   }
-  if (have_wheel_event_handlers_) {
-    gfx::Rect wheel_rect(bounds());
-    Region wheel_region(wheel_rect);
-    state->BeginArray("wheel_event_handler_region");
-    wheel_region.AsValueInto(state);
-    state->EndArray();
-  }
   if (have_scroll_event_handlers_) {
     gfx::Rect scroll_rect(bounds());
     Region scroll_region(scroll_rect);
@@ -1755,10 +1738,6 @@ void LayerImpl::AsValueInto(base::trace_event::TracedValue* state) const {
     non_fast_scrollable_region_.AsValueInto(state);
     state->EndArray();
   }
-  if (scroll_blocks_on_) {
-    state->SetInteger("scroll_blocks_on", scroll_blocks_on_);
-  }
-
   state->BeginArray("children");
   for (size_t i = 0; i < children_.size(); ++i) {
     state->BeginDictionary();
@@ -1917,11 +1896,13 @@ gfx::Rect LayerImpl::GetScaledEnclosingRectInTargetSpace(float scale) const {
                                            gfx::Rect(scaled_bounds));
 }
 
-bool LayerImpl::LayerIsHidden() const {
+bool LayerImpl::IsHidden() const {
   if (layer_tree_impl()->settings().use_property_trees) {
-    return is_hidden_from_property_trees_;
+    EffectTree& effect_tree = layer_tree_impl_->property_trees()->effect_tree;
+    EffectNode* node = effect_tree.Node(effect_tree_index_);
+    return node->data.screen_space_opacity == 0.f;
   } else {
-    return hide_layer_and_subtree_ || (parent() && parent()->LayerIsHidden());
+    return EffectiveOpacity() == 0.f || (parent() && parent()->IsHidden());
   }
 }
 

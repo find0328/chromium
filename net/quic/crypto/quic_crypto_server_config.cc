@@ -35,6 +35,7 @@
 #include "net/quic/crypto/strike_register.h"
 #include "net/quic/crypto/strike_register_client.h"
 #include "net/quic/proto/source_address_token.pb.h"
+#include "net/quic/quic_bug_tracker.h"
 #include "net/quic/quic_clock.h"
 #include "net/quic/quic_flags.h"
 #include "net/quic/quic_protocol.h"
@@ -84,7 +85,7 @@ class ValidateClientHelloHelper {
       : result_(result), done_cb_(done_cb) {}
 
   ~ValidateClientHelloHelper() {
-    LOG_IF(DFATAL, done_cb_ != nullptr)
+    QUIC_BUG_IF(done_cb_ != nullptr)
         << "Deleting ValidateClientHelloHelper with a pending callback.";
   }
 
@@ -99,7 +100,7 @@ class ValidateClientHelloHelper {
 
  private:
   void DetachCallback() {
-    LOG_IF(DFATAL, done_cb_ == nullptr) << "Callback already detached.";
+    QUIC_BUG_IF(done_cb_ == nullptr) << "Callback already detached.";
     done_cb_ = nullptr;
   }
 
@@ -148,7 +149,7 @@ class VerifyNonceIsValidAndUniqueCallback
           break;
         case NONCE_OK:
         default:
-          LOG(DFATAL) << "Unexpected client nonce error: " << nonce_error;
+          QUIC_BUG << "Unexpected client nonce error: " << nonce_error;
           client_nonce_error = CLIENT_NONCE_UNKNOWN_FAILURE;
           break;
       }
@@ -579,18 +580,13 @@ QuicErrorCode QuicCryptoServerConfig::ProcessClientHello(
       DCHECK_EQ(configs_.find(primary_config_->id)->second, primary_config_);
     }
 
-    // We'll use the config that the client requested in order to do
-    // key-agreement. Otherwise we'll give it a copy of |primary_config_|
-    // to use.
-    if (FLAGS_quic_use_primary_config_for_proof) {
-      primary_config = GetConfigWithScid(crypto_proof->primary_scid);
-      if (!primary_config) {
-        *error_details = "Configuration not found";
-        LOG(DFATAL) << "Primary config not found";
-        return QUIC_CRYPTO_INTERNAL_ERROR;
-      }
-    } else {
-      primary_config = primary_config_;
+    // Use the config that the client requested in order to do key-agreement.
+    // Otherwise give it a copy of |primary_config_| to use.
+    primary_config = GetConfigWithScid(crypto_proof->primary_scid);
+    if (!primary_config) {
+      *error_details = "Configuration not found";
+      QUIC_BUG << "Primary config not found";
+      return QUIC_CRYPTO_INTERNAL_ERROR;
     }
 
     requested_config = GetConfigWithScid(requested_scid);
@@ -743,8 +739,9 @@ QuicErrorCode QuicCryptoServerConfig::ProcessClientHello(
     char plaintext[kMaxPacketSize];
     size_t plaintext_length = 0;
     const bool success = crypters.decrypter->DecryptPacket(
-        0 /* packet number */, StringPiece() /* associated data */,
-        cetv_ciphertext, plaintext, &plaintext_length, kMaxPacketSize);
+        kDefaultPathId, 0 /* packet number */,
+        StringPiece() /* associated data */, cetv_ciphertext, plaintext,
+        &plaintext_length, kMaxPacketSize);
     if (!success) {
       *error_details = "CETV decryption failure";
       return QUIC_PACKET_TOO_LARGE;
@@ -832,7 +829,8 @@ QuicErrorCode QuicCryptoServerConfig::ProcessClientHello(
   out->SetStringPiece(
       kSourceAddressTokenTag,
       NewSourceAddressToken(*requested_config.get(), info.source_address_tokens,
-                            client_address.address(), rand, info.now, nullptr));
+                            client_address.address().bytes(), rand, info.now,
+                            nullptr));
   QuicSocketAddressCoder address_coder(client_address);
   out->SetStringPiece(kCADR, address_coder.Encode());
   out->SetStringPiece(kPUBS, forward_secure_public_value);
@@ -890,9 +888,9 @@ void QuicCryptoServerConfig::SelectNewPrimaryConfig(
 
   if (configs.empty()) {
     if (primary_config_.get()) {
-      LOG(DFATAL) << "No valid QUIC server config. Keeping the current config.";
+      QUIC_BUG << "No valid QUIC server config. Keeping the current config.";
     } else {
-      LOG(DFATAL) << "No valid QUIC server config.";
+      QUIC_BUG << "No valid QUIC server config.";
     }
     return;
   }
@@ -1055,12 +1053,7 @@ void QuicCryptoServerConfig::EvaluateClientHello(
     bool x509_supported = false;
     bool x509_ecdsa_supported = false;
     ParseProofDemand(client_hello, &x509_supported, &x509_ecdsa_supported);
-    string serialized_config;
-    if (FLAGS_quic_use_primary_config_for_proof) {
-      serialized_config = primary_config->serialized;
-    } else {
-      serialized_config = requested_config->serialized;
-    }
+    string serialized_config = primary_config->serialized;
     if (!proof_source_->GetProof(server_ip, info->sni.as_string(),
                                  serialized_config, x509_ecdsa_supported,
                                  &crypto_proof->certs, &crypto_proof->signature,
@@ -1713,7 +1706,7 @@ HandshakeFailureReason QuicCryptoServerConfig::ValidateServerNonce(
 
   if (plaintext.size() != kServerNoncePlaintextSize) {
     // This should never happen because the value decrypted correctly.
-    LOG(DFATAL) << "Seemingly valid server nonce had incorrect length.";
+    QUIC_BUG << "Seemingly valid server nonce had incorrect length.";
     return SERVER_NONCE_INVALID_FAILURE;
   }
 
@@ -1753,7 +1746,7 @@ HandshakeFailureReason QuicCryptoServerConfig::ValidateServerNonce(
     case STRIKE_REGISTER_TIMEOUT:
     case STRIKE_REGISTER_FAILURE:
     default:
-      LOG(DFATAL) << "Unexpected server nonce error: " << nonce_error;
+      QUIC_BUG << "Unexpected server nonce error: " << nonce_error;
       return SERVER_NONCE_NOT_UNIQUE_FAILURE;
   }
 }

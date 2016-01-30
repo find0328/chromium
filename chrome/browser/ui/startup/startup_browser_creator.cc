@@ -24,6 +24,8 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/statistics_recorder.h"
+#include "base/metrics/user_metrics.h"
+#include "base/metrics/user_metrics_action.h"
 #include "base/prefs/pref_registry_simple.h"
 #include "base/prefs/pref_service.h"
 #include "base/profiler/scoped_profile.h"
@@ -328,7 +330,7 @@ bool StartupBrowserCreator::Start(const base::CommandLine& cmd_line,
   TRACK_SCOPED_REGION("Startup", "StartupBrowserCreator::Start");
   SCOPED_UMA_HISTOGRAM_TIMER("Startup.StartupBrowserCreator_Start");
   return ProcessCmdLineImpl(cmd_line, cur_dir, true, last_used_profile,
-                            last_opened_profiles, this);
+                            last_opened_profiles);
 }
 
 // static
@@ -556,14 +558,16 @@ std::vector<GURL> StartupBrowserCreator::GetURLsFromCommandLine(
     GURL url = GURL(param.MaybeAsASCII());
 
 #if defined(OS_WIN)
-    if (ShouldRedirectWindowsDesktopSearchToDefaultSearchEngine(
+    TemplateURLService* template_url_service =
+        TemplateURLServiceFactory::GetForProfile(profile);
+    DCHECK(template_url_service);
+    base::string16 search_terms;
+    if (DetectWindowsDesktopSearch(
+            url, template_url_service->search_terms_data(), &search_terms)) {
+      base::RecordAction(base::UserMetricsAction("DesktopSearch"));
+
+      if (ShouldRedirectWindowsDesktopSearchToDefaultSearchEngine(
             profile->GetPrefs())) {
-      TemplateURLService* template_url_service =
-          TemplateURLServiceFactory::GetForProfile(profile);
-      DCHECK(template_url_service);
-      base::string16 search_terms;
-      if (DetectWindowsDesktopSearch(
-              url, template_url_service->search_terms_data(), &search_terms)) {
         const GURL search_url(GetDefaultSearchURLForSearchTerms(
             template_url_service, search_terms));
         if (search_url.is_valid()) {
@@ -603,14 +607,12 @@ std::vector<GURL> StartupBrowserCreator::GetURLsFromCommandLine(
   return urls;
 }
 
-// static
 bool StartupBrowserCreator::ProcessCmdLineImpl(
     const base::CommandLine& command_line,
     const base::FilePath& cur_dir,
     bool process_startup,
     Profile* last_used_profile,
-    const Profiles& last_opened_profiles,
-    StartupBrowserCreator* browser_creator) {
+    const Profiles& last_opened_profiles) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   TRACE_EVENT0("startup", "StartupBrowserCreator::ProcessCmdLineImpl");
 
@@ -791,9 +793,8 @@ bool StartupBrowserCreator::ProcessCmdLineImpl(
     Profile* profile_to_open = last_used_profile->IsGuestSession() ?
         last_used_profile->GetOffTheRecordProfile() : last_used_profile;
 
-    if (!browser_creator->LaunchBrowser(command_line, profile_to_open,
-                                        cur_dir, is_process_startup,
-                                        is_first_run)) {
+    if (!LaunchBrowser(command_line, profile_to_open, cur_dir,
+                       is_process_startup, is_first_run)) {
       return false;
     }
   } else {
@@ -833,9 +834,9 @@ bool StartupBrowserCreator::ProcessCmdLineImpl(
           !HasPendingUncleanExit(*it))
         continue;
 
-      if (!browser_creator->LaunchBrowser((*it == last_used_profile) ?
-          command_line : command_line_without_urls, *it, cur_dir,
-          is_process_startup, is_first_run))
+      if (!LaunchBrowser((*it == last_used_profile) ? command_line
+                                                    : command_line_without_urls,
+                         *it, cur_dir, is_process_startup, is_first_run))
         return false;
       // We've launched at least one browser.
       is_process_startup = chrome::startup::IS_NOT_PROCESS_STARTUP;
@@ -889,7 +890,9 @@ void StartupBrowserCreator::ProcessCommandLineOnProfileCreated(
     Profile::CreateStatus status) {
   if (status != Profile::CREATE_STATUS_INITIALIZED)
     return;
-  ProcessCmdLineImpl(command_line, cur_dir, false, profile, Profiles(), NULL);
+  StartupBrowserCreator startup_browser_creator;
+  startup_browser_creator.ProcessCmdLineImpl(command_line, cur_dir, false,
+                                             profile, Profiles());
 }
 
 // static
@@ -902,14 +905,15 @@ void StartupBrowserCreator::ProcessCommandLineAlreadyRunning(
 
   // The profile isn't loaded yet and so needs to be loaded asynchronously.
   if (!profile) {
-    profile_manager->CreateProfileAsync(profile_path,
-        base::Bind(&StartupBrowserCreator::ProcessCommandLineOnProfileCreated,
-                   command_line, cur_dir), base::string16(), std::string(),
-                   std::string());
+    profile_manager->CreateProfileAsync(
+        profile_path,
+        base::Bind(&ProcessCommandLineOnProfileCreated, command_line, cur_dir),
+        base::string16(), std::string(), std::string());
     return;
   }
-
-  ProcessCmdLineImpl(command_line, cur_dir, false, profile, Profiles(), NULL);
+  StartupBrowserCreator startup_browser_creator;
+  startup_browser_creator.ProcessCmdLineImpl(command_line, cur_dir, false,
+                                             profile, Profiles());
 }
 
 // static

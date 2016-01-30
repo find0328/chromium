@@ -33,7 +33,6 @@
 
 #include "core/inspector/InspectorFrontendChannel.h"
 #include "core/inspector/InspectorRuntimeAgent.h"
-#include "core/inspector/InspectorStateClient.h"
 #include "core/inspector/InspectorTracingAgent.h"
 #include "platform/heap/Handle.h"
 #include "public/platform/WebSize.h"
@@ -71,7 +70,6 @@ class WebViewImpl;
 class WebDevToolsAgentImpl final
     : public NoBaseWillBeGarbageCollectedFinalized<WebDevToolsAgentImpl>
     , public WebDevToolsAgent
-    , public InspectorStateClient
     , public InspectorEmulationAgent::Client
     , public InspectorTracingAgent::Client
     , public InspectorRuntimeAgent::Client
@@ -112,9 +110,6 @@ public:
 private:
     WebDevToolsAgentImpl(WebLocalFrameImpl*, WebDevToolsAgentClient*, PassOwnPtrWillBeRawPtr<InspectorOverlay>);
 
-    // InspectorStateClient implementation.
-    void updateInspectorStateCookie(const WTF::String&) override;
-
     // InspectorTracingAgent::Client implementation.
     void enableTracing(const WTF::String& categoryFilter) override;
     void disableTracing() override;
@@ -144,9 +139,8 @@ private:
 #endif
 
     RefPtrWillBeMember<InstrumentingAgents> m_instrumentingAgents;
-    OwnPtrWillBeMember<InjectedScriptManager> m_injectedScriptManager;
+    OwnPtr<InjectedScriptManager> m_injectedScriptManager;
     OwnPtrWillBeMember<InspectorResourceContentLoader> m_resourceContentLoader;
-    OwnPtrWillBeMember<InspectorCompositeState> m_state;
     OwnPtrWillBeMember<InspectorOverlay> m_overlay;
     OwnPtrWillBeMember<InspectedFrames> m_inspectedFrames;
 
@@ -168,6 +162,7 @@ private:
     NotificationQueue m_notificationQueue;
     int m_sessionId;
     String m_stateCookie;
+    bool m_stateMuted;
 
     friend class DebuggerTask;
 };

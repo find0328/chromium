@@ -363,6 +363,7 @@ html element button
 html element canvas
     property getContext
     property height
+    property toBlob
     property toDataURL
     property width
 html element caption
@@ -636,6 +637,7 @@ html element li
     property type
     property value
 html element link
+    property as
     property charset
     property crossOrigin
     property disabled
@@ -645,6 +647,7 @@ html element link
     property integrity
     property media
     property rel
+    property relList
     property rev
     property sheet
     property sizes

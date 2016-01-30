@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "mojo/runner/register_local_aliases.h"
+#include "mojo/shell/standalone/register_local_aliases.h"
 
 namespace mojo {
-namespace runner {
+namespace shell {
 
-void RegisterLocalAliases(shell::PackageManagerImpl* manager) {
+void RegisterLocalAliases(PackageManagerImpl* manager) {
 }
 
-}  // namespace runner
+}  // namespace shell
 }  // namespace mojo

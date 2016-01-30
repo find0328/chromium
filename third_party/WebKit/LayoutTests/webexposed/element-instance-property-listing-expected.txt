@@ -290,6 +290,7 @@ html element audio
     property autoplay
     property buffered
     property canPlayType
+    property captureStream
     property controls
     property crossOrigin
     property currentSrc
@@ -856,7 +857,6 @@ html element shadow
     property getDistributedNodes
 html element slot
     property getAssignedNodes
-    property getDistributedNodes
     property name
 html element small
 html element source
@@ -1037,6 +1037,7 @@ html element video
     property autoplay
     property buffered
     property canPlayType
+    property captureStream
     property controls
     property crossOrigin
     property currentSrc

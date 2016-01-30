@@ -388,8 +388,6 @@ bool WebPluginDelegateProxy::OnMessageReceived(const IPC::Message& msg) {
                         OnDeferResourceLoading)
     IPC_MESSAGE_HANDLER(PluginHostMsg_URLRedirectResponse,
                         OnURLRedirectResponse)
-    IPC_MESSAGE_HANDLER(PluginHostMsg_CheckIfRunInsecureContent,
-                        OnCheckIfRunInsecureContent)
 #if defined(OS_WIN)
     IPC_MESSAGE_HANDLER(PluginHostMsg_SetWindowlessData, OnSetWindowlessData)
     IPC_MESSAGE_HANDLER(PluginHostMsg_NotifyIMEStatus, OnNotifyIMEStatus)
@@ -557,7 +555,7 @@ static size_t BitmapSizeForPluginRect(const gfx::Rect& plugin_rect) {
 
 bool WebPluginDelegateProxy::CreateLocalBitmap(
     std::vector<uint8_t>* memory,
-    scoped_ptr<skia::PlatformCanvas>* canvas) {
+    scoped_ptr<SkCanvas>* canvas) {
   const size_t size = BitmapSizeForPluginRect(plugin_rect_);
   memory->resize(size);
   if (memory->size() != size)
@@ -571,7 +569,7 @@ bool WebPluginDelegateProxy::CreateLocalBitmap(
 
 bool WebPluginDelegateProxy::CreateSharedBitmap(
     scoped_ptr<SharedMemoryBitmap>* memory,
-    scoped_ptr<skia::PlatformCanvas>* canvas) {
+    scoped_ptr<SkCanvas>* canvas) {
   *memory = ChildThreadImpl::current()
                 ->shared_bitmap_manager()
                 ->AllocateSharedMemoryBitmap(plugin_rect_.size());
@@ -1078,11 +1076,6 @@ void WebPluginDelegateProxy::OnURLRedirectResponse(bool allow,
     return;
 
   plugin_->URLRedirectResponse(allow, resource_id);
-}
-
-void WebPluginDelegateProxy::OnCheckIfRunInsecureContent(const GURL& url,
-                                                         bool* result) {
-  *result = plugin_->CheckIfRunInsecureContent(url);
 }
 
 }  // namespace content

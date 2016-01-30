@@ -94,6 +94,7 @@ public:
     void invalidateRect(const IntRect&) override;
     void scheduleAnimation(Widget*) override;
     IntRect viewportToScreen(const IntRect&) const override;
+    FloatRect windowToViewport(const FloatRect&) const override;
     WebScreenInfo screenInfo() const override;
     void contentsSizeChanged(LocalFrame*, const IntSize&) const override;
     void pageScaleFactorChanged() const override;
@@ -111,6 +112,8 @@ public:
     void setCursor(const Cursor&, LocalFrame* localRoot) override;
     Cursor lastSetCursorForTesting() const override;
     void needTouchEvents(bool needTouchEvents) override;
+    void setHaveWheelEventHandlers(bool hasEventHandlers) override;
+    bool haveWheelEventHandlers() const override;
     void setTouchAction(TouchAction) override;
 
     GraphicsLayerFactory* graphicsLayerFactory() const override;

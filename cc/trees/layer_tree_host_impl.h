@@ -9,9 +9,9 @@
 
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "base/containers/hash_tables.h"
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/time/time.h"
@@ -192,7 +192,7 @@ class CC_EXPORT LayerTreeHostImpl
   bool IsCurrentlyScrollingLayerAt(
       const gfx::Point& viewport_point,
       InputHandler::ScrollInputType type) const override;
-  bool HaveWheelEventHandlersAt(const gfx::Point& viewport_point) override;
+  bool HaveWheelEventHandlers() const override;
   bool DoTouchEventsBlockScrollAt(const gfx::Point& viewport_port) override;
   scoped_ptr<SwapPromiseMonitor> CreateLatencyInfoSwapPromiseMonitor(
       ui::LatencyInfo* latency) override;
@@ -684,8 +684,7 @@ class CC_EXPORT LayerTreeHostImpl
       LayerImpl* layer_hit_by_point,
       bool* scroll_on_main_thread,
       bool* optional_has_ancestor_scroll_handler,
-      InputHandler::MainThreadScrollingReason* main_thread_scrolling_reason)
-      const;
+      uint32_t* main_thread_scrolling_reason) const;
   float DeviceSpaceDistanceToLayer(const gfx::PointF& device_viewport_point,
                                    LayerImpl* layer_impl);
   void StartScrollbarFadeRecursive(LayerImpl* layer);
@@ -707,8 +706,7 @@ class CC_EXPORT LayerTreeHostImpl
   bool ScrollAnimationUpdateTarget(LayerImpl* layer_impl,
                                    const gfx::Vector2dF& scroll_delta);
 
-  typedef base::hash_map<UIResourceId, UIResourceData>
-      UIResourceMap;
+  using UIResourceMap = std::unordered_map<UIResourceId, UIResourceData>;
   UIResourceMap ui_resource_map_;
 
   // Resources that were evicted by EvictAllUIResources. Resources are removed
@@ -810,7 +808,7 @@ class CC_EXPORT LayerTreeHostImpl
 
   // Map from scroll layer ID to scrollbar animation controller.
   // There is one animation controller per pair of overlay scrollbars.
-  base::ScopedPtrHashMap<int, scoped_ptr<ScrollbarAnimationController>>
+  std::unordered_map<int, scoped_ptr<ScrollbarAnimationController>>
       scrollbar_animation_controllers_;
 
   RenderingStatsInstrumentation* rendering_stats_instrumentation_;

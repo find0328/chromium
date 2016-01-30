@@ -163,20 +163,20 @@ class NET_EXPORT HttpResponseHeaders
   // header appears on multiple lines, then it will appear multiple times in
   // this enumeration (in the order the header lines were received from the
   // server).  Also, a given header might have an empty value.  Initialize a
-  // 'void*' variable to NULL and pass it by address to EnumerateHeaderLines.
+  // 'size_t' variable to 0 and pass it by address to EnumerateHeaderLines.
   // Call EnumerateHeaderLines repeatedly until it returns false.  The
   // out-params 'name' and 'value' are set upon success.
-  bool EnumerateHeaderLines(void** iter,
+  bool EnumerateHeaderLines(size_t* iter,
                             std::string* name,
                             std::string* value) const;
 
   // Enumerate the values of the specified header.   If you are only interested
-  // in the first header, then you can pass NULL for the 'iter' parameter.
+  // in the first header, then you can pass nullptr for the 'iter' parameter.
   // Otherwise, to iterate across all values for the specified header,
-  // initialize a 'void*' variable to NULL and pass it by address to
+  // initialize a 'size_t' variable to 0 and pass it by address to
   // EnumerateHeader. Note that a header might have an empty value. Call
   // EnumerateHeader repeatedly until it returns false.
-  bool EnumerateHeader(void** iter,
+  bool EnumerateHeader(size_t* iter,
                        const base::StringPiece& name,
                        std::string* value) const;
 

@@ -188,6 +188,24 @@ static SpellCheckRequester* spellCheckRequester(Document* document)
     return &document->frame()->spellChecker().spellCheckRequester();
 }
 
+static ScrollableArea* scrollableAreaForNode(Node* node)
+{
+    if (!node)
+        return nullptr;
+
+    if (node->isDocumentNode()) {
+        // This can be removed after root layer scrolling is enabled.
+        if (FrameView* frameView = toDocument(node)->view())
+            return frameView->scrollableArea();
+    }
+
+    LayoutObject* layoutObject = node->layoutObject();
+    if (!layoutObject || !layoutObject->isBox())
+        return nullptr;
+
+    return toLayoutBox(layoutObject)->scrollableArea();
+}
+
 const char* Internals::internalsId = "internals";
 
 Internals* Internals::create(ScriptState* scriptState)
@@ -291,9 +309,9 @@ unsigned Internals::updateStyleAndReturnAffectedElementCount(ExceptionState& exc
         return 0;
     }
 
-    unsigned beforeCount = document->styleEngine().resolverAccessCount();
+    unsigned beforeCount = document->styleEngine().styleForElementCount();
     document->updateLayoutTreeIfNeeded();
-    return document->styleEngine().resolverAccessCount() - beforeCount;
+    return document->styleEngine().styleForElementCount() - beforeCount;
 }
 
 unsigned Internals::needsLayoutCount(ExceptionState& exceptionState) const
@@ -1804,17 +1822,6 @@ String Internals::pageSizeAndMarginsInPixels(int pageNumber, int width, int heig
     return PrintContext::pageSizeAndMarginsInPixels(frame(), pageNumber, width, height, marginTop, marginRight, marginBottom, marginLeft);
 }
 
-void Internals::setDeviceScaleFactor(float scaleFactor, ExceptionState& exceptionState)
-{
-    Document* document = contextDocument();
-    if (!document || !document->page()) {
-        exceptionState.throwDOMException(InvalidAccessError, document ? "The document's page cannot be retrieved." : "No context document can be obtained.");
-        return;
-    }
-    Page* page = document->page();
-    page->setDeviceScaleFactor(scaleFactor);
-}
-
 void Internals::setPageScaleFactor(float scaleFactor, ExceptionState& exceptionState)
 {
     Document* document = contextDocument();
@@ -2515,23 +2522,11 @@ void Internals::setCapsLockState(bool enabled)
         PlatformKeyboardEvent::OverrideCapsLockState::On : PlatformKeyboardEvent::OverrideCapsLockState::Off);
 }
 
-void Internals::setSelectionPaintingWithoutSelectionGapsEnabled(bool enabled)
-{
-    RuntimeEnabledFeatures::setSelectionPaintingWithoutSelectionGapsEnabled(enabled);
-}
-
 bool Internals::setScrollbarVisibilityInScrollableArea(Node* node, bool visible)
 {
-    LayoutObject* layoutObject = node->layoutObject();
-    if (!layoutObject)
-        return false;
-    PaintLayer* layer = layoutObject->enclosingLayer();
-    if (!layer)
-        return false;
-    ScrollableArea* scrollableArea = layer->scrollableArea();
-    if (!scrollableArea)
-        return false;
-    return layer->scrollableArea()->scrollAnimator().setScrollbarsVisibleForTesting(visible);
+    if (ScrollableArea* scrollableArea = scrollableAreaForNode(node))
+        return scrollableArea->scrollAnimator().setScrollbarsVisibleForTesting(visible);
+    return false;
 }
 
 void Internals::forceRestrictIFramePermissions()
@@ -2562,6 +2557,13 @@ void Internals::setMediaElementNetworkState(HTMLMediaElement* mediaElement, int 
 void Internals::triggerAutoplayViewportCheck(HTMLMediaElement* element)
 {
     element->triggerAutoplayViewportCheckForTesting();
+}
+
+int Internals::getScrollAnimationState(Node* node) const
+{
+    if (ScrollableArea* scrollableArea = scrollableAreaForNode(node))
+        return static_cast<int>(scrollableArea->scrollAnimator().m_runState);
+    return -1;
 }
 
 } // namespace blink

@@ -4,6 +4,7 @@
 
 #include "base/lazy_instance.h"
 #include "base/memory/singleton.h"
+#include "base/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event_impl.h"
 #include "content/browser/tracing/battor_power_trace_provider.h"
 #include "content/browser/tracing/power_tracing_agent.h"
@@ -37,23 +38,29 @@ std::string PowerTracingAgent::GetTraceEventLabel() {
   return kPowerTraceLabel;
 }
 
-bool PowerTracingAgent::StartAgentTracing(
-    const base::trace_event::TraceConfig& trace_config) {
+void PowerTracingAgent::StartAgentTracing(
+    const base::trace_event::TraceConfig& trace_config,
+    const StartAgentTracingCallback& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   // TODO(charliea): When system tracing is enabled in about://tracing, it will
   // trigger power tracing. We need a way of checking if BattOr is connected.
   // Currently, IsConnected() always returns false, so that we do not include
   // BattOr trace until it is hooked up.
-  if (!battor_trace_provider_->IsConnected())
-    return false;
-
+  if (!battor_trace_provider_->IsConnected()) {
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE,
+        base::Bind(callback, GetTracingAgentName(), false /* success */));
+    return;
+  }
   thread_.Start();
 
   thread_.task_runner()->PostTask(
       FROM_HERE,
       base::Bind(&PowerTracingAgent::TraceOnThread, base::Unretained(this)));
-  return true;
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE,
+      base::Bind(callback, GetTracingAgentName(), true /* success */));
 }
 
 void PowerTracingAgent::StopAgentTracing(
@@ -108,7 +115,7 @@ bool PowerTracingAgent::SupportsExplicitClockSync() {
 }
 
 void PowerTracingAgent::RecordClockSyncMarker(
-    int sync_id,
+    const std::string& sync_id,
     const RecordClockSyncMarkerCallback& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(SupportsExplicitClockSync());
@@ -122,7 +129,7 @@ void PowerTracingAgent::RecordClockSyncMarker(
 }
 
 void PowerTracingAgent::RecordClockSyncMarkerOnThread(
-    int sync_id,
+    const std::string& sync_id,
     const RecordClockSyncMarkerCallback& callback) {
   DCHECK(thread_.task_runner()->BelongsToCurrentThread());
   DCHECK(SupportsExplicitClockSync());

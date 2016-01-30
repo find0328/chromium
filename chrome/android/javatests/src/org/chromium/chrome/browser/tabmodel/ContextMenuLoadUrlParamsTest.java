@@ -4,9 +4,10 @@
 
 package org.chromium.chrome.browser.tabmodel;
 
-import android.test.FlakyTest;
+import android.test.suitebuilder.annotation.MediumTest;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeActivity;
 import org.chromium.chrome.browser.tab.Tab;
@@ -24,6 +25,12 @@ import java.util.concurrent.TimeoutException;
  * Verifies URL load parameters set when triggering navigations from the context menu.
  */
 public class ContextMenuLoadUrlParamsTest extends ChromeTabbedActivityTestBase {
+    private static final String HTML_PATH =
+            "chrome/test/data/android/contextmenu/context_menu_test.html";
+    private static final String TEST_URL = TestHttpServerClient.getUrl(HTML_PATH);
+    private static final String TEST_URL_USER_PASS =
+            TestHttpServerClient.getUrl(HTML_PATH, "user", "pass");
+
     // Load parameters of the last call to openNewTab().
     LoadUrlParams mOpenNewTabLoadUrlParams;
 
@@ -67,34 +74,25 @@ public class ContextMenuLoadUrlParamsTest extends ChromeTabbedActivityTestBase {
 
     /**
      * Verifies that the referrer is correctly set for "Open in new tab".
-     * Bug: crbug.com/413216
-     * @MediumTest
-     * @Feature({"Browser"})
      */
-    @FlakyTest
+    @MediumTest
+    @Feature({"Browser"})
     public void testOpenInNewTabReferrer()
             throws InterruptedException, TimeoutException {
-        String url =
-                TestHttpServerClient.getUrl("chrome/test/data/android/context_menu_test.html");
-        String expectedReferrer = url;
-        triggerContextMenuLoad(url, "testLink", R.id.contextmenu_open_in_new_tab);
+        triggerContextMenuLoad(TEST_URL, "testLink", R.id.contextmenu_open_in_new_tab);
 
         assertNotNull(mOpenNewTabLoadUrlParams);
-        assertEquals(expectedReferrer, mOpenNewTabLoadUrlParams.getReferrer().getUrl());
+        assertEquals(TEST_URL, mOpenNewTabLoadUrlParams.getReferrer().getUrl());
     }
 
     /**
      * Verifies that the referrer is not set for "Open in new incognito tab".
-     * Bug: crbug.com/413216
-     * @MediumTest
-     * @Feature({"Browser"})
      */
-    @FlakyTest
+    @MediumTest
+    @Feature({"Browser"})
     public void testOpenInIncognitoTabNoReferrer()
             throws InterruptedException, TimeoutException {
-        String url =
-                TestHttpServerClient.getUrl("chrome/test/data/android/context_menu_test.html");
-        triggerContextMenuLoad(url, "testLink", R.id.contextmenu_open_in_incognito_tab);
+        triggerContextMenuLoad(TEST_URL, "testLink", R.id.contextmenu_open_in_incognito_tab);
 
         assertNotNull(mOpenNewTabLoadUrlParams);
         assertNull(mOpenNewTabLoadUrlParams.getReferrer());
@@ -102,22 +100,16 @@ public class ContextMenuLoadUrlParamsTest extends ChromeTabbedActivityTestBase {
 
     /**
      * Verifies that the referrer is stripped from username and password fields.
-     * Bug: crbug.com/413216
-     * @MediumTest
-     * @Feature({"Browser"})
      */
-    @FlakyTest
+    @MediumTest
+    @Feature({"Browser"})
     public void testOpenInNewTabSanitizeReferrer()
             throws InterruptedException, TimeoutException {
-        String url = TestHttpServerClient.getUrl("chrome/test/data/android/context_menu_test.html",
-                "user", "pass");
-        String expectedReferrer =
-                TestHttpServerClient.getUrl("chrome/test/data/android/context_menu_test.html");
-        assertTrue(url.contains("pass"));  // Sanity check.
-        triggerContextMenuLoad(url, "testLink", R.id.contextmenu_open_in_new_tab);
+        assertTrue(TEST_URL_USER_PASS.contains("pass")); // Sanity check.
+        triggerContextMenuLoad(TEST_URL_USER_PASS, "testLink", R.id.contextmenu_open_in_new_tab);
 
         assertNotNull(mOpenNewTabLoadUrlParams);
-        assertEquals(expectedReferrer, mOpenNewTabLoadUrlParams.getReferrer().getUrl());
+        assertEquals(TEST_URL, mOpenNewTabLoadUrlParams.getReferrer().getUrl());
     }
 
     private void triggerContextMenuLoad(String url, String openerDomId, int menuItemId)
@@ -134,4 +126,3 @@ public class ContextMenuLoadUrlParamsTest extends ChromeTabbedActivityTestBase {
         startMainActivityOnBlankPage();
     }
 }
-

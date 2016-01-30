@@ -376,13 +376,17 @@ const FeatureEntry::Choice kFillOnAccountSelectChoices[] = {
 
 #if defined(ENABLE_TOPCHROME_MD)
 const FeatureEntry::Choice kTopChromeMaterialDesignChoices[] = {
-    {IDS_FLAGS_TOP_CHROME_MD_NON_MATERIAL, "", ""},
-    {IDS_FLAGS_TOP_CHROME_MD_MATERIAL,
-     switches::kTopChromeMD,
-     switches::kTopChromeMDMaterial},
-    {IDS_FLAGS_TOP_CHROME_MD_MATERIAL_HYBRID,
-     switches::kTopChromeMD,
-     switches::kTopChromeMDMaterialHybrid}};
+  { IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", "" },
+  { IDS_FLAGS_TOP_CHROME_MD_NON_MATERIAL,
+    switches::kTopChromeMD,
+    switches::kTopChromeMDNonMaterial },
+  { IDS_FLAGS_TOP_CHROME_MD_MATERIAL,
+    switches::kTopChromeMD,
+    switches::kTopChromeMDMaterial },
+  { IDS_FLAGS_TOP_CHROME_MD_MATERIAL_HYBRID,
+    switches::kTopChromeMD,
+    switches::kTopChromeMDMaterialHybrid },
+};
 #endif
 
 #if defined(OS_CHROMEOS)
@@ -504,6 +508,18 @@ const FeatureEntry::Choice kUpdateMenuItemSummaryChoices[] = {
         switches::kForceShowUpdateMenuItemNewFeaturesSummary, ""},
     {IDS_FLAGS_UPDATE_MENU_ITEM_CUSTOM_SUMMARY,
         switches::kForceShowUpdateMenuItemCustomSummary, "Custom summary"},
+};
+#endif  // defined(OS_ANDROID)
+
+#if defined(OS_ANDROID)
+const FeatureEntry::Choice kEnableOfflinePagesChoices[] = {
+    {IDS_GENERIC_EXPERIMENT_CHOICE_DEFAULT, "", ""},
+    {IDS_FLAGS_ENABLE_OFFLINE_PAGES_AS_BOOKMARKS,
+     switches::kEnableOfflinePagesAsBookmarks, ""},
+    {IDS_FLAGS_ENABLE_OFFLINE_PAGES_AS_SAVED_PAGES,
+     switches::kEnableOfflinePagesAsSavedPages, ""},
+    {IDS_GENERIC_EXPERIMENT_CHOICE_DISABLED, switches::kDisableOfflinePages,
+     ""},
 };
 #endif  // defined(OS_ANDROID)
 
@@ -1939,12 +1955,9 @@ const FeatureEntry kFeatureEntries[] = {
      MULTI_VALUE_TYPE(kProgressBarAnimationChoices)},
 #endif  // defined(OS_ANDROID)
 #if defined(OS_ANDROID)
-    {"offline-pages",
-     IDS_FLAGS_OFFLINE_PAGES_NAME,
-     IDS_FLAGS_OFFLINE_PAGES_DESCRIPTION,
-     kOsAndroid,
-     ENABLE_DISABLE_VALUE_TYPE(switches::kEnableOfflinePages,
-                               switches::kDisableOfflinePages)},
+    {"offline-pages-mode", IDS_FLAGS_OFFLINE_PAGES_NAME,
+     IDS_FLAGS_OFFLINE_PAGES_DESCRIPTION, kOsAndroid,
+     MULTI_VALUE_TYPE(kEnableOfflinePagesChoices)},
 #endif  // defined(OS_ANDROID)
     {"low-priority-iframes",
      IDS_FLAGS_LOW_PRIORITY_IFRAMES_UI_NAME,

@@ -62,10 +62,9 @@ public:
     };
 
     ~InspectorRuntimeAgent() override;
-    DECLARE_VIRTUAL_TRACE();
 
     // InspectorBaseAgent overrides.
-    void init() override;
+    void setState(PassRefPtr<JSONObject>) override;
     void setFrontend(InspectorFrontend*) override;
     void clearFrontend() override;
     void restore() override;
@@ -117,7 +116,7 @@ protected:
 private:
 
     OwnPtr<V8RuntimeAgent> m_v8RuntimeAgent;
-    RawPtrWillBeMember<InjectedScriptManager> m_injectedScriptManager;
+    InjectedScriptManager* m_injectedScriptManager;
     Client* m_client;
 };
 

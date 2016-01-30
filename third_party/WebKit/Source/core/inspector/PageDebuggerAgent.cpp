@@ -36,12 +36,12 @@
 #include "core/frame/FrameConsole.h"
 #include "core/frame/LocalFrame.h"
 #include "core/inspector/AsyncCallTracker.h"
-#include "core/inspector/InjectedScript.h"
 #include "core/inspector/InspectedFrames.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InspectorTraceEvents.h"
 #include "core/inspector/InstrumentingAgents.h"
 #include "core/inspector/MainThreadDebugger.h"
+#include "core/inspector/v8/InjectedScript.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/page/Page.h"
 
@@ -70,7 +70,6 @@ PageDebuggerAgent::~PageDebuggerAgent()
 DEFINE_TRACE(PageDebuggerAgent)
 {
     visitor->trace(m_inspectedFrames);
-    visitor->trace(m_injectedScriptManager);
     InspectorDebuggerAgent::trace(visitor);
 }
 
@@ -133,12 +132,18 @@ void PageDebuggerAgent::didClearDocumentOfWindowObject(LocalFrame* frame)
 
 void PageDebuggerAgent::compileScript(ErrorString* errorString, const String& expression, const String& sourceURL, bool persistScript, int executionContextId, TypeBuilder::OptOutput<ScriptId>* scriptId, RefPtr<ExceptionDetails>& exceptionDetails)
 {
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(executionContextId);
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(executionContextId);
+    if (!injectedScript) {
         *errorString = "Inspected frame has gone";
         return;
     }
-    ExecutionContext* executionContext = injectedScript.scriptState()->executionContext();
+    v8::HandleScope handles(injectedScript->isolate());
+    ExecutionContext* executionContext = toExecutionContext(injectedScript->context());
+    if (!executionContext) {
+        *errorString = "Inspected frame has gone";
+        return;
+    }
+
     RefPtrWillBeRawPtr<LocalFrame> protect(toDocument(executionContext)->frame());
     InspectorDebuggerAgent::compileScript(errorString, expression, sourceURL, persistScript, executionContextId, scriptId, exceptionDetails);
     if (!scriptId->isAssigned())
@@ -151,12 +156,17 @@ void PageDebuggerAgent::compileScript(ErrorString* errorString, const String& ex
 
 void PageDebuggerAgent::runScript(ErrorString* errorString, const ScriptId& scriptId, int executionContextId, const String* const objectGroup, const bool* const doNotPauseOnExceptionsAndMuteConsole, RefPtr<RemoteObject>& result, RefPtr<ExceptionDetails>& exceptionDetails)
 {
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(executionContextId);
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(executionContextId);
+    if (!injectedScript) {
         *errorString = "Inspected frame has gone";
         return;
     }
-    ExecutionContext* executionContext = injectedScript.scriptState()->executionContext();
+    v8::HandleScope handles(injectedScript->isolate());
+    ExecutionContext* executionContext = toExecutionContext(injectedScript->context());
+    if (!executionContext) {
+        *errorString = "Inspected frame has gone";
+        return;
+    }
 
     String sourceURL = m_compiledScriptURLs.take(scriptId);
     LocalFrame* frame = toDocument(executionContext)->frame();

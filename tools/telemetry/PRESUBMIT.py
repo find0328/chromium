@@ -6,18 +6,35 @@
 def _CommonChecks(input_api, output_api):
   results = []
 
-  # TODO(nednguyen): Remove this once telemetry is switched over to use
-  # catapult/catapult_base/. (crbug.com/565604)
-  black_list = list(input_api.DEFAULT_BLACK_LIST) + [
-    r'.*catapult_base/.*']
-
   results.extend(input_api.RunTests(input_api.canned_checks.GetPylint(
       input_api, output_api, extra_paths_list=_GetPathsToPrepend(input_api),
-      black_list=black_list, pylintrc='pylintrc')))
+      pylintrc='pylintrc')))
   results.extend(_CheckNoMoreUsageOfDeprecatedCode(
     input_api, output_api, deprecated_code='GetChromiumSrcDir()',
     crbug_number=511332))
+
+  results.extend(_TemporarilyReadOnly(input_api, output_api))
   return results
+
+
+def _TemporarilyReadOnly(input_api, output_api):
+  # Temporarily make tools/telemetry/ read-only for the move to catapult.
+
+  def other_files(f):
+    this_presubmit_file = input_api.os_path.join(
+        input_api.PresubmitLocalPath(), 'PRESUBMIT.py')
+    return not f.AbsoluteLocalPath() == this_presubmit_file
+
+  changed_files = input_api.AffectedSourceFiles(other_files)
+  if changed_files:
+    return [output_api.PresubmitError(
+        'tools/telemetry/ has moved to the catapult repo. It is deprecated and '
+        'scheduled for deletion on 1/29/16.'
+        '\nPlease instead make your changes to telemetry/ '
+        'in https://github.com/catapult-project/catapult/tree/master/telemetry.'
+        '\nContact aiolos@ for further questions. Changed files:\n',
+        items=changed_files)]
+  return []
 
 
 def _RunArgs(args, input_api):
@@ -109,9 +126,12 @@ def _GetPathsToPrepend(input_api):
 
       input_api.os_path.join(chromium_src_dir, 'build', 'android'),
       input_api.os_path.join(chromium_src_dir,
+                             'third_party', 'catapult', 'catapult_base'),
+      input_api.os_path.join(chromium_src_dir,
+                             'third_party', 'catapult', 'dependency_manager'),
+      input_api.os_path.join(chromium_src_dir,
                              'third_party', 'catapult', 'tracing'),
   ]
-
 
 
 def CheckChangeOnUpload(input_api, output_api):

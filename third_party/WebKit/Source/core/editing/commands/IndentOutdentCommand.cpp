@@ -39,11 +39,18 @@ namespace blink {
 
 using namespace HTMLNames;
 
+// Returns true if |node| is UL, OL, or BLOCKQUOTE with "display:block".
+// "Outdent" command considers <BLOCKQUOTE style="display:inline"> makes
+// indentation.
 static bool isHTMLListOrBlockquoteElement(const Node* node)
 {
     if (!node || !node->isHTMLElement())
         return false;
+    if (!node->layoutObject() || !node->layoutObject()->isLayoutBlock())
+        return false;
     const HTMLElement& element = toHTMLElement(*node);
+    // TODO(yosin): We should check OL/UL element has "list-style-type" CSS
+    // property to make sure they layout contents as list.
     return isHTMLUListElement(element) || isHTMLOListElement(element) || element.hasTagName(blockquoteTag);
 }
 
@@ -111,7 +118,7 @@ void IndentOutdentCommand::indentIntoBlockquote(const Position& start, const Pos
     else if (enclosingList(start.computeContainerNode()))
         elementToSplitTo = enclosingBlock(start.computeContainerNode());
     else
-        elementToSplitTo = editableRootForPosition(start);
+        elementToSplitTo = rootEditableElementOf(start);
 
     if (!elementToSplitTo)
         return;
@@ -260,4 +267,4 @@ void IndentOutdentCommand::formatRange(const Position& start, const Position& en
         indentIntoBlockquote(start, end, blockquoteForNextIndent);
 }
 
-}
+} // namespace blink

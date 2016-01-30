@@ -117,7 +117,8 @@ public:
         DirectAdjacent, // + combinator
         IndirectAdjacent, // ~ combinator
         ShadowPseudo, // Special case of shadow DOM pseudo elements / shadow pseudo element
-        ShadowDeep // /deep/ combinator
+        ShadowDeep, // /deep/ combinator
+        ShadowSlot // slotted to <slot> element
     };
 
     enum PseudoType {
@@ -201,7 +202,8 @@ public:
         PseudoHostContext,
         PseudoShadow,
         PseudoSpatialNavigationFocus,
-        PseudoListBox
+        PseudoListBox,
+        PseudoSlotted
     };
 
     enum AttributeMatchType {
@@ -254,7 +256,7 @@ public:
     bool isSiblingSelector() const;
     bool isAttributeSelector() const { return m_match >= FirstAttributeSelectorMatch; }
     bool isHostPseudoClass() const { return m_pseudoType == PseudoHost || m_pseudoType == PseudoHostContext; }
-    bool isInsertionPointCrossing() const { return m_pseudoType == PseudoHostContext || m_pseudoType == PseudoContent; }
+    bool isInsertionPointCrossing() const { return m_pseudoType == PseudoHostContext || m_pseudoType == PseudoContent || m_pseudoType == PseudoSlotted; }
 
     Relation relation() const { return static_cast<Relation>(m_relation); }
     void setRelation(Relation relation)
@@ -287,6 +289,8 @@ public:
     bool relationIsAffectedByPseudoContent() const { return m_relationIsAffectedByPseudoContent; }
     void setRelationIsAffectedByPseudoContent() { m_relationIsAffectedByPseudoContent = true; }
 
+    bool matchesPseudoElement() const;
+
 private:
     unsigned m_relation               : 3; // enum Relation
     unsigned m_match                  : 4; // enum Match
@@ -296,7 +300,7 @@ private:
     unsigned m_hasRareData            : 1;
     unsigned m_isForPage              : 1;
     unsigned m_tagIsImplicit          : 1;
-    unsigned m_relationIsAffectedByPseudoContent  : 1;
+    unsigned m_relationIsAffectedByPseudoContent : 1;
 
     void setPseudoType(PseudoType pseudoType)
     {

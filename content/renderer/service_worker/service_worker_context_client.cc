@@ -32,6 +32,7 @@
 #include "content/common/mojo/service_registry_impl.h"
 #include "content/common/service_worker/embedded_worker_messages.h"
 #include "content/common/service_worker/service_worker_messages.h"
+#include "content/public/common/push_event_payload.h"
 #include "content/public/common/referrer.h"
 #include "content/public/renderer/content_renderer_client.h"
 #include "content/public/renderer/document_state.h"
@@ -42,6 +43,7 @@
 #include "content/renderer/service_worker/service_worker_type_util.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_macros.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebCrossOriginServiceWorkerClient.h"
 #include "third_party/WebKit/public/platform/WebMessagePortChannel.h"
 #include "third_party/WebKit/public/platform/WebPassOwnPtr.h"
@@ -448,10 +450,8 @@ void ServiceWorkerContextClient::reportException(
     int column_number,
     const blink::WebString& source_url) {
   Send(new EmbeddedWorkerHostMsg_ReportException(
-      embedded_worker_id_,
-      error_message,
-      line_number,
-      column_number, GURL(source_url)));
+      embedded_worker_id_, error_message, line_number, column_number,
+      blink::WebStringToGURL(source_url)));
 }
 
 void ServiceWorkerContextClient::reportConsoleMessage(
@@ -465,7 +465,7 @@ void ServiceWorkerContextClient::reportConsoleMessage(
   params.message_level = level;
   params.message = message;
   params.line_number = line_number;
-  params.source_url = GURL(source_url);
+  params.source_url = blink::WebStringToGURL(source_url);
 
   Send(new EmbeddedWorkerHostMsg_ReportConsoleMessage(
       embedded_worker_id_, params));
@@ -522,7 +522,7 @@ void ServiceWorkerContextClient::didHandleNotificationClickEvent(
     int request_id,
     blink::WebServiceWorkerEventResult result) {
   Send(new ServiceWorkerHostMsg_NotificationClickEventFinished(
-      GetRoutingID(), request_id));
+      GetRoutingID(), request_id, result));
 }
 
 void ServiceWorkerContextClient::didHandlePushEvent(
@@ -540,9 +540,9 @@ void ServiceWorkerContextClient::didHandleSyncEvent(
   if (!callback)
     return;
   if (result == blink::WebServiceWorkerEventResultCompleted) {
-    callback->Run(SERVICE_WORKER_EVENT_STATUS_COMPLETED);
+    callback->Run(ServiceWorkerEventStatus::COMPLETED);
   } else {
-    callback->Run(SERVICE_WORKER_EVENT_STATUS_REJECTED);
+    callback->Run(ServiceWorkerEventStatus::REJECTED);
   }
   context_->sync_event_callbacks.Remove(request_id);
 }
@@ -761,10 +761,14 @@ void ServiceWorkerContextClient::OnNotificationClickEvent(
 }
 
 void ServiceWorkerContextClient::OnPushEvent(int request_id,
-                                             const std::string& data) {
+                                             const PushEventPayload& payload) {
   TRACE_EVENT0("ServiceWorker",
                "ServiceWorkerContextClient::OnPushEvent");
-  proxy_->dispatchPushEvent(request_id, blink::WebString::fromUTF8(data));
+  // Only set data to be a valid string if the payload had decrypted data.
+  blink::WebString data;
+  if (!payload.is_null)
+    data.assign(blink::WebString::fromUTF8(payload.data));
+  proxy_->dispatchPushEvent(request_id, data);
 }
 
 void ServiceWorkerContextClient::OnGeofencingEvent(

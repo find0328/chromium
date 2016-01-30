@@ -47,6 +47,7 @@
 #include "core/html/HTMLInputElement.h"
 #include "core/html/HTMLOptionElement.h"
 #include "core/html/HTMLSelectElement.h"
+#include "core/html/HTMLSlotElement.h"
 #include "core/html/parser/HTMLParserIdioms.h"
 #include "core/html/track/vtt/VTTElement.h"
 #include "core/inspector/InspectorInstrumentation.h"
@@ -111,6 +112,20 @@ static Element* parentElement(const SelectorChecker::SelectorCheckingContext& co
     if (context.scope && (context.scope == context.element->containingShadowRoot() || context.scope->treeScope() == context.element->treeScope()))
         return context.element->parentOrShadowHostElement();
     return context.element->parentElement();
+}
+
+static const HTMLSlotElement* findSlotElementInScope(const SelectorChecker::SelectorCheckingContext& context)
+{
+    if (!context.scope)
+        return nullptr;
+
+    const HTMLSlotElement* slot = context.element->assignedSlot();
+    while (slot) {
+        if (slot->treeScope() == context.scope->treeScope())
+            return slot;
+        slot = slot->assignedSlot();
+    }
+    return nullptr;
 }
 
 static bool scopeContainsLastMatchedElement(const SelectorChecker::SelectorCheckingContext& context)
@@ -280,16 +295,8 @@ SelectorChecker::Match SelectorChecker::matchForSubSelector(const SelectorChecki
     SelectorCheckingContext nextContext = prepareNextContextForRelation(context);
 
     PseudoId dynamicPseudo = result.dynamicPseudo;
-    // a selector is invalid if something follows a pseudo-element
-    // We make an exception for scrollbar pseudo elements and allow a set of pseudo classes (but nothing else)
-    // to follow the pseudo elements.
     nextContext.hasScrollbarPseudo = dynamicPseudo != NOPSEUDO && (context.scrollbar || dynamicPseudo == SCROLLBAR_CORNER || dynamicPseudo == RESIZER);
     nextContext.hasSelectionPseudo = dynamicPseudo == SELECTION;
-    if ((context.inRightmostCompound || m_mode == CollectingCSSRules || m_mode == CollectingStyleRules || m_mode == QueryingRules) && dynamicPseudo != NOPSEUDO
-        && !nextContext.hasSelectionPseudo
-        && !(nextContext.hasScrollbarPseudo && nextContext.selector->match() == CSSSelector::PseudoClass))
-        return SelectorFailsCompletely;
-
     nextContext.isSubSelector = true;
     return matchSelector(nextContext, result);
 }
@@ -334,7 +341,7 @@ SelectorChecker::Match SelectorChecker::matchForRelation(const SelectorCheckingC
     case CSSSelector::Descendant:
         if (context.selector->relationIsAffectedByPseudoContent()) {
             for (Element* element = context.element; element; element = element->parentElement()) {
-                if (matchForShadowDistributed(nextContext, *element, result) == SelectorMatches)
+                if (matchForPseudoContent(nextContext, *element, result) == SelectorMatches)
                     return SelectorMatches;
             }
             return SelectorFailsCompletely;
@@ -356,7 +363,7 @@ SelectorChecker::Match SelectorChecker::matchForRelation(const SelectorCheckingC
     case CSSSelector::Child:
         {
             if (context.selector->relationIsAffectedByPseudoContent())
-                return matchForShadowDistributed(nextContext, *context.element, result);
+                return matchForPseudoContent(nextContext, *context.element, result);
 
             nextContext.isSubSelector = false;
             nextContext.inRightmostCompound = false;
@@ -433,7 +440,7 @@ SelectorChecker::Match SelectorChecker::matchForRelation(const SelectorCheckingC
             if (context.selector->relationIsAffectedByPseudoContent()) {
                 // TODO(kochi): closed mode tree should be handled as well for ::content.
                 for (Element* element = context.element; element; element = element->parentOrShadowHostElement()) {
-                    if (matchForShadowDistributed(nextContext, *element, result) == SelectorMatches)
+                    if (matchForPseudoContent(nextContext, *element, result) == SelectorMatches)
                         return SelectorMatches;
                 }
                 return SelectorFailsCompletely;
@@ -452,6 +459,16 @@ SelectorChecker::Match SelectorChecker::matchForRelation(const SelectorCheckingC
             return SelectorFailsCompletely;
         }
 
+    case CSSSelector::ShadowSlot:
+        {
+            const HTMLSlotElement* slot = findSlotElementInScope(context);
+            if (!slot)
+                return SelectorFailsCompletely;
+
+            nextContext.element = const_cast<HTMLSlotElement*>(slot);
+            return matchSelector(nextContext, result);
+        }
+
     case CSSSelector::SubSelector:
         ASSERT_NOT_REACHED();
     }
@@ -460,7 +477,7 @@ SelectorChecker::Match SelectorChecker::matchForRelation(const SelectorCheckingC
     return SelectorFailsCompletely;
 }
 
-SelectorChecker::Match SelectorChecker::matchForShadowDistributed(const SelectorCheckingContext& context, const Element& element, MatchResult& result) const
+SelectorChecker::Match SelectorChecker::matchForPseudoContent(const SelectorCheckingContext& context, const Element& element, MatchResult& result) const
 {
     WillBeHeapVector<RawPtrWillBeMember<InsertionPoint>, 8> insertionPoints;
     collectDestinationInsertionPoints(element, insertionPoints);
@@ -1031,26 +1048,31 @@ bool SelectorChecker::checkPseudoElement(const SelectorCheckingContext& context,
                 return root->type() == ShadowRootType::UserAgent && element.shadowPseudoId() == selector.value();
             return false;
         }
+    case CSSSelector::PseudoSlotted:
+        {
+            SelectorCheckingContext subContext(context);
+            subContext.isSubSelector = true;
+            subContext.scope = nullptr;
+            subContext.treatShadowHostAsNormalScope = false;
+
+            // ::slotted() only allows one compound selector.
+            ASSERT(selector.selectorList()->first());
+            ASSERT(!CSSSelectorList::next(*selector.selectorList()->first()));
+            subContext.selector = selector.selectorList()->first();
+            return match(subContext);
+        }
     case CSSSelector::PseudoContent:
         return element.isInShadowTree() && element.isInsertionPoint();
     case CSSSelector::PseudoShadow:
         return element.isInShadowTree() && context.previousElement;
     default:
-        break;
+        if (m_mode == SharingRules)
+            return true;
+        ASSERT(m_mode != QueryingRules);
+        result.dynamicPseudo = CSSSelector::pseudoId(selector.pseudoType());
+        ASSERT(result.dynamicPseudo != NOPSEUDO);
+        return true;
     }
-
-    if (!context.inRightmostCompound && m_mode == ResolvingStyle)
-        return false;
-
-    if (m_mode == QueryingRules)
-        return false;
-
-    PseudoId pseudoId = CSSSelector::pseudoId(selector.pseudoType());
-    if (pseudoId != NOPSEUDO && m_mode != SharingRules)
-        result.dynamicPseudo = pseudoId;
-
-    // ::before, ::after, etc.
-    return true;
 }
 
 bool SelectorChecker::checkPseudoHost(const SelectorCheckingContext& context, MatchResult& result) const
@@ -1204,4 +1226,4 @@ bool SelectorChecker::matchesFocusPseudoClass(const Element& element)
     return element.focused() && isFrameFocused(element);
 }
 
-}
+} // namespace blink

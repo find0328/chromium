@@ -1312,7 +1312,7 @@ TEST_F(AutofillManagerTest, GetProfileSuggestionsAutofillDisabledByUser) {
 
 // Test that we return all credit card profile suggestions when all form fields
 // are empty.
-TEST_F(AutofillManagerTest, GetCreditCardSuggestionsEmptyValue) {
+TEST_F(AutofillManagerTest, GetCreditCardSuggestions_EmptyValue) {
   // Set up our form data.
   FormData form;
   CreateTestCreditCardFormData(&form, true, false);
@@ -1333,6 +1333,86 @@ TEST_F(AutofillManagerTest, GetCreditCardSuggestionsEmptyValue) {
           "MasterCard\xC2\xA0\xE2\x8B\xAF"
           "8765",
           "10/14", kMasterCard, autofill_manager_->GetPackedCreditCardID(5)));
+}
+
+// Test that we return all credit card profile suggestions when the triggering
+// field has whitespace in it.
+TEST_F(AutofillManagerTest, GetCreditCardSuggestions_Whitespace) {
+  // Set up our form data.
+  FormData form;
+  CreateTestCreditCardFormData(&form, true, false);
+  std::vector<FormData> forms(1, form);
+  FormsSeen(forms);
+
+  FormFieldData field = form.fields[1];
+  field.value = ASCIIToUTF16("       ");
+  GetAutofillSuggestions(form, field);
+
+  // Test that we sent the right values to the external delegate.
+  external_delegate_->CheckSuggestions(
+      kDefaultPageID, Suggestion("Visa\xC2\xA0\xE2\x8B\xAF"
+                                 "3456",
+                                 "04/12", kVisaCard,
+                                 autofill_manager_->GetPackedCreditCardID(4)),
+      Suggestion("MasterCard\xC2\xA0\xE2\x8B\xAF"
+                 "8765",
+                 "10/14", kMasterCard,
+                 autofill_manager_->GetPackedCreditCardID(5)));
+}
+
+// Test that we return all credit card profile suggestions when the triggering
+// field has stop characters in it, which should be removed.
+TEST_F(AutofillManagerTest, GetCreditCardSuggestions_StopCharsOnly) {
+  // Set up our form data.
+  FormData form;
+  CreateTestCreditCardFormData(&form, true, false);
+  std::vector<FormData> forms(1, form);
+  FormsSeen(forms);
+
+  FormFieldData field = form.fields[1];
+  field.value = ASCIIToUTF16("____-____-____-____");
+  GetAutofillSuggestions(form, field);
+
+  // Test that we sent the right values to the external delegate.
+  external_delegate_->CheckSuggestions(
+      kDefaultPageID, Suggestion("Visa\xC2\xA0\xE2\x8B\xAF"
+                                 "3456",
+                                 "04/12", kVisaCard,
+                                 autofill_manager_->GetPackedCreditCardID(4)),
+      Suggestion("MasterCard\xC2\xA0\xE2\x8B\xAF"
+                 "8765",
+                 "10/14", kMasterCard,
+                 autofill_manager_->GetPackedCreditCardID(5)));
+}
+
+// Test that we return all credit card profile suggestions when the triggering
+// field has stop characters in it and some input.
+TEST_F(AutofillManagerTest, GetCreditCardSuggestions_StopCharsWithInput) {
+  // Add a credit card with particular numbers that we will attempt to recall.
+  CreditCard* credit_card = new CreditCard;
+  test::SetCreditCardInfo(credit_card, "John Smith",
+                          "5255667890123123",  // Mastercard
+                          "08", "2017");
+  credit_card->set_guid("00000000-0000-0000-0000-000000000007");
+  autofill_manager_->AddCreditCard(credit_card);
+
+  // Set up our form data.
+  FormData form;
+  CreateTestCreditCardFormData(&form, true, false);
+  std::vector<FormData> forms(1, form);
+  FormsSeen(forms);
+
+  FormFieldData field = form.fields[1];
+
+  field.value = ASCIIToUTF16("5255-66__-____-____");
+  GetAutofillSuggestions(form, field);
+
+  // Test that we sent the right value to the external delegate.
+  external_delegate_->CheckSuggestions(
+      kDefaultPageID, Suggestion("MasterCard\xC2\xA0\xE2\x8B\xAF"
+                                 "3123",
+                                 "08/17", kMasterCard,
+                                 autofill_manager_->GetPackedCreditCardID(7)));
 }
 
 // Test that we return only matching credit card profile suggestions when the
@@ -2473,13 +2553,15 @@ TEST_F(AutofillManagerTest, FillAutofilledForm) {
 
 // Test that we correctly fill a phone number split across multiple fields.
 TEST_F(AutofillManagerTest, FillPhoneNumber) {
-  // In one form, rely on the maxlength attribute to imply phone number parts.
-  // In the other form, rely on the autocompletetype attribute.
-  FormData form_with_maxlength;
-  form_with_maxlength.name = ASCIIToUTF16("MyMaxlengthPhoneForm");
-  form_with_maxlength.origin = GURL("http://myform.com/phone_form.html");
-  form_with_maxlength.action = GURL("http://myform.com/phone_submit.html");
-  FormData form_with_autocompletetype = form_with_maxlength;
+  // In one form, rely on the maxlength attribute to imply US phone number
+  // parts. In the other form, rely on the autocompletetype attribute.
+  FormData form_with_us_number_max_length;
+  form_with_us_number_max_length.name = ASCIIToUTF16("MyMaxlengthPhoneForm");
+  form_with_us_number_max_length.origin =
+      GURL("http://myform.com/phone_form.html");
+  form_with_us_number_max_length.action =
+      GURL("http://myform.com/phone_submit.html");
+  FormData form_with_autocompletetype = form_with_us_number_max_length;
   form_with_autocompletetype.name = ASCIIToUTF16("MyAutocompletetypePhoneForm");
 
   struct {
@@ -2502,7 +2584,7 @@ TEST_F(AutofillManagerTest, FillPhoneNumber) {
         test_fields[i].label, test_fields[i].name, "", "text", &field);
     field.max_length = test_fields[i].max_length;
     field.autocomplete_attribute = std::string();
-    form_with_maxlength.fields.push_back(field);
+    form_with_us_number_max_length.fields.push_back(field);
 
     field.max_length = default_max_length;
     field.autocomplete_attribute = test_fields[i].autocomplete_attribute;
@@ -2510,7 +2592,7 @@ TEST_F(AutofillManagerTest, FillPhoneNumber) {
   }
 
   std::vector<FormData> forms;
-  forms.push_back(form_with_maxlength);
+  forms.push_back(form_with_us_number_max_length);
   forms.push_back(form_with_autocompletetype);
   FormsSeen(forms);
 
@@ -2526,7 +2608,8 @@ TEST_F(AutofillManagerTest, FillPhoneNumber) {
   int response_page_id = 0;
   FormData response_data1;
   FillAutofillFormDataAndSaveResults(
-      page_id, form_with_maxlength, *form_with_maxlength.fields.begin(),
+      page_id, form_with_us_number_max_length,
+      *form_with_us_number_max_length.fields.begin(),
       MakeFrontendID(std::string(), guid), &response_page_id, &response_data1);
   EXPECT_EQ(1, response_page_id);
 
@@ -2553,8 +2636,10 @@ TEST_F(AutofillManagerTest, FillPhoneNumber) {
   EXPECT_EQ(ASCIIToUTF16("4567"), response_data2.fields[3].value);
   EXPECT_EQ(base::string16(), response_data2.fields[4].value);
 
-  // We should not be able to fill prefix and suffix fields for international
-  // numbers.
+  // We should not be able to fill international numbers correctly in a form
+  // containing fields with US max_length. However, the field should fill with
+  // the number of digits equal to the max length specified, starting from the
+  // right.
   work_profile->SetRawInfo(ADDRESS_HOME_COUNTRY, ASCIIToUTF16("GB"));
   work_profile->SetRawInfo(PHONE_HOME_WHOLE_NUMBER,
                            ASCIIToUTF16("447700954321"));
@@ -2562,15 +2647,16 @@ TEST_F(AutofillManagerTest, FillPhoneNumber) {
   response_page_id = 0;
   FormData response_data3;
   FillAutofillFormDataAndSaveResults(
-      page_id, form_with_maxlength, *form_with_maxlength.fields.begin(),
+      page_id, form_with_us_number_max_length,
+      *form_with_us_number_max_length.fields.begin(),
       MakeFrontendID(std::string(), guid), &response_page_id, &response_data3);
   EXPECT_EQ(3, response_page_id);
 
   ASSERT_EQ(5U, response_data3.fields.size());
-  EXPECT_EQ(ASCIIToUTF16("44"), response_data3.fields[0].value);
-  EXPECT_EQ(ASCIIToUTF16("7700"), response_data3.fields[1].value);
-  EXPECT_EQ(ASCIIToUTF16("954321"), response_data3.fields[2].value);
-  EXPECT_EQ(ASCIIToUTF16("954321"), response_data3.fields[3].value);
+  EXPECT_EQ(ASCIIToUTF16("4"), response_data3.fields[0].value);
+  EXPECT_EQ(ASCIIToUTF16("700"), response_data3.fields[1].value);
+  EXPECT_EQ(ASCIIToUTF16("321"), response_data3.fields[2].value);
+  EXPECT_EQ(ASCIIToUTF16("4321"), response_data3.fields[3].value);
   EXPECT_EQ(base::string16(), response_data3.fields[4].value);
 
   page_id = 4;
@@ -2922,28 +3008,27 @@ TEST_F(AutofillManagerTest, OnLoadedServerPredictions) {
   form_structure2->DetermineHeuristicTypes();
   autofill_manager_->AddSeenForm(form_structure2);
 
-  std::string xml = "<autofillqueryresponse>"
-                    "<field autofilltype=\"3\" />"  // First test form.
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"3\" />"
-                    "<field autofilltype=\"2\" />"
-                    "<field autofilltype=\"61\"/>"
-                    "<field autofilltype=\"5\" />"  // Second form.
-                    "<field autofilltype=\"4\" />"
-                    "<field autofilltype=\"35\"/>"
-                    "</autofillqueryresponse>";
+  AutofillQueryResponseContents response;
+  response.add_field()->set_autofill_type(3);
+  for (int i = 0; i < 7; ++i) {
+    response.add_field()->set_autofill_type(0);
+  }
+  response.add_field()->set_autofill_type(3);
+  response.add_field()->set_autofill_type(2);
+  response.add_field()->set_autofill_type(61);
+  response.add_field()->set_autofill_type(5);
+  response.add_field()->set_autofill_type(4);
+  response.add_field()->set_autofill_type(35);
+
+  std::string response_string;
+  ASSERT_TRUE(response.SerializeToString(&response_string));
+
   std::vector<std::string> signatures;
   signatures.push_back(form_structure->FormSignature());
   signatures.push_back(form_structure2->FormSignature());
 
   base::HistogramTester histogram_tester;
-  autofill_manager_->OnLoadedServerPredictions(xml, signatures);
+  autofill_manager_->OnLoadedServerPredictions(response_string, signatures);
   // Verify that FormStructure::ParseQueryResponse was called (here and below).
   histogram_tester.ExpectBucketCount("Autofill.ServerQueryResponse",
                                      AutofillMetrics::QUERY_RESPONSE_RECEIVED,
@@ -2976,19 +3061,18 @@ TEST_F(AutofillManagerTest, OnLoadedServerPredictions_ResetManager) {
   form_structure->DetermineHeuristicTypes();
   autofill_manager_->AddSeenForm(form_structure);
 
-  std::string xml = "<autofillqueryresponse>"
-                    "<field autofilltype=\"3\" />"  // This is tested below.
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"0\" />"
-                    "<field autofilltype=\"3\" />"
-                    "<field autofilltype=\"2\" />"
-                    "<field autofilltype=\"61\"/>"
-                    "</autofillqueryresponse>";
+  AutofillQueryResponseContents response;
+  response.add_field()->set_autofill_type(3);
+  for (int i = 0; i < 7; ++i) {
+    response.add_field()->set_autofill_type(0);
+  }
+  response.add_field()->set_autofill_type(3);
+  response.add_field()->set_autofill_type(2);
+  response.add_field()->set_autofill_type(61);
+
+  std::string response_string;
+  ASSERT_TRUE(response.SerializeToString(&response_string));
+
   std::vector<std::string> signatures;
   signatures.push_back(form_structure->FormSignature());
 
@@ -2996,7 +3080,7 @@ TEST_F(AutofillManagerTest, OnLoadedServerPredictions_ResetManager) {
   autofill_manager_->Reset();
 
   base::HistogramTester histogram_tester;
-  autofill_manager_->OnLoadedServerPredictions(xml, signatures);
+  autofill_manager_->OnLoadedServerPredictions(response_string, signatures);
 
   // Verify that FormStructure::ParseQueryResponse was NOT called.
   histogram_tester.ExpectTotalCount("Autofill.ServerQueryResponse", 0);
@@ -3198,13 +3282,19 @@ TEST_F(AutofillManagerTest, DeterminePossibleFieldTypesForUpload) {
   test::SetProfileInfo(&profile, "Elvis", "Aaron", "Presley",
                        "theking@gmail.com", "RCA", "3734 Elvis Presley Blvd.",
                        "Apt. 10", "Memphis", "Tennessee", "38116", "US",
-                       "12345678901");
+                       "+1 (234) 567-8901");
   profile.set_guid("00000000-0000-0000-0000-000000000001");
   profiles.push_back(profile);
   test::SetProfileInfo(&profile, "Charles", "", "Holley", "buddy@gmail.com",
                        "Decca", "123 Apple St.", "unit 6", "Lubbock", "Texas",
-                       "79401", "US", "23456789012");
+                       "79401", "US", "5142821292");
   profile.set_guid("00000000-0000-0000-0000-000000000002");
+  profiles.push_back(profile);
+  test::SetProfileInfo(&profile, "Charles", "", "Baudelaire",
+                       "lesfleursdumal@gmail.com", "", "108 Rue Saint-Lazare",
+                       "Apt. 10", "Paris", "Ile de France", "75008", "FR",
+                       "+33 2 49 19 70 70");
+  profile.set_guid("00000000-0000-0000-0000-000000000001");
   profiles.push_back(profile);
 
   // Set up the test credit cards.
@@ -3221,64 +3311,80 @@ TEST_F(AutofillManagerTest, DeterminePossibleFieldTypesForUpload) {
   } TestCase;
 
   TestCase test_cases[] = {
-                           // Profile fields matches.
-                           {"Elvis", NAME_FIRST},
-                           {"Aaron", NAME_MIDDLE},
-                           {"A", NAME_MIDDLE_INITIAL},
-                           {"Presley", NAME_LAST},
-                           {"Elvis Aaron Presley", NAME_FULL},
-                           {"theking@gmail.com", EMAIL_ADDRESS},
-                           {"RCA", COMPANY_NAME},
-                           {"3734 Elvis Presley Blvd.", ADDRESS_HOME_LINE1},
-                           {"Apt. 10", ADDRESS_HOME_LINE2},
-                           {"Memphis", ADDRESS_HOME_CITY},
-                           {"Tennessee", ADDRESS_HOME_STATE},
-                           {"38116", ADDRESS_HOME_ZIP},
-                           {"USA", ADDRESS_HOME_COUNTRY},
-                           {"United States", ADDRESS_HOME_COUNTRY},
-                           {"+1 (234) 567-8901", PHONE_HOME_WHOLE_NUMBER},
-                           {"2345678901", PHONE_HOME_CITY_AND_NUMBER},
-                           {"1", PHONE_HOME_COUNTRY_CODE},
-                           {"234", PHONE_HOME_CITY_CODE},
-                           {"5678901", PHONE_HOME_NUMBER},
-                           {"567", PHONE_HOME_NUMBER},
-                           {"8901", PHONE_HOME_NUMBER},
+      // Profile fields matches.
+      {"Elvis", NAME_FIRST},
+      {"Aaron", NAME_MIDDLE},
+      {"A", NAME_MIDDLE_INITIAL},
+      {"Presley", NAME_LAST},
+      {"Elvis Aaron Presley", NAME_FULL},
+      {"theking@gmail.com", EMAIL_ADDRESS},
+      {"RCA", COMPANY_NAME},
+      {"3734 Elvis Presley Blvd.", ADDRESS_HOME_LINE1},
+      {"Apt. 10", ADDRESS_HOME_LINE2},
+      {"Memphis", ADDRESS_HOME_CITY},
+      {"Tennessee", ADDRESS_HOME_STATE},
+      {"38116", ADDRESS_HOME_ZIP},
+      {"USA", ADDRESS_HOME_COUNTRY},
+      {"United States", ADDRESS_HOME_COUNTRY},
+      {"12345678901", PHONE_HOME_WHOLE_NUMBER},
+      {"+1 (234) 567-8901", PHONE_HOME_WHOLE_NUMBER},
+      {"(234)567-8901", PHONE_HOME_CITY_AND_NUMBER},
+      {"2345678901", PHONE_HOME_CITY_AND_NUMBER},
+      {"1", PHONE_HOME_COUNTRY_CODE},
+      {"234", PHONE_HOME_CITY_CODE},
+      {"5678901", PHONE_HOME_NUMBER},
+      {"567", PHONE_HOME_NUMBER},
+      {"8901", PHONE_HOME_NUMBER},
 
-                           // Make sure matches for a second profile work.
-                           {"Charles Holley", NAME_FULL},
+      // Test an european profile.
+      {"Paris", ADDRESS_HOME_CITY},
+      {"Ile de France", ADDRESS_HOME_STATE},
+      {"75008", ADDRESS_HOME_ZIP},
+      {"FR", ADDRESS_HOME_COUNTRY},
+      {"France", ADDRESS_HOME_COUNTRY},
+      {"33249197070", PHONE_HOME_WHOLE_NUMBER},
+      {"+33 2 49 19 70 70", PHONE_HOME_WHOLE_NUMBER},
+      {"2 49 19 70 70", PHONE_HOME_CITY_AND_NUMBER},
+      {"249197070", PHONE_HOME_CITY_AND_NUMBER},
+      {"33", PHONE_HOME_COUNTRY_CODE},
+      {"2", PHONE_HOME_CITY_CODE},
 
-                           // Credit card fields matches.
-                           {"Elvis Presley", CREDIT_CARD_NAME},
-                           {"4234-5678-9012-3456", CREDIT_CARD_NUMBER},
-                           {"04", CREDIT_CARD_EXP_MONTH},
-                           {"April", CREDIT_CARD_EXP_MONTH},
-                           {"2012", CREDIT_CARD_EXP_4_DIGIT_YEAR},
-                           {"12", CREDIT_CARD_EXP_2_DIGIT_YEAR},
-                           {"04/2012", CREDIT_CARD_EXP_DATE_4_DIGIT_YEAR},
+      // Credit card fields matches.
+      {"Elvis Presley", CREDIT_CARD_NAME},
+      {"4234-5678-9012-3456", CREDIT_CARD_NUMBER},
+      {"04", CREDIT_CARD_EXP_MONTH},
+      {"April", CREDIT_CARD_EXP_MONTH},
+      {"2012", CREDIT_CARD_EXP_4_DIGIT_YEAR},
+      {"12", CREDIT_CARD_EXP_2_DIGIT_YEAR},
+      {"04/2012", CREDIT_CARD_EXP_DATE_4_DIGIT_YEAR},
 
-                           // Make sure whitespaces are trimmed properly.
-                           {"", EMPTY_TYPE},
-                           {" ", EMPTY_TYPE},
-                           {" Elvis", NAME_FIRST},
-                           {"Elvis ", NAME_FIRST},
+      // Make sure whitespaces are trimmed properly.
+      {"", EMPTY_TYPE},
+      {" ", EMPTY_TYPE},
+      {" Elvis", NAME_FIRST},
+      {"Elvis ", NAME_FIRST},
 
-                           // Make sure fields that differ by case match.
-                           {"elvis ", NAME_FIRST},
-                           {"UnItEd StAtEs", ADDRESS_HOME_COUNTRY},
+      // Make sure fields that differ by case match.
+      {"elvis ", NAME_FIRST},
+      {"UnItEd StAtEs", ADDRESS_HOME_COUNTRY},
 
-                           // Make sure fields that differ by punctuation match.
-                           {"3734 Elvis Presley Blvd", ADDRESS_HOME_LINE1},
-                           {"3734, Elvis    Presley Blvd.", ADDRESS_HOME_LINE1},
+      // Make sure fields that differ by punctuation match.
+      {"3734 Elvis Presley Blvd", ADDRESS_HOME_LINE1},
+      {"3734, Elvis    Presley Blvd.", ADDRESS_HOME_LINE1},
 
-                           // Make sure unsupported variants do not match.
-                           {"Elvis Aaron", UNKNOWN_TYPE},
-                           {"Mr. Presley", UNKNOWN_TYPE},
-                           {"3734 Elvis Presley", UNKNOWN_TYPE},
-                           {"TN", UNKNOWN_TYPE},
-                           {"38116-1023", UNKNOWN_TYPE},
-                           {"5", UNKNOWN_TYPE},
-                           {"56", UNKNOWN_TYPE},
-                           {"901", UNKNOWN_TYPE}};
+      // Special phone number case. A profile with no country code should only
+      // match PHONE_HOME_CITY_AND_NUMBER.
+      {"5142821292", PHONE_HOME_CITY_AND_NUMBER},
+
+      // Make sure unsupported variants do not match.
+      {"Elvis Aaron", UNKNOWN_TYPE},
+      {"Mr. Presley", UNKNOWN_TYPE},
+      {"3734 Elvis Presley", UNKNOWN_TYPE},
+      {"TN", UNKNOWN_TYPE},
+      {"38116-1023", UNKNOWN_TYPE},
+      {"5", UNKNOWN_TYPE},
+      {"56", UNKNOWN_TYPE},
+      {"901", UNKNOWN_TYPE}};
 
   for (TestCase test_case : test_cases) {
     FormData form;
@@ -3302,6 +3408,8 @@ TEST_F(AutofillManagerTest, DeterminePossibleFieldTypesForUpload) {
     ASSERT_EQ(1U, form_structure.field_count());
     ServerFieldTypeSet possible_types =
         form_structure.field(0)->possible_types();
+    EXPECT_EQ(1U, possible_types.size());
+
     EXPECT_NE(possible_types.end(), possible_types.find(test_case.field_type));
   }
 }

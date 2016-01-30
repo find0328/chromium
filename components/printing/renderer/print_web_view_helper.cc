@@ -49,6 +49,7 @@
 #include "third_party/WebKit/public/web/WebSettings.h"
 #include "third_party/WebKit/public/web/WebView.h"
 #include "third_party/WebKit/public/web/WebViewClient.h"
+#include "third_party/skia/include/core/SkCanvas.h"
 #include "ui/base/resource/resource_bundle.h"
 
 using content::WebPreferences;
@@ -1772,7 +1773,7 @@ void PrintWebViewHelper::PrintPageInternal(
   float platform_scale_factor = css_scale_factor;
 #endif  // defined(OS_WIN)
 
-  skia::PlatformCanvas* canvas = metafile->GetVectorCanvasForNewPage(
+  SkCanvas* canvas = metafile->GetVectorCanvasForNewPage(
       page_size, canvas_area, platform_scale_factor);
   if (!canvas)
     return;
@@ -1816,7 +1817,13 @@ bool PrintWebViewHelper::CopyMetafileDataToSharedMem(
   if (!metafile.GetData(shared_buf.memory(), buf_size))
     return false;
 
-  *shared_mem_handle = base::SharedMemory::DuplicateHandle(shared_buf.handle());
+  if (!shared_buf.GiveToProcess(base::GetCurrentProcessHandle(),
+                                shared_mem_handle)) {
+    return false;
+  }
+
+  Send(new PrintHostMsg_DuplicateSection(routing_id(), *shared_mem_handle,
+                                         shared_mem_handle));
   return true;
 #else
   scoped_ptr<base::SharedMemory> shared_buf(

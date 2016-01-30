@@ -50,7 +50,7 @@ class ResourceResponse;
 class TextResourceDecoder;
 class ThreadableLoader;
 
-class EventSource final : public RefCountedGarbageCollectedEventTargetWithInlineData<EventSource>, private ThreadableLoaderClient, public ActiveDOMObject {
+class CORE_EXPORT EventSource final : public RefCountedGarbageCollectedEventTargetWithInlineData<EventSource>, private ThreadableLoaderClient, public ActiveDOMObject {
     DEFINE_WRAPPERTYPEINFO();
     REFCOUNTED_GARBAGE_COLLECTED_EVENT_TARGET(EventSource);
     WILL_BE_USING_GARBAGE_COLLECTED_MIXIN(EventSource);
@@ -63,10 +63,11 @@ public:
     String url() const;
     bool withCredentials() const;
 
-    typedef short State;
-    static const State CONNECTING = 0;
-    static const State OPEN = 1;
-    static const State CLOSED = 2;
+    enum State : unsigned short {
+        CONNECTING = 0,
+        OPEN = 1,
+        CLOSED = 2
+    };
 
     State readyState() const;
 
@@ -90,6 +91,11 @@ public:
     bool hasPendingActivity() const override;
 
     DECLARE_VIRTUAL_TRACE();
+
+    void setStateForTest(State state) { m_state = state; }
+    void setRequestInFlightForTest(bool b) { m_requestInFlight = b; }
+    ThreadableLoaderClient* asThreadableLoaderClientForTest() { return this; }
+    unsigned long long reconnectDelayForTest() const { return m_reconnectDelay; }
 
 private:
     EventSource(ExecutionContext*, const KURL&, const EventSourceInit&);

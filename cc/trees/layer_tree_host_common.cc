@@ -644,9 +644,9 @@ static inline bool SubtreeShouldBeSkipped(LayerImpl* layer,
   if (layer->num_copy_requests_in_target_subtree() > 0)
     return false;
 
-  // We cannot skip the the subtree if a descendant has a wheel or touch handler
+  // We cannot skip the the subtree if a descendant has a touch handler
   // or the hit testing code will break (it requires fresh transforms, etc).
-  if (layer->layer_or_descendant_has_input_handler())
+  if (layer->layer_or_descendant_has_touch_handler())
     return false;
 
   // If the layer is not drawn, then skip it and its subtree.
@@ -668,7 +668,7 @@ static inline bool SubtreeShouldBeSkipped(LayerImpl* layer,
   // The opacity of a layer always applies to its children (either implicitly
   // via a render surface or explicitly if the parent preserves 3D), so the
   // entire subtree can be skipped if this layer is fully transparent.
-  return !layer->opacity();
+  return !layer->EffectiveOpacity();
 }
 
 static inline void SavePaintPropertiesLayer(LayerImpl* layer) {}
@@ -1058,20 +1058,20 @@ static inline void RemoveSurfaceForEarlyExit(
 struct PreCalculateMetaInformationRecursiveData {
   size_t num_unclipped_descendants;
   int num_layer_or_descendants_with_copy_request;
-  int num_layer_or_descendants_with_input_handler;
+  int num_layer_or_descendants_with_touch_handler;
   int num_descendants_that_draw_content;
 
   PreCalculateMetaInformationRecursiveData()
       : num_unclipped_descendants(0),
         num_layer_or_descendants_with_copy_request(0),
-        num_layer_or_descendants_with_input_handler(0),
+        num_layer_or_descendants_with_touch_handler(0),
         num_descendants_that_draw_content(0) {}
 
   void Merge(const PreCalculateMetaInformationRecursiveData& data) {
     num_layer_or_descendants_with_copy_request +=
         data.num_layer_or_descendants_with_copy_request;
-    num_layer_or_descendants_with_input_handler +=
-        data.num_layer_or_descendants_with_input_handler;
+    num_layer_or_descendants_with_touch_handler +=
+        data.num_layer_or_descendants_with_touch_handler;
     num_unclipped_descendants += data.num_unclipped_descendants;
     num_descendants_that_draw_content += data.num_descendants_that_draw_content;
   }
@@ -1128,9 +1128,8 @@ static void PreCalculateMetaInformationInternal(
   if (layer->HasCopyRequest())
     recursive_data->num_layer_or_descendants_with_copy_request++;
 
-  if (!layer->touch_event_handler_region().IsEmpty() ||
-      layer->have_wheel_event_handlers())
-    recursive_data->num_layer_or_descendants_with_input_handler++;
+  if (!layer->touch_event_handler_region().IsEmpty())
+    recursive_data->num_layer_or_descendants_with_touch_handler++;
 
   layer->set_num_unclipped_descendants(
       recursive_data->num_unclipped_descendants);
@@ -1176,14 +1175,13 @@ static void PreCalculateMetaInformationInternal(
   if (layer->HasCopyRequest())
     recursive_data->num_layer_or_descendants_with_copy_request++;
 
-  if (!layer->touch_event_handler_region().IsEmpty() ||
-      layer->have_wheel_event_handlers())
-    recursive_data->num_layer_or_descendants_with_input_handler++;
+  if (!layer->touch_event_handler_region().IsEmpty())
+    recursive_data->num_layer_or_descendants_with_touch_handler++;
 
   layer->draw_properties().num_unclipped_descendants =
       recursive_data->num_unclipped_descendants;
-  layer->set_layer_or_descendant_has_input_handler(
-      (recursive_data->num_layer_or_descendants_with_input_handler != 0));
+  layer->set_layer_or_descendant_has_touch_handler(
+      (recursive_data->num_layer_or_descendants_with_touch_handler != 0));
   // TODO(enne): this should be synced from the main thread, so is only
   // for tests constructing layers on the compositor thread.
   layer->SetNumDescendantsThatDrawContent(
@@ -1345,8 +1343,7 @@ static bool SortChildrenForRecursion(std::vector<LayerImpl*>* out,
 
 static bool CdpPerfTracingEnabled() {
   bool tracing_enabled;
-  TRACE_EVENT_CATEGORY_GROUP_ENABLED(
-      TRACE_DISABLED_BY_DEFAULT("cc.debug.cdp-perf"), &tracing_enabled);
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("cdp.perf", &tracing_enabled);
   return tracing_enabled;
 }
 
@@ -1516,7 +1513,7 @@ static void CalculateDrawPropertiesInternal(
   // the right results.
   const bool layer_is_visible =
       data_from_ancestor.subtree_is_visible_from_ancestor &&
-      !layer->hide_layer_and_subtree();
+      layer->EffectiveOpacity() != 0;
   const bool layer_is_drawn = layer_is_visible || layer->HasCopyRequest();
 
   // The root layer cannot skip CalcDrawProperties.
@@ -2328,11 +2325,21 @@ enum PropertyTreeOption {
 };
 
 void CalculateRenderTargetInternal(LayerImpl* layer,
+                                   PropertyTrees* property_trees,
                                    bool subtree_visible_from_ancestor,
-                                   bool can_render_to_separate_surface) {
-  const bool layer_is_visible =
-      subtree_visible_from_ancestor && !layer->hide_layer_and_subtree();
-  const bool layer_is_drawn = layer_is_visible || layer->HasCopyRequest();
+                                   bool can_render_to_separate_surface,
+                                   bool use_property_trees) {
+  bool layer_is_drawn;
+  if (use_property_trees) {
+    DCHECK_GE(layer->effect_tree_index(), 0);
+    layer_is_drawn =
+        property_trees->effect_tree.Node(layer->effect_tree_index())
+            ->data.is_drawn;
+  } else {
+    layer_is_drawn =
+        (subtree_visible_from_ancestor && layer->EffectiveOpacity() != 0) ||
+        layer->HasCopyRequest();
+  }
 
   // The root layer cannot be skipped.
   if (!IsRootLayer(layer) && SubtreeShouldBeSkipped(layer, layer_is_drawn)) {
@@ -2365,7 +2372,8 @@ void CalculateRenderTargetInternal(LayerImpl* layer,
   for (size_t i = 0; i < layer->children().size(); ++i) {
     CalculateRenderTargetInternal(
         LayerTreeHostCommon::get_layer_as_raw_ptr(layer->children(), i),
-        layer_is_drawn, can_render_to_separate_surface);
+        property_trees, layer_is_drawn, can_render_to_separate_surface,
+        use_property_trees);
   }
 }
 
@@ -2396,14 +2404,17 @@ void CalculateRenderSurfaceLayerListInternal(
 
   // |can_render_to_separate_surface| and |current_render_surface_layer_list_id|
   // are settings that should stay the same during recursion.
-
-  // Layers that are marked as hidden will hide themselves and their subtree.
-  // Exception: Layers with copy requests, whether hidden or not, must be drawn
-  // anyway.  In this case, we will inform their subtree they are visible to get
-  // the right results.
-  const bool layer_is_visible =
-      subtree_visible_from_ancestor && !layer->hide_layer_and_subtree();
-  const bool layer_is_drawn = layer_is_visible || layer->HasCopyRequest();
+  bool layer_is_drawn = false;
+  if (use_property_trees) {
+    DCHECK_GE(layer->effect_tree_index(), 0);
+    layer_is_drawn =
+        property_trees->effect_tree.Node(layer->effect_tree_index())
+            ->data.is_drawn;
+  } else {
+    layer_is_drawn =
+        (subtree_visible_from_ancestor && layer->EffectiveOpacity() != 0) ||
+        layer->HasCopyRequest();
+  }
 
   // The root layer cannot be skipped.
   if (!IsRootLayer(layer) && SubtreeShouldBeSkipped(layer, layer_is_drawn)) {
@@ -2452,10 +2463,14 @@ void CalculateRenderSurfaceLayerListInternal(
       // target.
       layer->render_surface()->set_contributes_to_drawn_surface(false);
     } else {
-      // Even if the |layer_is_drawn|, it only contributes to a drawn surface
-      // when the |layer_is_visible|.
+      bool contributes_to_drawn_surface =
+          use_property_trees
+              ? property_trees->effect_tree.ContributesToDrawnSurface(
+                    layer->effect_tree_index())
+              : subtree_visible_from_ancestor &&
+                    layer->EffectiveOpacity() != 0.f;
       layer->render_surface()->set_contributes_to_drawn_surface(
-          layer_is_visible);
+          contributes_to_drawn_surface);
     }
 
     // Ignore occlusion from outside the surface when surface contents need to
@@ -2620,8 +2635,10 @@ void CalculateRenderSurfaceLayerListInternal(
 
 void CalculateRenderTarget(
     LayerTreeHostCommon::CalcDrawPropsImplInputs* inputs) {
-  CalculateRenderTargetInternal(inputs->root_layer, true,
-                                inputs->can_render_to_separate_surface);
+  CalculateRenderTargetInternal(
+      inputs->root_layer, inputs->property_trees, true,
+      inputs->can_render_to_separate_surface,
+      inputs->verify_property_trees || inputs->use_property_trees);
 }
 
 void CalculateRenderSurfaceLayerList(
@@ -2813,10 +2830,16 @@ void LayerTreeHostCommon::CalculateDrawProperties(
             active_tree_root->layer_tree_impl()->LastScrolledLayerId());
         jitter = CalculateFrameJitter(last_scrolled_layer);
       }
-      TRACE_COUNTER1(TRACE_DISABLED_BY_DEFAULT("cc.debug.cdp-perf"), "jitter",
-                     jitter);
+      TRACE_EVENT_ASYNC_BEGIN1(
+          "cdp.perf", "jitter",
+          inputs->root_layer->layer_tree_impl()->source_frame_number(), "value",
+          jitter);
       inputs->root_layer->layer_tree_impl()->set_is_first_frame_after_commit(
           false);
+      TRACE_EVENT_ASYNC_END1(
+          "cdp.perf", "jitter",
+          inputs->root_layer->layer_tree_impl()->source_frame_number(), "value",
+          jitter);
     }
   }
 }

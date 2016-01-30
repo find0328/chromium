@@ -22,6 +22,7 @@
 #include "content/renderer/render_thread_impl.h"
 #include "content/renderer/render_view_impl.h"
 #include "content/renderer/render_widget.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/web/WebLocalFrame.h"
 #include "third_party/WebKit/public/web/WebUserGestureIndicator.h"
@@ -192,6 +193,17 @@ bool RenderFrameProxy::IsMainFrameDetachedFromTree() const {
     return false;
   return web_frame_->top() == web_frame_ &&
       render_view_->webview()->mainFrame()->isWebLocalFrame();
+}
+
+void RenderFrameProxy::WillBeginCompositorFrame() {
+  if (compositing_helper_) {
+    FrameHostMsg_HittestData_Params params;
+    params.surface_id = compositing_helper_->surface_id();
+    params.ignored_for_hittest = web_frame_->isIgnoredForHitTest();
+    render_widget_->QueueMessage(
+        new FrameHostMsg_HittestData(render_widget_->routing_id(), params),
+        MESSAGE_DELIVERY_POLICY_WITH_VISUAL_STATE);
+  }
 }
 
 void RenderFrameProxy::DidCommitCompositorFrame() {
@@ -441,7 +453,8 @@ void RenderFrameProxy::navigate(const blink::WebURLRequest& request,
   FrameHostMsg_OpenURL_Params params;
   params.url = request.url();
   params.referrer = Referrer(
-      GURL(request.httpHeaderField(blink::WebString::fromUTF8("Referer"))),
+      blink::WebStringToGURL(
+          request.httpHeaderField(blink::WebString::fromUTF8("Referer"))),
       request.referrerPolicy());
   params.disposition = CURRENT_TAB;
   params.should_replace_current_entry = should_replace_current_entry;

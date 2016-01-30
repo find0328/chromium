@@ -17,6 +17,8 @@
 
 namespace blink {
 
+struct PaintChunk;
+
 // kDisplayItemAlignment must be a multiple of alignof(derived display item) for
 // each derived display item; the ideal value is the least common multiple.
 // Currently the limiting factor is TransformationMatrix (in
@@ -29,6 +31,14 @@ class DisplayItemList : public ContiguousContainer<DisplayItem, kDisplayItemAlig
 public:
     DisplayItemList(size_t initialSizeBytes)
         : ContiguousContainer(kMaximumDisplayItemSize, initialSizeBytes) {}
+    DisplayItemList(DisplayItemList&& source)
+        : ContiguousContainer(std::move(source)) {}
+
+    DisplayItemList& operator=(DisplayItemList&& source)
+    {
+        ContiguousContainer::operator=(std::move(source));
+        return *this;
+    }
 
     DisplayItem& appendByMoving(DisplayItem& item)
     {
@@ -61,6 +71,20 @@ public:
     }
 #endif
 
+    // Useful for iterating with a range-based for loop.
+    template <typename Iterator>
+    class Range {
+    public:
+        Range(const Iterator& begin, const Iterator& end)
+            : m_begin(begin), m_end(end) {}
+        Iterator begin() const { return m_begin; }
+        Iterator end() const { return m_end; }
+    private:
+        Iterator m_begin;
+        Iterator m_end;
+    };
+    Range<iterator> itemsInPaintChunk(const PaintChunk&);
+    Range<const_iterator> itemsInPaintChunk(const PaintChunk&) const;
 };
 
 } // namespace blink

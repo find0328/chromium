@@ -21,6 +21,7 @@ class ClipNodeData;
 class EffectNodeData;
 class PropertyTree;
 class PropertyTrees;
+class ScrollNodeData;
 class TranformNodeData;
 class TransformTreeData;
 class TreeNode;
@@ -89,6 +90,11 @@ struct CC_EXPORT TransformNodeData {
   // efficiently update the transform tree for changes to position in the layer
   // tree.
   int source_node_id;
+
+  // This id determines which 3d rendering context the node is in. 0 is a
+  // special value and indicates that the node is not in any 3d rendering
+  // context.
+  int sorting_context_id;
 
   // TODO(vollick): will be moved when accelerated effects are implemented.
   bool needs_local_transform_update : 1;
@@ -242,6 +248,10 @@ struct CC_EXPORT EffectNodeData {
   float screen_space_opacity;
 
   bool has_render_surface;
+  bool has_copy_request;
+  bool has_background_filters;
+  bool is_drawn;
+  bool has_animated_opacity;
   int num_copy_requests_in_subtree;
   int transform_id;
   int clip_id;
@@ -253,6 +263,23 @@ struct CC_EXPORT EffectNodeData {
 };
 
 typedef TreeNode<EffectNodeData> EffectNode;
+
+struct CC_EXPORT ScrollNodeData {
+  ScrollNodeData();
+
+  bool scrollable;
+  bool should_scroll_on_main_thread;
+  bool contains_non_fast_scrollable_region;
+
+  int transform_id;
+
+  bool operator==(const ScrollNodeData& other) const;
+
+  void ToProtobuf(proto::TreeNode* proto) const;
+  void FromProtobuf(const proto::TreeNode& proto);
+};
+
+typedef TreeNode<ScrollNodeData> ScrollNode;
 
 template <typename T>
 class CC_EXPORT PropertyTree {
@@ -479,16 +506,28 @@ class CC_EXPORT EffectTree final : public PropertyTree<EffectNode> {
 
   void ClearCopyRequests();
 
+  bool ContributesToDrawnSurface(int id);
+
   void ToProtobuf(proto::PropertyTree* proto) const;
   void FromProtobuf(const proto::PropertyTree& proto);
 
  private:
   void UpdateOpacities(EffectNode* node, EffectNode* parent_node);
+  void UpdateIsDrawn(EffectNode* node, EffectNode* parent_node);
+};
+
+class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
+ public:
+  bool operator==(const ScrollTree& other) const;
+
+  void ToProtobuf(proto::PropertyTree* proto) const;
+  void FromProtobuf(const proto::PropertyTree& proto);
 };
 
 class CC_EXPORT PropertyTrees final {
  public:
   PropertyTrees();
+  ~PropertyTrees();
 
   bool operator==(const PropertyTrees& other) const;
 
@@ -498,6 +537,7 @@ class CC_EXPORT PropertyTrees final {
   TransformTree transform_tree;
   EffectTree effect_tree;
   ClipTree clip_tree;
+  ScrollTree scroll_tree;
   bool needs_rebuild;
   bool non_root_surfaces_enabled;
   int sequence_number;

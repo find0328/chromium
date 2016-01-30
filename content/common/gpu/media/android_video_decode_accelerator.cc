@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "base/android/build_info.h"
+#include "base/auto_reset.h"
 #include "base/bind.h"
 #include "base/bind_helpers.h"
 #include "base/command_line.h"
@@ -17,7 +18,10 @@
 #include "content/common/gpu/gpu_channel.h"
 #include "content/common/gpu/media/android_copying_backing_strategy.h"
 #include "content/common/gpu/media/android_deferred_rendering_backing_strategy.h"
+#include "content/public/common/content_switches.h"
 #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
+#include "gpu/command_buffer/service/gpu_switches.h"
+#include "gpu/command_buffer/service/mailbox_manager.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/bitstream_buffer.h"
 #include "media/base/limits.h"
@@ -143,6 +147,13 @@ class AndroidVideoDecodeAccelerator::OnFrameAvailableHandler
   DISALLOW_COPY_AND_ASSIGN(OnFrameAvailableHandler);
 };
 
+// Time between when we notice an error, and when we actually notify somebody.
+// This is to prevent codec errors caused by SurfaceView fullscreen transitions
+// from breaking the pipeline, if we're about to be reset anyway.
+static inline const base::TimeDelta ErrorPostingDelay() {
+  return base::TimeDelta::FromSeconds(2);
+}
+
 AndroidVideoDecodeAccelerator::AndroidVideoDecodeAccelerator(
     const base::WeakPtr<gpu::gles2::GLES2Decoder> decoder,
     const base::Callback<bool(void)>& make_context_current)
@@ -155,11 +166,20 @@ AndroidVideoDecodeAccelerator::AndroidVideoDecodeAccelerator(
       picturebuffers_requested_(false),
       gl_decoder_(decoder),
       cdm_registration_id_(0),
+      pending_input_buf_index_(-1),
+      error_sequence_token_(0),
+      defer_errors_(false),
       weak_this_factory_(this) {
-  if (UseDeferredRenderingStrategy())
+  if (UseDeferredRenderingStrategy()) {
+    // TODO(liberato, watk): Figure out what we want to do about zero copy for
+    // fullscreen external SurfaceView in WebView.  http://crbug.com/582170.
+    DCHECK(!gl_decoder_->GetContextGroup()->mailbox_manager()->UsesSync());
+    DVLOG(1) << __FUNCTION__ << ", using deferred rendering strategy.";
     strategy_.reset(new AndroidDeferredRenderingBackingStrategy());
-  else
+  } else {
+    DVLOG(1) << __FUNCTION__ << ", using copy back strategy.";
     strategy_.reset(new AndroidCopyingBackingStrategy());
+  }
 }
 
 AndroidVideoDecodeAccelerator::~AndroidVideoDecodeAccelerator() {
@@ -299,22 +319,37 @@ void AndroidVideoDecodeAccelerator::DoIOTask() {
 bool AndroidVideoDecodeAccelerator::QueueInput() {
   DCHECK(thread_checker_.CalledOnValidThread());
   TRACE_EVENT0("media", "AVDA::QueueInput");
+  base::AutoReset<bool> auto_reset(&defer_errors_, true);
   if (bitstreams_notified_in_advance_.size() > kMaxBitstreamsNotifiedInAdvance)
     return false;
   if (pending_bitstream_buffers_.empty())
     return false;
-
-  int input_buf_index = 0;
-  media::MediaCodecStatus status =
-      media_codec_->DequeueInputBuffer(NoWaitTimeOut(), &input_buf_index);
-
-  if (status == media::MEDIA_CODEC_DEQUEUE_INPUT_AGAIN_LATER)
+  if (state_ == WAITING_FOR_KEY)
     return false;
-  if (status == media::MEDIA_CODEC_ERROR) {
-    POST_ERROR(PLATFORM_FAILURE, "Failed to DequeueInputBuffer");
-    return false;
+
+  int input_buf_index = pending_input_buf_index_;
+
+  // Do not dequeue a new input buffer if we failed with MEDIA_CODEC_NO_KEY.
+  // That status does not return this buffer back to the pool of
+  // available input buffers. We have to reuse it in QueueSecureInputBuffer().
+  if (input_buf_index == -1) {
+    media::MediaCodecStatus status =
+        media_codec_->DequeueInputBuffer(NoWaitTimeOut(), &input_buf_index);
+    switch (status) {
+      case media::MEDIA_CODEC_DEQUEUE_INPUT_AGAIN_LATER:
+        return false;
+      case media::MEDIA_CODEC_ERROR:
+        POST_ERROR(PLATFORM_FAILURE, "Failed to DequeueInputBuffer");
+        return false;
+      case media::MEDIA_CODEC_OK:
+        break;
+      default:
+        NOTREACHED() << "Unknown DequeueInputBuffer status " << status;
+        return false;
+    }
   }
-  DCHECK_EQ(status, media::MEDIA_CODEC_OK);
+
+  DCHECK_NE(input_buf_index, -1);
 
   base::Time queued_time = pending_bitstream_buffers_.front().second;
   UMA_HISTOGRAM_TIMES("Media.AVDA.InputQueueTime",
@@ -331,11 +366,19 @@ bool AndroidVideoDecodeAccelerator::QueueInput() {
     return true;
   }
 
-  scoped_ptr<base::SharedMemory> shm(
-      new base::SharedMemory(bitstream_buffer.handle(), true));
-  if (!shm->Map(bitstream_buffer.size())) {
-    POST_ERROR(UNREADABLE_INPUT, "Failed to SharedMemory::Map()");
-    return false;
+  scoped_ptr<base::SharedMemory> shm;
+
+  if (pending_input_buf_index_ != -1) {
+    // The buffer is already dequeued from MediaCodec, filled with data and
+    // bitstream_buffer.handle() is closed.
+    shm.reset(new base::SharedMemory());
+  } else {
+    shm.reset(new base::SharedMemory(bitstream_buffer.handle(), true));
+
+    if (!shm->Map(bitstream_buffer.size())) {
+      POST_ERROR(UNREADABLE_INPUT, "Failed to SharedMemory::Map()");
+      return false;
+    }
   }
 
   const base::TimeDelta presentation_timestamp =
@@ -351,12 +394,15 @@ bool AndroidVideoDecodeAccelerator::QueueInput() {
   // result in them finding the right timestamp.
   bitstream_buffers_in_decoder_[presentation_timestamp] = bitstream_buffer.id();
 
+  // Notice that |memory| will be null if we repeatedly enqueue the same buffer,
+  // this happens after MEDIA_CODEC_NO_KEY.
   const uint8_t* memory = static_cast<const uint8_t*>(shm->memory());
   const std::string& key_id = bitstream_buffer.key_id();
   const std::string& iv = bitstream_buffer.iv();
   const std::vector<media::SubsampleEntry>& subsamples =
       bitstream_buffer.subsamples();
 
+  media::MediaCodecStatus status;
   if (key_id.empty() || iv.empty()) {
     status = media_codec_->QueueInputBuffer(input_buf_index, memory,
                                             bitstream_buffer.size(),
@@ -372,15 +418,15 @@ bool AndroidVideoDecodeAccelerator::QueueInput() {
            << " status:" << status;
 
   if (status == media::MEDIA_CODEC_NO_KEY) {
-    // Keep trying to enqueue the front pending buffer.
-    //
-    // TODO(timav): Figure out whether stopping the pipeline in response to
-    // this error and restarting it in OnKeyAdded() has significant benefits
-    // (e.g. saving power).
+    // Keep trying to enqueue the same input buffer.
+    // The buffer is owned by us (not the MediaCodec) and is filled with data.
     DVLOG(1) << "QueueSecureInputBuffer failed: NO_KEY";
-    return true;
+    pending_input_buf_index_ = input_buf_index;
+    state_ = WAITING_FOR_KEY;
+    return false;
   }
 
+  pending_input_buf_index_ = -1;
   pending_bitstream_buffers_.pop();
   TRACE_COUNTER1("media", "AVDA::PendingBitstreamBufferCount",
                  pending_bitstream_buffers_.size());
@@ -409,6 +455,7 @@ bool AndroidVideoDecodeAccelerator::QueueInput() {
 bool AndroidVideoDecodeAccelerator::DequeueOutput() {
   DCHECK(thread_checker_.CalledOnValidThread());
   TRACE_EVENT0("media", "AVDA::DequeueOutput");
+  base::AutoReset<bool> auto_reset(&defer_errors_, true);
   if (picturebuffers_requested_ && output_picture_buffers_.empty())
     return false;
 
@@ -431,10 +478,6 @@ bool AndroidVideoDecodeAccelerator::DequeueOutput() {
     TRACE_EVENT_END2("media", "AVDA::DequeueOutput", "status", status,
                      "presentation_timestamp (ms)",
                      presentation_timestamp.InMilliseconds());
-
-    DVLOG(3) << "AVDA::DequeueOutput: pts:" << presentation_timestamp
-             << " buf_index:" << buf_index << " offset:" << offset
-             << " size:" << size << " eos:" << eos;
 
     switch (status) {
       case media::MEDIA_CODEC_ERROR:
@@ -469,6 +512,9 @@ bool AndroidVideoDecodeAccelerator::DequeueOutput() {
 
       case media::MEDIA_CODEC_OK:
         DCHECK_GE(buf_index, 0);
+        DVLOG(3) << "AVDA::DequeueOutput: pts:" << presentation_timestamp
+                 << " buf_index:" << buf_index << " offset:" << offset
+                 << " size:" << size << " eos:" << eos;
         break;
 
       default:
@@ -688,6 +734,26 @@ void AndroidVideoDecodeAccelerator::ResetCodecState() {
   // all the output buffers, so we must be sure that the strategy no longer
   // refers to them.
 
+  if (pending_input_buf_index_ != -1) {
+    // The data for that index exists in the input buffer, but corresponding
+    // shm block been deleted. Check that it is safe to flush the coec, i.e.
+    // |pending_bitstream_buffers_| is empty.
+    // TODO(timav): keep shm block for that buffer and remove this restriction.
+    DCHECK(pending_bitstream_buffers_.empty());
+    pending_input_buf_index_ = -1;
+  }
+
+  if (state_ == WAITING_FOR_KEY)
+    state_ = NO_ERROR;
+
+  // We might increment error_sequence_token here to cancel any delayed errors,
+  // but right now it's unclear that it's safe to do so.  If we are in an error
+  // state because of a codec error, then it would be okay.  Otherwise, it's
+  // less obvious that we are exiting the error state.  Since deferred errors
+  // are only intended for fullscreen transitions right now, we take the more
+  // conservative approach and let the errors post.
+  // TODO(liberato): revisit this once we sort out the error state a bit more.
+
   // When codec is not in error state we can quickly reset (internally calls
   // flush()) for JB-MR2 and beyond. Prior to JB-MR2, flush() had several bugs
   // (b/8125974, b/8347958) so we must stop() and reconfigure MediaCodec. The
@@ -707,8 +773,9 @@ void AndroidVideoDecodeAccelerator::ResetCodecState() {
     media_codec_->Stop();
     // Changing the codec will also notify the strategy to forget about any
     // output buffers it has currently.
-    ConfigureMediaCodec();
     state_ = NO_ERROR;
+    if (!ConfigureMediaCodec())
+      POST_ERROR(PLATFORM_FAILURE, "Failed to create MediaCodec.");
   }
 }
 
@@ -744,6 +811,9 @@ void AndroidVideoDecodeAccelerator::Reset() {
   }
   TRACE_COUNTER1("media", "AVDA::PendingBitstreamBufferCount", 0);
   bitstreams_notified_in_advance_.clear();
+
+  // Any error that is waiting to post can be ignored.
+  error_sequence_token_++;
 
   ResetCodecState();
 
@@ -802,9 +872,11 @@ void AndroidVideoDecodeAccelerator::OnFrameAvailable() {
 void AndroidVideoDecodeAccelerator::PostError(
     const ::tracked_objects::Location& from_here,
     media::VideoDecodeAccelerator::Error error) {
-  base::MessageLoop::current()->PostTask(
-      from_here, base::Bind(&AndroidVideoDecodeAccelerator::NotifyError,
-                            weak_this_factory_.GetWeakPtr(), error));
+  base::MessageLoop::current()->PostDelayedTask(
+      from_here,
+      base::Bind(&AndroidVideoDecodeAccelerator::NotifyError,
+                 weak_this_factory_.GetWeakPtr(), error, error_sequence_token_),
+      (defer_errors_ ? ErrorPostingDelay() : base::TimeDelta()));
   state_ = ERROR;
 }
 
@@ -835,9 +907,11 @@ void AndroidVideoDecodeAccelerator::OnMediaCryptoReady(
 
 void AndroidVideoDecodeAccelerator::OnKeyAdded() {
   DVLOG(1) << __FUNCTION__;
-  // TODO(timav): Figure out whether stopping the pipeline in response to
-  // NO_KEY error and restarting it here has significant benefits (e.g. saving
-  // power). Right now do nothing here.
+
+  if (state_ == WAITING_FOR_KEY)
+    state_ = NO_ERROR;
+
+  DoIOTask();
 }
 
 void AndroidVideoDecodeAccelerator::NotifyCdmAttached(bool success) {
@@ -863,7 +937,13 @@ void AndroidVideoDecodeAccelerator::NotifyResetDone() {
 }
 
 void AndroidVideoDecodeAccelerator::NotifyError(
-    media::VideoDecodeAccelerator::Error error) {
+    media::VideoDecodeAccelerator::Error error,
+    int token) {
+  DVLOG(1) << __FUNCTION__ << ": error: " << error << " token: " << token
+           << " current: " << error_sequence_token_;
+  if (token != error_sequence_token_)
+    return;
+
   client_->NotifyError(error);
 }
 
@@ -889,8 +969,11 @@ void AndroidVideoDecodeAccelerator::ManageTimer(bool did_work) {
 
 // static
 bool AndroidVideoDecodeAccelerator::UseDeferredRenderingStrategy() {
-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kEnableUnifiedMediaPipeline);
+  const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
+  // TODO(liberato, watk): Figure out what we want to do about zero copy for
+  // fullscreen external SurfaceView in WebView.  http://crbug.com/582170.
+  return cmd_line->HasSwitch(switches::kEnableUnifiedMediaPipeline) &&
+         !cmd_line->HasSwitch(switches::kEnableThreadedTextureMailboxes);
 }
 
 // static

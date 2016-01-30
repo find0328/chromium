@@ -51,6 +51,7 @@
 #if OS(MACOSX)
 #include "platform/mac/ScrollAnimatorMac.h"
 #endif
+#include "platform/scroll/MainThreadScrollingReason.h"
 #include "platform/scroll/ScrollAnimatorBase.h"
 #include "platform/scroll/ScrollbarTheme.h"
 #include "public/platform/Platform.h"
@@ -344,7 +345,7 @@ void ScrollingCoordinator::scrollableAreaScrollbarLayerDidChange(ScrollableArea*
     if (!platformSupportsCoordinatedScrollbar) {
         if (scrollbarGraphicsLayer) {
             WebLayer* scrollbarLayer = toWebLayer(scrollbarGraphicsLayer);
-            scrollbarLayer->addMainThreadScrollingReasons(WebMainThreadScrollingReason::ScrollBarScrolling);
+            scrollbarLayer->addMainThreadScrollingReasons(MainThreadScrollingReason::kScrollbarScrolling);
         }
         return;
     }
@@ -399,7 +400,7 @@ bool ScrollingCoordinator::scrollableAreaScrollLayerDidChange(ScrollableArea* sc
         // to set the WebLayer's scroll position at fractional precision otherwise the
         // WebLayer's position after snapping to device pixel can be off with regard to
         // fixed position elements.
-        if (m_lastMainThreadScrollingReasons & WebMainThreadScrollingReason::HasNonLayerViewportConstrainedObjects) {
+        if (m_lastMainThreadScrollingReasons & MainThreadScrollingReason::kHasNonLayerViewportConstrainedObjects) {
             webLayer->setScrollPositionDouble(DoublePoint(scrollableArea->scrollPosition() - scrollableArea->minimumScrollPosition()));
         } else {
             DoublePoint scrollPosition(scrollableArea->scrollPositionDouble() - scrollableArea->minimumScrollPositionDouble());
@@ -656,7 +657,7 @@ void ScrollingCoordinator::touchEventTargetRectsDidChange()
     m_touchEventTargetRectsAreDirty = true;
 }
 
-void ScrollingCoordinator::updateScrollParentForGraphicsLayer(GraphicsLayer* child, PaintLayer* parent)
+void ScrollingCoordinator::updateScrollParentForGraphicsLayer(GraphicsLayer* child, const PaintLayer* parent)
 {
     WebLayer* scrollParentWebLayer = nullptr;
     if (parent && parent->hasCompositedLayerMapping())
@@ -665,7 +666,7 @@ void ScrollingCoordinator::updateScrollParentForGraphicsLayer(GraphicsLayer* chi
     child->setScrollParent(scrollParentWebLayer);
 }
 
-void ScrollingCoordinator::updateClipParentForGraphicsLayer(GraphicsLayer* child, PaintLayer* parent)
+void ScrollingCoordinator::updateClipParentForGraphicsLayer(GraphicsLayer* child, const PaintLayer* parent)
 {
     WebLayer* clipParentWebLayer = nullptr;
     if (parent && parent->hasCompositedLayerMapping())
@@ -677,19 +678,6 @@ void ScrollingCoordinator::updateClipParentForGraphicsLayer(GraphicsLayer* child
 void ScrollingCoordinator::willDestroyLayer(PaintLayer* layer)
 {
     m_layersWithTouchRects.remove(layer);
-}
-
-void ScrollingCoordinator::updateHaveWheelEventHandlers()
-{
-    ASSERT(isMainThread());
-    ASSERT(m_page);
-    if (!m_page->mainFrame()->isLocalFrame() || !m_page->deprecatedLocalMainFrame()->view())
-        return;
-
-    if (WebLayer* scrollLayer = toWebLayer(m_page->deprecatedLocalMainFrame()->view()->layerForScrolling())) {
-        bool haveHandlers = m_page->frameHost().eventHandlerRegistry().hasEventHandlers(EventHandlerRegistry::WheelEvent);
-        scrollLayer->setHaveWheelEventHandlers(haveHandlers);
-    }
 }
 
 void ScrollingCoordinator::updateHaveScrollEventHandlers()
@@ -708,14 +696,14 @@ void ScrollingCoordinator::updateHaveScrollEventHandlers()
     }
 }
 
-void ScrollingCoordinator::setShouldUpdateScrollLayerPositionOnMainThread(MainThreadScrollingReasons reasons)
+void ScrollingCoordinator::setShouldUpdateScrollLayerPositionOnMainThread(MainThreadScrollingReasons mainThreadScrollingReasons)
 {
     if (!m_page->mainFrame()->isLocalFrame() || !m_page->deprecatedLocalMainFrame()->view())
         return;
     if (WebLayer* scrollLayer = toWebLayer(m_page->deprecatedLocalMainFrame()->view()->layerForScrolling())) {
-        m_lastMainThreadScrollingReasons = reasons;
-        if (reasons)
-            scrollLayer->addMainThreadScrollingReasons(static_cast<WebMainThreadScrollingReason::WebMainThreadScrollingReason>(reasons));
+        m_lastMainThreadScrollingReasons = mainThreadScrollingReasons;
+        if (mainThreadScrollingReasons)
+            scrollLayer->addMainThreadScrollingReasons(mainThreadScrollingReasons);
         else
             scrollLayer->clearMainThreadScrollingReasons();
     }
@@ -752,17 +740,9 @@ void ScrollingCoordinator::willBeDestroyed()
 bool ScrollingCoordinator::coordinatesScrollingForFrameView(FrameView* frameView) const
 {
     ASSERT(isMainThread());
-    ASSERT(m_page);
-
-    // We currently only handle the main frame.
-    if (&frameView->frame() != m_page->mainFrame())
-        return false;
-
-    if (!m_page->mainFrame()->isLocalFrame())
-        return false;
 
     // We currently only support composited mode.
-    LayoutView* layoutView = m_page->deprecatedLocalMainFrame()->contentLayoutObject();
+    LayoutView* layoutView = frameView->frame().contentLayoutObject();
     if (!layoutView)
         return false;
     return layoutView->usesCompositing();
@@ -967,7 +947,6 @@ void ScrollingCoordinator::frameViewRootLayerDidChange(FrameView* frameView)
         return;
 
     notifyGeometryChanged();
-    updateHaveWheelEventHandlers();
     updateHaveScrollEventHandlers();
 }
 
@@ -1026,27 +1005,36 @@ MainThreadScrollingReasons ScrollingCoordinator::mainThreadScrollingReasons() co
     MainThreadScrollingReasons reasons = static_cast<MainThreadScrollingReasons>(0);
 
     if (!m_page->settings().threadedScrollingEnabled())
-        reasons |= WebMainThreadScrollingReason::ThreadedScrollingDisabled;
+        reasons |= MainThreadScrollingReason::kThreadedScrollingDisabled;
 
     if (!m_page->mainFrame()->isLocalFrame())
         return reasons;
-    FrameView* frameView = m_page->deprecatedLocalMainFrame()->view();
-    if (!frameView)
-        return reasons;
 
-    if (frameView->hasBackgroundAttachmentFixedObjects())
-        reasons |= WebMainThreadScrollingReason::HasBackgroundAttachmentFixedObjects;
-    FrameView::ScrollingReasons scrollingReasons = frameView->scrollingReasons();
-    const bool mayBeScrolledByInput = (scrollingReasons == FrameView::Scrollable);
-    const bool mayBeScrolledByScript = mayBeScrolledByInput || (scrollingReasons ==
-        FrameView::NotScrollableExplicitlyDisabled);
+    // TODO(flackr) Currently we combine reasons for main thread scrolling from
+    // all frames but we should only look at the targetted frame (and its ancestors
+    // if the scroll bubbles up). http://crbug.com/568901
+    for (Frame* frame = m_page->mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (!frame->isLocalFrame())
+            continue;
 
-    // TODO(awoloszyn) Currently crbug.com/304810 will let certain
-    // overflow:hidden elements scroll on the compositor thread, so we should
-    // not let this move there path as an optimization, when we have slow-repaint
-    // elements.
-    if (mayBeScrolledByScript && hasVisibleSlowRepaintViewportConstrainedObjects(frameView)) {
-        reasons |= WebMainThreadScrollingReason::HasNonLayerViewportConstrainedObjects;
+        FrameView* frameView = toLocalFrame(frame)->view();
+        if (!frameView)
+            continue;
+
+        if (frameView->hasBackgroundAttachmentFixedObjects())
+            reasons |= MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects;
+        FrameView::ScrollingReasons scrollingReasons = frameView->scrollingReasons();
+        const bool mayBeScrolledByInput = (scrollingReasons == FrameView::Scrollable);
+        const bool mayBeScrolledByScript = mayBeScrolledByInput || (scrollingReasons ==
+            FrameView::NotScrollableExplicitlyDisabled);
+
+        // TODO(awoloszyn) Currently crbug.com/304810 will let certain
+        // overflow:hidden elements scroll on the compositor thread, so we should
+        // not let this move there path as an optimization, when we have slow-repaint
+        // elements.
+        if (mayBeScrolledByScript && hasVisibleSlowRepaintViewportConstrainedObjects(frameView)) {
+            reasons |= MainThreadScrollingReason::kHasNonLayerViewportConstrainedObjects;
+        }
     }
 
     return reasons;
@@ -1056,11 +1044,11 @@ String ScrollingCoordinator::mainThreadScrollingReasonsAsText(MainThreadScrollin
 {
     StringBuilder stringBuilder;
 
-    if (reasons & WebMainThreadScrollingReason::HasBackgroundAttachmentFixedObjects)
+    if (reasons & MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects)
         stringBuilder.appendLiteral("Has background-attachment:fixed, ");
-    if (reasons & WebMainThreadScrollingReason::HasNonLayerViewportConstrainedObjects)
+    if (reasons & MainThreadScrollingReason::kHasNonLayerViewportConstrainedObjects)
         stringBuilder.appendLiteral("Has non-layer viewport-constrained objects, ");
-    if (reasons & WebMainThreadScrollingReason::ThreadedScrollingDisabled)
+    if (reasons & MainThreadScrollingReason::kThreadedScrollingDisabled)
         stringBuilder.appendLiteral("Threaded scrolling is disabled, ");
 
     if (stringBuilder.length())

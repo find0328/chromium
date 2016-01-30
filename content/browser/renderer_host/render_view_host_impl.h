@@ -150,11 +150,6 @@ class CONTENT_EXPORT RenderViewHostImpl : public RenderViewHost,
   void OnWebkitPreferencesChanged() override;
   void SelectWordAroundCaret() override;
 
-#if defined(OS_ANDROID)
-  void ActivateNearestFindResult(int request_id, float x, float y) override;
-  void RequestFindMatchRects(int current_version) override;
-#endif
-
   // RenderProcessHostObserver implementation
   void RenderProcessReady(RenderProcessHost* host) override;
   void RenderProcessExited(RenderProcessHost* host,
@@ -286,8 +281,6 @@ class CONTENT_EXPORT RenderViewHostImpl : public RenderViewHost,
   void RenderWidgetDidInit() override;
   void RenderWidgetWillSetIsLoading(bool is_loading) override;
   void RenderWidgetGotFocus() override;
-  void RenderWidgetWillBeHidden() override;
-  void RenderWidgetWillBeShown() override;
   void RenderWidgetDidForwardMouseEvent(
       const blink::WebMouseEvent& mouse_event) override;
   bool MayRenderWidgetForwardKeyboardEvent(
@@ -359,6 +352,8 @@ class CONTENT_EXPORT RenderViewHostImpl : public RenderViewHost,
   // upon receipt from the renderer process to prevent it from forging access to
   // files without the user's consent.
   void GrantFileAccessFromPageState(const PageState& validated_state);
+
+  gfx::Point ConvertDIPToViewport(const gfx::Point& point);
 
   // The RenderWidgetHost.
   scoped_ptr<RenderWidgetHostImpl> render_widget_host_;

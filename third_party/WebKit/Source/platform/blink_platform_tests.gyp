@@ -53,17 +53,6 @@
         '<@(platform_heap_test_files)',
       ],
       'conditions': [
-        ['os_posix==1 and OS!="mac" and OS!="android" and OS!="ios" and use_allocator!="none"', {
-          'dependencies': [
-            '<(DEPTH)/base/base.gyp:base',
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ]
-        }],
-        ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ]
-        }],
         ['OS=="android"', {
           'type': 'shared_library',
           'dependencies': [
@@ -82,9 +71,13 @@
         '../wtf/wtf.gyp:wtf',
         '../wtf/wtf_tests.gyp:wtf_unittest_helpers',
         '<(DEPTH)/base/base.gyp:test_support_base',
+        '<(DEPTH)/cc/cc.gyp:cc',
+        '<(DEPTH)/cc/cc_tests.gyp:cc_test_support',
         '<(DEPTH)/cc/blink/cc_blink.gyp:cc_blink',
         '<(DEPTH)/skia/skia.gyp:skia',
         '<(DEPTH)/third_party/harfbuzz-ng/harfbuzz.gyp:harfbuzz-ng',
+        '<(DEPTH)/ui/gfx/gfx.gyp:gfx',
+        '<(DEPTH)/ui/gfx/gfx.gyp:gfx_geometry',
         '<(DEPTH)/url/url.gyp:url_lib',
         'blink_platform.gyp:blink_common',
         'blink_platform.gyp:blink_platform',
@@ -100,12 +93,6 @@
         '<@(platform_test_files)',
       ],
       'conditions': [
-        ['os_posix==1 and OS!="mac" and OS!="android" and OS!="ios" and use_allocator!="none"', {
-          'dependencies': [
-            '<(DEPTH)/base/base.gyp:base',
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ]
-        }],
         ['OS=="android" and gtest_target_type == "shared_library"', {
           'type': 'shared_library',
           'dependencies': [

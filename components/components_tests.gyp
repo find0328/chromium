@@ -38,8 +38,8 @@
       'autofill/core/browser/autofill_metrics_unittest.cc',
       'autofill/core/browser/autofill_profile_unittest.cc',
       'autofill/core/browser/autofill_type_unittest.cc',
-      'autofill/core/browser/autofill_xml_parser_unittest.cc',
       'autofill/core/browser/contact_info_unittest.cc',
+      'autofill/core/browser/country_names_unittest.cc',
       'autofill/core/browser/credit_card_field_unittest.cc',
       'autofill/core/browser/credit_card_unittest.cc',
       'autofill/core/browser/form_field_unittest.cc',
@@ -236,12 +236,6 @@
     'data_use_measurement_unittest_sources': [
       'data_use_measurement/content/data_use_measurement_unittest.cc',
     ],
-    'enhanced_bookmarks_unittest_sources': [
-      'enhanced_bookmarks/enhanced_bookmark_model_unittest.cc',
-      'enhanced_bookmarks/image_store_ios_unittest.mm',
-      'enhanced_bookmarks/image_store_unittest.cc',
-      'enhanced_bookmarks/item_position_unittest.cc',
-    ],
     'error_page_unittest_sources': [
       'error_page/renderer/net_error_helper_core_unittest.cc',
     ],
@@ -340,8 +334,10 @@
       'login/screens/screen_context_unittest.cc',
     ],
     'memory_pressure_unittest_sources': [
+      'memory_pressure/direct_memory_pressure_calculator_linux_unittest.cc',
       'memory_pressure/direct_memory_pressure_calculator_win_unittest.cc',
       'memory_pressure/filtered_memory_pressure_calculator_unittest.cc',
+      'memory_pressure/memory_pressure_monitor_unittest.cc',
       'memory_pressure/memory_pressure_stats_collector_unittest.cc',
       'memory_pressure/test_memory_pressure_calculator.cc',
       'memory_pressure/test_memory_pressure_calculator.h',
@@ -411,6 +407,8 @@
       'omnibox/browser/base_search_provider_unittest.cc',
       'omnibox/browser/bookmark_provider_unittest.cc',
       'omnibox/browser/clipboard_url_provider_unittest.cc',
+      'omnibox/browser/history_quick_provider_unittest.cc',
+      'omnibox/browser/history_url_provider_unittest.cc',
       'omnibox/browser/in_memory_url_index_types_unittest.cc',
       'omnibox/browser/keyword_provider_unittest.cc',
       'omnibox/browser/omnibox_field_trial_unittest.cc',
@@ -587,6 +585,18 @@
       'proxy_config/pref_proxy_config_tracker_impl_unittest.cc',
       'proxy_config/proxy_config_dictionary_unittest.cc',
       'proxy_config/proxy_prefs_unittest.cc',
+    ],
+    'prefs_unittest_sources': [
+      'prefs/default_pref_store_unittest.cc',
+      'prefs/json_pref_store_unittest.cc',
+      'prefs/overlay_user_pref_store_unittest.cc',
+      'prefs/pref_change_registrar_unittest.cc',
+      'prefs/pref_member_unittest.cc',
+      'prefs/pref_notifier_impl_unittest.cc',
+      'prefs/pref_service_unittest.cc',
+      'prefs/pref_value_map_unittest.cc',
+      'prefs/pref_value_store_unittest.cc',
+      'prefs/scoped_user_pref_update_unittest.cc',
     ],
     'query_parser_unittest_sources': [
       'query_parser/query_parser_unittest.cc',
@@ -785,6 +795,7 @@
       'update_client/update_client_unittest.cc',
       'update_client/update_query_params_unittest.cc',
       'update_client/update_response_unittest.cc',
+      'update_client/utils_unittest.cc',
     ],
     'upload_list_unittest_sources': [
       'upload_list/upload_list_unittest.cc',
@@ -915,7 +926,6 @@
         '<@(device_event_log_unittest_sources)',
         '<@(dom_distiller_unittest_sources)',
         '<@(domain_reliability_unittest_sources)',
-        '<@(enhanced_bookmarks_unittest_sources)',
         '<@(favicon_base_unittest_sources)',
         '<@(favicon_unittest_sources)',
         '<@(flags_ui_unittest_sources)',
@@ -941,6 +951,7 @@
         '<@(password_manager_unittest_sources)',
         '<@(precache_unittest_sources)',
         '<@(proxy_config_unittest_sources)',
+        '<@(prefs_unittest_sources)',
         '<@(query_parser_unittest_sources)',
         '<@(rappor_unittest_sources)',
         '<@(search_engines_unittest_sources)',
@@ -973,7 +984,6 @@
       ],
       'dependencies': [
         '../base/base.gyp:base',
-        '../base/base.gyp:base_prefs_test_support',
         '../base/base.gyp:test_support_base',
         '../google_apis/google_apis.gyp:google_apis_test_support',
         '../jingle/jingle.gyp:notifier_test_util',
@@ -988,7 +998,6 @@
         '../third_party/libaddressinput/libaddressinput.gyp:libaddressinput_util',
         '../third_party/libjingle/libjingle.gyp:libjingle',
         '../third_party/libphonenumber/libphonenumber.gyp:libphonenumber',
-        '../third_party/libxml/libxml.gyp:libxml',
         '../third_party/protobuf/protobuf.gyp:protobuf_lite',
         '../third_party/re2/re2.gyp:re2',
         '../ui/base/ui_base.gyp:ui_base',
@@ -1006,6 +1015,7 @@
         'components.gyp:bookmarks_managed',
         'components.gyp:bookmarks_test_support',
         'components.gyp:browser_sync_browser',
+        'components.gyp:browser_sync_browser_test_support',
         'components.gyp:bubble',
         'components.gyp:captive_portal_test_support',
         'components.gyp:certificate_reporting',
@@ -1027,8 +1037,6 @@
         'components.gyp:dom_distiller_protos',
         'components.gyp:dom_distiller_test_support',
         'components.gyp:domain_reliability',
-        'components.gyp:enhanced_bookmarks',
-        'components.gyp:enhanced_bookmarks_test_support',
         'components.gyp:favicon_base',
         'components.gyp:favicon_core',
         'components.gyp:flags_ui',
@@ -1110,6 +1118,8 @@
         'components_strings.gyp:components_strings',
         'components_tests_pak',
         'mime_util/mime_util.gyp:mime_util',
+        'prefs/prefs.gyp:prefs',
+        'prefs/prefs.gyp:prefs_test_support',
         'url_formatter/url_formatter.gyp:url_formatter',
       ],
       'conditions': [
@@ -1151,11 +1161,6 @@
             'components.gyp:browser_watcher',
             'components.gyp:browser_watcher_client',
           ]
-        }],
-        ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ],
         }],
         [ 'cld_version==2', {
           'dependencies': [
@@ -1409,6 +1414,7 @@
         ['chromeos==1', {
           'sources': [
             'arc/arc_bridge_service_unittest.cc',
+            'arc/ime/arc_ime_bridge_unittest.cc',
             'pairing/message_buffer_unittest.cc',
             'timers/alarm_timer_unittest.cc',
             'wifi_sync/wifi_config_delegate_chromeos_unittest.cc',
@@ -1452,19 +1458,6 @@
           'sources/': [
             ['exclude', '^storage_monitor/'],
           ],
-        }],
-        ['OS=="win" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '../base/allocator/allocator.gyp:allocator',
-          ],
-        }],
-        ['OS=="linux" and component=="shared_library" and use_allocator!="none"', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ],
-          'link_settings': {
-            'ldflags': ['-rdynamic'],
-          },
         }],
         ['configuration_policy==1', {
           'dependencies': [
@@ -1638,7 +1631,7 @@
             'components.gyp:invalidation_java',
             'components.gyp:policy_java',
             'components.gyp:policy_java_test_support',
-            'components.gyp:web_restriction_java',
+            'components.gyp:web_restrictions_java',
             '../base/base.gyp:base_java',
             '../base/base.gyp:base_java_test_support',
             '../testing/android/junit/junit_test.gyp:junit_test_support',
@@ -1648,7 +1641,7 @@
             'src_paths': [
               'invalidation/impl/android/junit/',
               'policy/android/junit/',
-              'web_restriction/junit/'
+              'web_restrictions/junit/'
             ],
           },
           'includes': [ '../build/host_jar.gypi' ],
@@ -1717,11 +1710,6 @@
            ['OS == "android"', {
              'dependencies': [
                '../testing/android/native_test.gyp:native_test_native_code',
-             ],
-           }],
-           ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-             'dependencies': [
-               '<(DEPTH)/base/allocator/allocator.gyp:allocator',
              ],
            }],
          ],
@@ -1820,11 +1808,6 @@
               },
               # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
               'msvs_disabled_warnings': [ 4267, ],
-            }],
-            ['OS=="win" and win_use_allocator_shim==1', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
             }],
             ['OS=="mac"', {
               'dependencies': [

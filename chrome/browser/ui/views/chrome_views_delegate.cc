@@ -53,10 +53,6 @@
 #include "ui/views/linux_ui/linux_ui.h"
 #endif
 
-#if defined(OS_ANDROID)
-#include "ui/views/widget/android/native_widget_android.h"
-#endif
-
 #if defined(USE_ASH)
 #include "ash/accelerators/accelerator_controller.h"
 #include "ash/shell.h"
@@ -195,8 +191,9 @@ void ChromeViewsDelegate::SaveWindowPlacement(const views::Widget* window,
   window_preferences->SetBoolean("maximized",
                                  show_state == ui::SHOW_STATE_MAXIMIZED);
   window_preferences->SetBoolean("docked", show_state == ui::SHOW_STATE_DOCKED);
-  gfx::Rect work_area(gfx::Screen::GetScreenFor(window->GetNativeView())->
-      GetDisplayNearestWindow(window->GetNativeView()).work_area());
+  gfx::Rect work_area(gfx::Screen::GetScreen()
+                          ->GetDisplayNearestWindow(window->GetNativeView())
+                          .work_area());
   window_preferences->SetInteger("work_area_left", work_area.x());
   window_preferences->SetInteger("work_area_top", work_area.y());
   window_preferences->SetInteger("work_area_right", work_area.right());
@@ -237,8 +234,8 @@ bool ChromeViewsDelegate::GetSavedWindowPlacement(
   gfx::NativeView window = widget->GetNativeView();
   if (chrome::GetHostDesktopTypeForNativeView(window) ==
       chrome::HOST_DESKTOP_TYPE_ASH) {
-    gfx::Display display = gfx::Screen::GetScreenFor(window)->
-        GetDisplayMatching(*bounds);
+    gfx::Display display =
+        gfx::Screen::GetScreen()->GetDisplayMatching(*bounds);
     bounds->AdjustToFit(display.work_area());
     ash::wm::GetWindowState(window)->set_minimum_visibility(true);
   }
@@ -289,10 +286,6 @@ HICON ChromeViewsDelegate::GetDefaultWindowIcon() const {
 
 HICON ChromeViewsDelegate::GetSmallWindowIcon() const {
   return GetSmallAppIcon();
-}
-
-bool ChromeViewsDelegate::IsWindowInMetro(gfx::NativeWindow window) const {
-  return chrome::IsNativeViewInAsh(window);
 }
 
 #elif defined(OS_LINUX) && !defined(OS_CHROMEOS)
@@ -441,11 +434,7 @@ void ChromeViewsDelegate::OnBeforeWidgetInit(
         params->context ? params->context : params->parent;
     if (chrome::GetHostDesktopTypeForNativeView(to_check) ==
         chrome::HOST_DESKTOP_TYPE_NATIVE) {
-#if defined(OS_ANDROID)
-      params->native_widget = new views::NativeWidgetAndroid(delegate);
-#else
       params->native_widget = new views::DesktopNativeWidgetAura(delegate);
-#endif
     }
   }
 #endif

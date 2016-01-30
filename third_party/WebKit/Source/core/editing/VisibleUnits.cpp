@@ -53,10 +53,10 @@
 #include "core/layout/LayoutObject.h"
 #include "core/layout/LayoutTextFragment.h"
 #include "core/layout/LayoutView.h"
+#include "core/layout/api/LineLayoutAPIShim.h"
 #include "core/layout/api/LineLayoutItem.h"
 #include "core/layout/line/InlineIterator.h"
 #include "core/layout/line/InlineTextBox.h"
-#include "core/paint/LineLayoutPaintShim.h"
 #include "core/paint/PaintLayer.h"
 #include "platform/Logging.h"
 #include "platform/RuntimeEnabledFeatures.h"
@@ -126,7 +126,7 @@ static PositionType canonicalPosition(const PositionType& passedPosition)
     if (node && node->document().documentElement() == node && !node->hasEditableStyle() && node->document().body() && node->document().body()->hasEditableStyle())
         return next.isNotNull() ? next : prev;
 
-    Element* editingRoot = editableRootForPosition(position);
+    Element* editingRoot = rootEditableElementOf(position);
 
     // If the html element is editable, descending into its body will look like
     // a descent from non-editable to editable content since
@@ -134,8 +134,8 @@ static PositionType canonicalPosition(const PositionType& passedPosition)
     if ((editingRoot && editingRoot->document().documentElement() == editingRoot) || position.anchorNode()->isDocumentNode())
         return next.isNotNull() ? next : prev;
 
-    bool prevIsInSameEditableElement = prevNode && editableRootForPosition(prev) == editingRoot;
-    bool nextIsInSameEditableElement = nextNode && editableRootForPosition(next) == editingRoot;
+    bool prevIsInSameEditableElement = prevNode && rootEditableElementOf(prev) == editingRoot;
+    bool nextIsInSameEditableElement = nextNode && rootEditableElementOf(next) == editingRoot;
     if (prevIsInSameEditableElement && !nextIsInSameEditableElement)
         return prev;
 
@@ -1274,9 +1274,9 @@ static inline LayoutPoint absoluteLineDirectionPointToLocalPointInBlock(RootInli
         absoluteBlockPoint -= FloatSize(containingBlock.scrolledContentOffset());
 
     if (root->block().isHorizontalWritingMode())
-        return LayoutPoint(lineDirectionPoint - absoluteBlockPoint.x(), root->blockDirectionPointInLine());
+        return LayoutPoint(LayoutUnit(lineDirectionPoint - absoluteBlockPoint.x()), root->blockDirectionPointInLine());
 
-    return LayoutPoint(root->blockDirectionPointInLine(), lineDirectionPoint - absoluteBlockPoint.y());
+    return LayoutPoint(root->blockDirectionPointInLine(), LayoutUnit(lineDirectionPoint - absoluteBlockPoint.y()));
 }
 
 VisiblePosition previousLinePosition(const VisiblePosition& visiblePosition, LayoutUnit lineDirectionPoint, EditableType editableType)
@@ -1316,11 +1316,11 @@ VisiblePosition previousLinePosition(const VisiblePosition& visiblePosition, Lay
     if (root) {
         // FIXME: Can be wrong for multi-column layout and with transforms.
         LayoutPoint pointInLine = absoluteLineDirectionPointToLocalPointInBlock(root, lineDirectionPoint);
-        LayoutObject& layoutObject = root->closestLeafChildForPoint(pointInLine, isEditablePosition(p))->layoutObject();
-        Node* node = layoutObject.node();
+        LineLayoutItem lineLayoutItem = root->closestLeafChildForPoint(pointInLine, isEditablePosition(p))->lineLayoutItem();
+        Node* node = lineLayoutItem.node();
         if (node && editingIgnoresContent(node))
             return createVisiblePosition(positionInParentBeforeNode(*node));
-        return createVisiblePosition(layoutObject.positionForPoint(pointInLine));
+        return createVisiblePosition(lineLayoutItem.positionForPoint(pointInLine));
     }
 
     // Could not find a previous line. This means we must already be on the first line.
@@ -1372,11 +1372,11 @@ VisiblePosition nextLinePosition(const VisiblePosition& visiblePosition, LayoutU
     if (root) {
         // FIXME: Can be wrong for multi-column layout and with transforms.
         LayoutPoint pointInLine = absoluteLineDirectionPointToLocalPointInBlock(root, lineDirectionPoint);
-        LayoutObject& layoutObject = root->closestLeafChildForPoint(pointInLine, isEditablePosition(p))->layoutObject();
-        Node* node = layoutObject.node();
+        LineLayoutItem lineLayoutItem = root->closestLeafChildForPoint(pointInLine, isEditablePosition(p))->lineLayoutItem();
+        Node* node = lineLayoutItem.node();
         if (node && editingIgnoresContent(node))
             return createVisiblePosition(positionInParentBeforeNode(*node));
-        return createVisiblePosition(layoutObject.positionForPoint(pointInLine));
+        return createVisiblePosition(lineLayoutItem.positionForPoint(pointInLine));
     }
 
     // Could not find a next line. This means we must already be on the last line.
@@ -1526,7 +1526,7 @@ VisiblePositionTemplate<Strategy> startOfParagraphAlgorithm(const VisiblePositio
             node = n;
             offset = 0;
             n = Strategy::previousPostOrder(*n, startBlock);
-        } else if (editingIgnoresContent(n) || isRenderedTableElement(n)) {
+        } else if (editingIgnoresContent(n) || isDisplayInsideTable(n)) {
             node = n;
             type = PositionAnchorType::BeforeAnchor;
             n = n->previousSibling() ? n->previousSibling() : Strategy::previousPostOrder(*n, startBlock);
@@ -1613,7 +1613,7 @@ static VisiblePositionTemplate<Strategy> endOfParagraphAlgorithm(const VisiblePo
             node = n;
             offset = r->caretMaxOffset();
             n = Strategy::next(*n, stayInsideBlock);
-        } else if (Strategy::editingIgnoresContent(n) || isRenderedTableElement(n)) {
+        } else if (Strategy::editingIgnoresContent(n) || isDisplayInsideTable(n)) {
             node = n;
             type = PositionAnchorType::AfterAnchor;
             n = Strategy::nextSkippingChildren(*n, stayInsideBlock);
@@ -2124,7 +2124,7 @@ LayoutRect localCaretRectOfPositionTemplate(const PositionWithAffinityTemplate<S
     InlineBoxPosition boxPosition = computeInlineBoxPosition(position.position(), position.affinity());
 
     if (boxPosition.inlineBox)
-        layoutObject = LineLayoutPaintShim::layoutObjectFrom(boxPosition.inlineBox->lineLayoutItem());
+        layoutObject = LineLayoutAPIShim::layoutObjectFrom(boxPosition.inlineBox->lineLayoutItem());
 
     return layoutObject->localCaretRect(boxPosition.inlineBox, boxPosition.offsetInBox);
 }
@@ -2171,28 +2171,51 @@ VisiblePosition visiblePositionForContentsPoint(const IntPoint& contentsPoint, L
 
 // TODO(yosin): We should use |associatedLayoutObjectOf()| in "VisibleUnits.cpp"
 // where it takes |LayoutObject| from |Position|.
-static LayoutObject* associatedLayoutObjectOf(const Node& node, int offsetInNode)
+// Note about ::first-letter pseudo-element:
+//   When an element has ::first-letter pseudo-element, first letter characters
+//   are taken from |Text| node and first letter characters are considered
+//   as content of <pseudo:first-letter>.
+//   For following HTML,
+//      <style>div::first-letter {color: red}</style>
+//      <div>abc</div>
+//   we have following layout tree:
+//      LayoutBlockFlow {DIV} at (0,0) size 784x55
+//        LayoutInline {<pseudo:first-letter>} at (0,0) size 22x53
+//          LayoutTextFragment (anonymous) at (0,1) size 22x53
+//            text run at (0,1) width 22: "a"
+//        LayoutTextFragment {#text} at (21,30) size 16x17
+//          text run at (21,30) width 16: "bc"
+//  In this case, |Text::layoutObject()| for "abc" returns |LayoutTextFragment|
+//  containing "bc", and it is called remaining part.
+//
+//  Even if |Text| node contains only first-letter characters, e.g. just "a",
+//  remaining part of |LayoutTextFragment|, with |fragmentLength()| == 0, is
+//  appeared in layout tree.
+//
+//  When |Text| node contains only first-letter characters and whitespaces, e.g.
+//  "B\n", associated |LayoutTextFragment| is first-letter part instead of
+//  remaining part.
+//
+//  Punctuation characters are considered as first-letter. For "(1)ab",
+//  "(1)" are first-letter part and "ab" are remaining part.
+LayoutObject* associatedLayoutObjectOf(const Node& node, int offsetInNode)
 {
     ASSERT(offsetInNode >= 0);
     LayoutObject* layoutObject = node.layoutObject();
     if (!node.isTextNode() || !layoutObject || !toLayoutText(layoutObject)->isTextFragment())
         return layoutObject;
     LayoutTextFragment* layoutTextFragment = toLayoutTextFragment(layoutObject);
-    if (layoutTextFragment->isRemainingTextLayoutObject()) {
-        if (static_cast<unsigned>(offsetInNode) >= layoutTextFragment->start())
-            return layoutObject;
-        LayoutObject* firstLetterLayoutObject = layoutTextFragment->firstLetterPseudoElement()->layoutObject();
-        if (!firstLetterLayoutObject)
-            return nullptr;
-        // TODO(yosin): We're not sure when |firstLetterLayoutObject| has
-        // multiple child layout object.
-        ASSERT(firstLetterLayoutObject->slowFirstChild() == firstLetterLayoutObject->slowLastChild());
-        return firstLetterLayoutObject->slowFirstChild();
+    if (!layoutTextFragment->isRemainingTextLayoutObject()) {
+        ASSERT(static_cast<unsigned>(offsetInNode) <= layoutTextFragment->start() + layoutTextFragment->fragmentLength());
+        return layoutTextFragment;
     }
-    // TODO(yosin): We should rename |LayoutTextFramge::length()| instead of
-    // |end()|, once |LayoutTextFramge| has it. See http://crbug.com/545789
-    ASSERT(static_cast<unsigned>(offsetInNode) <= layoutTextFragment->start() + layoutTextFragment->fragmentLength());
-    return layoutTextFragment;
+    if (layoutTextFragment->fragmentLength() && static_cast<unsigned>(offsetInNode) >= layoutTextFragment->start())
+        return layoutObject;
+    LayoutObject* firstLetterLayoutObject = layoutTextFragment->firstLetterPseudoElement()->layoutObject();
+    // TODO(yosin): We're not sure when |firstLetterLayoutObject| has
+    // multiple child layout object.
+    ASSERT(firstLetterLayoutObject->slowFirstChild() == firstLetterLayoutObject->slowLastChild());
+    return firstLetterLayoutObject->slowFirstChild();
 }
 
 int caretMinOffset(const Node* node)
@@ -2483,7 +2506,7 @@ static PositionTemplate<Strategy> mostBackwardCaretPosition(const PositionTempla
             return lastVisible.deprecatedComputePosition();
 
         // Return position after tables and nodes which have content that can be ignored.
-        if (Strategy::editingIgnoresContent(currentNode) || isRenderedHTMLTableElement(currentNode)) {
+        if (Strategy::editingIgnoresContent(currentNode) || isDisplayInsideTable(currentNode)) {
             if (currentPos.atEndOfNode())
                 return PositionTemplate<Strategy>::afterNode(currentNode);
             continue;
@@ -2536,7 +2559,7 @@ static PositionTemplate<Strategy> mostBackwardCaretPosition(const PositionTempla
                     otherBox = otherBox->nextLeafChild();
                     if (!otherBox)
                         break;
-                    if (otherBox == lastTextBox || (LineLayoutPaintShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() > textOffset))
+                    if (otherBox == lastTextBox || (LineLayoutAPIShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() > textOffset))
                         continuesOnNextLine = false;
                 }
 
@@ -2545,7 +2568,7 @@ static PositionTemplate<Strategy> mostBackwardCaretPosition(const PositionTempla
                     otherBox = otherBox->prevLeafChild();
                     if (!otherBox)
                         break;
-                    if (otherBox == lastTextBox || (LineLayoutPaintShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() > textOffset))
+                    if (otherBox == lastTextBox || (LineLayoutAPIShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() > textOffset))
                         continuesOnNextLine = false;
                 }
 
@@ -2629,7 +2652,7 @@ PositionTemplate<Strategy> mostForwardCaretPosition(const PositionTemplate<Strat
             lastVisible = currentPos;
 
         // Return position before tables and nodes which have content that can be ignored.
-        if (Strategy::editingIgnoresContent(currentNode) || isRenderedHTMLTableElement(currentNode)) {
+        if (Strategy::editingIgnoresContent(currentNode) || isDisplayInsideTable(currentNode)) {
             if (currentPos.offsetInLeafNode() <= layoutObject->caretMinOffset())
                 return PositionTemplate<Strategy>::editingPositionOf(currentNode, layoutObject->caretMinOffset());
             continue;
@@ -2667,7 +2690,7 @@ PositionTemplate<Strategy> mostForwardCaretPosition(const PositionTemplate<Strat
                     otherBox = otherBox->nextLeafChild();
                     if (!otherBox)
                         break;
-                    if (otherBox == lastTextBox || (LineLayoutPaintShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() >= textOffset))
+                    if (otherBox == lastTextBox || (LineLayoutAPIShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() >= textOffset))
                         continuesOnNextLine = false;
                 }
 
@@ -2676,7 +2699,7 @@ PositionTemplate<Strategy> mostForwardCaretPosition(const PositionTemplate<Strat
                     otherBox = otherBox->prevLeafChild();
                     if (!otherBox)
                         break;
-                    if (otherBox == lastTextBox || (LineLayoutPaintShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() >= textOffset))
+                    if (otherBox == lastTextBox || (LineLayoutAPIShim::layoutObjectFrom(otherBox->lineLayoutItem()) == textLayoutObject && toInlineTextBox(otherBox)->start() >= textOffset))
                         continuesOnNextLine = false;
                 }
 
@@ -2759,7 +2782,7 @@ static bool isVisuallyEquivalentCandidateAlgorithm(const PositionTemplate<Strate
         return false;
     }
 
-    if (isRenderedHTMLTableElement(anchorNode) || Strategy::editingIgnoresContent(anchorNode)) {
+    if (isDisplayInsideTable(anchorNode) || Strategy::editingIgnoresContent(anchorNode)) {
         if (!position.atFirstEditingPositionForNode() && !position.atLastEditingPositionForNode())
             return false;
         const Node* parent = Strategy::parent(*anchorNode);
@@ -3084,7 +3107,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
         if (!box)
             return primaryDirection == LTR ? nextVisuallyDistinctCandidate(deepPosition) : previousVisuallyDistinctCandidate(deepPosition);
 
-        LayoutObject* layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+        LayoutObject* layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
 
         while (true) {
             if ((layoutObject->isAtomicInlineLevel() || layoutObject->isBR()) && offset == box->caretLeftmostOffset())
@@ -3094,7 +3117,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
                 box = box->nextLeafChild();
                 if (!box)
                     return primaryDirection == LTR ? nextVisuallyDistinctCandidate(deepPosition) : previousVisuallyDistinctCandidate(deepPosition);
-                layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+                layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
                 offset = box->caretLeftmostOffset();
                 continue;
             }
@@ -3124,7 +3147,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
                 // Reposition at the other logical position corresponding to our
                 // edge's visual position and go for another round.
                 box = nextBox;
-                layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+                layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
                 offset = nextBox->caretLeftmostOffset();
                 continue;
             }
@@ -3139,7 +3162,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
                     InlineBox* logicalEnd = 0;
                     if (primaryDirection == LTR ? box->root().getLogicalEndBoxWithNode(logicalEnd) : box->root().getLogicalStartBoxWithNode(logicalEnd)) {
                         box = logicalEnd;
-                        layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+                        layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
                         offset = primaryDirection == LTR ? box->caretMaxOffset() : box->caretMinOffset();
                     }
                     break;
@@ -3161,7 +3184,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
 
                 // For example, abc 123 ^ CBA or 123 ^ CBA abc
                 box = nextBox;
-                layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+                layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
                 offset = box->caretLeftmostOffset();
                 if (box->direction() == primaryDirection)
                     break;
@@ -3173,7 +3196,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
 
             if (nextBox) {
                 box = nextBox;
-                layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+                layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
                 offset = box->caretLeftmostOffset();
 
                 if (box->bidiLevel() > level) {
@@ -3204,7 +3227,7 @@ static PositionTemplate<Strategy> rightVisuallyDistinctCandidate(const VisiblePo
                         break;
                     level = box->bidiLevel();
                 }
-                layoutObject = LineLayoutPaintShim::layoutObjectFrom(box->lineLayoutItem());
+                layoutObject = LineLayoutAPIShim::layoutObjectFrom(box->lineLayoutItem());
                 offset = primaryDirection == LTR ? box->caretMaxOffset() : box->caretMinOffset();
             }
             break;

@@ -25,14 +25,11 @@ source_set("renderer") {
 
   deps = [
     "//base:i18n",
-
-    # TODO(GYP) bug 376846 remove this. This should be inherited from //net but
-    # those don't cross component boundaries.
-    "//base/allocator",
     "//cc",
     "//cc/blink",
     "//cc/proto",
     "//cc/surfaces",
+    "//cc/surfaces:surface_id",
     "//components/scheduler:scheduler",
     "//components/startup_metric_utils/common",
     "//components/url_formatter",
@@ -65,6 +62,7 @@ source_set("renderer") {
     "//mojo/shell/public/cpp",
     "//mojo/shell/public/interfaces",
     "//net",
+    "//sandbox",
     "//skia",
     "//skia/public",
     "//storage/common",
@@ -86,9 +84,11 @@ source_set("renderer") {
     "//ui/surface",
     "//v8",
   ]
+  allow_circular_includes_from = []
 
   if (use_aura) {
     deps += [ "//content/renderer/mus" ]
+    allow_circular_includes_from += [ "//content/renderer/mus" ]
   }
 
   if (is_mac) {
@@ -159,6 +159,7 @@ source_set("renderer") {
       "//third_party/libjingle:libjingle_webrtc",
       "//third_party/libjingle:libpeerconnection",
       "//third_party/libjingle:libstunprober",
+      "//third_party/libvpx_new",
       "//third_party/webrtc/base:rtc_base",
       "//third_party/webrtc/common_video",
       "//third_party/webrtc/modules/audio_device",
@@ -203,7 +204,7 @@ source_set("renderer") {
     ]
   }
 
-  if (enable_print_preview) {
+  if (enable_basic_printing || enable_print_preview) {
     deps += [ "//printing" ]
   }
 
@@ -234,5 +235,9 @@ source_set("renderer") {
 
   if (use_seccomp_bpf) {
     defines += [ "USE_SECCOMP_BPF" ]
+  }
+
+  if (use_ozone) {
+    deps += [ "//ui/ozone" ]
   }
 }

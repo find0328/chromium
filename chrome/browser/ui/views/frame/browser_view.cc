@@ -127,7 +127,7 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
 #include "ui/content_accelerators/accelerator_util.h"
@@ -165,6 +165,7 @@
 #include "base/win/windows_version.h"
 #include "chrome/browser/jumplist_win.h"
 #include "ui/gfx/color_palette.h"
+#include "ui/native_theme/native_theme_dark_win.h"
 #include "ui/views/win/scoped_fullscreen_visibility.h"
 #endif
 
@@ -180,6 +181,10 @@
 
 #if defined(MOJO_SHELL_CLIENT)
 #include "content/public/common/mojo_shell_connection.h"
+#endif
+
+#if defined(OS_LINUX)
+#include "ui/native_theme/native_theme_dark_aura.h"
 #endif
 
 using base::TimeDelta;
@@ -450,8 +455,8 @@ const char BrowserView::kViewClassName[] = "BrowserView";
 
 BrowserView::BrowserView()
     : views::ClientView(nullptr, nullptr),
-      last_focused_view_storage_id_(views::ViewStorage::GetInstance()
-                                        ->CreateStorageID()),
+      last_focused_view_storage_id_(
+          views::ViewStorage::GetInstance()->CreateStorageID()),
       frame_(nullptr),
       top_container_(nullptr),
       tabstrip_(nullptr),
@@ -462,6 +467,7 @@ BrowserView::BrowserView()
       devtools_web_view_(nullptr),
       contents_container_(nullptr),
       initialized_(false),
+      handling_theme_changed_(false),
       in_process_fullscreen_(false),
 #if defined(OS_WIN)
       ticker_(0),
@@ -1288,10 +1294,11 @@ void BrowserView::ShowBookmarkBubble(const GURL& url, bool already_bookmarked) {
   scoped_ptr<BubbleSyncPromoDelegate> delegate;
   delegate.reset(new BookmarkBubbleSignInDelegate(browser_.get()));
 
-  BookmarkBubbleView::ShowBubble(GetToolbarView()->GetBookmarkBubbleAnchor(),
-                                 gfx::Rect(), nullptr, bookmark_bar_view_.get(),
-                                 std::move(delegate), browser_->profile(), url,
-                                 already_bookmarked);
+  views::View* anchor_view = GetToolbarView()->GetBookmarkBubbleAnchor();
+  views::Widget* bubble_widget = BookmarkBubbleView::ShowBubble(
+      anchor_view, gfx::Rect(), nullptr, bookmark_bar_view_.get(),
+      std::move(delegate), browser_->profile(), url, already_bookmarked);
+  GetToolbarView()->OnBubbleCreatedForAnchor(anchor_view, bubble_widget);
 }
 
 void BrowserView::ShowBookmarkAppBubble(
@@ -1304,9 +1311,10 @@ autofill::SaveCardBubbleView* BrowserView::ShowSaveCreditCardBubble(
     content::WebContents* web_contents,
     autofill::SaveCardBubbleController* controller,
     bool is_user_gesture) {
+  views::View* anchor_view = GetToolbarView()->GetSaveCreditCardBubbleAnchor();
   autofill::SaveCardBubbleViews* view = new autofill::SaveCardBubbleViews(
-      GetToolbarView()->GetSaveCreditCardBubbleAnchor(), web_contents,
-      controller);
+      anchor_view, web_contents, controller);
+  GetToolbarView()->OnBubbleCreatedForAnchor(anchor_view, view->GetWidget());
   view->Show(is_user_gesture ? autofill::SaveCardBubbleViews::USER_GESTURE
                              : autofill::SaveCardBubbleViews::AUTOMATIC);
   return view;
@@ -1333,10 +1341,12 @@ void BrowserView::ShowTranslateBubble(
   if (IsMinimized())
     return;
 
-  TranslateBubbleView::ShowBubble(
-      GetToolbarView()->GetTranslateBubbleAnchor(), web_contents, step,
+  views::View* anchor_view = GetToolbarView()->GetTranslateBubbleAnchor();
+  views::Widget* bubble_widget = TranslateBubbleView::ShowBubble(
+      anchor_view, web_contents, step,
       error_type, is_user_gesture ? TranslateBubbleView::USER_GESTURE
                                   : TranslateBubbleView::AUTOMATIC);
+  GetToolbarView()->OnBubbleCreatedForAnchor(anchor_view, bubble_widget);
 }
 
 #if defined(ENABLE_ONE_CLICK_SIGNIN)
@@ -2010,12 +2020,33 @@ void BrowserView::GetAccessibleState(ui::AXViewState* state) {
   state->role = ui::AX_ROLE_CLIENT;
 }
 
+void BrowserView::OnThemeChanged() {
+  if (!IsRegularOrGuestSession() &&
+      ui::MaterialDesignController::IsModeMaterial()) {
+    // When the theme changes, the native theme may also change (in OTR, the
+    // usage of dark or normal hinges on the browser theme), so we have to
+    // propagate both kinds of change.
+    base::AutoReset<bool> reset(&handling_theme_changed_, true);
+#if defined(OS_WIN)
+    ui::NativeThemeDarkWin::instance()->NotifyObservers();
+    ui::NativeThemeWin::instance()->NotifyObservers();
+#elif defined(OS_LINUX)
+    ui::NativeThemeDarkAura::instance()->NotifyObservers();
+    ui::NativeThemeAura::instance()->NotifyObservers();
+#endif
+  }
+
+  views::View::OnThemeChanged();
+}
+
 void BrowserView::OnNativeThemeChanged(const ui::NativeTheme* theme) {
   // Do not handle native theme changes before the browser view is initialized.
   if (!initialized_)
     return;
   ClientView::OnNativeThemeChanged(theme);
-  UserChangedTheme();
+  // Don't infinitely recurse.
+  if (!handling_theme_changed_)
+    UserChangedTheme();
   chrome::MaybeShowInvertBubbleView(this);
 }
 
@@ -2555,7 +2586,6 @@ void BrowserView::ShowAvatarBubbleFromAvatarButton(
   profiles::TutorialMode tutorial_mode;
   profiles::BubbleViewModeFromAvatarBubbleMode(mode, &bubble_view_mode,
                                                &tutorial_mode);
-
   if (SigninViewController::ShouldShowModalSigninForMode(bubble_view_mode)) {
     ShowModalSigninWindow(mode, access_point);
   } else {
@@ -2570,6 +2600,10 @@ void BrowserView::ShowAvatarBubbleFromAvatarButton(
 #endif
 }
 
+void BrowserView::CloseModalSigninWindow() {
+  signin_view_controller_.CloseModalSignin();
+}
+
 void BrowserView::ShowModalSigninWindow(
     AvatarBubbleMode mode,
     signin_metrics::AccessPoint access_point) {
@@ -2581,8 +2615,8 @@ void BrowserView::ShowModalSigninWindow(
                                           access_point);
 }
 
-void BrowserView::CloseModalSigninWindow() {
-  signin_view_controller_.CloseModalSignin();
+void BrowserView::ShowModalSyncConfirmationWindow() {
+  signin_view_controller_.ShowModalSyncConfirmationDialog(browser());
 }
 
 int BrowserView::GetRenderViewHeightInsetWithDetachedBookmarkBar() {

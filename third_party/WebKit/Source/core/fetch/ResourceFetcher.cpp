@@ -39,7 +39,7 @@
 #include "platform/TraceEvent.h"
 #include "platform/TracedValue.h"
 #include "platform/mhtml/ArchiveResource.h"
-#include "platform/mhtml/ArchiveResourceCollection.h"
+#include "platform/mhtml/MHTMLArchive.h"
 #include "platform/network/ResourceTimingInfo.h"
 #include "platform/weborigin/KnownPorts.h"
 #include "platform/weborigin/SecurityOrigin.h"
@@ -66,7 +66,7 @@ enum SriResourceIntegrityMismatchEvent {
     SriResourceIntegrityMismatchEventCount
 };
 
-}
+} // namespace
 
 static void RecordSriResourceIntegrityMismatchEvent(SriResourceIntegrityMismatchEvent event)
 {
@@ -88,7 +88,7 @@ static ResourceLoadPriority typeToPriority(Resource::Type type)
     case Resource::ImportResource:
     case Resource::Manifest:
         return ResourceLoadPriorityMedium;
-    case Resource::LinkSubresource:
+    case Resource::LinkPreload:
     case Resource::TextTrack:
     case Resource::Media:
     case Resource::SVGDocument:
@@ -151,7 +151,7 @@ static WebURLRequest::RequestContext requestContextFromType(bool isMainFrame, Re
         return WebURLRequest::RequestContextImport;
     case Resource::LinkPrefetch:
         return WebURLRequest::RequestContextPrefetch;
-    case Resource::LinkSubresource:
+    case Resource::LinkPreload:
         return WebURLRequest::RequestContextSubresource;
     case Resource::TextTrack:
         return WebURLRequest::RequestContextTrack;
@@ -181,7 +181,7 @@ ResourceFetcher::ResourceFetcher(FetchContext* context)
 ResourceFetcher::~ResourceFetcher()
 {
 #if !ENABLE(OILPAN)
-    clearPreloads();
+    clearPreloads(ClearAllPreloads);
 #endif
 }
 
@@ -248,7 +248,7 @@ static const int kMaxValidatedURLsSize = 10000;
 void ResourceFetcher::requestLoadStarted(Resource* resource, const FetchRequest& request, ResourceLoadStartType type, bool isStaticData)
 {
     if (type == ResourceLoadingFromCache && resource->status() == Resource::Cached && !m_validatedURLs.contains(resource->url()))
-        context().dispatchDidLoadResourceFromMemoryCache(resource);
+        context().dispatchDidLoadResourceFromMemoryCache(resource, request.resourceRequest().frameType(), request.resourceRequest().requestContext());
 
     if (isStaticData)
         return;
@@ -268,7 +268,7 @@ void ResourceFetcher::requestLoadStarted(Resource* resource, const FetchRequest&
     m_validatedURLs.add(request.resourceRequest().url());
 }
 
-static PassRefPtr<TraceEvent::ConvertableToTraceFormat> urlForTraceEvent(const KURL& url)
+static PassRefPtr<TracedValue> urlForTraceEvent(const KURL& url)
 {
     RefPtr<TracedValue> value = TracedValue::create();
     value->setString("url", url.string());
@@ -349,7 +349,7 @@ ResourcePtr<Resource> ResourceFetcher::requestResource(FetchRequest& request, co
     KURL url = request.resourceRequest().url();
     TRACE_EVENT1("blink", "ResourceFetcher::requestResource", "url", urlForTraceEvent(url));
 
-    WTF_LOG(ResourceLoading, "ResourceFetcher::requestResource '%s', charset '%s', priority=%d, forPreload=%u, type=%s", url.elidedString().latin1().data(), request.charset().latin1().data(), request.priority(), request.forPreload(), ResourceTypeName(factory.type()));
+    WTF_LOG(ResourceLoading, "ResourceFetcher::requestResource '%s', charset '%s', priority=%d, forPreload=%u, type=%s", url.elidedString().latin1().data(), request.charset().latin1().data(), request.priority(), request.forPreload(), Resource::resourceTypeName(factory.type()));
 
     // If only the fragment identifiers differ, it is the same resource.
     url = MemoryCache::removeFragmentIdentifierIfNeeded(url);
@@ -386,6 +386,13 @@ ResourcePtr<Resource> ResourceFetcher::requestResource(FetchRequest& request, co
     moveCachedNonBlockingResourceToBlocking(resource.get(), request);
 
     const RevalidationPolicy policy = determineRevalidationPolicy(factory.type(), request, resource.get(), isStaticData);
+
+    String histogramName = "Blink.MemoryCache.RevalidationPolicy.";
+    if (request.forPreload())
+        histogramName.append("Preload.");
+    histogramName.append(Resource::resourceTypeName(factory.type()));
+    Platform::current()->histogramEnumeration(histogramName.utf8().data(), policy, Load + 1);
+
     switch (policy) {
     case Reload:
         memoryCache()->remove(resource.get());
@@ -492,7 +499,7 @@ void ResourceFetcher::initializeResourceRequest(ResourceRequest& request, Resour
         request.setCachePolicy(context().resourceRequestCachePolicy(request, type));
     if (request.requestContext() == WebURLRequest::RequestContextUnspecified)
         determineRequestContext(request, type);
-    if (type == Resource::LinkPrefetch || type == Resource::LinkSubresource)
+    if (type == Resource::LinkPrefetch)
         request.setHTTPHeaderField(HTTPNames::Purpose, "prefetch");
 
     context().addAdditionalRequestHeaders(request, (type == Resource::MainResource) ? FetchMainResource : FetchSubresource);
@@ -829,7 +836,7 @@ bool ResourceFetcher::isPreloaded(const KURL& url) const
     return false;
 }
 
-void ResourceFetcher::clearPreloads()
+void ResourceFetcher::clearPreloads(ClearPreloadsPolicy policy)
 {
 #if PRELOAD_DEBUG
     printPreloadStats();
@@ -840,26 +847,31 @@ void ResourceFetcher::clearPreloads()
     for (auto resource : *m_preloads) {
         resource->decreasePreloadCount();
         bool deleted = resource->deleteIfPossible();
-        if (!deleted && resource->preloadResult() == Resource::PreloadNotReferenced)
+        // avoidBlockingOnLoad is only set on non speculative preloads (i.e. <link rel=preload> triggered preloads)
+        if (!deleted && resource->preloadResult() == Resource::PreloadNotReferenced && (policy == ClearAllPreloads || !resource->avoidBlockingOnLoad()))
             memoryCache()->remove(resource.get());
     }
     m_preloads.clear();
 }
 
-void ResourceFetcher::addAllArchiveResources(MHTMLArchive* archive)
+ArchiveResource* ResourceFetcher::createArchive(Resource* resource)
 {
-    ASSERT(archive);
-    if (!m_archiveResourceCollection)
-        m_archiveResourceCollection = ArchiveResourceCollection::create();
-    m_archiveResourceCollection->addAllResources(archive);
+    // Only the top-frame can load MHTML.
+    if (!context().isMainFrame())
+        return nullptr;
+    m_archive = MHTMLArchive::create(resource->url(), resource->resourceBuffer());
+    return m_archive ? m_archive->mainResource() : nullptr;
 }
 
 bool ResourceFetcher::scheduleArchiveLoad(Resource* resource, const ResourceRequest& request)
 {
-    if (!m_archiveResourceCollection)
+    if (resource->type() == Resource::MainResource && !context().isMainFrame())
+        m_archive = context().archive();
+
+    if (!m_archive)
         return false;
 
-    ArchiveResource* archiveResource = m_archiveResourceCollection->archiveResourceForURL(request.url());
+    ArchiveResource* archiveResource = m_archive->subresourceForURL(request.url());
     if (!archiveResource) {
         resource->error(Resource::LoadError);
         return false;
@@ -920,7 +932,7 @@ void ResourceFetcher::didReceiveResponse(const Resource* resource, const Resourc
             return;
         }
     }
-    context().dispatchDidReceiveResponse(resource->identifier(), response, resource->loader());
+    context().dispatchDidReceiveResponse(resource->identifier(), response, resource->resourceRequest().frameType(), resource->resourceRequest().requestContext(), resource->loader());
 }
 
 void ResourceFetcher::didReceiveData(const Resource* resource, const char* data, int dataLength, int encodedDataLength)
@@ -1153,7 +1165,7 @@ void ResourceFetcher::DeadResourceStatsRecorder::update(RevalidationPolicy polic
 DEFINE_TRACE(ResourceFetcher)
 {
     visitor->trace(m_context);
-    visitor->trace(m_archiveResourceCollection);
+    visitor->trace(m_archive);
     visitor->trace(m_loaders);
     visitor->trace(m_nonBlockingLoaders);
 #if ENABLE(OILPAN)
@@ -1163,4 +1175,4 @@ DEFINE_TRACE(ResourceFetcher)
 #endif
 }
 
-}
+} // namespace blink

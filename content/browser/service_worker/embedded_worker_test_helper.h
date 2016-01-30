@@ -30,6 +30,7 @@ class EmbeddedWorkerRegistry;
 class EmbeddedWorkerTestHelper;
 class MessagePortMessageFilter;
 class MockRenderProcessHost;
+struct PushEventPayload;
 class ServiceWorkerContextCore;
 class ServiceWorkerContextWrapper;
 struct ServiceWorkerFetchRequest;
@@ -77,11 +78,20 @@ class EmbeddedWorkerTestHelper : public IPC::Sender,
   ServiceWorkerContextWrapper* context_wrapper() { return wrapper_.get(); }
   void ShutdownContext();
 
+  int GetNextThreadId() { return next_thread_id_++; }
+
   int mock_render_process_id() const { return mock_render_process_id_;}
-  // Mock render process. Only set if the one-parameter constructor was used.
   MockRenderProcessHost* mock_render_process_host() {
     return render_process_host_.get();
   }
+
+  std::map<int, int64_t> embedded_worker_id_service_worker_version_id_map() {
+    return embedded_worker_id_service_worker_version_id_map_;
+  }
+
+  // Only used for tests that force creating a new render process. There is no
+  // corresponding MockRenderProcessHost.
+  int new_render_process_id() const { return mock_render_process_id_ + 1; }
 
   TestBrowserContext* browser_context() { return browser_context_.get(); }
 
@@ -116,7 +126,7 @@ class EmbeddedWorkerTestHelper : public IPC::Sender,
                             const ServiceWorkerFetchRequest& request);
   virtual void OnPushEvent(int embedded_worker_id,
                            int request_id,
-                           const std::string& data);
+                           const PushEventPayload& payload);
 
   // These functions simulate sending an EmbeddedHostMsg message to the
   // browser.
@@ -124,7 +134,7 @@ class EmbeddedWorkerTestHelper : public IPC::Sender,
   void SimulateWorkerScriptCached(int embedded_worker_id);
   void SimulateWorkerScriptLoaded(int embedded_worker_id);
   void SimulateWorkerThreadStarted(int thread_id, int embedded_worker_id);
-  void SimulateWorkerScriptEvaluated(int embedded_worker_id);
+  void SimulateWorkerScriptEvaluated(int embedded_worker_id, bool success);
   void SimulateWorkerStarted(int embedded_worker_id);
   void SimulateWorkerStopped(int embedded_worker_id);
   void SimulateSend(IPC::Message* message);
@@ -143,7 +153,7 @@ class EmbeddedWorkerTestHelper : public IPC::Sender,
   void OnInstallEventStub(int request_id);
   void OnFetchEventStub(int request_id,
                         const ServiceWorkerFetchRequest& request);
-  void OnPushEventStub(int request_id, const std::string& data);
+  void OnPushEventStub(int request_id, const PushEventPayload& payload);
   void OnSetupMojoStub(int thread_id,
                        mojo::InterfaceRequest<mojo::ServiceProvider> services,
                        mojo::ServiceProviderPtr exposed_services);

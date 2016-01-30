@@ -9,7 +9,9 @@ When executed, parses a JSON dump of DevTools messages.
 
 import collections
 import copy
+import json
 import logging
+import re
 
 import devtools_monitor
 
@@ -25,6 +27,17 @@ _TIMING_NAMES_MAPPING = {
 
 Timing = collections.namedtuple('Timing', _TIMING_NAMES_MAPPING.values())
 
+def TimingAsList(timing):
+  """Transform Timing to a list, eg as is used in JSON output.
+
+  Args:
+    timing: a Timing.
+
+  Returns:
+    A list identical to what the eventual JSON output will be (eg,
+    Request.ToJsonDict).
+  """
+  return json.loads(json.dumps(timing))
 
 class Request(object):
   """Represents a single request.
@@ -33,7 +46,7 @@ class Request(object):
   third_party/WebKit/Source/devtools/protocol.json.
 
   Fields:
-    request_id: (str) unique request ID. Postfixed with ".redirect" for
+    request_id: (str) unique request ID. Postfixed with _REDIRECT_SUFFIX for
                 redirects.
     frame_id: (str) unique frame identifier.
     loader_id: (str) unique frame identifier.
@@ -64,7 +77,9 @@ class Request(object):
   RESOURCE_TYPES = ('Document', 'Stylesheet', 'Image', 'Media', 'Font',
                     'Script', 'TextTrack', 'XHR', 'Fetch', 'EventSource',
                     'WebSocket', 'Manifest', 'Other')
-  INITIATORS = ('parser', 'script', 'other')
+  INITIATORS = ('parser', 'script', 'other', 'redirect')
+  INITIATING_REQUEST = 'initiating_request'
+  ORIGINAL_INITIATOR = 'original_initiator'
   def __init__(self):
     self.request_id = None
     self.frame_id = None
@@ -102,6 +117,12 @@ class Request(object):
     result = Request()
     for (k, v) in data_dict.items():
       setattr(result, k, v)
+    if not result.response_headers:
+      result.response_headers = {}
+    if result.timing:
+      result.timing = Timing(*result.timing)
+    else:
+      result.timing = TimingFromDict({'requestTime': result.timestamp})
     return result
 
   def GetContentType(self):
@@ -115,28 +136,71 @@ class Request(object):
   def IsDataRequest(self):
     return self.protocol == 'data'
 
-  # For testing.
+  def MaxAge(self):
+    """Returns the max-age of a resource, or -1."""
+    # TODO(lizeb): Handle the "Expires" header as well.
+    cache_control = {}
+    if not self.response_headers:
+      return -1
+    cache_control_str = self.response_headers.get('Cache-Control', None)
+    if cache_control_str is not None:
+      directives = [s.strip() for s in cache_control_str.split(',')]
+      for directive in directives:
+        parts = [s.strip() for s in directive.split('=')]
+        if len(parts) == 1:
+          cache_control[parts[0]] = True
+        else:
+          cache_control[parts[0]] = parts[1]
+    if (u'no-store' in cache_control
+        or u'no-cache' in cache_control
+        or len(cache_control) == 0):
+      return -1
+    if 'max-age' in cache_control:
+      age_match = re.match(r'\s*(\d+)+', cache_control['max-age'])
+      if not age_match:
+        return -1
+      return int(age_match.group(1))
+    return -1
+
   def __eq__(self, o):
     return self.__dict__ == o.__dict__
+
+  def __hash__(self):
+    return hash(self.request_id)
+
+  def __str__(self):
+    return json.dumps(self.ToJsonDict(), sort_keys=True, indent=2)
 
 
 class RequestTrack(devtools_monitor.Track):
   """Aggregates request data."""
+  _REDIRECT_SUFFIX = '.redirect'
   # Request status
   _STATUS_SENT = 0
   _STATUS_RESPONSE = 1
   _STATUS_DATA = 2
   _STATUS_FINISHED = 3
   _STATUS_FAILED = 4
+  # Serialization KEYS
+  _EVENTS_KEY = 'events'
+  _METADATA_KEY = 'metadata'
+  _DUPLICATES_KEY = 'duplicates_count'
+  _INCONSISTENT_INITIATORS_KEY = 'inconsistent_initiators'
   def __init__(self, connection):
     super(RequestTrack, self).__init__(connection)
     self._connection = connection
     self._requests = []
     self._requests_in_flight = {}  # requestId -> (request, status)
     self._completed_requests_by_id = {}
+    self._redirects_count_by_id = collections.defaultdict(int)
     if connection:  # Optional for testing.
       for method in RequestTrack._METHOD_TO_HANDLER:
         self._connection.RegisterListener(method, self)
+    # responseReceived message are sometimes duplicated. Records the message to
+    # detect this.
+    self._request_id_to_response_received = {}
+    self.duplicates_count = 0
+    self.inconsistent_initiators_count = 0
 
   def Handle(self, method, msg):
     assert method in RequestTrack._METHOD_TO_HANDLER
@@ -153,22 +217,33 @@ class RequestTrack(devtools_monitor.Track):
   def ToJsonDict(self):
     if self._requests_in_flight:
       logging.warning('Requests in flight, will be ignored in the dump')
-    return {'events': [request.ToJsonDict() for request in self._requests]}
+    return {self._EVENTS_KEY: [
+        request.ToJsonDict() for request in self._requests],
+            self._METADATA_KEY: {
+                self._DUPLICATES_KEY: self.duplicates_count,
+                self._INCONSISTENT_INITIATORS_KEY:
+                self.inconsistent_initiators_count}}
 
   @classmethod
   def FromJsonDict(cls, json_dict):
-    assert 'events' in json_dict
+    assert cls._EVENTS_KEY in json_dict
+    assert cls._METADATA_KEY in json_dict
     result = RequestTrack(None)
     requests = [Request.FromJsonDict(request)
-                for request in json_dict['events']]
+                for request in json_dict[cls._EVENTS_KEY]]
     result._requests = requests
+    metadata = json_dict[cls._METADATA_KEY]
+    result.duplicates_count = metadata.get(cls._DUPLICATES_KEY, 0)
+    result.inconsistent_initiators_count = metadata.get(
+        cls._INCONSISTENT_INITIATORS_KEY, 0)
     return result
 
   def _RequestWillBeSent(self, request_id, params):
     # Several "requestWillBeSent" events can be dispatched in a row in the case
     # of redirects.
+    redirect_initiator = None
     if request_id in self._requests_in_flight:
-      self._HandleRedirect(request_id, params)
+      redirect_initiator = self._HandleRedirect(request_id, params)
     assert (request_id not in self._requests_in_flight
             and request_id not in self._completed_requests_by_id)
     r = Request()
@@ -184,6 +259,16 @@ class RequestTrack(devtools_monitor.Track):
                      ('headers', 'headers'),
                      ('initialPriority', 'initial_priority')))
     r.resource_type = params.get('type', 'Other')
+    if redirect_initiator:
+      original_initiator = r.initiator
+      r.initiator = redirect_initiator
+      r.initiator[Request.ORIGINAL_INITIATOR] = original_initiator
+      initiating_request = self._completed_requests_by_id[
+          redirect_initiator[Request.INITIATING_REQUEST]]
+      initiating_initiator = initiating_request.initiator.get(
+          Request.ORIGINAL_INITIATOR, initiating_request.initiator)
+      if initiating_initiator != original_initiator:
+        self.inconsistent_initiators_count += 1
     self._requests_in_flight[request_id] = (r, RequestTrack._STATUS_SENT)
 
   def _HandleRedirect(self, request_id, params):
@@ -193,15 +278,23 @@ class RequestTrack(devtools_monitor.Track):
     # one. Finalize the first request.
     assert 'redirectResponse' in params
     redirect_response = params['redirectResponse']
+
     _CopyFromDictToObject(redirect_response, r,
                           (('headers', 'response_headers'),
                            ('encodedDataLength', 'encoded_data_length'),
                            ('fromDiskCache', 'from_disk_cache')))
-    r.timing = _TimingFromDict(redirect_response['timing'])
-    r.request_id = request_id + '.redirect'
+    r.timing = TimingFromDict(redirect_response['timing'])
+
+    redirect_index = self._redirects_count_by_id[request_id]
+    self._redirects_count_by_id[request_id] += 1
+    r.request_id = '%s%s.%d' % (request_id, self._REDIRECT_SUFFIX,
+                                 redirect_index + 1)
+    initiator = {
+        'type': 'redirect', Request.INITIATING_REQUEST: r.request_id}
     self._requests_in_flight[r.request_id] = (r, RequestTrack._STATUS_FINISHED)
     del self._requests_in_flight[request_id]
     self._FinalizeRequest(r.request_id)
+    return initiator
 
   def _RequestServedFromCache(self, request_id, _):
     assert request_id in self._requests_in_flight
@@ -212,8 +305,16 @@ class RequestTrack(devtools_monitor.Track):
   def _ResponseReceived(self, request_id, params):
     assert request_id in self._requests_in_flight
     (r, status) = self._requests_in_flight[request_id]
+    if status == RequestTrack._STATUS_RESPONSE:
+      # Duplicated messages (apart from the timestamp) are OK.
+      old_params = self._request_id_to_response_received[request_id]
+      params_copy = copy.deepcopy(params)
+      params_copy['timestamp'] = None
+      old_params['timestamp'] = None
+      assert params_copy == old_params
+      self.duplicates_count += 1
+      return
     assert status == RequestTrack._STATUS_SENT
-    self._requests_in_flight[request_id] = (r, RequestTrack._STATUS_RESPONSE)
     assert r.frame_id == params['frameId']
     assert r.timestamp <= params['timestamp']
     if r.resource_type == 'Other':
@@ -236,8 +337,9 @@ class RequestTrack(devtools_monitor.Track):
       timing_dict = response['timing']
     else:
       timing_dict = {'requestTime': r.timestamp}
-    r.timing = _TimingFromDict(timing_dict)
+    r.timing = TimingFromDict(timing_dict)
     self._requests_in_flight[request_id] = (r, RequestTrack._STATUS_RESPONSE)
+    self._request_id_to_response_received[request_id] = params
 
   def _DataReceived(self, request_id, params):
     (r, status) = self._requests_in_flight[request_id]
@@ -286,7 +388,8 @@ RequestTrack._METHOD_TO_HANDLER = {
     'Network.loadingFailed': RequestTrack._LoadingFailed}
 
 
-def _TimingFromDict(timing_dict):
+def TimingFromDict(timing_dict):
+  """Returns an instance of Timing from an () dict."""
   complete_timing_dict = {field: -1 for field in Timing._fields}
   timing_dict_mapped = {
       _TIMING_NAMES_MAPPING[k]: v for (k, v) in timing_dict.items()}

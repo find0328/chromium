@@ -1189,6 +1189,12 @@ WebInspector.initializeUIUtils = function(document, themeSetting)
     if (!WebInspector.themeSupport)
         WebInspector.themeSupport = new WebInspector.ThemeSupport(themeSetting);
     WebInspector.themeSupport.applyTheme(document);
+
+    var body = /** @type {!Element} */ (document.body);
+    WebInspector.appendStyle(body, "ui/inspectorStyle.css");
+    WebInspector.appendStyle(body, "ui/popover.css");
+    WebInspector.appendStyle(body, "ui/sidebarPane.css");
+
 }
 
 /**
@@ -1443,6 +1449,83 @@ WebInspector.appendStyle = function(node, cssFile)
         __proto__: HTMLDivElement.prototype
     });
 })();
+
+/**
+ * @param {!Element} input
+ * @param {function(string)} apply
+ * @param {function(string):boolean} validate
+ * @param {boolean} numeric
+ * @return {function(string)}
+ */
+WebInspector.bindInput = function(input, apply, validate, numeric)
+{
+    input.addEventListener("change", onChange, false);
+    input.addEventListener("input", onInput, false);
+    input.addEventListener("keydown", onKeyDown, false);
+    input.addEventListener("focus", input.select.bind(input), false);
+
+    function onInput()
+    {
+        input.classList.toggle("error-input", !validate(input.value));
+    }
+
+    function onChange()
+    {
+        var valid = validate(input.value);
+        input.classList.toggle("error-input", !valid);
+        if (valid)
+            apply(input.value);
+    }
+
+    /**
+     * @param {!Event} event
+     */
+    function onKeyDown(event)
+    {
+        if (isEnterKey(event)) {
+            if (validate(input.value))
+                apply(input.value);
+            return;
+        }
+
+        if (!numeric)
+            return;
+
+        var increment = event.keyIdentifier === "Up" ? 1 : event.keyIdentifier === "Down" ? -1 : 0;
+        if (!increment)
+            return;
+        if (event.shiftKey)
+            increment *= 10;
+
+        var value = input.value;
+        if (!validate(value) || !value)
+            return;
+
+        value = (value ? Number(value) : 0) + increment;
+        var stringValue = value ? String(value) : "";
+        if (!validate(stringValue) || !value)
+            return;
+
+        input.value = stringValue;
+        apply(input.value);
+        event.preventDefault();
+    }
+
+    /**
+     * @param {string} value
+     */
+    function setValue(value)
+    {
+        if (value === input.value)
+            return;
+        var valid = validate(value);
+        input.classList.toggle("error-input", !valid);
+        input.value = value;
+        input.setSelectionRange(value.length, value.length);
+    }
+
+    return setValue;
+}
 
 /**
  * @constructor

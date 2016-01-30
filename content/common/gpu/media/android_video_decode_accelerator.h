@@ -125,9 +125,11 @@ class CONTENT_EXPORT AndroidVideoDecodeAccelerator
   void OnFrameAvailable();
 
  private:
+  // TODO(timav): evaluate the need for more states in the AVDA state machine.
   enum State {
     NO_ERROR,
     ERROR,
+    WAITING_FOR_KEY,
   };
 
   static const base::TimeDelta kDecodePollDelay;
@@ -181,7 +183,12 @@ class CONTENT_EXPORT AndroidVideoDecodeAccelerator
   void NotifyResetDone();
 
   // Notifies about decoding errors.
-  void NotifyError(media::VideoDecodeAccelerator::Error error);
+  // Note: you probably don't want to call this directly.  Use PostError or
+  // RETURN_ON_FAILURE, since we can defer error reporting to keep the pipeline
+  // from breaking.  NotifyError will do so immediately, PostError may wait.
+  // |token| has to match |error_sequence_token_|, or else it's assumed to be
+  // from a post that's prior to a previous reset, and ignored.
+  void NotifyError(media::VideoDecodeAccelerator::Error error, int token);
 
   // Start or stop our work-polling timer based on whether we did any work, and
   // how long it has been since we've done work.  Calling this with true will
@@ -293,6 +300,17 @@ class CONTENT_EXPORT AndroidVideoDecodeAccelerator
   // The MediaCrypto object is used in the MediaCodec.configure() in case of
   // an encrypted stream.
   media::MediaDrmBridge::JavaObjectPtr media_crypto_;
+
+  // Index of the dequeued and filled buffer that we keep trying to enqueue.
+  // Such buffer appears in MEDIA_CODEC_NO_KEY processing.
+  int pending_input_buf_index_;
+
+  // Monotonically increasing value that is used to prevent old, delayed errors
+  // from being sent after a reset.
+  int error_sequence_token_;
+
+  // PostError will defer sending an error if and only if this is true.
+  bool defer_errors_;
 
   // WeakPtrFactory for posting tasks back to |this|.
   base::WeakPtrFactory<AndroidVideoDecodeAccelerator> weak_this_factory_;

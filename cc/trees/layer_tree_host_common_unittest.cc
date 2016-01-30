@@ -150,7 +150,10 @@ TEST_F(LayerTreeHostCommonTest, TransformsForNoOpLayer) {
                                   grand_child->screen_space_transform());
 }
 
-TEST_F(LayerTreeHostCommonTest, DoNotSkipLayersWithHandlers) {
+TEST_F(LayerTreeHostCommonTest,
+       ScreenSpaceTransformOfSkippedLayersWithHandlers) {
+  // Even for layers that are skipped, we need to compute the correct screen
+  // space transform because it is used during hit testing.
   LayerImpl* parent = root_layer();
   LayerImpl* child = AddChild<LayerImpl>(parent);
   LayerImpl* grand_child = AddChild<LayerImpl>(child);
@@ -163,9 +166,7 @@ TEST_F(LayerTreeHostCommonTest, DoNotSkipLayersWithHandlers) {
   SetLayerPropertiesForTesting(child, identity_matrix, gfx::Point3F(),
                                gfx::PointF(10, 10), gfx::Size(100, 100), true,
                                false);
-  // This would have previously caused us to skip our subtree, but this would be
-  // wrong; we need up-to-date draw properties to do hit testing on the layers
-  // with handlers.
+  // This will cause the subtree to be skipped.
   child->SetOpacity(0.f);
   SetLayerPropertiesForTesting(grand_child, identity_matrix, gfx::Point3F(),
                                gfx::PointF(10, 10), gfx::Size(100, 100), true,
@@ -178,10 +179,8 @@ TEST_F(LayerTreeHostCommonTest, DoNotSkipLayersWithHandlers) {
   EXPECT_FALSE(grand_child->has_render_surface());
   // Check that we've computed draw properties for the subtree rooted at
   // |child|.
-  EXPECT_TRUE(child->draw_properties().target_space_transform.IsIdentity());
-  EXPECT_FALSE(child->render_surface()->draw_transform().IsIdentity());
-  EXPECT_FALSE(
-      grand_child->draw_properties().target_space_transform.IsIdentity());
+  EXPECT_FALSE(child->render_surface()->screen_space_transform().IsIdentity());
+  EXPECT_FALSE(grand_child->ScreenSpaceTransform().IsIdentity());
 }
 
 TEST_F(LayerTreeHostCommonTest, EffectTreeTransformIdTest) {
@@ -1341,6 +1340,8 @@ TEST_F(LayerTreeHostCommonTest,
                                gfx::PointF(), gfx::Size(10, 10), true, false,
                                false);
   render_surface1->SetOpacity(0.f);
+  render_surface1->SetDrawsContent(true);
+  child->SetDrawsContent(true);
   FilterOperations filters;
   filters.Append(FilterOperation::CreateBlurFilter(1.5f));
   render_surface1->SetBackgroundFilters(filters);
@@ -1359,6 +1360,47 @@ TEST_F(LayerTreeHostCommonTest,
   EXPECT_EQ(1U, parent->render_surface()->layer_list().size());
   EXPECT_EQ(2U, render_surface_layer_list.size());
   EXPECT_EQ(gfx::RectF(0, 0, 10, 10),
+            parent->render_surface()->DrawableContentRect());
+}
+
+TEST_F(LayerTreeHostCommonTest, RenderSurfaceListForFilter) {
+  LayerImpl* root = root_layer();
+  LayerImpl* parent = AddChild<LayerImpl>(root);
+  LayerImpl* child1 = AddChild<LayerImpl>(parent);
+  LayerImpl* child2 = AddChild<LayerImpl>(parent);
+  child1->SetDrawsContent(true);
+  child2->SetDrawsContent(true);
+
+  const gfx::Transform identity_matrix;
+  gfx::Transform scale_matrix;
+  scale_matrix.Scale(2.0f, 2.0f);
+  SetLayerPropertiesForTesting(root, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(100, 100), true, false,
+                               true);
+  SetLayerPropertiesForTesting(parent, scale_matrix, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(), true, false, true);
+  SetLayerPropertiesForTesting(child1, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(0, 0), gfx::Size(25, 25), true,
+                               false, true);
+  SetLayerPropertiesForTesting(child2, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(25, 25), gfx::Size(25, 25), true,
+                               false, true);
+  FilterOperations filters;
+  filters.Append(FilterOperation::CreateBlurFilter(10.0f));
+  parent->SetFilters(filters);
+
+  LayerImplList render_surface_layer_list;
+  parent->layer_tree_impl()->IncrementRenderSurfaceListIdForTesting();
+  LayerTreeHostCommon::CalcDrawPropsImplInputsForTesting inputs(
+      root, root->bounds(), &render_surface_layer_list,
+      root->layer_tree_impl()->current_render_surface_list_id());
+  inputs.can_adjust_raster_scales = true;
+  LayerTreeHostCommon::CalculateDrawProperties(&inputs);
+
+  ASSERT_TRUE(parent->render_surface());
+  EXPECT_EQ(2U, parent->render_surface()->layer_list().size());
+  EXPECT_EQ(4U, render_surface_layer_list.size());
+  EXPECT_EQ(gfx::RectF(-29, -29, 158, 158),
             parent->render_surface()->DrawableContentRect());
 }
 
@@ -1389,6 +1431,43 @@ TEST_F(LayerTreeHostCommonTest, RenderSurfaceForBlendMode) {
   EXPECT_EQ(1.0f, child->draw_opacity());
   EXPECT_EQ(0.5f, child->render_surface()->draw_opacity());
   EXPECT_EQ(SkXfermode::kSrcOver_Mode, child->draw_blend_mode());
+}
+
+TEST_F(LayerTreeHostCommonTest, RenderSurfaceDrawOpacity) {
+  LayerImpl* root = root_layer();
+  LayerImpl* surface1 = AddChildToRoot<LayerImpl>();
+  LayerImpl* not_surface = AddChild<LayerImpl>(surface1);
+  LayerImpl* surface2 = AddChild<LayerImpl>(not_surface);
+
+  const gfx::Transform identity_matrix;
+  SetLayerPropertiesForTesting(root, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(10, 10), true, false,
+                               true);
+  SetLayerPropertiesForTesting(surface1, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(10, 10), true, false,
+                               true);
+  SetLayerPropertiesForTesting(not_surface, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(10, 10), true, false,
+                               false);
+  SetLayerPropertiesForTesting(surface2, identity_matrix, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(10, 10), true, false,
+                               true);
+  surface1->SetDrawsContent(true);
+  surface2->SetDrawsContent(true);
+
+  surface1->SetOpacity(0.5f);
+  not_surface->SetOpacity(0.5f);
+  surface2->SetOpacity(0.5f);
+
+  ExecuteCalculateDrawProperties(root);
+
+  ASSERT_TRUE(surface1->render_surface());
+  ASSERT_FALSE(not_surface->render_surface());
+  ASSERT_TRUE(surface2->render_surface());
+  EXPECT_EQ(0.5f, surface1->render_surface()->draw_opacity());
+  // surface2's draw opacity should include the opacity of not-surface and
+  // itself, but not the opacity of surface1.
+  EXPECT_EQ(0.25f, surface2->render_surface()->draw_opacity());
 }
 
 TEST_F(LayerTreeHostCommonTest, DrawOpacityWhenCannotRenderToSeparateSurface) {
@@ -5106,6 +5185,42 @@ TEST_F(LayerTreeHostCommonTest, OpacityAnimatingOnPendingTree) {
   // layer should be included even though it is transparent.
   ASSERT_EQ(1u, render_surface_layer_list.size());
   ASSERT_EQ(2u, root->render_surface()->layer_list().size());
+
+  // If the root itself is hidden, the child should not be drawn even if it has
+  // an animating opacity.
+  root->SetOpacity(0.0f);
+  root->layer_tree_impl()->property_trees()->needs_rebuild = true;
+  LayerImplList render_surface_layer_list2;
+  root->layer_tree_impl()->IncrementRenderSurfaceListIdForTesting();
+  LayerTreeHostCommon::CalcDrawPropsImplInputsForTesting inputs2(
+      root.get(), root->bounds(), &render_surface_layer_list2,
+      root->layer_tree_impl()->current_render_surface_list_id());
+  inputs2.can_adjust_raster_scales = true;
+  LayerTreeHostCommon::CalculateDrawProperties(&inputs2);
+
+  LayerImpl* child_ptr = root->layer_tree_impl()->LayerById(2);
+  EffectTree tree = root->layer_tree_impl()->property_trees()->effect_tree;
+  EffectNode* node = tree.Node(child_ptr->effect_tree_index());
+  EXPECT_FALSE(node->data.is_drawn);
+
+  // A layer should be drawn and it should contribute to drawn surface when
+  // it has animating opacity even if it has opacity 0.
+  root->SetOpacity(1.0f);
+  child_ptr->SetOpacity(0.0f);
+  root->layer_tree_impl()->property_trees()->needs_rebuild = true;
+  LayerImplList render_surface_layer_list3;
+  root->layer_tree_impl()->IncrementRenderSurfaceListIdForTesting();
+  LayerTreeHostCommon::CalcDrawPropsImplInputsForTesting inputs3(
+      root.get(), root->bounds(), &render_surface_layer_list3,
+      root->layer_tree_impl()->current_render_surface_list_id());
+  inputs3.can_adjust_raster_scales = true;
+  LayerTreeHostCommon::CalculateDrawProperties(&inputs3);
+
+  child_ptr = root->layer_tree_impl()->LayerById(2);
+  tree = root->layer_tree_impl()->property_trees()->effect_tree;
+  node = tree.Node(child_ptr->effect_tree_index());
+  EXPECT_TRUE(node->data.is_drawn);
+  EXPECT_TRUE(tree.ContributesToDrawnSurface(child_ptr->effect_tree_index()));
 }
 
 class LayerTreeSettingsForLCDTextTest : public LayerTreeSettings {
@@ -5504,8 +5619,16 @@ TEST_F(LayerTreeHostCommonTest, SubtreeHiddenWithCopyRequest) {
   copy_child->SetDrawsContent(true);
   LayerImpl* copy_child_layer = copy_child.get();
 
-  scoped_ptr<LayerImpl> copy_grand_parent_sibling_before =
+  scoped_ptr<LayerImpl> copy_grand_child =
       LayerImpl::Create(host_impl.pending_tree(), 6);
+  SetLayerPropertiesForTesting(copy_grand_child.get(), identity_matrix,
+                               gfx::Point3F(), gfx::PointF(), gfx::Size(20, 20),
+                               true, false, false);
+  copy_child->SetDrawsContent(true);
+  LayerImpl* copy_grand_child_layer = copy_grand_child.get();
+
+  scoped_ptr<LayerImpl> copy_grand_parent_sibling_before =
+      LayerImpl::Create(host_impl.pending_tree(), 7);
   SetLayerPropertiesForTesting(copy_grand_parent_sibling_before.get(),
                                identity_matrix, gfx::Point3F(), gfx::PointF(),
                                gfx::Size(40, 40), true, false, false);
@@ -5514,7 +5637,7 @@ TEST_F(LayerTreeHostCommonTest, SubtreeHiddenWithCopyRequest) {
       copy_grand_parent_sibling_before.get();
 
   scoped_ptr<LayerImpl> copy_grand_parent_sibling_after =
-      LayerImpl::Create(host_impl.pending_tree(), 7);
+      LayerImpl::Create(host_impl.pending_tree(), 8);
   SetLayerPropertiesForTesting(copy_grand_parent_sibling_after.get(),
                                identity_matrix, gfx::Point3F(), gfx::PointF(),
                                gfx::Size(40, 40), true, false, false);
@@ -5522,6 +5645,7 @@ TEST_F(LayerTreeHostCommonTest, SubtreeHiddenWithCopyRequest) {
   LayerImpl* copy_grand_parent_sibling_after_layer =
       copy_grand_parent_sibling_after.get();
 
+  copy_child->AddChild(std::move(copy_grand_child));
   copy_request->AddChild(std::move(copy_child));
   copy_parent->AddChild(std::move(copy_request));
   copy_grand_parent->AddChild(std::move(copy_parent));
@@ -5530,10 +5654,12 @@ TEST_F(LayerTreeHostCommonTest, SubtreeHiddenWithCopyRequest) {
   root->AddChild(std::move(copy_grand_parent_sibling_after));
 
   // Hide the copy_grand_parent and its subtree. But make a copy request in that
-  // hidden subtree on copy_layer.
+  // hidden subtree on copy_layer. Also hide the copy grand child and its
+  // subtree.
   copy_grand_parent_layer->SetHideLayerAndSubtree(true);
   copy_grand_parent_sibling_before_layer->SetHideLayerAndSubtree(true);
   copy_grand_parent_sibling_after_layer->SetHideLayerAndSubtree(true);
+  copy_grand_child_layer->SetHideLayerAndSubtree(true);
 
   std::vector<scoped_ptr<CopyOutputRequest>> copy_requests;
   copy_requests.push_back(
@@ -5554,27 +5680,27 @@ TEST_F(LayerTreeHostCommonTest, SubtreeHiddenWithCopyRequest) {
   EXPECT_GT(copy_parent_layer->num_copy_requests_in_target_subtree(), 0);
   EXPECT_GT(copy_layer->num_copy_requests_in_target_subtree(), 0);
 
-  // We should have three render surfaces, one for the root, one for the parent
+  // We should have four render surfaces, one for the root, one for the grand
+  // parent since it has opacity and two drawing descendants, one for the parent
   // since it owns a surface, and one for the copy_layer.
-  ASSERT_EQ(3u, render_surface_layer_list.size());
+  ASSERT_EQ(4u, render_surface_layer_list.size());
   EXPECT_EQ(root->id(), render_surface_layer_list.at(0)->id());
-  EXPECT_EQ(copy_parent_layer->id(), render_surface_layer_list.at(1)->id());
-  EXPECT_EQ(copy_layer->id(), render_surface_layer_list.at(2)->id());
+  EXPECT_EQ(copy_grand_parent_layer->id(),
+            render_surface_layer_list.at(1)->id());
+  EXPECT_EQ(copy_parent_layer->id(), render_surface_layer_list.at(2)->id());
+  EXPECT_EQ(copy_layer->id(), render_surface_layer_list.at(3)->id());
 
-  // The root render surface should have 2 contributing layers. The
-  // copy_grand_parent is hidden along with its siblings, but the copy_parent
-  // will appear since something in its subtree needs to be drawn for a copy
-  // request.
+  // The root render surface should have 2 contributing layers.
   ASSERT_EQ(2u, root->render_surface()->layer_list().size());
   EXPECT_EQ(root->id(), root->render_surface()->layer_list().at(0)->id());
-  EXPECT_EQ(copy_parent_layer->id(),
+  EXPECT_EQ(copy_grand_parent_layer->id(),
             root->render_surface()->layer_list().at(1)->id());
 
   // Nothing actually draws into the copy parent, so only the copy_layer will
   // appear in its list, since it needs to be drawn for the copy request.
   ASSERT_EQ(1u, copy_parent_layer->render_surface()->layer_list().size());
   EXPECT_EQ(copy_layer->id(),
-            copy_parent_layer->render_surface()->layer_list().at(0)->id());
+            copy_layer->render_surface()->layer_list().at(0)->id());
 
   // The copy_layer's render surface should have two contributing layers.
   ASSERT_EQ(2u, copy_layer->render_surface()->layer_list().size());
@@ -5582,6 +5708,26 @@ TEST_F(LayerTreeHostCommonTest, SubtreeHiddenWithCopyRequest) {
             copy_layer->render_surface()->layer_list().at(0)->id());
   EXPECT_EQ(copy_child_layer->id(),
             copy_layer->render_surface()->layer_list().at(1)->id());
+
+  // copy_grand_parent, copy_parent shouldn't be drawn because they are hidden,
+  // but the copy_layer and copy_child should be drawn for the copy request.
+  // copy grand child should not be drawn as its hidden even in the copy
+  // request.
+  EffectTree tree = root->layer_tree_impl()->property_trees()->effect_tree;
+  EffectNode* node = tree.Node(copy_grand_parent_layer->effect_tree_index());
+  EXPECT_FALSE(node->data.is_drawn);
+  node = tree.Node(copy_parent_layer->effect_tree_index());
+  EXPECT_FALSE(node->data.is_drawn);
+  node = tree.Node(copy_layer->effect_tree_index());
+  EXPECT_TRUE(node->data.is_drawn);
+  node = tree.Node(copy_child_layer->effect_tree_index());
+  EXPECT_TRUE(node->data.is_drawn);
+  node = tree.Node(copy_grand_child_layer->effect_tree_index());
+  EXPECT_FALSE(node->data.is_drawn);
+
+  // Though copy_layer is drawn, it shouldn't contribute to drawn surface as its
+  // actually hidden.
+  EXPECT_FALSE(copy_layer->render_surface()->contributes_to_drawn_surface());
 }
 
 TEST_F(LayerTreeHostCommonTest, ClippedOutCopyRequest) {
@@ -6263,29 +6409,48 @@ TEST_F(LayerTreeHostCommonTest, CanRenderToSeparateSurface) {
 
 TEST_F(LayerTreeHostCommonTest, DoNotIncludeBackfaceInvisibleSurfaces) {
   LayerImpl* root = root_layer();
-  LayerImpl* render_surface = AddChild<LayerImpl>(root);
-  LayerImpl* child = AddChild<LayerImpl>(render_surface);
-  child->SetDrawsContent(true);
+  LayerImpl* back_facing = AddChild<LayerImpl>(root);
+  LayerImpl* render_surface1 = AddChild<LayerImpl>(back_facing);
+  LayerImpl* render_surface2 = AddChild<LayerImpl>(back_facing);
+  LayerImpl* child1 = AddChild<LayerImpl>(render_surface1);
+  LayerImpl* child2 = AddChild<LayerImpl>(render_surface2);
+  child1->SetDrawsContent(true);
+  child2->SetDrawsContent(true);
 
   gfx::Transform identity_transform;
   SetLayerPropertiesForTesting(root, identity_transform, gfx::Point3F(),
                                gfx::PointF(), gfx::Size(50, 50), true, false,
                                true);
-  SetLayerPropertiesForTesting(render_surface, identity_transform,
+  SetLayerPropertiesForTesting(back_facing, identity_transform, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(50, 50), true, false,
+                               false);
+  SetLayerPropertiesForTesting(render_surface1, identity_transform,
                                gfx::Point3F(), gfx::PointF(), gfx::Size(30, 30),
                                false, true, true);
-  SetLayerPropertiesForTesting(child, identity_transform, gfx::Point3F(),
+  SetLayerPropertiesForTesting(render_surface2, identity_transform,
+                               gfx::Point3F(), gfx::PointF(), gfx::Size(30, 30),
+                               false, true, true);
+  SetLayerPropertiesForTesting(child1, identity_transform, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(20, 20), true, false,
+                               false);
+  SetLayerPropertiesForTesting(child2, identity_transform, gfx::Point3F(),
                                gfx::PointF(), gfx::Size(20, 20), true, false,
                                false);
 
   root->SetShouldFlattenTransform(false);
   root->Set3dSortingContextId(1);
-  render_surface->SetDoubleSided(false);
+  back_facing->Set3dSortingContextId(1);
+  back_facing->SetShouldFlattenTransform(false);
+  render_surface1->SetDoubleSided(false);
+  render_surface2->Set3dSortingContextId(2);
+  render_surface2->SetDoubleSided(false);
 
   ExecuteCalculateDrawProperties(root);
 
-  EXPECT_EQ(2u, render_surface_layer_list_impl()->size());
-  EXPECT_EQ(1u, render_surface_layer_list_impl()
+  EXPECT_EQ(render_surface1->sorting_context_id(), root->sorting_context_id());
+  EXPECT_NE(render_surface2->sorting_context_id(), root->sorting_context_id());
+  EXPECT_EQ(3u, render_surface_layer_list_impl()->size());
+  EXPECT_EQ(2u, render_surface_layer_list_impl()
                     ->at(0)
                     ->render_surface()
                     ->layer_list()
@@ -6299,13 +6464,17 @@ TEST_F(LayerTreeHostCommonTest, DoNotIncludeBackfaceInvisibleSurfaces) {
   gfx::Transform rotation_transform = identity_transform;
   rotation_transform.RotateAboutXAxis(180.0);
 
-  render_surface->SetTransform(rotation_transform);
+  back_facing->SetTransform(rotation_transform);
   root->layer_tree_impl()->property_trees()->needs_rebuild = true;
 
   ExecuteCalculateDrawProperties(root);
 
-  EXPECT_EQ(1u, render_surface_layer_list_impl()->size());
-  EXPECT_EQ(0u, render_surface_layer_list_impl()
+  // render_surface1 is in the same 3d rendering context as back_facing and is
+  // not double sided, so it should not be in RSLL. render_surface2 is also not
+  // double-sided, but will still be in RSLL as it's in a different 3d rendering
+  // context.
+  EXPECT_EQ(2u, render_surface_layer_list_impl()->size());
+  EXPECT_EQ(1u, render_surface_layer_list_impl()
                     ->at(0)
                     ->render_surface()
                     ->layer_list()
@@ -6403,6 +6572,57 @@ TEST_F(LayerTreeHostCommonTest, ClippedByScrollParent) {
   EXPECT_EQ(gfx::Rect(0, 0, 30, 30).ToString(),
             scroll_child->clip_rect().ToString());
   EXPECT_TRUE(scroll_child->is_clipped());
+}
+
+TEST_F(LayerTreeHostCommonTest, ScrollChildAndScrollParentDifferentTargets) {
+  // Tests the computation of draw transform for the scroll child when its
+  // target is different from its scroll parent's target.
+  LayerImpl* root = root_layer();
+  LayerImpl* scroll_child_target = AddChildToRoot<LayerImpl>();
+  LayerImpl* scroll_child = AddChild<LayerImpl>(scroll_child_target);
+  LayerImpl* scroll_parent_target = AddChild<LayerImpl>(scroll_child_target);
+  LayerImpl* scroll_parent = AddChild<LayerImpl>(scroll_parent_target);
+
+  scroll_parent->SetDrawsContent(true);
+  scroll_child->SetDrawsContent(true);
+
+  scroll_child->SetScrollParent(scroll_parent);
+  scoped_ptr<std::set<LayerImpl*>> scroll_children(new std::set<LayerImpl*>);
+  scroll_children->insert(scroll_child);
+  scroll_parent->SetScrollChildren(scroll_children.release());
+
+  gfx::Transform identity_transform;
+  SetLayerPropertiesForTesting(root, identity_transform, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(50, 50), true, false,
+                               true);
+  SetLayerPropertiesForTesting(scroll_child_target, identity_transform,
+                               gfx::Point3F(), gfx::PointF(), gfx::Size(50, 50),
+                               true, false, true);
+  SetLayerPropertiesForTesting(scroll_child, identity_transform, gfx::Point3F(),
+                               gfx::PointF(), gfx::Size(50, 50), true, false,
+                               false);
+  SetLayerPropertiesForTesting(scroll_parent_target, identity_transform,
+                               gfx::Point3F(), gfx::PointF(10, 10),
+                               gfx::Size(50, 50), true, false, true);
+  SetLayerPropertiesForTesting(scroll_parent, identity_transform,
+                               gfx::Point3F(), gfx::PointF(), gfx::Size(50, 50),
+                               true, false, false);
+  scroll_parent_target->SetMasksToBounds(true);
+
+  float device_scale_factor = 1.5f;
+  LayerImplList render_surface_layer_list_impl;
+  root->layer_tree_impl()->IncrementRenderSurfaceListIdForTesting();
+  LayerTreeHostCommon::CalcDrawPropsImplInputsForTesting inputs(
+      root, root->bounds(), identity_transform, &render_surface_layer_list_impl,
+      root->layer_tree_impl()->current_render_surface_list_id());
+  inputs.device_scale_factor = device_scale_factor;
+  LayerTreeHostCommon::CalculateDrawProperties(&inputs);
+
+  EXPECT_EQ(scroll_child->visible_layer_rect(), gfx::Rect(10, 10, 40, 40));
+  EXPECT_EQ(scroll_child->clip_rect(), gfx::Rect(15, 15, 75, 75));
+  gfx::Transform scale;
+  scale.Scale(1.5f, 1.5f);
+  EXPECT_EQ(scroll_child->DrawTransform(), scale);
 }
 
 TEST_F(LayerTreeHostCommonTest, SingularTransformSubtreesDoNotDraw) {
@@ -8724,11 +8944,11 @@ TEST_F(LayerTreeHostCommonTest, SkippingSubtreeMain) {
   // Now, even though child has zero opacity, we will configure |grandchild| and
   // |greatgrandchild| in several ways that should force the subtree to be
   // processed anyhow.
-  greatgrandchild->RequestCopyOfOutput(
+  grandchild->RequestCopyOfOutput(
       CopyOutputRequest::CreateBitmapRequest(base::Bind(&CopyOutputCallback)));
   ExecuteCalculateDrawPropertiesWithPropertyTrees(root.get());
   EXPECT_EQ(gfx::Rect(10, 10), grandchild->visible_rect_from_property_trees());
-  grandchild->set_visible_rect_from_property_trees(gfx::Rect());
+  greatgrandchild->set_visible_rect_from_property_trees(gfx::Rect());
 
   // Add an opacity animation with a start delay.
   animation_id = 1;
@@ -8776,15 +8996,10 @@ TEST_F(LayerTreeHostCommonTest, SkippingSubtreeImpl) {
   SetLayerPropertiesForTesting(grandchild.get(), identity, gfx::Point3F(),
                                gfx::PointF(), gfx::Size(10, 10), true, false,
                                false);
-  SetLayerPropertiesForTesting(greatgrandchild.get(), identity, gfx::Point3F(),
-                               gfx::PointF(), gfx::Size(10, 10), true, false,
-                               true);
 
   LayerImpl* child_ptr = child.get();
   LayerImpl* grandchild_ptr = grandchild.get();
-  LayerImpl* greatgrandchild_ptr = greatgrandchild.get();
 
-  grandchild->AddChild(std::move(greatgrandchild));
   child->AddChild(std::move(grandchild));
   root->AddChild(std::move(child));
 
@@ -8824,7 +9039,7 @@ TEST_F(LayerTreeHostCommonTest, SkippingSubtreeImpl) {
   std::vector<scoped_ptr<CopyOutputRequest>> requests;
   requests.push_back(CopyOutputRequest::CreateEmptyRequest());
 
-  greatgrandchild_ptr->PassCopyRequests(&requests);
+  grandchild_ptr->PassCopyRequests(&requests);
   root.get()->layer_tree_impl()->property_trees()->needs_rebuild = true;
   ExecuteCalculateDrawPropertiesWithPropertyTrees(root.get());
   EXPECT_EQ(gfx::Rect(10, 10),
@@ -8921,15 +9136,15 @@ TEST_F(LayerTreeHostCommonTest, InputHandlersRecursiveUpdateTest) {
   SetLayerPropertiesForTesting(child, identity, gfx::Point3F(), gfx::PointF(),
                                gfx::Size(100, 100), true, false, false);
 
-  EXPECT_EQ(root->layer_or_descendant_has_input_handler(), false);
+  EXPECT_EQ(root->layer_or_descendant_has_touch_handler(), false);
 
-  child->SetHaveWheelEventHandlers(true);
+  child->SetTouchEventHandlerRegion(gfx::Rect(0, 0, 100, 100));
   ExecuteCalculateDrawProperties(root);
-  EXPECT_EQ(root->layer_or_descendant_has_input_handler(), true);
+  EXPECT_EQ(root->layer_or_descendant_has_touch_handler(), true);
 
-  child->SetHaveWheelEventHandlers(false);
+  child->SetTouchEventHandlerRegion(gfx::Rect());
   ExecuteCalculateDrawProperties(root);
-  EXPECT_EQ(root->layer_or_descendant_has_input_handler(), false);
+  EXPECT_EQ(root->layer_or_descendant_has_touch_handler(), false);
 }
 
 TEST_F(LayerTreeHostCommonTest, ResetPropertyTreeIndices) {
@@ -9416,19 +9631,19 @@ TEST_F(LayerTreeHostCommonTest, LayerWithInputHandlerAndZeroOpacity) {
   SetLayerPropertiesForTesting(render_surface, identity_matrix, gfx::Point3F(),
                                gfx::PointF(), gfx::Size(30, 30), true, false,
                                true);
-  SetLayerPropertiesForTesting(test_layer, identity_matrix, gfx::Point3F(),
+  gfx::Transform translation;
+  translation.Translate(10, 10);
+  SetLayerPropertiesForTesting(test_layer, translation, gfx::Point3F(),
                                gfx::PointF(), gfx::Size(20, 20), true, false,
                                false);
 
   render_surface->SetMasksToBounds(true);
   test_layer->SetDrawsContent(true);
   test_layer->SetOpacity(0);
-  test_layer->SetHaveWheelEventHandlers(true);
+  test_layer->SetTouchEventHandlerRegion(gfx::Rect(0, 0, 20, 20));
 
   ExecuteCalculateDrawProperties(root);
-  EXPECT_EQ(gfx::Rect(20, 20), test_layer->drawable_content_rect());
-  EXPECT_EQ(gfx::RectF(20, 20),
-            render_surface->render_surface()->DrawableContentRect());
+  EXPECT_EQ(translation, test_layer->ScreenSpaceTransform());
 }
 
 TEST_F(LayerTreeHostCommonTest, ClipChildVisibleRect) {
@@ -9511,12 +9726,12 @@ TEST_F(LayerTreeHostCommonTest, SubtreeIsHiddenTest) {
 
   hidden->SetHideLayerAndSubtree(true);
   ExecuteCalculateDrawProperties(root);
-  EXPECT_TRUE(test->LayerIsHidden());
+  EXPECT_TRUE(test->IsHidden());
 
   hidden->SetHideLayerAndSubtree(false);
   root->layer_tree_impl()->property_trees()->needs_rebuild = true;
   ExecuteCalculateDrawProperties(root);
-  EXPECT_FALSE(test->LayerIsHidden());
+  EXPECT_FALSE(test->IsHidden());
 }
 
 TEST_F(LayerTreeHostCommonTest, TwoUnclippedRenderSurfaces) {
@@ -9675,6 +9890,158 @@ TEST_F(LayerTreeHostCommonTest, SerializeScrollAndScale) {
   new_scroll_and_scale_set.FromProtobuf(proto);
 
   EXPECT_TRUE(scroll_and_scale_set.EqualsForTesting(new_scroll_and_scale_set));
+}
+
+TEST_F(LayerTreeHostCommonTest, ScrollTreeBuilderTest) {
+  // Test the behavior of scroll tree builder
+  // Topology:
+  // +root1(1)
+  // +--parent2(2)[should_scroll_on_main_thread & scrollable]
+  // +----child6(6)[should_scroll_on_main_thread]
+  // +------grand_child10(10)[should_scroll_on_main_thread]
+  // +--parent3(3)
+  // +----child7(7)[scrollable]
+  // +----child8(8)[scroll_parent=7]
+  // +------grand_child11(11)[scrollable]
+  // +--parent4(4)
+  // +----child9(9)
+  // +------grand_child12(12)
+  // +--parent5(5)[contains_non_fast_scrollable_region]
+  //
+  // Expected scroll tree topology:
+  // +property_tree_root---owner:-1
+  // +--root---owner:1, id:1
+  // +----node---owner:2, id:2
+  // +------node---owner:6, id:3
+  // +----node---owner:7, id:4
+  // +------node---owner:11, id:5
+  // +----node---owner:5, id:6
+  //
+  // Extra check:
+  //   scroll_tree_index() of:
+  //     grand_child10:3
+  //     parent3:1
+  //     child8:4
+  //     parent4:1
+  //     child9:1
+  //     grand_child12:1
+  scoped_refptr<Layer> root1 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> parent2 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> parent3 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> parent4 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> parent5 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> child6 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> child7 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> child8 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> child9 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> grand_child10 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> grand_child11 = Layer::Create(layer_settings());
+  scoped_refptr<Layer> grand_child12 = Layer::Create(layer_settings());
+
+  root1->AddChild(parent2);
+  root1->AddChild(parent3);
+  root1->AddChild(parent4);
+  root1->AddChild(parent5);
+  parent2->AddChild(child6);
+  parent3->AddChild(child7);
+  parent3->AddChild(child8);
+  parent4->AddChild(child9);
+  child6->AddChild(grand_child10);
+  child8->AddChild(grand_child11);
+  child9->AddChild(grand_child12);
+  host()->SetRootLayer(root1);
+
+  parent2->AddMainThreadScrollingReasons(
+      MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects);
+  parent2->SetScrollClipLayerId(root1->id());
+  child6->AddMainThreadScrollingReasons(
+      MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects);
+  grand_child10->AddMainThreadScrollingReasons(
+      MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects);
+
+  child7->SetScrollClipLayerId(root1->id());
+  child8->SetScrollParent(child7.get());
+  grand_child11->SetScrollClipLayerId(root1->id());
+
+  parent5->SetNonFastScrollableRegion(gfx::Rect(0, 0, 50, 50));
+
+  ExecuteCalculateDrawPropertiesWithPropertyTrees(root1.get());
+
+  const int kInvalidPropertyTreeNodeId = -1;
+  const int kRootPropertyTreeNodeId = 0;
+
+  // Property tree root
+  ScrollTree scroll_tree = host()->property_trees()->scroll_tree;
+  ScrollTree expected_scroll_tree;
+  ScrollNode* property_tree_root = expected_scroll_tree.Node(0);
+  property_tree_root->id = kRootPropertyTreeNodeId;
+  property_tree_root->parent_id = kInvalidPropertyTreeNodeId;
+  property_tree_root->owner_id = kInvalidPropertyTreeNodeId;
+  property_tree_root->data.scrollable = false;
+  property_tree_root->data.should_scroll_on_main_thread = false;
+  property_tree_root->data.contains_non_fast_scrollable_region = false;
+  property_tree_root->data.transform_id = kRootPropertyTreeNodeId;
+
+  // The node owned by root1
+  ScrollNode scroll_root1;
+  scroll_root1.id = 1;
+  scroll_root1.owner_id = root1->id();
+  scroll_root1.data.transform_id = root1->transform_tree_index();
+  expected_scroll_tree.Insert(scroll_root1, 0);
+
+  // The node owned by parent2
+  ScrollNode scroll_parent2;
+  scroll_parent2.id = 2;
+  scroll_parent2.owner_id = parent2->id();
+  scroll_parent2.data.scrollable = true;
+  scroll_parent2.data.should_scroll_on_main_thread = true;
+  scroll_parent2.data.transform_id = parent2->transform_tree_index();
+  expected_scroll_tree.Insert(scroll_parent2, 1);
+
+  // The node owned by child6
+  ScrollNode scroll_child6;
+  scroll_child6.id = 3;
+  scroll_child6.owner_id = child6->id();
+  scroll_child6.data.should_scroll_on_main_thread = true;
+  scroll_child6.data.transform_id = child6->transform_tree_index();
+  expected_scroll_tree.Insert(scroll_child6, 2);
+
+  // The node owned by child7, child7 also owns a transform node
+  ScrollNode scroll_child7;
+  scroll_child7.id = 4;
+  scroll_child7.owner_id = child7->id();
+  scroll_child7.data.scrollable = true;
+  scroll_child7.data.transform_id = child7->transform_tree_index();
+  expected_scroll_tree.Insert(scroll_child7, 1);
+
+  // The node owned by grand_child11, grand_child11 also owns a transform node
+  ScrollNode scroll_grand_child11;
+  scroll_grand_child11.id = 5;
+  scroll_grand_child11.owner_id = grand_child11->id();
+  scroll_grand_child11.data.scrollable = true;
+  scroll_grand_child11.data.transform_id =
+      grand_child11->transform_tree_index();
+  expected_scroll_tree.Insert(scroll_grand_child11, 4);
+
+  // The node owned by parent5
+  ScrollNode scroll_parent5;
+  scroll_parent5.id = 8;
+  scroll_parent5.owner_id = parent5->id();
+  scroll_parent5.data.contains_non_fast_scrollable_region = true;
+  scroll_parent5.data.transform_id = parent5->transform_tree_index();
+  expected_scroll_tree.Insert(scroll_parent5, 1);
+
+  expected_scroll_tree.set_needs_update(false);
+
+  EXPECT_EQ(expected_scroll_tree, scroll_tree);
+
+  // Check other layers' scroll_tree_index
+  EXPECT_EQ(scroll_child6.id, grand_child10->scroll_tree_index());
+  EXPECT_EQ(scroll_root1.id, parent3->scroll_tree_index());
+  EXPECT_EQ(scroll_child7.id, child8->scroll_tree_index());
+  EXPECT_EQ(scroll_root1.id, parent4->scroll_tree_index());
+  EXPECT_EQ(scroll_root1.id, child9->scroll_tree_index());
+  EXPECT_EQ(scroll_root1.id, grand_child12->scroll_tree_index());
 }
 
 }  // namespace

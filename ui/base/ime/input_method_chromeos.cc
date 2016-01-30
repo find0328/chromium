@@ -57,17 +57,6 @@ InputMethodChromeOS::~InputMethodChromeOS() {
     ui::IMEBridge::Get()->SetInputContextHandler(NULL);
 }
 
-void InputMethodChromeOS::OnFocus() {
-  InputMethodBase::OnFocus();
-  OnTextInputTypeChanged(GetTextInputClient());
-}
-
-void InputMethodChromeOS::OnBlur() {
-  ConfirmCompositionText();
-  InputMethodBase::OnBlur();
-  OnTextInputTypeChanged(GetTextInputClient());
-}
-
 bool InputMethodChromeOS::OnUntranslatedIMEMessage(
     const base::NativeEvent& event,
     NativeEventResult* result) {
@@ -98,7 +87,6 @@ void InputMethodChromeOS::ProcessKeyEventDone(ui::KeyEvent* event,
 void InputMethodChromeOS::DispatchKeyEvent(ui::KeyEvent* event) {
   DCHECK(event->IsKeyEvent());
   DCHECK(!(event->flags() & ui::EF_IS_SYNTHESIZED));
-  DCHECK(system_toplevel_window_focused());
 
   // For linux_chromeos, the ime keyboard cannot track the caps lock state by
   // itself, so need to call SetCapsLockEnabled() method to reflect the caps
@@ -300,8 +288,6 @@ void InputMethodChromeOS::ConfirmCompositionText() {
 void InputMethodChromeOS::ResetContext() {
   if (!IsNonPasswordInputFieldFocused() || !GetTextInputClient())
     return;
-
-  DCHECK(system_toplevel_window_focused());
 
   composition_.Clear();
   result_text_.clear();

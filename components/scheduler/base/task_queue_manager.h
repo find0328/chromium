@@ -73,7 +73,7 @@ class SCHEDULER_EXPORT TaskQueueManager
   // runner. These delayed tasks are de-duplicated. Must be called on the thread
   // this class was created on.
   void MaybeScheduleDelayedWork(const tracked_objects::Location& from_here,
-                                LazyNow* lazy_now,
+                                base::TimeTicks now,
                                 base::TimeDelta delay);
 
   // Set the number of tasks executed in a single invocation of the task queue
@@ -102,7 +102,12 @@ class SCHEDULER_EXPORT TaskQueueManager
 
     // Called when |queue| is unregistered.
     virtual void OnUnregisterTaskQueue(
-        const scoped_refptr<internal::TaskQueueImpl>& queue) = 0;
+        const scoped_refptr<TaskQueue>& queue) = 0;
+
+    // Called when the manager tried to execute a task from a disabled
+    // queue. See TaskQueue::Spec::SetShouldReportWhenExecutionBlocked.
+    virtual void OnTriedToExecuteBlockedTask(const TaskQueue& queue,
+                                             const base::PendingTask& task) = 0;
   };
 
   // Called once to set the Observer. This function is called on the main
@@ -140,6 +145,8 @@ class SCHEDULER_EXPORT TaskQueueManager
 
   // TaskQueueSelector::Observer implementation:
   void OnTaskQueueEnabled(internal::TaskQueueImpl* queue) override;
+  void OnTriedToSelectBlockedWorkQueue(
+      internal::WorkQueue* work_queue) override;
 
   // Called by the task queue to register a new pending task.
   void DidQueueTask(const internal::TaskQueueImpl::Task& pending_task);
@@ -183,6 +190,10 @@ class SCHEDULER_EXPORT TaskQueueManager
   // was able to advance.
   bool TryAdvanceTimeDomains();
 
+  void MaybeRecordTaskDelayHistograms(
+      const internal::TaskQueueImpl::Task& pending_task,
+      const internal::TaskQueueImpl* queue);
+
   scoped_refptr<base::trace_event::ConvertableToTraceFormat>
   AsValueWithSelectorResult(bool should_run,
                             internal::WorkQueue* selected_work_queue) const;
@@ -217,6 +228,7 @@ class SCHEDULER_EXPORT TaskQueueManager
   std::set<base::TimeTicks> other_thread_pending_wakeups_;
 
   int work_batch_size_;
+  size_t task_count_;
 
   base::ObserverList<base::MessageLoop::TaskObserver> task_observers_;
 

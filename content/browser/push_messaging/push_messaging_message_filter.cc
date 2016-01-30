@@ -5,6 +5,7 @@
 #include "content/browser/push_messaging/push_messaging_message_filter.h"
 
 #include <string>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/bind_helpers.h"
@@ -457,7 +458,7 @@ void PushMessagingMessageFilter::Core::DidRequestPermissionInIncognito(
     PermissionStatus status) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   // Notification permission should always be denied in incognito.
-  DCHECK_EQ(PERMISSION_STATUS_DENIED, status);
+  DCHECK_EQ(PermissionStatus::DENIED, status);
   BrowserThread::PostTask(
       BrowserThread::IO, FROM_HERE,
       base::Bind(&PushMessagingMessageFilter::SendSubscriptionError, io_parent_,
@@ -647,6 +648,7 @@ void PushMessagingMessageFilter::UnsubscribeHavingGottenSenderId(
     case SERVICE_WORKER_ERROR_DISK_CACHE:
     case SERVICE_WORKER_ERROR_REDUNDANT:
     case SERVICE_WORKER_ERROR_DISALLOWED:
+    case SERVICE_WORKER_ERROR_DISABLED_WORKER:
     case SERVICE_WORKER_ERROR_MAX_VALUE:
       NOTREACHED() << "Got unexpected error code: " << service_worker_status
                    << " " << ServiceWorkerStatusToString(service_worker_status);
@@ -843,6 +845,7 @@ void PushMessagingMessageFilter::DidGetSubscription(
     case SERVICE_WORKER_ERROR_DISK_CACHE:
     case SERVICE_WORKER_ERROR_REDUNDANT:
     case SERVICE_WORKER_ERROR_DISALLOWED:
+    case SERVICE_WORKER_ERROR_DISABLED_WORKER:
     case SERVICE_WORKER_ERROR_MAX_VALUE: {
       NOTREACHED() << "Got unexpected error code: " << service_worker_status
                    << " " << ServiceWorkerStatusToString(service_worker_status);

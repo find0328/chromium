@@ -1250,7 +1250,7 @@ void HTMLSelectElement::resetImpl()
         }
         option->setDirty(false);
 
-        if (!firstOption)
+        if (!firstOption && !option->isDisabledFormControl())
             firstOption = option;
     }
 
@@ -1984,9 +1984,7 @@ void HTMLSelectElement::showPopup()
     m_popupIsVisible = true;
 
     LayoutMenuList* menuList = toLayoutMenuList(layoutObject());
-    FloatQuad quad(menuList->localToAbsoluteQuad(FloatQuad(menuList->borderBoundingBox())));
-    IntSize size = pixelSnappedIntRect(menuList->frameRect()).size();
-    m_popup->show(quad, size, optionToListIndex(selectedIndex()));
+    m_popup->show();
     if (AXObjectCache* cache = document().existingAXObjectCache())
         cache->didShowMenuListPopup(menuList);
 }

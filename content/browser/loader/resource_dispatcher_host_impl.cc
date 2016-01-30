@@ -448,8 +448,9 @@ void LogResourceRequestTimeOnUI(
 bool IsUsingLoFi(LoFiState lofi_state,
                  ResourceDispatcherHostDelegate* delegate,
                  const net::URLRequest& request,
-                 ResourceContext* resource_context) {
-  if (lofi_state == LOFI_UNSPECIFIED && delegate)
+                 ResourceContext* resource_context,
+                 bool is_main_frame) {
+  if (lofi_state == LOFI_UNSPECIFIED && delegate && is_main_frame)
     return delegate->ShouldEnableLoFiMode(request, resource_context);
   return lofi_state == LOFI_ON;
 }
@@ -543,6 +544,7 @@ void ResourceDispatcherHostImpl::SetAllowCrossOriginAuthPrompt(bool value) {
 }
 
 void ResourceDispatcherHostImpl::AddResourceContext(ResourceContext* context) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   active_resource_contexts_.insert(context);
 }
 
@@ -1185,6 +1187,20 @@ void ResourceDispatcherHostImpl::OnSyncLoad(
                sync_result->routing_id());
 }
 
+bool ResourceDispatcherHostImpl::IsRequestIDInUse(
+    const GlobalRequestID& id) const {
+  if (pending_loaders_.find(id) != pending_loaders_.end())
+    return true;
+  for (const auto& blocked_loaders : blocked_loaders_map_) {
+    for (const auto& loader : *blocked_loaders.second.get()) {
+      ResourceRequestInfoImpl* info = loader->GetRequestInfo();
+      if (info->GetGlobalRequestID() == id)
+        return true;
+    }
+  }
+  return false;
+}
+
 void ResourceDispatcherHostImpl::UpdateRequestForTransfer(
     int child_id,
     int route_id,
@@ -1258,8 +1274,13 @@ void ResourceDispatcherHostImpl::UpdateRequestForTransfer(
   ServiceWorkerRequestHandler* handler =
       ServiceWorkerRequestHandler::GetHandler(loader_ptr->request());
   if (handler) {
-    handler->CompleteCrossSiteTransfer(
-        child_id, request_data.service_worker_provider_id);
+    if (!handler->SanityCheckIsSameContext(filter_->service_worker_context())) {
+      bad_message::ReceivedBadMessage(
+          filter_, bad_message::RDHI_WRONG_STORAGE_PARTITION);
+    } else {
+      handler->CompleteCrossSiteTransfer(
+          child_id, request_data.service_worker_provider_id);
+    }
   }
 
   // We should have a CrossSiteResourceHandler to finish the transfer.
@@ -1273,6 +1294,13 @@ void ResourceDispatcherHostImpl::BeginRequest(
     int route_id) {
   int process_type = filter_->process_type();
   int child_id = filter_->child_id();
+
+  // Reject request id that's currently in use.
+  if (IsRequestIDInUse(GlobalRequestID(child_id, request_id))) {
+    bad_message::ReceivedBadMessage(filter_,
+                                    bad_message::RDH_INVALID_REQUEST_ID);
+    return;
+  }
 
   // PlzNavigate: reject invalid renderer main resource request.
   if (IsBrowserSideNavigationEnabled() &&
@@ -1445,28 +1473,20 @@ void ResourceDispatcherHostImpl::BeginRequest(
   ResourceRequestInfoImpl* extra_info = new ResourceRequestInfoImpl(
       process_type, child_id, route_id,
       -1,  // frame_tree_node_id
-      request_data.origin_pid,
-      request_id,
-      request_data.render_frame_id,
-      request_data.is_main_frame,
-      request_data.parent_is_main_frame,
-      request_data.resource_type,
-      request_data.transition_type,
+      request_data.origin_pid, request_id, request_data.render_frame_id,
+      request_data.is_main_frame, request_data.parent_is_main_frame,
+      request_data.resource_type, request_data.transition_type,
       request_data.should_replace_current_entry,
       false,  // is download
       false,  // is stream
-      allow_download,
-      request_data.has_user_gesture,
-      request_data.enable_load_timing,
-      request_data.enable_upload_progress,
-      do_not_prompt_for_login,
-      request_data.referrer_policy,
-      request_data.visiblity_state,
-      resource_context, filter_->GetWeakPtr(),
-      report_raw_headers,
-      !is_sync_load,
-      IsUsingLoFi(request_data.lofi_state, delegate_,
-                  *new_request, resource_context),
+      allow_download, request_data.has_user_gesture,
+      request_data.enable_load_timing, request_data.enable_upload_progress,
+      do_not_prompt_for_login, request_data.referrer_policy,
+      request_data.visiblity_state, resource_context, filter_->GetWeakPtr(),
+      report_raw_headers, !is_sync_load,
+      IsUsingLoFi(request_data.lofi_state, delegate_, *new_request,
+                  resource_context,
+                  request_data.resource_type == RESOURCE_TYPE_MAIN_FRAME),
       support_async_revalidation ? request_data.headers : std::string());
   // Request takes ownership.
   extra_info->AssociateWithRequest(new_request.get());
@@ -1768,10 +1788,8 @@ ResourceRequestInfoImpl* ResourceDispatcherHostImpl::CreateRequestInfo(
 }
 
 void ResourceDispatcherHostImpl::OnRenderViewHostCreated(int child_id,
-                                                         int route_id,
-                                                         bool is_visible,
-                                                         bool is_audible) {
-  scheduler_->OnClientCreated(child_id, route_id, is_visible, is_audible);
+                                                         int route_id) {
+  scheduler_->OnClientCreated(child_id, route_id);
 }
 
 void ResourceDispatcherHostImpl::OnRenderViewHostDeleted(
@@ -1785,29 +1803,6 @@ void ResourceDispatcherHostImpl::OnRenderViewHostSetIsLoading(int child_id,
                                                               int route_id,
                                                               bool is_loading) {
   scheduler_->OnLoadingStateChanged(child_id, route_id, !is_loading);
-}
-
-void ResourceDispatcherHostImpl::OnRenderViewHostWasHidden(
-    int child_id,
-    int route_id) {
-  scheduler_->OnVisibilityChanged(child_id, route_id, false);
-}
-
-void ResourceDispatcherHostImpl::OnRenderViewHostWasShown(
-    int child_id,
-    int route_id) {
-  scheduler_->OnVisibilityChanged(child_id, route_id, true);
-}
-
-void ResourceDispatcherHostImpl::OnAudioRenderHostStreamStateChanged(
-    int child_id,
-    int route_id,
-    bool is_playing) {
-  // The ResourceDispatcherHost may have already been shut down.
-  // See http://crbug.com/455098
-  if (!scheduler_)
-    return;
-  scheduler_->OnAudibilityChanged(child_id, route_id, is_playing);
 }
 
 // This function is only used for saving feature.
@@ -2183,8 +2178,8 @@ void ResourceDispatcherHostImpl::BeginNavigationRequest(
       -1,  // request_data.origin_pid,
       request_id_,
       -1,  // request_data.render_frame_id,
-      info.is_main_frame, info.parent_is_main_frame,
-      resource_type, info.common_params.transition,
+      info.is_main_frame, info.parent_is_main_frame, resource_type,
+      info.common_params.transition,
       // should_replace_current_entry. This was only maintained at layer for
       // request transfers and isn't needed for browser-side navigations.
       false,
@@ -2202,8 +2197,8 @@ void ResourceDispatcherHostImpl::BeginNavigationRequest(
       base::WeakPtr<ResourceMessageFilter>(),  // filter
       false,  // request_data.report_raw_headers
       true,   // is_async
-      IsUsingLoFi(info.common_params.lofi_state, delegate_,
-                  *new_request, resource_context),
+      IsUsingLoFi(info.common_params.lofi_state, delegate_, *new_request,
+                  resource_context, info.is_main_frame),
       // The original_headers field is for stale-while-revalidate but the
       // feature doesn't work with PlzNavigate, so it's just a placeholder
       // here.

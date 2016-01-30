@@ -27,6 +27,8 @@
       'animation/ink_drop_animation_observer.h',
       'animation/ink_drop_delegate.h',
       'animation/ink_drop_host.h',
+      'animation/ink_drop_hover.cc',
+      'animation/ink_drop_hover.h',
       'animation/ink_drop_painted_layer_delegates.cc',
       'animation/ink_drop_painted_layer_delegates.h',
       'animation/ink_drop_state.cc',
@@ -126,8 +128,6 @@
       'controls/menu/menu_message_loop.h',
       'controls/menu/menu_message_loop_mac.cc',
       'controls/menu/menu_message_loop_mac.h',
-      'controls/menu/menu_message_pump_dispatcher_win.cc',
-      'controls/menu/menu_message_pump_dispatcher_win.h',
       'controls/menu/menu_model_adapter.cc',
       'controls/menu/menu_model_adapter.h',
       'controls/menu/menu_runner.cc',
@@ -410,19 +410,10 @@
       'widget/window_reorderer.cc',
       'widget/window_reorderer.h',
     ],
-    'views_android_sources': [
-      'controls/menu/menu_config_android.cc',
-      'widget/android/android_focus_rules.cc',
-      'widget/android/android_focus_rules.h',
-      'widget/android/native_widget_android.cc',
-      'widget/android/native_widget_android.h',
-    ],
     'views_desktop_aura_sources': [
       'widget/desktop_aura/desktop_capture_client.cc',
       'widget/desktop_aura/desktop_capture_client.h',
       'widget/desktop_aura/desktop_cursor_loader_updater.h',
-      'widget/desktop_aura/desktop_dispatcher_client.cc',
-      'widget/desktop_aura/desktop_dispatcher_client.h',
       'widget/desktop_aura/desktop_drop_target_win.cc',
       'widget/desktop_aura/desktop_drop_target_win.h',
       'widget/desktop_aura/desktop_event_client.cc',
@@ -544,7 +535,9 @@
       'accessible_pane_view_unittest.cc',
       'animation/bounds_animator_unittest.cc',
       'animation/ink_drop_animation_controller_factory_unittest.cc',
+      'animation/ink_drop_animation_controller_impl_unittest.cc',
       'animation/ink_drop_animation_unittest.cc',
+      'animation/ink_drop_hover_unittest.cc',
       'bubble/bubble_border_unittest.cc',
       'bubble/bubble_delegate_unittest.cc',
       'bubble/bubble_frame_view_unittest.cc',
@@ -607,6 +600,7 @@
       'widget/desktop_widget_unittest.cc',
     ],
     'views_unittests_aura_sources': [
+      'accessibility/ax_aura_obj_cache_unittest.cc',
       'controls/native/native_view_host_aura_unittest.cc',
       'corewm/tooltip_controller_unittest.cc',
       'touchui/touch_selection_controller_impl_unittest.cc',
@@ -888,17 +882,6 @@
               ],
             },
           },
-        }],
-        ['OS=="win" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '../../base/allocator/allocator.gyp:allocator',
-          ],
-        }],
-        ['OS=="linux" and use_allocator!="none"', {
-           # See http://crbug.com/162998#c4 for why this is needed.
-          'dependencies': [
-            '../../base/allocator/allocator.gyp:allocator',
-          ],
         }],
         ['use_x11==1', {
           'dependencies': [

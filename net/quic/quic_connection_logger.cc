@@ -114,9 +114,8 @@ scoped_ptr<base::Value> NetLogQuicAckFrameCallback(
   scoped_ptr<base::DictionaryValue> dict(new base::DictionaryValue());
   dict->SetString("largest_observed",
                   base::Uint64ToString(frame->largest_observed));
-  dict->SetString(
-      "delta_time_largest_observed_us",
-      base::Int64ToString(frame->delta_time_largest_observed.ToMicroseconds()));
+  dict->SetString("delta_time_largest_observed_us",
+                  base::Int64ToString(frame->ack_delay_time.ToMicroseconds()));
   dict->SetInteger("entropy_hash", frame->entropy_hash);
   dict->SetBoolean("truncated", frame->is_truncated);
 
@@ -459,9 +458,10 @@ void QuicConnectionLogger::OnPacketReceived(const IPEndPoint& self_address,
                                             const QuicEncryptedPacket& packet) {
   if (local_address_from_self_.GetFamily() == ADDRESS_FAMILY_UNSPECIFIED) {
     local_address_from_self_ = self_address;
-    UMA_HISTOGRAM_ENUMERATION("Net.QuicSession.ConnectionTypeFromSelf",
-                              GetRealAddressFamily(self_address.address()),
-                              ADDRESS_FAMILY_LAST);
+    UMA_HISTOGRAM_ENUMERATION(
+        "Net.QuicSession.ConnectionTypeFromSelf",
+        GetRealAddressFamily(self_address.address().bytes()),
+        ADDRESS_FAMILY_LAST);
   }
 
   previous_received_packet_size_ = last_received_packet_size_;
@@ -660,7 +660,7 @@ void QuicConnectionLogger::OnCryptoHandshakeMessageReceived(
       local_address_from_shlo_ = IPEndPoint(decoder.ip(), decoder.port());
       UMA_HISTOGRAM_ENUMERATION(
           "Net.QuicSession.ConnectionTypeFromPeer",
-          GetRealAddressFamily(local_address_from_shlo_.address()),
+          GetRealAddressFamily(local_address_from_shlo_.address().bytes()),
           ADDRESS_FAMILY_LAST);
     }
   }

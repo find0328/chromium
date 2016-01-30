@@ -33,10 +33,9 @@
 #include "bindings/core/v8/V8Binding.h"
 #include "core/dom/Document.h"
 #include "core/frame/LocalDOMWindow.h"
-#include "core/inspector/InjectedScript.h"
-#include "core/inspector/InjectedScriptHost.h"
-#include "core/inspector/InspectorState.h"
-#include "core/inspector/RemoteObjectId.h"
+#include "core/inspector/v8/InjectedScript.h"
+#include "core/inspector/v8/InjectedScriptHost.h"
+#include "core/inspector/v8/RemoteObjectId.h"
 #include "platform/Timer.h"
 #include "wtf/CurrentTime.h"
 #include <v8-profiler.h>
@@ -105,13 +104,12 @@ private:
     InspectorFrontend::HeapProfiler* m_frontend;
 };
 
-ScriptValue objectByHeapObjectId(v8::Isolate* isolate, unsigned id)
+v8::Local<v8::Object> objectByHeapObjectId(v8::Isolate* isolate, unsigned id)
 {
     v8::HeapProfiler* profiler = isolate->GetHeapProfiler();
-    v8::HandleScope handleScope(isolate);
     v8::Local<v8::Value> value = profiler->FindObjectById(id);
     if (value.IsEmpty() || !value->IsObject())
-        return ScriptValue();
+        return v8::Local<v8::Object>();
 
     v8::Local<v8::Object> object = value.As<v8::Object>();
 
@@ -120,19 +118,18 @@ ScriptValue objectByHeapObjectId(v8::Isolate* isolate, unsigned id)
         // Skip wrapper boilerplates which are like regular wrappers but don't have
         // native object.
         if (!wrapper.IsEmpty() && wrapper->IsUndefined())
-            return ScriptValue();
+            return v8::Local<v8::Object>();
     }
 
-    ScriptState* scriptState = ScriptState::from(object->CreationContext());
-    return ScriptValue(scriptState, object);
+    return object;
 }
 
 class InspectableHeapObject final : public InjectedScriptHost::InspectableObject {
 public:
     explicit InspectableHeapObject(unsigned heapObjectId) : m_heapObjectId(heapObjectId) { }
-    ScriptValue get(ScriptState* state) override
+    v8::Local<v8::Value> get(v8::Local<v8::Context> context) override
     {
-        return objectByHeapObjectId(state->isolate(), m_heapObjectId);
+        return objectByHeapObjectId(context->GetIsolate(), m_heapObjectId);
     }
 private:
     unsigned m_heapObjectId;
@@ -203,10 +200,10 @@ InspectorHeapProfilerAgent::~InspectorHeapProfilerAgent()
 
 void InspectorHeapProfilerAgent::restore()
 {
-    if (m_state->getBoolean(HeapProfilerAgentState::heapProfilerEnabled))
+    if (m_state->booleanProperty(HeapProfilerAgentState::heapProfilerEnabled, false))
         frontend()->resetProfiles();
-    if (m_state->getBoolean(HeapProfilerAgentState::heapObjectsTrackingEnabled))
-        startTrackingHeapObjectsInternal(m_state->getBoolean(HeapProfilerAgentState::allocationTrackingEnabled));
+    if (m_state->booleanProperty(HeapProfilerAgentState::heapObjectsTrackingEnabled, false))
+        startTrackingHeapObjectsInternal(m_state->booleanProperty(HeapProfilerAgentState::allocationTrackingEnabled, false));
 }
 
 void InspectorHeapProfilerAgent::collectGarbage(ErrorString*)
@@ -329,17 +326,19 @@ void InspectorHeapProfilerAgent::getObjectByHeapObjectId(ErrorString* error, con
         *error = "Invalid heap snapshot object id";
         return;
     }
-    ScriptValue heapObject = objectByHeapObjectId(m_isolate, id);
-    if (heapObject.isEmpty()) {
+
+    v8::HandleScope handles(m_isolate);
+    v8::Local<v8::Object> heapObject = objectByHeapObjectId(m_isolate, id);
+    if (heapObject.IsEmpty()) {
         *error = "Object is not available";
         return;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->injectedScriptFor(heapObject.scriptState());
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->injectedScriptFor(heapObject->CreationContext());
+    if (!injectedScript) {
         *error = "Object is not available. Inspected context is gone";
         return;
     }
-    result = injectedScript.wrapObject(heapObject, objectGroup ? *objectGroup : "");
+    result = injectedScript->wrapObject(heapObject, objectGroup ? *objectGroup : "");
     if (!result)
         *error = "Failed to wrap object";
 }
@@ -352,7 +351,7 @@ void InspectorHeapProfilerAgent::addInspectedHeapObject(ErrorString* errorString
         *errorString = "Invalid heap snapshot object id";
         return;
     }
-    m_injectedScriptManager->injectedScriptHost()->addInspectedObject(adoptPtrWillBeNoop(new InspectableHeapObject(id)));
+    m_injectedScriptManager->injectedScriptHost()->addInspectedObject(adoptPtr(new InspectableHeapObject(id)));
 }
 
 void InspectorHeapProfilerAgent::getHeapObjectId(ErrorString* errorString, const String& objectId, String* heapSnapshotObjectId)
@@ -362,13 +361,14 @@ void InspectorHeapProfilerAgent::getHeapObjectId(ErrorString* errorString, const
         *errorString = "Invalid object id";
         return;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
+    if (!injectedScript) {
         *errorString = "Inspected context has gone";
         return;
     }
-    ScriptState::Scope scope(injectedScript.scriptState());
-    v8::Local<v8::Value> value = injectedScript.findObject(*remoteId);
+
+    v8::HandleScope handles(injectedScript->isolate());
+    v8::Local<v8::Value> value = injectedScript->findObject(*remoteId);
     if (value.IsEmpty() || value->IsUndefined()) {
         *errorString = "Object with given id not found";
         return;
@@ -380,7 +380,6 @@ void InspectorHeapProfilerAgent::getHeapObjectId(ErrorString* errorString, const
 
 DEFINE_TRACE(InspectorHeapProfilerAgent)
 {
-    visitor->trace(m_injectedScriptManager);
     visitor->trace(m_heapStatsUpdateTask);
     InspectorBaseAgent::trace(visitor);
 }

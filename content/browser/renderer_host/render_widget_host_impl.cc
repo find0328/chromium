@@ -45,6 +45,7 @@
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_helper.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
+#include "content/browser/renderer_host/render_widget_host_input_event_router.h"
 #include "content/browser/renderer_host/render_widget_host_owner_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/common/content_constants_internal.h"
@@ -54,6 +55,7 @@
 #include "content/common/gpu/gpu_messages.h"
 #include "content/common/host_shared_bitmap_manager.h"
 #include "content/common/input_messages.h"
+#include "content/common/resize_params.h"
 #include "content/common/view_messages.h"
 #include "content/public/browser/native_web_keyboard_event.h"
 #include "content/public/browser/notification_service.h"
@@ -211,6 +213,7 @@ RenderWidgetHostImpl::RenderWidgetHostImpl(RenderWidgetHostDelegate* delegate,
       next_browser_snapshot_id_(1),
       owned_by_render_frame_host_(false),
       is_focused_(false),
+      scale_input_to_viewport_(IsUseZoomForDSFEnabled()),
       hung_renderer_delay_(
           base::TimeDelta::FromMilliseconds(kHungRendererDelayMs)),
       new_content_rendering_delay_(
@@ -443,6 +446,7 @@ bool RenderWidgetHostImpl::OnMessageReceived(const IPC::Message &msg) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(RenderWidgetHostImpl, msg)
     IPC_MESSAGE_HANDLER(FrameHostMsg_RenderProcessGone, OnRenderProcessGone)
+    IPC_MESSAGE_HANDLER(FrameHostMsg_HittestData, OnHittestData)
     IPC_MESSAGE_HANDLER(InputHostMsg_QueueSyntheticGesture,
                         OnQueueSyntheticGesture)
     IPC_MESSAGE_HANDLER(InputHostMsg_ImeCancelComposition,
@@ -509,9 +513,6 @@ void RenderWidgetHostImpl::WasHidden() {
   if (is_hidden_)
     return;
 
-  if (owner_delegate_)
-    owner_delegate_->RenderWidgetWillBeHidden();
-
   TRACE_EVENT0("renderer_host", "RenderWidgetHostImpl::WasHidden");
   is_hidden_ = true;
 
@@ -535,9 +536,6 @@ void RenderWidgetHostImpl::WasHidden() {
 void RenderWidgetHostImpl::WasShown(const ui::LatencyInfo& latency_info) {
   if (!is_hidden_)
     return;
-
-  if (owner_delegate_)
-    owner_delegate_->RenderWidgetWillBeShown();
 
   TRACE_EVENT0("renderer_host", "RenderWidgetHostImpl::WasShown");
   is_hidden_ = false;
@@ -580,9 +578,8 @@ void RenderWidgetHostImpl::WasShown(const ui::LatencyInfo& latency_info) {
   WasResized();
 }
 
-bool RenderWidgetHostImpl::GetResizeParams(
-    ViewMsg_Resize_Params* resize_params) {
-  *resize_params = ViewMsg_Resize_Params();
+bool RenderWidgetHostImpl::GetResizeParams(ResizeParams* resize_params) {
+  *resize_params = ResizeParams();
 
   GetWebScreenInfo(&resize_params->screen_info);
   if (delegate_) {
@@ -633,11 +630,10 @@ bool RenderWidgetHostImpl::GetResizeParams(
 }
 
 void RenderWidgetHostImpl::SetInitialRenderSizeParams(
-    const ViewMsg_Resize_Params& resize_params) {
+    const ResizeParams& resize_params) {
   resize_ack_pending_ = resize_params.needs_resize_ack;
 
-  old_resize_params_ =
-      make_scoped_ptr(new ViewMsg_Resize_Params(resize_params));
+  old_resize_params_ = make_scoped_ptr(new ResizeParams(resize_params));
 }
 
 void RenderWidgetHostImpl::WasResized() {
@@ -650,7 +646,7 @@ void RenderWidgetHostImpl::WasResized() {
     return;
   }
 
-  scoped_ptr<ViewMsg_Resize_Params> params(new ViewMsg_Resize_Params);
+  scoped_ptr<ResizeParams> params(new ResizeParams);
   if (color_profile_out_of_date_)
     DispatchColorProfile();
   if (!GetResizeParams(params.get()))
@@ -1264,7 +1260,7 @@ void RenderWidgetHostImpl::GetWebScreenInfo(blink::WebScreenInfo* result) {
   // TODO(sievers): find a way to make this done another way so the method
   // can be const.
   latency_tracker_.set_device_scale_factor(result->deviceScaleFactor);
-  if (IsUseZoomForDSFEnabled())
+  if (scale_input_to_viewport_)
     input_router_->SetDeviceScaleFactor(result->deviceScaleFactor);
 }
 
@@ -1403,10 +1399,12 @@ void RenderWidgetHostImpl::NotifyTextDirection() {
 void RenderWidgetHostImpl::ImeSetComposition(
     const base::string16& text,
     const std::vector<blink::WebCompositionUnderline>& underlines,
+    const gfx::Range& replacement_range,
     int selection_start,
     int selection_end) {
   Send(new InputMsg_ImeSetComposition(
-            GetRoutingID(), text, underlines, selection_start, selection_end));
+            GetRoutingID(), text, underlines, replacement_range,
+            selection_start, selection_end));
 }
 
 void RenderWidgetHostImpl::ImeConfirmComposition(
@@ -1419,7 +1417,8 @@ void RenderWidgetHostImpl::ImeConfirmComposition(
 
 void RenderWidgetHostImpl::ImeCancelComposition() {
   Send(new InputMsg_ImeSetComposition(GetRoutingID(), base::string16(),
-            std::vector<blink::WebCompositionUnderline>(), 0, 0));
+            std::vector<blink::WebCompositionUnderline>(),
+            gfx::Range::InvalidRange(), 0, 0));
 }
 
 void RenderWidgetHostImpl::RejectMouseLockOrUnlockIfNecessary() {
@@ -1507,6 +1506,12 @@ void RenderWidgetHostImpl::OnRenderProcessGone(int status, int exit_code) {
   } else {
     RendererExited(static_cast<base::TerminationStatus>(status), exit_code);
   }
+}
+
+void RenderWidgetHostImpl::OnHittestData(
+    const FrameHostMsg_HittestData_Params& params) {
+  if (delegate_)
+    delegate_->GetInputEventRouter()->OnHittestData(params);
 }
 
 void RenderWidgetHostImpl::OnClose() {

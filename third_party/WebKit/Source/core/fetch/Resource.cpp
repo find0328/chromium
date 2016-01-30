@@ -1115,8 +1115,8 @@ const char* Resource::resourceTypeToString(Type type, const FetchInitiatorInfo& 
         return "XSL stylesheet";
     case Resource::LinkPrefetch:
         return "Link prefetch resource";
-    case Resource::LinkSubresource:
-        return "Link subresource";
+    case Resource::LinkPreload:
+        return "Link preload resource";
     case Resource::TextTrack:
         return "Text track";
     case Resource::ImportResource:
@@ -1149,7 +1149,7 @@ bool Resource::isLoadEventBlockingResourceType() const
         return true;
     case Resource::Raw:
     case Resource::LinkPrefetch:
-    case Resource::LinkSubresource:
+    case Resource::LinkPreload:
     case Resource::TextTrack:
     case Resource::Media:
     case Resource::Manifest:
@@ -1159,8 +1159,9 @@ bool Resource::isLoadEventBlockingResourceType() const
     return false;
 }
 
-#if !LOG_DISABLED
-const char* ResourceTypeName(Resource::Type type)
+// Do not modify existing strings below because they are used as UMA names.
+// https://crbug.com/579496
+const char* Resource::resourceTypeName(Resource::Type type)
 {
     switch (type) {
     case Resource::MainResource:
@@ -1181,8 +1182,8 @@ const char* ResourceTypeName(Resource::Type type)
         return "XSLStyleSheet";
     case Resource::LinkPrefetch:
         return "LinkPrefetch";
-    case Resource::LinkSubresource:
-        return "LinkSubresource";
+    case Resource::LinkPreload:
+        return "LinkPreload";
     case Resource::TextTrack:
         return "TextTrack";
     case Resource::ImportResource:
@@ -1195,6 +1196,5 @@ const char* ResourceTypeName(Resource::Type type)
     ASSERT_NOT_REACHED();
     return "Unknown";
 }
-#endif // !LOG_DISABLED
 
 } // namespace blink

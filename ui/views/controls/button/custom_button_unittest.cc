@@ -123,6 +123,8 @@ class TestInkDropDelegate : public InkDropDelegate {
     }
   }
 
+  void SetHovered(bool is_hovered) override {}
+
  private:
   InkDropHost* ink_drop_host_;
   bool* ink_shown_;
@@ -441,8 +443,7 @@ TEST_F(CustomButtonTest, AsCustomButton) {
 // Note: Ink drop is not hidden upon release because CustomButton descendants
 // may enter a different ink drop state.
 TEST_F(CustomButtonTest, ButtonClickTogglesInkDrop) {
-  gfx::Point old_cursor = gfx::Screen::GetScreenFor(
-      widget()->GetNativeView())->GetCursorScreenPoint();
+  gfx::Point old_cursor = gfx::Screen::GetScreen()->GetCursorScreenPoint();
   CreateButtonWithInkDrop();
 
   ui::test::EventGenerator generator(GetContext(), widget()->GetNativeWindow());
@@ -457,8 +458,7 @@ TEST_F(CustomButtonTest, ButtonClickTogglesInkDrop) {
 
 // Tests that pressing a button shows and releasing capture hides ink drop.
 TEST_F(CustomButtonTest, CaptureLossHidesInkDrop) {
-  gfx::Point old_cursor = gfx::Screen::GetScreenFor(
-      widget()->GetNativeView())->GetCursorScreenPoint();
+  gfx::Point old_cursor = gfx::Screen::GetScreen()->GetCursorScreenPoint();
   CreateButtonWithInkDrop();
 
   ui::test::EventGenerator generator(GetContext(), widget()->GetNativeWindow());

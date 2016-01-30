@@ -1393,10 +1393,12 @@ interface Event
     getter cancelBubble
     getter cancelable
     getter currentTarget
+    getter deepPath
     getter defaultPrevented
     getter eventPhase
     getter path
     getter returnValue
+    getter scoped
     getter srcElement
     getter target
     getter timeStamp
@@ -2443,6 +2445,7 @@ interface HTMLMediaElement : HTMLElement
     getter webkitVideoDecodedByteCount
     method addTextTrack
     method canPlayType
+    method captureStream
     method constructor
     method load
     method pause
@@ -2726,7 +2729,6 @@ interface HTMLSlotElement : HTMLElement
     getter name
     method constructor
     method getAssignedNodes
-    method getDistributedNodes
     setter name
 interface HTMLSourceElement : HTMLElement
     getter media
@@ -4043,6 +4045,12 @@ interface Response
     method constructor
     method json
     method text
+interface RotationTransformComponent : TransformComponent
+    getter angle
+    getter x
+    getter y
+    getter z
+    method constructor
 interface SVGAElement : SVGGraphicsElement
     getter href
     getter target
@@ -5191,6 +5199,10 @@ interface SimpleLength : LengthValue
     getter value
     method constructor
     setter value
+interface SkewTransformComponent : TransformComponent
+    getter ax
+    getter ay
+    method constructor
 interface SpeechSynthesisEvent : Event
     getter charIndex
     getter elapsedTime
@@ -5248,6 +5260,19 @@ interface StorageManager
 interface Stream
     getter type
     method constructor
+interface StylePropertyMap
+    method append
+    method constructor
+    method delete
+    method entries
+    method forEach
+    method get
+    method getAll
+    method getProperties
+    method has
+    method keys
+    method set
+    method values
 interface StyleSheet
     getter disabled
     getter href
@@ -5416,7 +5441,11 @@ interface TransformComponent
     method is2DComponent
 interface TransformValue : StyleValue
     method constructor
+    method entries
+    method forEach
     method is2D
+    method keys
+    method values
 interface TransitionEvent : Event
     getter elapsedTime
     getter propertyName
@@ -6663,6 +6692,7 @@ interface webkitURL
     attribute location
     attribute locationbar
     attribute menubar
+    attribute mojo
     attribute name
     attribute navigator
     attribute offscreenBuffering

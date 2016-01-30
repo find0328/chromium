@@ -71,20 +71,12 @@ struct TextureSignature {
   // of relying on compilers adhering to this deep dark corner specification.
   TextureSignature(GLenum target,
                    GLint level,
-                   GLenum min_filter,
-                   GLenum mag_filter,
-                   GLenum wrap_r,
-                   GLenum wrap_s,
-                   GLenum wrap_t,
+                   const SamplerState& sampler_state,
                    GLenum usage,
                    GLenum internal_format,
-                   GLenum compare_func,
-                   GLenum compare_mode,
                    GLsizei width,
                    GLsizei height,
                    GLsizei depth,
-                   GLfloat max_lod,
-                   GLfloat min_lod,
                    GLint base_level,
                    GLint border,
                    GLint max_level,
@@ -97,20 +89,20 @@ struct TextureSignature {
     memset(this, 0, sizeof(TextureSignature));
     target_ = target;
     level_ = level;
-    min_filter_ = min_filter;
-    mag_filter_ = mag_filter;
-    wrap_r_ = wrap_r;
-    wrap_s_ = wrap_s;
-    wrap_t_ = wrap_t;
+    min_filter_ = sampler_state.min_filter;
+    mag_filter_ = sampler_state.mag_filter;
+    wrap_r_ = sampler_state.wrap_r;
+    wrap_s_ = sampler_state.wrap_s;
+    wrap_t_ = sampler_state.wrap_t;
     usage_ = usage;
     internal_format_ = internal_format;
-    compare_func_ = compare_func;
-    compare_mode_ = compare_mode;
+    compare_func_ = sampler_state.compare_func;
+    compare_mode_ = sampler_state.compare_mode;
     width_ = width;
     height_ = height;
     depth_ = depth;
-    max_lod_ = max_lod;
-    min_lod_ = min_lod;
+    max_lod_ = sampler_state.max_lod;
+    min_lod_ = sampler_state.min_lod;
     base_level_ = base_level;
     border_ = border;
     max_level_ = max_level;
@@ -289,7 +281,6 @@ TextureManager::~TextureManager() {
   // a Texture belonging to this.
   CHECK_EQ(texture_count_, 0u);
 
-  DCHECK_EQ(0, num_unrenderable_textures_);
   DCHECK_EQ(0, num_unsafe_textures_);
   DCHECK_EQ(0, num_uncleared_mips_);
   DCHECK_EQ(0, num_images_);
@@ -321,23 +312,13 @@ Texture::Texture(GLuint service_id)
       num_uncleared_mips_(0),
       num_npot_faces_(0),
       target_(0),
-      min_filter_(GL_NEAREST_MIPMAP_LINEAR),
-      mag_filter_(GL_LINEAR),
-      wrap_r_(GL_REPEAT),
-      wrap_s_(GL_REPEAT),
-      wrap_t_(GL_REPEAT),
       usage_(GL_NONE),
-      compare_func_(GL_LEQUAL),
-      compare_mode_(GL_NONE),
-      max_lod_(1000.0f),
-      min_lod_(-1000.0f),
       base_level_(0),
       max_level_(1000),
       max_level_set_(-1),
       texture_complete_(false),
       texture_mips_dirty_(false),
       cube_complete_(false),
-      texture_level0_dirty_(false),
       npot_(false),
       has_been_bound_(false),
       framebuffer_attachment_count_(0),
@@ -396,7 +377,8 @@ Texture::LevelInfo::LevelInfo()
       format(0),
       type(0),
       image_state(UNBOUND),
-      estimated_size(0) {}
+      estimated_size(0),
+      internal_workaround(false) {}
 
 Texture::LevelInfo::LevelInfo(const LevelInfo& rhs)
     : cleared_rect(rhs.cleared_rect),
@@ -411,7 +393,8 @@ Texture::LevelInfo::LevelInfo(const LevelInfo& rhs)
       type(rhs.type),
       image(rhs.image),
       image_state(rhs.image_state),
-      estimated_size(rhs.estimated_size) {}
+      estimated_size(rhs.estimated_size),
+      internal_workaround(rhs.internal_workaround) {}
 
 Texture::LevelInfo::~LevelInfo() {
 }
@@ -441,39 +424,67 @@ Texture::CanRenderCondition Texture::GetCanRenderCondition() const {
     }
   }
 
-  bool needs_mips = NeedsMips();
-  if (needs_mips) {
-    if (!texture_complete())
-      return CAN_RENDER_NEVER;
-  }
-
   if (target_ == GL_TEXTURE_CUBE_MAP && !cube_complete())
     return CAN_RENDER_NEVER;
 
-  bool is_npot_compatible = !needs_mips &&
-      wrap_s_ == GL_CLAMP_TO_EDGE &&
-      wrap_t_ == GL_CLAMP_TO_EDGE;
-
-  if (!is_npot_compatible) {
-    if (target_ == GL_TEXTURE_RECTANGLE_ARB)
-      return CAN_RENDER_NEVER;
-    else if (npot())
-      return CAN_RENDER_ONLY_IF_NPOT;
-  }
-
-  return CAN_RENDER_ALWAYS;
+  // Texture may be renderable, but it depends on the sampler it's used with,
+  // the context that's using it, and the extensions available.
+  return CAN_RENDER_NEEDS_VALIDATION;
 }
 
 bool Texture::CanRender(const FeatureInfo* feature_info) const {
+  return CanRenderWithSampler(feature_info, sampler_state());
+}
+
+bool Texture::CanRenderWithSampler(const FeatureInfo* feature_info,
+                                   const SamplerState& sampler_state) const {
   switch (can_render_condition_) {
     case CAN_RENDER_ALWAYS:
       return true;
     case CAN_RENDER_NEVER:
       return false;
-    case CAN_RENDER_ONLY_IF_NPOT:
+    case CAN_RENDER_NEEDS_VALIDATION:
       break;
   }
-  return feature_info->feature_flags().npot_ok;
+
+  bool needs_mips = sampler_state.min_filter != GL_NEAREST &&
+                    sampler_state.min_filter != GL_LINEAR;
+  if (needs_mips) {
+    if (static_cast<size_t>(base_level_) >= face_infos_[0].level_infos.size())
+      return false;
+
+    const Texture::LevelInfo& first_level =
+        face_infos_[0].level_infos[base_level_];
+
+    if (!texture_complete()) {
+      return false;
+    } else if (first_level.type == GL_FLOAT &&
+        !feature_info->feature_flags().enable_texture_float_linear &&
+        (sampler_state.min_filter != GL_NEAREST_MIPMAP_NEAREST ||
+         sampler_state.mag_filter != GL_NEAREST)) {
+      return false;
+    } else if (first_level.type == GL_HALF_FLOAT_OES &&
+        !feature_info->feature_flags().enable_texture_half_float_linear &&
+        (sampler_state.min_filter != GL_NEAREST_MIPMAP_NEAREST ||
+         sampler_state.mag_filter != GL_NEAREST)) {
+      return false;
+    }
+  }
+
+  if (!feature_info->IsES3Enabled()) {
+    bool is_npot_compatible = !needs_mips &&
+        sampler_state.wrap_s == GL_CLAMP_TO_EDGE &&
+        sampler_state.wrap_t == GL_CLAMP_TO_EDGE;
+
+    if (!is_npot_compatible) {
+      if (target_ == GL_TEXTURE_RECTANGLE_ARB)
+        return false;
+      else if (npot())
+        return feature_info->feature_flags().npot_ok;
+    }
+  }
+
+  return true;
 }
 
 void Texture::AddToSignature(
@@ -495,20 +506,12 @@ void Texture::AddToSignature(
 
   TextureSignature signature_data(target,
                                   level,
-                                  min_filter_,
-                                  mag_filter_,
-                                  wrap_r_,
-                                  wrap_s_,
-                                  wrap_t_,
+                                  sampler_state_,
                                   usage_,
                                   info.internal_format,
-                                  compare_func_,
-                                  compare_mode_,
                                   info.width,
                                   info.height,
                                   info.depth,
-                                  max_lod_,
-                                  min_lod_,
                                   base_level_,
                                   info.border,
                                   max_level_,
@@ -516,7 +519,7 @@ void Texture::AddToSignature(
                                   info.type,
                                   info.image.get() != NULL,
                                   CanRender(feature_info),
-                                  CanRenderTo(),
+                                  CanRenderTo(feature_info, level),
                                   npot_);
 
   signature->append(TextureTag, sizeof(TextureTag));
@@ -529,11 +532,7 @@ void Texture::SetMailboxManager(MailboxManager* mailbox_manager) {
   mailbox_manager_ = mailbox_manager;
 }
 
-bool Texture::MarkMipmapsGenerated(
-    const FeatureInfo* feature_info) {
-  if (!CanGenerateMipmaps(feature_info)) {
-    return false;
-  }
+void Texture::MarkMipmapsGenerated() {
   for (size_t ii = 0; ii < face_infos_.size(); ++ii) {
     const Texture::FaceInfo& face_info = face_infos_[ii];
     const Texture::LevelInfo& level0_info = face_info.level_infos[base_level_];
@@ -549,17 +548,14 @@ bool Texture::MarkMipmapsGenerated(
       width = std::max(1, width >> 1);
       height = std::max(1, height >> 1);
       depth = std::max(1, depth >> 1);
-      SetLevelInfo(feature_info, target, level, level0_info.internal_format,
+      SetLevelInfo(target, level, level0_info.internal_format,
                    width, height, depth, level0_info.border, level0_info.format,
                    level0_info.type, gfx::Rect(width, height));
     }
   }
-
-  return true;
 }
 
-void Texture::SetTarget(
-    const FeatureInfo* feature_info, GLenum target, GLint max_levels) {
+void Texture::SetTarget(GLenum target, GLint max_levels) {
   DCHECK_EQ(0u, target_);  // you can only set this once.
   target_ = target;
   size_t num_faces = (target == GL_TEXTURE_CUBE_MAP) ? 6 : 1;
@@ -569,19 +565,18 @@ void Texture::SetTarget(
   }
 
   if (target == GL_TEXTURE_EXTERNAL_OES || target == GL_TEXTURE_RECTANGLE_ARB) {
-    min_filter_ = GL_LINEAR;
-    wrap_s_ = wrap_t_ = GL_CLAMP_TO_EDGE;
+    sampler_state_.min_filter = GL_LINEAR;
+    sampler_state_.wrap_s = sampler_state_.wrap_t = GL_CLAMP_TO_EDGE;
   }
 
   if (target == GL_TEXTURE_EXTERNAL_OES) {
     immutable_ = true;
   }
-  Update(feature_info);
+  Update();
   UpdateCanRenderCondition();
 }
 
-bool Texture::CanGenerateMipmaps(
-    const FeatureInfo* feature_info) const {
+bool Texture::CanGenerateMipmaps(const FeatureInfo* feature_info) const {
   if ((npot() && !feature_info->feature_flags().npot_ok) ||
       face_infos_.empty() ||
       target_ == GL_TEXTURE_EXTERNAL_OES ||
@@ -600,19 +595,32 @@ bool Texture::CanGenerateMipmaps(
     return false;
   }
 
-  // TODO(gman): Check internal_format, format and type.
+  bool valid_internal_format = false;
+  if (feature_info->validators()->texture_unsized_internal_format.IsValid(
+      base.internal_format)) {
+    valid_internal_format = true;
+  } else if (feature_info->validators()->
+      texture_sized_color_renderable_internal_format.IsValid(
+          base.internal_format) && feature_info->validators()->
+      texture_sized_texture_filterable_internal_format.IsValid(
+          base.internal_format)) {
+    valid_internal_format = true;
+  }
+  if (!valid_internal_format) {
+    return false;
+  }
+
   for (size_t ii = 0; ii < face_infos_.size(); ++ii) {
     const LevelInfo& info = face_infos_[ii].level_infos[base_level_];
-    if ((info.target == 0) || (info.width != base.width) ||
-        (info.height != base.height) || (info.depth != base.depth) ||
-        (info.format != base.format) ||
-        (info.internal_format != base.internal_format) ||
-        (info.type != base.type) ||
+    if ((info.target == 0) ||
         feature_info->validators()->compressed_texture_format.IsValid(
             info.internal_format) ||
         info.image.get()) {
       return false;
     }
+  }
+  if (face_infos_.size() == 6 && !cube_complete_) {
+    return false;
   }
   return true;
 }
@@ -741,13 +749,7 @@ void Texture::UpdateMipCleared(LevelInfo* info,
 }
 
 void Texture::UpdateCanRenderCondition() {
-  CanRenderCondition can_render_condition = GetCanRenderCondition();
-  if (can_render_condition_ == can_render_condition)
-    return;
-  for (RefSet::iterator it = refs_.begin(); it != refs_.end(); ++it)
-    (*it)->manager()->UpdateCanRenderCondition(can_render_condition_,
-                                               can_render_condition);
-  can_render_condition_ = can_render_condition;
+  can_render_condition_ = GetCanRenderCondition();
 }
 
 void Texture::UpdateHasImages() {
@@ -813,8 +815,7 @@ void Texture::UpdateNumMipLevels() {
   texture_mips_dirty_ = true;
 }
 
-void Texture::SetLevelInfo(const FeatureInfo* feature_info,
-                           GLenum target,
+void Texture::SetLevelInfo(GLenum target,
                            GLint level,
                            GLenum internal_format,
                            GLsizei width,
@@ -857,9 +858,6 @@ void Texture::SetLevelInfo(const FeatureInfo* feature_info,
       bool now_npot = TextureIsNPOT(width, height, depth);
       if (prev_npot != now_npot)
         num_npot_faces_ += now_npot ? 1 : -1;
-
-      // Signify that level 0 has been changed, so they need to be reverified.
-      texture_level0_dirty_ = true;
     }
 
     // Signify that at least one of the mips has changed.
@@ -875,6 +873,7 @@ void Texture::SetLevelInfo(const FeatureInfo* feature_info,
   info.type = type;
   info.image = 0;
   info.image_state = UNBOUND;
+  info.internal_workaround = false;
 
   UpdateMipCleared(&info, width, height, cleared_rect);
 
@@ -884,7 +883,7 @@ void Texture::SetLevelInfo(const FeatureInfo* feature_info,
   estimated_size_ += info.estimated_size;
 
   max_level_set_ = std::max(max_level_set_, level);
-  Update(feature_info);
+  Update();
   UpdateCleared();
   UpdateCanRenderCondition();
   UpdateHasImages();
@@ -893,6 +892,18 @@ void Texture::SetLevelInfo(const FeatureInfo* feature_info,
     // we could just mark those framebuffers as not complete.
     IncAllFramebufferStateChangeCount();
   }
+}
+
+void Texture::MarkLevelAsInternalWorkaround(GLenum target, GLint level) {
+  DCHECK_GE(level, 0);
+  size_t face_index = GLES2Util::GLTargetToFaceIndex(target);
+  DCHECK_LT(static_cast<size_t>(face_index),
+            face_infos_.size());
+  DCHECK_LT(static_cast<size_t>(level),
+            face_infos_[face_index].level_infos.size());
+  Texture::LevelInfo& info =
+      face_infos_[face_index].level_infos[level];
+  info.internal_workaround = true;
 }
 
 bool Texture::ValidForTexture(
@@ -986,43 +997,43 @@ GLenum Texture::SetParameteri(
       if (!feature_info->validators()->texture_min_filter_mode.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      min_filter_ = param;
+      sampler_state_.min_filter = param;
       break;
     case GL_TEXTURE_MAG_FILTER:
       if (!feature_info->validators()->texture_mag_filter_mode.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      mag_filter_ = param;
+      sampler_state_.mag_filter = param;
       break;
     case GL_TEXTURE_WRAP_R:
       if (!feature_info->validators()->texture_wrap_mode.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      wrap_r_ = param;
+      sampler_state_.wrap_r = param;
       break;
     case GL_TEXTURE_WRAP_S:
       if (!feature_info->validators()->texture_wrap_mode.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      wrap_s_ = param;
+      sampler_state_.wrap_s = param;
       break;
     case GL_TEXTURE_WRAP_T:
       if (!feature_info->validators()->texture_wrap_mode.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      wrap_t_ = param;
+      sampler_state_.wrap_t = param;
       break;
     case GL_TEXTURE_COMPARE_FUNC:
       if (!feature_info->validators()->texture_compare_func.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      compare_func_ = param;
+      sampler_state_.compare_func = param;
       break;
     case GL_TEXTURE_COMPARE_MODE:
       if (!feature_info->validators()->texture_compare_mode.IsValid(param)) {
         return GL_INVALID_ENUM;
       }
-      compare_mode_ = param;
+      sampler_state_.compare_mode = param;
       break;
     case GL_TEXTURE_BASE_LEVEL:
       if (param < 0) {
@@ -1051,7 +1062,7 @@ GLenum Texture::SetParameteri(
       NOTREACHED();
       return GL_INVALID_ENUM;
   }
-  Update(feature_info);
+  Update();
   UpdateCleared();
   UpdateCanRenderCondition();
   return GL_NO_ERROR;
@@ -1075,10 +1086,10 @@ GLenum Texture::SetParameterf(
         return SetParameteri(feature_info, pname, iparam);
       }
     case GL_TEXTURE_MIN_LOD:
-      min_lod_ = param;
+      sampler_state_.min_lod = param;
       break;
     case GL_TEXTURE_MAX_LOD:
-      max_lod_ = param;
+      sampler_state_.max_lod = param;
       break;
     case GL_TEXTURE_MAX_ANISOTROPY_EXT:
       if (param < 1.f) {
@@ -1092,7 +1103,7 @@ GLenum Texture::SetParameterf(
   return GL_NO_ERROR;
 }
 
-void Texture::Update(const FeatureInfo* feature_info) {
+void Texture::Update() {
   // Update npot status.
   // Assume GL_TEXTURE_EXTERNAL_OES textures are npot, all others
   npot_ = (target_ == GL_TEXTURE_EXTERNAL_OES) || (num_npot_faces_ > 0);
@@ -1112,28 +1123,20 @@ void Texture::Update(const FeatureInfo* feature_info) {
   texture_complete_ =
       max_level_set_ >= (levels_needed - 1) && max_level_set_ >= 0;
   cube_complete_ = (face_infos_.size() == 6) &&
-                   (first_level.width == first_level.height);
+                   (first_level.width == first_level.height) &&
+                   (first_level.width > 0);
 
   if (first_level.width == 0 || first_level.height == 0) {
-    texture_complete_ = false;
-  } else if (first_level.type == GL_FLOAT &&
-      !feature_info->feature_flags().enable_texture_float_linear &&
-      (min_filter_ != GL_NEAREST_MIPMAP_NEAREST ||
-       mag_filter_ != GL_NEAREST)) {
-    texture_complete_ = false;
-  } else if (first_level.type == GL_HALF_FLOAT_OES &&
-             !feature_info->feature_flags().enable_texture_half_float_linear &&
-             (min_filter_ != GL_NEAREST_MIPMAP_NEAREST ||
-              mag_filter_ != GL_NEAREST)) {
     texture_complete_ = false;
   }
 
   bool texture_level0_complete = true;
-  if (cube_complete_ && texture_level0_dirty_) {
+  if (cube_complete_) {
     for (size_t ii = 0; ii < face_infos_.size(); ++ii) {
       const Texture::LevelInfo& face_base_level =
           face_infos_[ii].level_infos[base_level_];
-      if (!TextureFaceComplete(first_level,
+      if (face_base_level.internal_workaround ||
+          !TextureFaceComplete(first_level,
                                ii,
                                face_base_level.target,
                                face_base_level.internal_format,
@@ -1146,7 +1149,6 @@ void Texture::Update(const FeatureInfo* feature_info) {
         break;
       }
     }
-    texture_level0_dirty_ = false;
   }
   cube_complete_ &= texture_level0_complete;
 
@@ -1368,6 +1370,36 @@ void Texture::DumpLevelMemory(base::trace_event::ProcessMemoryDump* pmd,
   }
 }
 
+bool Texture::CanRenderTo(const FeatureInfo* feature_info, GLint level) const {
+  if (target_ == GL_TEXTURE_EXTERNAL_OES || target_ == 0)
+    return false;
+  DCHECK_LT(0u, face_infos_.size());
+  // In GLES2, cube completeness is not required for framebuffer completeness.
+  // However, it is required if command buffer is implemented on top of
+  // recent OpenGL core versions or OpenGL ES 3.0+. Therefore, for consistency,
+  // it is better to deviate from ES2 spec and require cube completeness all
+  // the time.
+  if (face_infos_.size() == 6 && !cube_complete_)
+    return false;
+  DCHECK(level >= 0 &&
+         level < static_cast<GLint>(face_infos_[0].level_infos.size()));
+  GLenum internal_format = face_infos_[0].level_infos[level].internal_format;
+  bool color_renderable =
+      ((feature_info->validators()->texture_unsized_internal_format.
+            IsValid(internal_format) &&
+        internal_format != GL_ALPHA &&
+        internal_format != GL_LUMINANCE &&
+        internal_format != GL_LUMINANCE_ALPHA) ||
+       feature_info->validators()->
+           texture_sized_color_renderable_internal_format.IsValid(
+               internal_format));
+  bool depth_renderable = feature_info->validators()->
+      texture_depth_renderable_internal_format.IsValid(internal_format);
+  bool stencil_renderable = feature_info->validators()->
+      texture_stencil_renderable_internal_format.IsValid(internal_format);
+  return (color_renderable || depth_renderable || stencil_renderable);
+}
+
 void Texture::SetUnownedServiceId(GLuint service_id) {
   GLuint new_service_id = service_id;
 
@@ -1446,7 +1478,6 @@ TextureManager::TextureManager(MemoryTracker* memory_tracker,
                                         max_3d_texture_size,
                                         max_3d_texture_size)),
       use_default_textures_(use_default_textures),
-      num_unrenderable_textures_(0),
       num_unsafe_textures_(0),
       num_uncleared_mips_(0),
       num_images_(0),
@@ -1579,8 +1610,7 @@ bool TextureManager::ValidForTarget(
 
 void TextureManager::SetTarget(TextureRef* ref, GLenum target) {
   DCHECK(ref);
-  ref->texture()
-      ->SetTarget(feature_info_.get(), target, MaxLevelsForTarget(target));
+  ref->texture()->SetTarget(target, MaxLevelsForTarget(target));
 }
 
 void TextureManager::SetLevelClearedRect(TextureRef* ref,
@@ -1634,9 +1664,8 @@ void TextureManager::SetLevelInfo(TextureRef* ref,
   Texture* texture = ref->texture();
 
   texture->GetMemTracker()->TrackMemFree(texture->estimated_size());
-  texture->SetLevelInfo(feature_info_.get(), target, level, internal_format,
-                        width, height, depth, border, format, type,
-                        cleared_rect);
+  texture->SetLevelInfo(target, level, internal_format, width, height, depth,
+                        border, format, type, cleared_rect);
   texture->GetMemTracker()->TrackMemAlloc(texture->estimated_size());
 }
 
@@ -1695,13 +1724,12 @@ void TextureManager::SetParameterf(
   }
 }
 
-bool TextureManager::MarkMipmapsGenerated(TextureRef* ref) {
+void TextureManager::MarkMipmapsGenerated(TextureRef* ref) {
   DCHECK(ref);
   Texture* texture = ref->texture();
   texture->GetMemTracker()->TrackMemFree(texture->estimated_size());
-  bool result = texture->MarkMipmapsGenerated(feature_info_.get());
+  texture->MarkMipmapsGenerated();
   texture->GetMemTracker()->TrackMemAlloc(texture->estimated_size());
-  return result;
 }
 
 TextureRef* TextureManager::CreateTexture(
@@ -1735,8 +1763,6 @@ void TextureManager::StartTracking(TextureRef* ref) {
   num_uncleared_mips_ += texture->num_uncleared_mips();
   if (!texture->SafeToRenderFrom())
     ++num_unsafe_textures_;
-  if (!texture->CanRender(feature_info_.get()))
-    ++num_unrenderable_textures_;
   if (texture->HasImages())
     ++num_images_;
 }
@@ -1755,10 +1781,6 @@ void TextureManager::StopTracking(TextureRef* ref) {
   if (texture->HasImages()) {
     DCHECK_NE(0, num_images_);
     --num_images_;
-  }
-  if (!texture->CanRender(feature_info_.get())) {
-    DCHECK_NE(0, num_unrenderable_textures_);
-    --num_unrenderable_textures_;
   }
   if (!texture->SafeToRenderFrom()) {
     DCHECK_NE(0, num_unsafe_textures_);
@@ -1827,21 +1849,6 @@ void TextureManager::UpdateUnclearedMips(int delta) {
   DCHECK_GE(num_uncleared_mips_, 0);
 }
 
-void TextureManager::UpdateCanRenderCondition(
-    Texture::CanRenderCondition old_condition,
-    Texture::CanRenderCondition new_condition) {
-  if (old_condition == Texture::CAN_RENDER_NEVER ||
-      (old_condition == Texture::CAN_RENDER_ONLY_IF_NPOT &&
-       !feature_info_->feature_flags().npot_ok)) {
-    DCHECK_GT(num_unrenderable_textures_, 0);
-    --num_unrenderable_textures_;
-  }
-  if (new_condition == Texture::CAN_RENDER_NEVER ||
-      (new_condition == Texture::CAN_RENDER_ONLY_IF_NPOT &&
-       !feature_info_->feature_flags().npot_ok))
-    ++num_unrenderable_textures_;
-}
-
 void TextureManager::UpdateNumImages(int delta) {
   num_images_ += delta;
   DCHECK_GE(num_images_, 0);
@@ -1854,7 +1861,7 @@ void TextureManager::IncFramebufferStateChangeCount() {
 
 bool TextureManager::ValidateTextureParameters(
     ErrorState* error_state, const char* function_name,
-    GLenum format, GLenum type, GLenum internal_format, GLint level) {
+    GLenum format, GLenum type, GLint internal_format, GLint level) {
   const Validators* validators = feature_info_->validators();
   if (!validators->texture_format.IsValid(format)) {
     ERRORSTATE_SET_GL_ERROR_INVALID_ENUM(
@@ -1874,11 +1881,12 @@ bool TextureManager::ValidateTextureParameters(
   }
   // For TexSubImage calls, internal_format isn't part of the parameters,
   // so its validation needs to be after the internal_format/format/type
-  // combination validation. Otherwise, an unexpected INVALID_ENUM could be
+  // combination validation. Otherwise, an unexpected INVALID_VALUE could be
   // generated instead of INVALID_OPERATION.
   if (!validators->texture_internal_format.IsValid(internal_format)) {
-    ERRORSTATE_SET_GL_ERROR_INVALID_ENUM(
-        error_state, function_name, internal_format, "internal_format");
+    ERRORSTATE_SET_GL_ERROR(
+        error_state, GL_INVALID_VALUE, function_name,
+        "invalid internal_format");
     return false;
   }
   if (!feature_info_->IsES3Enabled()) {
@@ -2035,26 +2043,25 @@ void TextureManager::ValidateAndDoTexImage(
       int width = 0;
       int height = 0;
       for (unsigned i = 0; i < 6; i++) {
-        bool defined =
-            texture->GetLevelSize(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-                                  args.level, &width, &height, nullptr);
-        if (!defined || GL_TEXTURE_CUBE_MAP_POSITIVE_X + i == args.target)
+        GLenum target = static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i);
+        bool defined = texture->GetLevelSize(
+            target, args.level, &width, &height, nullptr);
+        if (!defined && target != args.target)
           undefined_faces.push_back(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i);
       }
-    } else if (texture_state->force_cube_map_positive_x_allocation &&
-               args.target != GL_TEXTURE_CUBE_MAP_POSITIVE_X) {
+    } else {
+      DCHECK(texture_state->force_cube_map_positive_x_allocation &&
+             args.target != GL_TEXTURE_CUBE_MAP_POSITIVE_X);
       int width = 0;
       int height = 0;
       if (!texture->GetLevelSize(GL_TEXTURE_CUBE_MAP_POSITIVE_X, args.level,
                                  &width, &height, nullptr)) {
         undefined_faces.push_back(GL_TEXTURE_CUBE_MAP_POSITIVE_X);
       }
-      undefined_faces.push_back(args.target);
     }
 
-    DCHECK(undefined_faces.size());
     if (!memory_type_tracker_->EnsureGPUMemoryAvailable(
-            undefined_faces.size() * args.pixels_size)) {
+            (undefined_faces.size() + 1) * args.pixels_size)) {
       ERRORSTATE_SET_GL_ERROR(state->GetErrorState(), GL_OUT_OF_MEMORY,
                               function_name, "out of memory");
       return;
@@ -2064,15 +2071,11 @@ void TextureManager::ValidateAndDoTexImage(
     memset(zero.get(), 0, args.pixels_size);
     for (GLenum face : undefined_faces) {
       new_args.target = face;
-      if (face == args.target) {
-        new_args.pixels = args.pixels;
-      } else {
-        new_args.pixels = zero.get();
-      }
+      new_args.pixels = zero.get();
       DoTexImage(texture_state, state->GetErrorState(), framebuffer_state,
                  function_name, texture_ref, new_args);
+      texture->MarkLevelAsInternalWorkaround(face, args.level);
     }
-    return;
   }
 
   DoTexImage(texture_state, state->GetErrorState(), framebuffer_state,
@@ -2270,7 +2273,9 @@ void TextureManager::DoTexImage(
                         AdjustTexFormat(args.format), args.type, args.pixels);
       }
     }
-    SetLevelCleared(texture_ref, args.target, args.level, true);
+    SetLevelInfo(texture_ref, args.target, args.level, args.internal_format,
+                 args.width, args.height, args.depth, args.border, args.format,
+                 args.type, gfx::Rect(args.width, args.height));
     texture_state->tex_image_failed = false;
     return;
   }

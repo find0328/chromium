@@ -50,6 +50,11 @@ gfx::RectF RenderSurfaceImpl::DrawableContentRect() const {
     drawable_content_rect.Union(MathUtil::MapClippedRect(
         replica_draw_transform_, gfx::RectF(content_rect_)));
   }
+  if (!owning_layer_->filters().IsEmpty()) {
+    int left, top, right, bottom;
+    owning_layer_->filters().GetOutsets(&top, &right, &bottom, &left);
+    drawable_content_rect.Inset(-left, -top, -right, -bottom);
+  }
 
   // If the rect has a NaN coordinate, we return empty rect to avoid crashes in
   // functions (for example, gfx::ToEnclosedRect) that are called on this rect.
@@ -101,12 +106,6 @@ int RenderSurfaceImpl::ClipTreeIndex() const {
 
 int RenderSurfaceImpl::EffectTreeIndex() const {
   return owning_layer_->effect_tree_index();
-}
-
-int RenderSurfaceImpl::TargetEffectTreeIndex() const {
-  if (!owning_layer_->parent() || !owning_layer_->parent()->render_target())
-    return -1;
-  return owning_layer_->parent()->render_target()->effect_tree_index();
 }
 
 void RenderSurfaceImpl::SetClipRect(const gfx::Rect& clip_rect) {
@@ -238,9 +237,8 @@ void RenderSurfaceImpl::AppendQuads(RenderPass* render_pass,
     gfx::SizeF unclipped_mask_target_size = gfx::ScaleSize(
         gfx::SizeF(owning_layer_->bounds()), owning_layer_draw_scale.x(),
         owning_layer_draw_scale.y());
-    mask_uv_scale = gfx::Vector2dF(
-        content_rect_.width() / unclipped_mask_target_size.width(),
-        content_rect_.height() / unclipped_mask_target_size.height());
+    mask_uv_scale = gfx::Vector2dF(1.0f / unclipped_mask_target_size.width(),
+                                   1.0f / unclipped_mask_target_size.height());
   }
 
   DCHECK(owning_layer_draw_transform.IsScale2d());

@@ -107,6 +107,39 @@ Polymer({
     },
 
     /**
+     * The text for the learn more link about cloud services in the first run
+     * flow.
+     * @private {string}
+     */
+    firstRunFlowCloudLearnMore_: {
+      type: String,
+      readOnly: true,
+      value: loadTimeData.valueExists('firstRunFlowCloudLearnMore') ?
+          loadTimeData.getString('firstRunFlowCloudLearnMore') : '',
+    },
+
+    /**
+     * The URL to open when the cloud services pref learn more link is clicked.
+     * @type {string}
+     */
+    firstRunFlowCloudPrefLearnMoreUrl: {
+      type: String,
+      value: '',
+    },
+
+    /**
+     * The text for the cloud services preference description in the first run
+     * flow.
+     * @private {string}
+     */
+    firstRunFlowCloudPrefText_: {
+      type: String,
+      readOnly: true,
+      value: loadTimeData.valueExists('firstRunFlowCloudPrefText') ?
+          loadTimeData.getString('firstRunFlowCloudPrefText') : '',
+    },
+
+    /**
      * The text description for the first run flow.
      * @private {string}
      */
@@ -190,6 +223,17 @@ Polymer({
     },
 
     /**
+     * The ID of the route that is currently being created. This is set when
+     * route creation is resolved but not ready for its controls to be
+     * displayed.
+     * @private {string}
+     */
+    pendingCreatedRouteId_: {
+      type: String,
+      value: '',
+    },
+
+    /**
      * The time the sink list was shown and populated with at least one sink.
      * This is reset whenever the user switches views or there are no sinks
      * available for display.
@@ -248,6 +292,15 @@ Polymer({
      * @type {boolean}
      */
     showFirstRunFlow: {
+      type: Boolean,
+      value: false,
+    },
+
+    /**
+     * Whether to show the cloud preference setting in the first run flow.
+     * @type {boolean}
+     */
+    showFirstRunFlowCloudPref: {
       type: Boolean,
       value: false,
     },
@@ -318,7 +371,7 @@ Polymer({
   },
 
   listeners: {
-    'arrow-drop-click': 'toggleCastModeHidden_',
+    'header-or-arrow-click': 'toggleCastModeHidden_',
     'mouseleave': 'onMouseLeave_',
     'mouseenter': 'onMouseEnter_',
   },
@@ -331,10 +384,11 @@ Polymer({
   ready: function() {
     this.elementReadyTimeMs_ = performance.now();
     this.showSinkList_();
-    this.updateMaxSinkListHeight(this.dialogHeight_);
   },
 
   attached: function() {
+    this.updateElementPositioning_();
+
     // Turn off the spinner after 3 seconds, then report the current number of
     // sinks.
     this.async(function() {
@@ -352,8 +406,14 @@ Polymer({
    * @private
    */
   acknowledgeFirstRunFlow_: function() {
+    var userOptedIntoCloudServices = this.$$('#first-run-cloud-checkbox') ?
+      this.$$('#first-run-cloud-checkbox').checked : false;
+    this.fire('acknowledge-first-run-flow', {
+      optedIntoCloudServices: userOptedIntoCloudServices,
+    });
+
     this.showFirstRunFlow = false;
-    this.fire('acknowledge-first-run-flow');
+    this.showFirstRunFlowCloudPref = false;
   },
 
   /**
@@ -765,7 +825,7 @@ Polymer({
       this.currentView_ = media_router.MediaRouterView.ISSUE;
     } else {
       this.async(function() {
-        this.updateMaxSinkListHeight(this.dialogHeight_);
+        this.updateElementPositioning_();
       });
     }
   },
@@ -851,26 +911,21 @@ Polymer({
    *
    * @param {string} sinkId The ID of the sink to which the Media Route was
    *     creating a route.
-   * @param {?media_router.Route} route The newly created route to the sink
-   *     if succeeded; null otherwise.
+   * @param {string} routeId The ID of the newly created route for the sink if
+   *     succeeded; empty otherwise.
    */
-  onCreateRouteResponseReceived: function(sinkId, route) {
-    this.currentLaunchingSinkId_ = '';
+  onCreateRouteResponseReceived: function(sinkId, routeId) {
+    // Check that |sinkId| exists and corresponds to |currentLaunchingSinkId_|.
+    if (!this.sinkMap_[sinkId] || this.currentLaunchingSinkId_ != sinkId)
+      return;
+
     // The provider will handle sending an issue for a failed route request.
-    if (!route)
+    if (this.isEmptyOrWhitespace_(routeId)) {
+      this.resetRouteCreationProperties_(false);
       return;
+    }
 
-    // Check that |sinkId| exists.
-    if (!this.sinkMap_[sinkId])
-      return;
-
-    // If there is an existing route associated with the same sink, its
-    // |sinkToRouteMap_| entry will be overwritten with that of the new route,
-    // which results in the correct sink to route mapping.
-    this.routeList.push(route);
-    this.showRouteDetails_(route);
-
-    this.startTapTimer_();
+    this.pendingCreatedRouteId_ = routeId;
   },
 
   /**
@@ -892,12 +947,10 @@ Polymer({
   },
 
   /**
-   * Handles timeout of previous create route attempt. Clearing
-   * |currentLaunchingSinkId_| hides the spinner indicating there is a route
-   * creation in progress and show the device icon instead.
+   * Handles timeout of previous create route attempt.
    */
   onNotifyRouteCreationTimeout: function() {
-    this.currentLaunchingSinkId_ = '';
+    this.resetRouteCreationProperties_(false);
   },
 
   /**
@@ -929,6 +982,19 @@ Polymer({
       this.routeMap_[route.id] = route;
       tempSinkToRouteMap[route.sinkId] = route;
     }, this);
+
+    // If there is route creation in progress, check if any of the route ids
+    // correspond to |pendingCreatedRouteId_|. If so, the newly created route
+    // is ready to be displayed; switch to route details view.
+    if (this.currentLaunchingSinkId_ != '' &&
+        this.pendingCreatedRouteId_ != '') {
+      var route = tempSinkToRouteMap[this.currentLaunchingSinkId_];
+      if (route && this.pendingCreatedRouteId_ == route.id) {
+        this.showRouteDetails_(route);
+        this.startTapTimer_();
+        this.resetRouteCreationProperties_(true);
+      }
+    }
 
     // If |currentRoute_| is no longer active, clear |currentRoute_|. Also
     // switch back to the SINK_PICKER view if the user is currently in the
@@ -996,6 +1062,21 @@ Polymer({
   },
 
   /**
+   * Resets the properties relevant to creating a new route. Fires an event
+   * indicating whether or not route creation was successful.
+   * Clearing |currentLaunchingSinkId_| hides the spinner indicating there is
+   * a route creation in progress and show the device icon instead.
+   *
+   * @private
+   */
+  resetRouteCreationProperties_: function(creationSuccess) {
+    this.currentLaunchingSinkId_ = '';
+    this.pendingCreatedRouteId_ = '';
+
+    this.fire('report-route-creation', {success: creationSuccess});
+  },
+
+  /**
    * Updates the shown cast mode, and updates the header text fields
    * according to the cast mode. If |castMode| type is AUTO, then set
    * |userHasSelectedCastMode_| to false.
@@ -1036,7 +1117,8 @@ Polymer({
     if (this.computeShowFirstRunFlow_(showFirstRunFlow, currentView)) {
       // Ensures that first run flow elements have finished stamping.
       this.async(function() {
-        var firstRunFlowHeight = this.$$('#first-run-flow').offsetHeight;
+        var firstRunFlowHeight = this.$$('#first-run-flow') ?
+            this.$$('#first-run-flow').offsetHeight : 0;
         this.$['container-header'].style.marginTop = firstRunFlowHeight + 'px';
         this.$['sink-list-view'].style.marginTop =
             firstRunFlowHeight + headerHeight + 'px';
@@ -1125,34 +1207,39 @@ Polymer({
   toggleCastModeHidden_: function() {
     if (this.currentView_ == media_router.MediaRouterView.CAST_MODE_LIST) {
       this.showSinkList_();
-    } else {
+    } else if (this.currentView_ == media_router.MediaRouterView.SINK_LIST) {
       this.showCastModeList_();
       this.fire('navigate-to-cast-mode-list');
     }
   },
 
   /**
-   * Compute the new maximum height of the sink list and update the style.
+   * Update the position-related styling of some elements.
    *
-   * @param {number} dialogHeight The height of the Media Router dialog.
+   * @private
    */
-  updateMaxSinkListHeight: function(dialogHeight) {
-    this.dialogHeight_ = dialogHeight;
+  updateElementPositioning_: function() {
     var headerHeight = this.$$('#container-header').offsetHeight;
-    var firstRunFlowHeight =
-        this.computeShowFirstRunFlow_(this.showFirstRunFlow,
-                                      this.currentView_) ?
+    var firstRunFlowHeight = this.$$('#first-run-flow') ?
         this.$$('#first-run-flow').offsetHeight : 0;
-    this.$['container-header'].style.marginTop = firstRunFlowHeight + 'px';
-    this.$['sink-list-view'].style.marginTop =
-        firstRunFlowHeight + headerHeight + 'px';
-
-    // A non-blocking issue banner may appear below the sink list.
     var issueHeight = this.$$('#issue-banner') ?
         this.$$('#issue-banner').offsetHeight : 0;
 
+    this.$['container-header'].style.marginTop = firstRunFlowHeight + 'px';
+    this.$['sink-list-view'].style.marginTop =
+        firstRunFlowHeight + headerHeight + 'px';
     this.$['sink-list'].style.maxHeight =
         this.dialogHeight_ - headerHeight - firstRunFlowHeight -
-        issueHeight + 'px';
+            issueHeight + 'px';
+  },
+
+  /**
+   * Update the max dialog height and update the positioning of the elements.
+   *
+   * @param {number} height The max height of the Media Router dialog.
+   */
+  updateMaxDialogHeight: function(height) {
+    this.dialogHeight_ = height;
+    this.updateElementPositioning_();
   },
 });

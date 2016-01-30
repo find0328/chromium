@@ -9,7 +9,7 @@ import android.content.Context;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.EmbedContentViewActivity;
 import org.chromium.chrome.browser.datausage.DataUseTabUIManager;
-import org.chromium.chrome.browser.datausage.DataUseTabUIManager.DataUseUIActions;
+import org.chromium.chrome.browser.datausage.DataUseTabUIManager.DataUsageUIAction;
 
 /**
  * The controller for two data use snackbars:
@@ -39,21 +39,21 @@ public class DataUseSnackbarController implements SnackbarManager.SnackbarContro
     }
 
     public void showDataUseTrackingStartedBar() {
-        mSnackbarManager.showSnackbar(Snackbar.make(
-                mContext.getString(R.string.data_use_tracking_started_snackbar_message), this)
+        mSnackbarManager.showSnackbar(Snackbar
+                .make(mContext.getString(R.string.data_use_tracking_started_snackbar_message), this,
+                        Snackbar.TYPE_NOTIFICATION)
                 .setAction(mContext.getString(R.string.data_use_tracking_snackbar_action),
-                        STARTED_SNACKBAR)
-                .setForceDisplay());
-        DataUseTabUIManager.recordDataUseUIAction(DataUseUIActions.STARTED_SNACKBAR_SHOWN);
+                        STARTED_SNACKBAR));
+        DataUseTabUIManager.recordDataUseUIAction(DataUsageUIAction.STARTED_SNACKBAR_SHOWN);
     }
 
     public void showDataUseTrackingEndedBar() {
-        mSnackbarManager.showSnackbar(Snackbar.make(
-                mContext.getString(R.string.data_use_tracking_ended_snackbar_message), this)
+        mSnackbarManager.showSnackbar(Snackbar
+                .make(mContext.getString(R.string.data_use_tracking_ended_snackbar_message), this,
+                        Snackbar.TYPE_NOTIFICATION)
                 .setAction(mContext.getString(R.string.data_use_tracking_snackbar_action),
-                        ENDED_SNACKBAR)
-                .setForceDisplay());
-        DataUseTabUIManager.recordDataUseUIAction(DataUseUIActions.ENDED_SNACKBAR_SHOWN);
+                        ENDED_SNACKBAR));
+        DataUseTabUIManager.recordDataUseUIAction(DataUsageUIAction.ENDED_SNACKBAR_SHOWN);
     }
 
     /**
@@ -76,11 +76,11 @@ public class DataUseSnackbarController implements SnackbarManager.SnackbarContro
         switch (snackbarType) {
             case STARTED_SNACKBAR:
                 DataUseTabUIManager.recordDataUseUIAction(
-                        DataUseUIActions.STARTED_SNACKBAR_MORE_CLICKED);
+                        DataUsageUIAction.STARTED_SNACKBAR_MORE_CLICKED);
                 break;
             case ENDED_SNACKBAR:
                 DataUseTabUIManager.recordDataUseUIAction(
-                        DataUseUIActions.ENDED_SNACKBAR_MORE_CLICKED);
+                        DataUsageUIAction.ENDED_SNACKBAR_MORE_CLICKED);
                 break;
             default:
                 assert false;
@@ -90,7 +90,4 @@ public class DataUseSnackbarController implements SnackbarManager.SnackbarContro
 
     @Override
     public void onDismissNoAction(Object actionData) {}
-
-    @Override
-    public void onDismissForEachType(boolean isTimeout) {}
 }

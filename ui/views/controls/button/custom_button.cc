@@ -123,6 +123,8 @@ void CustomButton::Layout() {
 }
 
 void CustomButton::OnEnabledChanged() {
+  // TODO(bruthig): Is there any reason we are not calling
+  // Button::OnEnabledChanged() here?
   if (enabled() ? (state_ != STATE_DISABLED) : (state_ == STATE_DISABLED))
     return;
 
@@ -130,6 +132,7 @@ void CustomButton::OnEnabledChanged() {
     SetState(ShouldEnterHoveredState() ? STATE_HOVERED : STATE_NORMAL);
   else
     SetState(STATE_DISABLED);
+  UpdateInkDropHoverState();
 }
 
 const char* CustomButton::GetClassName() const {
@@ -139,7 +142,8 @@ const char* CustomButton::GetClassName() const {
 bool CustomButton::OnMousePressed(const ui::MouseEvent& event) {
   if (state_ == STATE_DISABLED)
     return true;
-  if (ShouldEnterPushedState(event) && HitTestPoint(event.location())) {
+  if (state_ != STATE_PRESSED && ShouldEnterPushedState(event) &&
+      HitTestPoint(event.location())) {
     SetState(STATE_PRESSED);
     if (ink_drop_delegate_)
       ink_drop_delegate_->OnAction(views::InkDropState::ACTION_PENDING);
@@ -279,6 +283,13 @@ bool CustomButton::AcceleratorPressed(const ui::Accelerator& accelerator) {
   return true;
 }
 
+bool CustomButton::SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) {
+  // If this button is focused and the user presses space or enter, don't let
+  // that be treated as an accelerator.
+  return (event.key_code() == ui::VKEY_SPACE) ||
+         (event.key_code() == ui::VKEY_RETURN);
+}
+
 void CustomButton::ShowContextMenu(const gfx::Point& p,
                                    ui::MenuSourceType source_type) {
   if (!context_menu_controller())
@@ -352,6 +363,10 @@ gfx::Point CustomButton::CalculateInkDropCenter() const {
   return GetLocalBounds().CenterPoint();
 }
 
+bool CustomButton::ShouldShowInkDropHover() const {
+  return enabled() && IsMouseHovered() && !InDrag();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CustomButton, protected:
 
@@ -406,6 +421,11 @@ bool CustomButton::ShouldEnterHoveredState() {
 #endif
 
   return check_mouse_position && IsMouseHovered();
+}
+
+void CustomButton::UpdateInkDropHoverState() {
+  if (ink_drop_delegate_)
+    ink_drop_delegate_->SetHovered(ShouldShowInkDropHover());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

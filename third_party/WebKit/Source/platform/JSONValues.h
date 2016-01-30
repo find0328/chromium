@@ -210,6 +210,8 @@ protected:
     PassRefPtr<JSONArray> getArray(const String& name) const;
     PassRefPtr<JSONValue> get(const String& name) const;
 
+    bool booleanProperty(const String& name, bool defaultValue) const;
+
     void remove(const String& name);
 
     void prettyWriteJSONInternal(StringBuilder* output, int depth) const override;
@@ -250,6 +252,8 @@ public:
     using JSONObjectBase::getObject;
     using JSONObjectBase::getArray;
     using JSONObjectBase::get;
+
+    using JSONObjectBase::booleanProperty;
 
     using JSONObjectBase::remove;
 
@@ -323,6 +327,7 @@ public:
     using JSONArrayBase::end;
 };
 
+PLATFORM_EXPORT void escapeStringForJSON(const String&, StringBuilder*);
 void doubleQuoteStringForJSON(const String&, StringBuilder*);
 
 } // namespace blink

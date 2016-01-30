@@ -21,21 +21,25 @@ WebInspector.TimelineJSProfileProcessor.generateTracingEventsFromCpuProfile = fu
     var samples = jsProfileModel.samples;
     var timestamps = jsProfileModel.timestamps;
     var jsEvents = [];
+    /** @type {!Map<!Object, !ConsoleAgent.StackTrace>} */
+    var nodeToStackMap = new Map();
+    nodeToStackMap.set(programNode, []);
     for (var i = 0; i < samples.length; ++i) {
         var node = jsProfileModel.nodeByIndex(i);
-        if (node === programNode || node === gcNode || node === idleNode)
+        if (node === gcNode || node === idleNode)
             continue;
-        var stackTrace = node._stackTraceArray;
+        var stackTrace = nodeToStackMap.get(node);
         if (!stackTrace) {
             stackTrace = /** @type {!ConsoleAgent.StackTrace} */ (new Array(node.depth + 1));
-            node._stackTraceArray = stackTrace;
+            nodeToStackMap.set(node, stackTrace);
             for (var j = 0; node.parent; node = node.parent)
                 stackTrace[j++] = /** @type {!ConsoleAgent.CallFrame} */ (node);
         }
-        var jsEvent = new WebInspector.TracingModel.Event(WebInspector.TracingModel.DevToolsTimelineEventCategory, WebInspector.TimelineModel.RecordType.JSSample,
+        var jsSampleEvent = new WebInspector.TracingModel.Event(WebInspector.TracingModel.DevToolsTimelineEventCategory,
+            WebInspector.TimelineModel.RecordType.JSSample,
             WebInspector.TracingModel.Phase.Instant, timestamps[i], thread);
-        jsEvent.args["data"] = { stackTrace: stackTrace };
-        jsEvents.push(jsEvent);
+        jsSampleEvent.args["data"] = { stackTrace: stackTrace };
+        jsEvents.push(jsSampleEvent);
     }
     return jsEvents;
 }
@@ -154,6 +158,8 @@ WebInspector.TimelineJSProfileProcessor.generateJSFrameEvents = function(events)
             depth = jsFramesStack.length;
         }
         var minFrameDurationMs = currentSamplingIntervalMs / 2;
+        for (var k = 0; k < depth; ++k)
+            jsFramesStack[k].setEndTime(time);
         for (var k = depth; k < jsFramesStack.length; ++k)
             jsFramesStack[k].setEndTime(Math.min(eventEndTime(jsFramesStack[k]) + minFrameDurationMs, time));
         jsFramesStack.length = depth;
@@ -178,14 +184,14 @@ WebInspector.TimelineJSProfileProcessor.generateJSFrameEvents = function(events)
      */
     function extractStackTrace(e)
     {
-        var eventData = e.args["data"] || e.args["beginData"];
-        var stackTrace = eventData && eventData["stackTrace"];
         var recordTypes = WebInspector.TimelineModel.RecordType;
-        // GC events do not hold call stack, so make a copy of the current stack.
-        if (e.name === recordTypes.GCEvent || e.name === recordTypes.MajorGC || e.name === recordTypes.MinorGC)
-            stackTrace = jsFramesStack.map(function(frameEvent) { return frameEvent.args["data"]; }).reverse();
-        if (!stackTrace)
-            return;
+        var stackTrace;
+        if (e.name === recordTypes.JSSample) {
+            var eventData = e.args["data"] || e.args["beginData"];
+            stackTrace = /** @type {!Array<!ConsoleAgent.CallFrame>} */ (eventData && eventData["stackTrace"]);
+        } else {
+            stackTrace = /** @type {!Array<!ConsoleAgent.CallFrame>} */ (jsFramesStack.map(frameEvent => frameEvent.args["data"]).reverse());
+        }
         if (filterNativeFunctions)
             filterStackFrames(stackTrace);
         var endTime = eventEndTime(e);
@@ -202,7 +208,7 @@ WebInspector.TimelineJSProfileProcessor.generateJSFrameEvents = function(events)
         truncateJSStack(i, e.startTime);
         for (; i < numFrames; ++i) {
             var frame = stackTrace[numFrames - 1 - i];
-            var jsFrameEvent = new WebInspector.TracingModel.Event(WebInspector.TracingModel.DevToolsTimelineEventCategory, WebInspector.TimelineModel.RecordType.JSFrame,
+            var jsFrameEvent = new WebInspector.TracingModel.Event(WebInspector.TracingModel.DevToolsTimelineEventCategory, recordTypes.JSFrame,
                 WebInspector.TracingModel.Phase.Complete, e.startTime, e.thread);
             jsFrameEvent.ordinal = e.ordinal;
             jsFrameEvent.addArgs({ data: frame });

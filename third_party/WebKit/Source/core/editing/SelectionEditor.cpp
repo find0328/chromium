@@ -27,6 +27,7 @@
 
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/Editor.h"
+#include "core/editing/SelectionAdjuster.h"
 #include "core/events/Event.h"
 #include "core/frame/LocalFrame.h"
 #include "core/frame/Settings.h"
@@ -87,71 +88,14 @@ void SelectionEditor::setVisibleSelection(const VisibleSelection& newSelection, 
         return;
     }
 
-    adjustVisibleSelectionInComposedTree();
+    SelectionAdjuster::adjustSelectionInComposedTree(&m_selectionInComposedTree, m_selection);
 }
 
 void SelectionEditor::setVisibleSelection(const VisibleSelectionInComposedTree& newSelection, FrameSelection::SetSelectionOptions options)
 {
     ASSERT(!(options & FrameSelection::DoNotAdjustInComposedTree));
     m_selectionInComposedTree = newSelection;
-    adjustVisibleSelectionInDOMTree();
-}
-
-// Updates |m_selectionInComposedTree| to match with |m_selection|.
-void SelectionEditor::adjustVisibleSelectionInComposedTree()
-{
-    if (m_selection.isNone()) {
-        m_selectionInComposedTree = VisibleSelectionInComposedTree();
-        return;
-    }
-
-    const PositionInComposedTree base = toPositionInComposedTree(m_selection.base());
-    const PositionInComposedTree extent = toPositionInComposedTree(m_selection.extent());
-    const PositionInComposedTree position1 = toPositionInComposedTree(m_selection.start());
-    const PositionInComposedTree position2 = toPositionInComposedTree(m_selection.end());
-    position1.anchorNode()->updateDistribution();
-    position2.anchorNode()->updateDistribution();
-    if (position1.compareTo(position2) <= 0) {
-        m_selectionInComposedTree = VisibleSelectionInComposedTree::createWithoutValidation(base, extent, position1, position2, m_selection.affinity(), m_selection.isDirectional());
-        return;
-    }
-    m_selectionInComposedTree = VisibleSelectionInComposedTree::createWithoutValidation(base, extent, position2, position1, m_selection.affinity(), m_selection.isDirectional());
-}
-
-static bool isCrossingShadowBoundaries(const VisibleSelectionInComposedTree& selection)
-{
-    if (!selection.isRange())
-        return false;
-    TreeScope& treeScope = selection.base().anchorNode()->treeScope();
-    return selection.extent().anchorNode()->treeScope() != treeScope
-        || selection.start().anchorNode()->treeScope() != treeScope
-        || selection.end().anchorNode()->treeScope() != treeScope;
-}
-
-void SelectionEditor::adjustVisibleSelectionInDOMTree()
-{
-    if (m_selectionInComposedTree.isNone()) {
-        m_selection = VisibleSelection();
-        return;
-    }
-
-    const Position base = toPositionInDOMTree(m_selectionInComposedTree.base());
-    const Position extent = toPositionInDOMTree(m_selectionInComposedTree.extent());
-
-    if (isCrossingShadowBoundaries(m_selectionInComposedTree)) {
-        m_selection = VisibleSelection(base, extent);
-        return;
-    }
-
-    const Position start = toPositionInDOMTree(m_selectionInComposedTree.start());
-    const Position end = toPositionInDOMTree(m_selectionInComposedTree.end());
-    const TextAffinity affinity = m_selectionInComposedTree.affinity();
-    const bool isDirectional = m_selectionInComposedTree.isDirectional();
-    if (start.compareTo(end) <= 0) {
-        m_selection = VisibleSelection::createWithoutValidation(base, extent, start, end, affinity, isDirectional);
-        return;
-    }
-    m_selection = VisibleSelection::createWithoutValidation(base, extent, end, start, affinity, isDirectional);
+    SelectionAdjuster::adjustSelectionInDOMTree(&m_selection, m_selectionInComposedTree);
 }
 
 void SelectionEditor::resetXPosForVerticalArrowNavigation()
@@ -749,7 +693,7 @@ bool SelectionEditor::modify(EAlteration alter, unsigned verticalDistance, Verti
     willBeModified(alter, direction == FrameSelection::DirectionUp ? DirectionBackward : DirectionForward);
 
     VisiblePosition pos;
-    LayoutUnit xPos = 0;
+    LayoutUnit xPos;
     switch (alter) {
     case FrameSelection::AlterationMove:
         pos = createVisiblePosition(direction == FrameSelection::DirectionUp ? m_selection.start() : m_selection.end(), m_selection.affinity());
@@ -834,7 +778,7 @@ static int lineDirectionPointForBlockDirectionNavigationOf(const VisiblePosition
 
 LayoutUnit SelectionEditor::lineDirectionPointForBlockDirectionNavigation(EPositionType type)
 {
-    LayoutUnit x = 0;
+    LayoutUnit x;
 
     if (m_selection.isNone())
         return x;
@@ -931,6 +875,12 @@ void SelectionEditor::stopObservingVisibleSelectionChangeIfNecessary()
         return;
     m_selection.clearChangeObserver();
     m_observingVisibleSelection = false;
+}
+
+void SelectionEditor::updateIfNeeded()
+{
+    m_selection.updateIfNeeded();
+    m_selectionInComposedTree.updateIfNeeded();
 }
 
 DEFINE_TRACE(SelectionEditor)

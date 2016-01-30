@@ -119,8 +119,8 @@ LayoutRect LayoutListMarker::localSelectionRect() const
         ? inlineBoxWrapper()->logicalBottom() - root.selectionBottom()
         : root.selectionTop() - inlineBoxWrapper()->logicalTop();
     return blockStyle->isHorizontalWritingMode()
-        ? LayoutRect(0, newLogicalTop, size().width(), root.selectionHeight())
-        : LayoutRect(newLogicalTop, 0, root.selectionHeight(), size().height());
+        ? LayoutRect(LayoutUnit(), newLogicalTop, size().width(), root.selectionHeight())
+        : LayoutRect(newLogicalTop, LayoutUnit(), root.selectionHeight(), size().height());
 }
 
 void LayoutListMarker::paint(const PaintInfo& paintInfo, const LayoutPoint& paintOffset) const
@@ -228,7 +228,7 @@ void LayoutListMarker::computePreferredLogicalWidths()
 
     const Font& font = style()->font();
 
-    LayoutUnit logicalWidth = 0;
+    LayoutUnit logicalWidth;
     switch (listStyleCategory()) {
     case ListStyleCategory::None:
         break;
@@ -252,8 +252,8 @@ void LayoutListMarker::updateMargins()
 {
     const FontMetrics& fontMetrics = style()->fontMetrics();
 
-    LayoutUnit marginStart = 0;
-    LayoutUnit marginEnd = 0;
+    LayoutUnit marginStart;
+    LayoutUnit marginEnd;
 
     if (isInside()) {
         if (isImage()) {
@@ -447,7 +447,7 @@ LayoutRect LayoutListMarker::selectionRectForPaintInvalidation(const LayoutBoxMo
         return LayoutRect();
 
     RootInlineBox& root = inlineBoxWrapper()->root();
-    LayoutRect rect(0, root.selectionTop() - location().y(), size().width(), root.selectionHeight());
+    LayoutRect rect(LayoutUnit(), root.selectionTop() - location().y(), size().width(), root.selectionHeight());
     mapToVisibleRectInAncestorSpace(paintInvalidationContainer, rect, nullptr);
     // FIXME: groupedMapping() leaks the squashing abstraction.
     if (paintInvalidationContainer->layer()->groupedMapping())

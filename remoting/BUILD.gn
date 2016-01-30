@@ -70,7 +70,7 @@ group("remoting_all") {
     }
   }
 
-  if (enable_pnacl) {
+  if (enable_nacl) {
     deps += [ "//remoting/tools/javascript_key_tester" ]
   }
 }
@@ -129,7 +129,6 @@ if (!is_mac) {
 
     deps = [
       ":test_support",
-      "//base/allocator",
       "//google_apis",
       "//remoting/base:unit_tests",
       "//remoting/client:unit_tests",
@@ -164,9 +163,7 @@ if (!is_mac) {
   if (enable_remoting_host) {
     test("remoting_perftests") {
       sources = [
-        "codec/codec_test.cc",
-        "codec/codec_test.h",
-        "codec/video_encoder_vpx_perftest.cc",
+        "test/codec_perftest.cc",
         "test/protocol_perftest.cc",
       ]
 

@@ -33,10 +33,10 @@
 #include "core/CoreExport.h"
 #include "core/InspectorFrontend.h"
 #include "core/events/EventListenerMap.h"
-#include "core/inspector/InjectedScript.h"
-#include "core/inspector/InjectedScriptManager.h"
 #include "core/inspector/InspectorBaseAgent.h"
 #include "core/inspector/InspectorHighlight.h"
+#include "core/inspector/v8/InjectedScript.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/style/ComputedStyleConstants.h"
 #include "platform/JSONValues.h"
 #include "platform/geometry/FloatQuad.h"
@@ -246,7 +246,7 @@ private:
     RawPtrWillBeMember<InspectorRevalidateDOMTask> revalidateTask();
 
     RawPtrWillBeMember<InspectedFrames> m_inspectedFrames;
-    RawPtrWillBeMember<InjectedScriptManager> m_injectedScriptManager;
+    InjectedScriptManager* m_injectedScriptManager;
     Client* m_client;
     RawPtrWillBeMember<DOMListener> m_domListener;
     OwnPtrWillBeMember<NodeToIdMap> m_documentNodeToIdMap;

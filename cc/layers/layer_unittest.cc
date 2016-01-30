@@ -12,6 +12,7 @@
 #include "cc/animation/keyframed_animation_curve.h"
 #include "cc/animation/mutable_properties.h"
 #include "cc/base/math_util.h"
+#include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/layers/layer_impl.h"
 #include "cc/layers/layer_settings.h"
 #include "cc/output/copy_output_request.h"
@@ -133,15 +134,12 @@ class LayerSerializationTest : public testing::Test {
     EXPECT_EQ(src->masks_to_bounds_, dest->masks_to_bounds_);
     EXPECT_EQ(src->main_thread_scrolling_reasons_,
               dest->main_thread_scrolling_reasons_);
-    EXPECT_EQ(src->have_wheel_event_handlers_,
-              dest->have_wheel_event_handlers_);
     EXPECT_EQ(src->have_scroll_event_handlers_,
               dest->have_scroll_event_handlers_);
     EXPECT_EQ(src->non_fast_scrollable_region_,
               dest->non_fast_scrollable_region_);
     EXPECT_EQ(src->touch_event_handler_region_,
               dest->touch_event_handler_region_);
-    EXPECT_EQ(src->scroll_blocks_on_, dest->scroll_blocks_on_);
     EXPECT_EQ(src->contents_opaque_, dest->contents_opaque_);
     EXPECT_EQ(src->opacity_, dest->opacity_);
     EXPECT_EQ(src->blend_mode_, dest->blend_mode_);
@@ -249,12 +247,11 @@ class LayerSerializationTest : public testing::Test {
     layer->hide_layer_and_subtree_ = false;
     layer->has_render_surface_ = false;
     layer->masks_to_bounds_ = true;
-    layer->main_thread_scrolling_reasons_ = InputHandler::NOT_SCROLLING_ON_MAIN;
-    layer->have_wheel_event_handlers_ = true;
+    layer->main_thread_scrolling_reasons_ =
+        MainThreadScrollingReason::kNotScrollingOnMain;
     layer->have_scroll_event_handlers_ = false;
     layer->non_fast_scrollable_region_ = Region(gfx::Rect(5, 1, 14, 3));
     layer->touch_event_handler_region_ = Region(gfx::Rect(3, 14, 1, 5));
-    layer->scroll_blocks_on_ = SCROLL_BLOCKS_ON_NONE;
     layer->contents_opaque_ = true;
     layer->opacity_ = 1.f;
     layer->blend_mode_ = SkXfermode::kSrcOver_Mode;
@@ -300,12 +297,10 @@ class LayerSerializationTest : public testing::Test {
     layer->has_render_surface_ = !layer->has_render_surface_;
     layer->masks_to_bounds_ = !layer->masks_to_bounds_;
     layer->main_thread_scrolling_reasons_ =
-        InputHandler::HAS_BACKGROUND_ATTACHMENT_FIXED_OBJECTS;
-    layer->have_wheel_event_handlers_ = !layer->have_wheel_event_handlers_;
+        MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects;
     layer->have_scroll_event_handlers_ = !layer->have_scroll_event_handlers_;
     layer->non_fast_scrollable_region_ = Region(gfx::Rect(5, 1, 14, 3));
     layer->touch_event_handler_region_ = Region(gfx::Rect(3, 14, 1, 5));
-    layer->scroll_blocks_on_ = SCROLL_BLOCKS_ON_WHEEL_EVENT;
     layer->contents_opaque_ = !layer->contents_opaque_;
     layer->opacity_ = 3.14f;
     layer->blend_mode_ = SkXfermode::kSrcIn_Mode;
@@ -370,7 +365,7 @@ class MockLayerTreeHost : public LayerTreeHost {
  public:
   MockLayerTreeHost(LayerTreeHostSingleThreadClient* single_thread_client,
                     LayerTreeHost::InitParams* params)
-      : LayerTreeHost(params, CompositorMode::SingleThreaded) {
+      : LayerTreeHost(params, CompositorMode::SINGLE_THREADED) {
     InitializeSingleThreaded(single_thread_client,
                              base::ThreadTaskRunnerHandle::Get(), nullptr);
   }
@@ -968,10 +963,9 @@ TEST_F(LayerTest, CheckPropertyChangeCausesCorrectBehavior) {
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetScrollOffset(
       gfx::ScrollOffset(10, 10)));
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->AddMainThreadScrollingReasons(
-                                 InputHandler::EVENT_HANDLERS));
+                                 MainThreadScrollingReason::kEventHandlers));
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetNonFastScrollableRegion(
       Region(gfx::Rect(1, 1, 2, 2))));
-  EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetHaveWheelEventHandlers(true));
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetHaveScrollEventHandlers(true));
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetTransform(
       gfx::Transform(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)));
@@ -982,7 +976,7 @@ TEST_F(LayerTest, CheckPropertyChangeCausesCorrectBehavior) {
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetHideLayerAndSubtree(true));
   EXPECT_SET_NEEDS_COMMIT(1, test_layer->SetElementId(2));
   EXPECT_SET_NEEDS_COMMIT(
-      1, test_layer->SetMutableProperties(kMutablePropertyTransform));
+      1, test_layer->SetMutableProperties(MutableProperty::kTransform));
 
   EXPECT_SET_NEEDS_FULL_TREE_SYNC(1, test_layer->SetMaskLayer(
       dummy_layer1.get()));
@@ -2123,15 +2117,15 @@ TEST_F(LayerTest, ElementIdAndMutablePropertiesArePushed) {
   EXPECT_CALL(*layer_tree_host_, SetNeedsCommit()).Times(2);
 
   test_layer->SetElementId(2);
-  test_layer->SetMutableProperties(kMutablePropertyTransform);
+  test_layer->SetMutableProperties(MutableProperty::kTransform);
 
   EXPECT_EQ(0lu, impl_layer->element_id());
-  EXPECT_EQ(kMutablePropertyNone, impl_layer->mutable_properties());
+  EXPECT_EQ(MutableProperty::kNone, impl_layer->mutable_properties());
 
   test_layer->PushPropertiesTo(impl_layer.get());
 
   EXPECT_EQ(2lu, impl_layer->element_id());
-  EXPECT_EQ(kMutablePropertyTransform, impl_layer->mutable_properties());
+  EXPECT_EQ(MutableProperty::kTransform, impl_layer->mutable_properties());
 }
 
 }  // namespace

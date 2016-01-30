@@ -32,6 +32,8 @@ class RetransmissionAlarm;
 class SendAlarm;
 class TimeoutAlarm;
 
+using QuicStreamBufferAllocator = SimpleBufferAllocator;
+
 class QuicEpollConnectionHelper : public QuicConnectionHelperInterface {
  public:
   explicit QuicEpollConnectionHelper(EpollServer* eps);
@@ -41,6 +43,10 @@ class QuicEpollConnectionHelper : public QuicConnectionHelperInterface {
   const QuicClock* GetClock() const override;
   QuicRandom* GetRandomGenerator() override;
   QuicAlarm* CreateAlarm(QuicAlarm::Delegate* delegate) override;
+  QuicArenaScopedPtr<QuicAlarm> CreateAlarm(
+      QuicArenaScopedPtr<QuicAlarm::Delegate> delegate,
+      QuicConnectionArena* arena) override;
+
   QuicBufferAllocator* GetBufferAllocator() override;
 
   EpollServer* epoll_server() { return epoll_server_; }
@@ -52,7 +58,7 @@ class QuicEpollConnectionHelper : public QuicConnectionHelperInterface {
 
   const QuicEpollClock clock_;
   QuicRandom* random_generator_;
-  SimpleBufferAllocator buffer_allocator_;
+  QuicStreamBufferAllocator buffer_allocator_;
 
   DISALLOW_COPY_AND_ASSIGN(QuicEpollConnectionHelper);
 };

@@ -503,12 +503,13 @@
     'metrics': {
       'filepath': 'base/metrics/'\
                   '|chrome/browser/metrics/'\
-                  '|chrome/common/metrics/'\
                   '|chrome/browser/chromeos/external_metrics'\
                   '|chrome/browser/extensions/api/metrics_private/'\
                   '|chrome/browser/ui/webui/metrics_handler'\
+                  '|chromecast/browser/metrics/'\
                   '|content/browser/user_metrics.cc'\
                   '|components/metrics/'\
+                  '|components/metrics_services_manager/'\
                   '|components/rappor/'\
                   '|components/variations/'\
                   '|content/public/browser/user_metrics.h'\
@@ -1258,7 +1259,8 @@
                  'rouslan+autofill@chromium.org',
                  'vabr+watchlistautofill@chromium.org'],
     'automation': ['robertshield@chromium.org'],
-    'background_sync': ['jkarlin+watch@chromium.org'],
+    'background_sync': ['jkarlin+watch@chromium.org','peter@chromium.org',
+                        'iclelland+watch@chromium.org'],
     'base': ['vmpstr+watch@chromium.org'],
     'base_allocator': ['dmikurube@chromium.org',
                        'wfh+watch@chromium.org'],
@@ -1320,7 +1322,8 @@
                         'sdefresne+watchlist@chromium.org'],
     'content': ['jam@chromium.org',
                 'darin-cc@chromium.org' ],
-    'content_bluetooth': ['scheib+watch@chromium.org'],
+    'content_bluetooth': ['scheib+watch@chromium.org',
+                          'ortuno+watch@chromium.org'],
     'content_loader': ['loading-reviews@chromium.org'],
     'content_renderer': [ 'mkwst+moarreviews-renderer@chromium.org',
                           'mlamouri+watch-content@chromium.org'],
@@ -1331,7 +1334,8 @@
     'content_worker': ['blink-worker-reviews@chromium.org',
                        'kinuko+watch@chromium.org'],
     'deep_memory_profiler': ['dmikurube@chromium.org'],
-    'device_bluetooth': ['scheib+watch@chromium.org'],
+    'device_bluetooth': ['scheib+watch@chromium.org',
+                         'ortuno+watch@chromium.org'],
     'device_sensors': ['timvolodine@chromium.org',
                        'mvanouwerkerk@chromium.org',
                        'rijubrata.bhaumik@intel.com',
@@ -1368,7 +1372,7 @@
     'i18n': ['jshin+watch@chromium.org'],
     'importer': ['tfarina@chromium.org'],
     'indexed_db': ['cmumford@chromium.org',
-                   'dgrogan@chromium.org', 'jsbell+idb@chromium.org'],
+                   'jsbell+idb@chromium.org'],
     'installer': ['grt+watch@chromium.org', 'wfh+watch@chromium.org'],
     'installer_linux': [ 'mmoss@chromium.org'],
     'instant': ['dcblack@chromium.org', 'jered@chromium.org',
@@ -1449,7 +1453,8 @@
     'prerender': ['cbentzel+watch@chromium.org', 'tburkard+watch@chromium.org',
                   'gavinp+prer@chromium.org', 'davidben+watch@chromium.org'],
     'push_messaging': ['peter@chromium.org', 'johnme+watch@chromium.org',
-                       'mvanouwerkerk+watch@chromium.org'],
+                       'mvanouwerkerk+watch@chromium.org',
+                       'harkness+watch@chromium.org'],
     'pyauto': ['anantha@chromium.org',
                'dyu@chromium.org',
                'dennisjeffrey@chromium.org'],
@@ -1538,7 +1543,8 @@
                               'mlamouri+watch-blink@chromium.org' ],
     'blink_bidi': [ 'leviw+bidiwatch@chromium.org' ],
     'blink_bindings': [ 'blink-reviews-bindings@chromium.org' ],
-    'blink_bluetooth': [ 'scheib+watch@chromium.org' ],
+    'blink_bluetooth': [ 'scheib+watch@chromium.org',
+                         'ortuno+watch@chromium.org'],
     'blink_canvas2d': [ 'cabanier@adobe.com',
                         'dongseong.hwang@intel.com',
                         'junov@chromium.org',
@@ -1610,8 +1616,7 @@
                     'blink-reviews-html@chromium.org' ],
     'blink_public_api': [ 'dglazkov+blink@chromium.org',
                           'blink-reviews-api@chromium.org' ],
-    'blink_indexed_db': ['dgrogan@chromium.org',
-                         'jsbell+idb@chromium.org',
+    'blink_indexed_db': ['jsbell+idb@chromium.org',
                          'cmumford@chromium.org'],
     'blink_layout': [ 'pdr+renderingwatchlist@chromium.org',
                       'eae+blinkwatch@chromium.org',

@@ -93,6 +93,11 @@ void DelayedCookieMonster::GetAllCookiesForURLAsync(
   cookie_monster_->GetAllCookiesForURLAsync(url, callback);
 }
 
+void DelayedCookieMonster::GetAllCookiesAsync(
+    const GetCookieListCallback& callback) {
+  cookie_monster_->GetAllCookiesAsync(callback);
+}
+
 void DelayedCookieMonster::InvokeSetCookiesCallback(
     const CookieMonster::SetCookiesCallback& callback) {
   if (!callback.is_null())
@@ -147,6 +152,10 @@ void DelayedCookieMonster::DeleteAllCreatedBetweenForHostAsync(
 }
 
 void DelayedCookieMonster::DeleteSessionCookiesAsync(const DeleteCallback&) {
+  ADD_FAILURE();
+}
+
+void DelayedCookieMonster::FlushStore(const base::Closure& callback) {
   ADD_FAILURE();
 }
 

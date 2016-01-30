@@ -741,7 +741,11 @@ public:
     // :first-letter pseudo elements for which their parent node is returned.
     Node* generatingNode() const { return isPseudoElement() ? node()->parentOrShadowHostNode() : node(); }
 
-    Document& document() const { return m_node->document(); }
+    Document& document() const
+    {
+        ASSERT(m_node || parent()); // crbug.com/402056
+        return m_node ? m_node->document() : parent()->document();
+    }
     LocalFrame* frame() const { return document().frame(); }
 
     virtual LayoutMultiColumnSpannerPlaceholder* spannerPlaceholder() const { return nullptr; }
@@ -974,8 +978,9 @@ public:
 
     static FloatRect absoluteBoundingBoxRectForRange(const Range*);
 
-    // the rect that will be painted if this object is passed as the paintingRoot
-    IntRect paintingRootRect(IntRect& topLevelRect);
+    // The bounding box (see: absoluteBoundingBoxRect) including all descendant
+    // bounding boxes.
+    IntRect absoluteBoundingBoxRectIncludingDescendants() const;
 
     // This function returns the minimal logical width this object can have
     // without overflowing. This means that all the opportunities for wrapping
@@ -988,7 +993,7 @@ public:
     // However CSS 3 calls it the "min-content inline size".
     // https://drafts.csswg.org/css-sizing-3/#min-content-inline-size
     // TODO(jchaffraix): We will probably want to rename it to match CSS 3.
-    virtual LayoutUnit minPreferredLogicalWidth() const { return 0; }
+    virtual LayoutUnit minPreferredLogicalWidth() const { return LayoutUnit(); }
 
     // This function returns the maximum logical width this object can have.
     //
@@ -998,7 +1003,7 @@ public:
     // the "max-content inline size".
     // https://drafts.csswg.org/css-sizing-3/#max-content-inline-size
     // TODO(jchaffraix): We will probably want to rename it to match CSS 3.
-    virtual LayoutUnit maxPreferredLogicalWidth() const { return 0; }
+    virtual LayoutUnit maxPreferredLogicalWidth() const { return LayoutUnit(); }
 
     const ComputedStyle* style() const { return m_style.get(); }
     ComputedStyle* mutableStyle() const { return m_style.get(); }
@@ -1131,9 +1136,6 @@ public:
     Color selectionBackgroundColor() const;
     Color selectionForegroundColor(const GlobalPaintFlags) const;
     Color selectionEmphasisMarkColor(const GlobalPaintFlags) const;
-
-    // Whether or not a given block needs to paint selection gaps.
-    virtual bool shouldPaintSelectionGaps() const { return false; }
 
     /**
      * Returns the local coordinates of the caret within this layout object.
@@ -1492,7 +1494,12 @@ protected:
     // owned by this object, including the object itself, LayoutText/LayoutInline line boxes, etc.,
     // not including children which will be invalidated normally during invalidateTreeIfNeeded() and
     // parts which are invalidated separately (e.g. scrollbars).
+    // The caller should ensure the enclosing layer has been setNeedsRepaint before calling this function.
     virtual void invalidateDisplayItemClients(const LayoutBoxModelObject& paintInvalidationContainer, PaintInvalidationReason) const;
+
+    // Sets enclosing layer needsRepaint, then calls invalidateDisplayItemClients().
+    // Should use this version when PaintInvalidationState is available.
+    void invalidateDisplayItemClientsWithPaintInvalidationState(const LayoutBoxModelObject& paintInvalidationContainer, const PaintInvalidationState&, PaintInvalidationReason) const;
 
     void setIsBackgroundAttachmentFixedObject(bool);
 
@@ -1541,10 +1548,13 @@ private:
 
     inline void markContainerChainForPaintInvalidation();
 
-    inline void invalidateSelectionIfNeeded(const LayoutBoxModelObject&, PaintInvalidationReason);
+    inline void invalidateSelectionIfNeeded(const LayoutBoxModelObject& paintInvalidationContainer, const PaintInvalidationState&, PaintInvalidationReason);
 
     inline void invalidateContainerPreferredLogicalWidths();
 
+    void invalidatePaintIncludingNonSelfPaintingLayerDescendantsInternal(const LayoutBoxModelObject& paintInvalidationContainer);
+
+    // The caller should ensure the enclosing layer has been setNeedsRepaint before calling this function.
     void invalidatePaintOfPreviousPaintInvalidationRect(const LayoutBoxModelObject& paintInvalidationContainer, PaintInvalidationReason);
 
     LayoutRect previousSelectionRectForPaintInvalidation() const;

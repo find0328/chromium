@@ -119,6 +119,8 @@ cursors.Cursor.prototype = {
    */
   getText: function(opt_node) {
     var node = opt_node || this.node_;
+    if (node.role === RoleType.textField)
+      return node.value;
     return node.name || '';
   },
 
@@ -141,14 +143,19 @@ cursors.Cursor.prototype = {
     switch (unit) {
       case Unit.CHARACTER:
         // BOUND and DIRECTIONAL are the same for characters.
-        newIndex = dir == Dir.FORWARD ? newIndex + 1 : newIndex - 1;
-        if (newIndex < 0 || newIndex >= this.getText().length) {
+        var text = this.getText();
+        newIndex = dir == Dir.FORWARD ?
+            StringUtil.nextCodePointOffset(text, newIndex) :
+            StringUtil.previousCodePointOffset(text, newIndex);
+        if (newIndex < 0 || newIndex >= text.length) {
           newNode = AutomationUtil.findNextNode(
               newNode, dir, AutomationPredicate.leafWithText);
           if (newNode) {
+            var newText = this.getText(newNode);
             newIndex =
-                dir == Dir.FORWARD ? 0 : this.getText(newNode).length - 1;
-            newIndex = newIndex == -1 ? 0 : newIndex;
+                dir == Dir.FORWARD ? 0 :
+                StringUtil.previousCodePointOffset(newText, newText.length);
+            newIndex = Math.max(newIndex, 0);
           } else {
             newIndex = this.index_;
           }
@@ -231,7 +238,7 @@ cursors.Cursor.prototype = {
         switch (movement) {
           case Movement.BOUND:
             newNode = AutomationUtil.findNodeUntil(newNode, dir,
-                AutomationPredicate.linebreak, {before: true});
+                AutomationPredicate.linebreak, true);
             newNode = newNode || this.node_;
             newIndex =
                 dir == Dir.FORWARD ? this.getText(newNode).length : 0;
@@ -243,7 +250,7 @@ cursors.Cursor.prototype = {
           }
       break;
       default:
-        throw 'Unrecognized unit: ' + unit;
+        throw Error('Unrecognized unit: ' + unit);
     }
     newNode = newNode || this.node_;
     newIndex = goog.isDef(newIndex) ? newIndex : this.index_;
@@ -283,10 +290,17 @@ cursors.WrappingCursor.prototype = {
     if (movement == Movement.DIRECTIONAL && result.equals(this)) {
       var pred = unit == Unit.DOM_NODE ?
           AutomationPredicate.leafDomNode : AutomationPredicate.leaf;
-      var root = this.node;
-      while (!AutomationUtil.isTraversalRoot(root) && root.parent)
-        root = root.parent;
-      var wrappedNode = AutomationUtil.findNodePre(root, dir, pred);
+      var endpoint = this.node;
+      while (!AutomationUtil.isTraversalRoot(endpoint) && endpoint.parent)
+        endpoint = endpoint.parent;
+      if (dir == Dir.BACKWARD) {
+        while (endpoint.lastChild)
+          endpoint = endpoint.lastChild;
+      }
+      var wrappedNode = endpoint;
+      if (!pred(wrappedNode))
+        wrappedNode = AutomationUtil.findNextNode(endpoint, dir, pred);
+
       if (wrappedNode) {
         cvox.ChromeVox.earcons.playEarcon(cvox.Earcon.WRAP);
         return new cursors.WrappingCursor(wrappedNode, cursors.NODE_INDEX);

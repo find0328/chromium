@@ -49,7 +49,6 @@ class View;
 namespace internal {
 class MenuControllerDelegate;
 class MenuEventDispatcher;
-class MenuMessagePumpDispatcher;
 class MenuRunnerImpl;
 }
 
@@ -200,7 +199,6 @@ class VIEWS_EXPORT MenuController : public WidgetObserver {
 
  private:
   friend class internal::MenuEventDispatcher;
-  friend class internal::MenuMessagePumpDispatcher;
   friend class internal::MenuRunnerImpl;
   friend class test::MenuControllerTest;
   friend class MenuKeyEventHandler;
@@ -564,9 +562,6 @@ class VIEWS_EXPORT MenuController : public WidgetObserver {
   // Handles the mouse location event on the submenu |source|.
   void HandleMouseLocation(SubmenuView* source,
                            const gfx::Point& mouse_location);
-
-  // Retrieve an appropriate Screen.
-  gfx::Screen* GetScreen();
 
   // The active instance.
   static MenuController* active_instance_;

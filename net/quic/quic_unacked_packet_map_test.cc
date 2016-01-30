@@ -38,10 +38,10 @@ class QuicUnackedPacketMapTest : public ::testing::Test {
       QuicPacketNumber packet_number,
       QuicStreamId stream_id) {
     packets_.push_back(new QuicEncryptedPacket(nullptr, kDefaultLength));
-    RetransmittableFrames* frames = new RetransmittableFrames();
+    QuicFrames* frames = new QuicFrames();
     QuicStreamFrame* frame = new QuicStreamFrame();
     frame->stream_id = stream_id;
-    frames->AddFrame(QuicFrame(frame));
+    frames->push_back(QuicFrame(frame));
     return SerializedPacket(kDefaultPathId, packet_number,
                             PACKET_1BYTE_PACKET_NUMBER, packets_.back(), 0,
                             frames, false, false);
@@ -102,7 +102,7 @@ class QuicUnackedPacketMapTest : public ::testing::Test {
     size_t num_retransmittable_packets = 0;
     for (QuicUnackedPacketMap::const_iterator it = unacked_packets_.begin();
          it != unacked_packets_.end(); ++it) {
-      if (it->retransmittable_frames != nullptr) {
+      if (!it->retransmittable_frames.empty()) {
         ++num_retransmittable_packets;
       }
     }

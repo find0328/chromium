@@ -203,8 +203,6 @@ void DOMWindow::postMessage(PassRefPtr<SerializedScriptValue> message, const Mes
     String sourceOrigin = sourceDocument->securityOrigin()->toString();
     String sourceSuborigin = sourceDocument->securityOrigin()->suboriginName();
 
-    // FIXME: MixedContentChecker needs to be refactored for OOPIF.  For now,
-    // create the url using replicated origins for remote frames.
     KURL targetUrl = isLocalDOMWindow() ? document()->url() : KURL(KURL(), frame()->securityContext()->securityOrigin()->toString());
     if (MixedContentChecker::isMixedContent(sourceDocument->securityOrigin(), targetUrl))
         UseCounter::count(frame(), UseCounter::PostMessageFromSecureToInsecure);
@@ -218,7 +216,7 @@ void DOMWindow::postMessage(PassRefPtr<SerializedScriptValue> message, const Mes
     bool didHandleMessageEvent = frame()->client()->willCheckAndDispatchMessageEvent(target.get(), event.get(), source->document()->frame());
     if (!didHandleMessageEvent) {
         // Capture stack trace only when inspector front-end is loaded as it may be time consuming.
-        RefPtrWillBeRawPtr<ScriptCallStack> stackTrace = nullptr;
+        RefPtr<ScriptCallStack> stackTrace;
         if (InspectorInstrumentation::consoleAgentEnabled(sourceDocument))
             stackTrace = currentScriptCallStack(ScriptCallStack::maxCallStackSizeToCapture);
 

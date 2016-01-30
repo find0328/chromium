@@ -20,7 +20,7 @@ class HitTestLocation;
 class LayoutObject;
 class LineLayoutBox;
 class LineLayoutBoxModel;
-class LineLayoutPaintShim;
+class LineLayoutAPIShim;
 
 enum HitTestFilter;
 
@@ -324,6 +324,11 @@ public:
         return m_layoutObject->selectionBackgroundColor();
     }
 
+    Color resolveColor(const ComputedStyle& styleToUse, int colorProperty)
+    {
+        return m_layoutObject->resolveColor(styleToUse, colorProperty);
+    }
+
     bool isInFlowPositioned() const
     {
         return m_layoutObject->isInFlowPositioned();
@@ -382,7 +387,7 @@ protected:
 private:
     LayoutObject* m_layoutObject;
 
-    friend class LineLayoutPaintShim;
+    friend class LineLayoutAPIShim;
 };
 
 } // namespace blink

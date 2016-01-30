@@ -24,29 +24,20 @@ sys.path.append(os.path.join(_SRC_DIR, 'build', 'android'))
 import devil_chromium
 from pylib import constants
 
-import log_parser
-import log_requests
+import content_classification_lens
+import device_setup
 import loading_model
+import loading_trace
+import trace_recorder
 
 
-# TODO(mattcary): logging.info isn't that useful; we need something finer
-# grained. For now we just do logging.warning.
+# TODO(mattcary): logging.info isn't that useful, as the whole (tools) world
+# uses logging info; we need to introduce logging modules to get finer-grained
+# output. For now we just do logging.warning.
 
 
 # TODO(mattcary): probably we want this piped in through a flag.
 CHROME = constants.PACKAGE_INFO['chrome']
-
-
-def _SetupAndGetDevice():
-  """Gets an android device, set up the way we like it.
-
-  Returns:
-    An instance of DeviceUtils for the first device found.
-  """
-  device = device_utils.DeviceUtils.HealthyDevices()[0]
-  device.EnableRoot()
-  device.KillAll(CHROME.package, quiet=True)
-  return device
 
 
 def _LoadPage(device, url):
@@ -99,16 +90,11 @@ def _GetPrefetchHtml(graph, name=None):
 <body>%s</body>
 </html>
   """ % title)
-
   return '\n'.join(output)
 
 
 def _LogRequests(url, clear_cache=True, local=False):
   """Log requests for a web page.
-
-  TODO(mattcary): loading.log_requests probably needs to be refactored as we're
-  using private methods, also there's ugliness like _ResponseDataToJson return a
-  json.dumps that we immediately json.loads.
 
   Args:
     url: url to log as string.
@@ -116,14 +102,12 @@ def _LogRequests(url, clear_cache=True, local=False):
     local: log from local (desktop) chrome session.
 
   Returns:
-    JSON of logged information (ie, a dict that describes JSON).
+    JSON dict of logged information (ie, a dict that describes JSON).
   """
-  device = _SetupAndGetDevice() if not local else None
-  request_logger = log_requests.AndroidRequestsLogger(device)
-  logging.warning('Logging %scached %s' % ('un' if clear_cache else '', url))
-  response_data = request_logger.LogPageLoad(
-      url, clear_cache, 'chrome')
-  return json.loads(log_requests._ResponseDataToJson(response_data))
+  device = device_setup.GetFirstDevice() if not local else None
+  with device_setup.DeviceConnection(device) as connection:
+    trace = trace_recorder.MonitorUrl(connection, url, clear_cache=clear_cache)
+    return trace.ToJsonDict()
 
 
 def _FullFetch(url, json_output, prefetch, local, prefetch_delay_seconds):
@@ -136,13 +120,14 @@ def _FullFetch(url, json_output, prefetch, local, prefetch_delay_seconds):
   if prefetch:
     assert not local
     logging.warning('Generating prefetch')
-    prefetch_html = _GetPrefetchHtml(_ProcessJson(cold_data), name=url)
+    prefetch_html = _GetPrefetchHtml(
+        loading_model.ResourceGraph(cold_data), name=url)
     tmp = tempfile.NamedTemporaryFile()
     tmp.write(prefetch_html)
     tmp.flush()
     # We hope that the tmpfile name is unique enough for the device.
     target = os.path.join('/sdcard/Download', os.path.basename(tmp.name))
-    device = _SetupAndGetDevice()
+    device = device_setup.GetFirstDevice()
     device.adb.Push(tmp.name, target)
     logging.warning('Pushed prefetch %s to device at %s' % (tmp.name, target))
     _LoadPage(device, 'file://' + target)
@@ -163,15 +148,14 @@ def _FullFetch(url, json_output, prefetch, local, prefetch_delay_seconds):
 
 # TODO(mattcary): it would be nice to refactor so the --noads flag gets dealt
 # with here.
-def _ProcessRequests(filename):
-  requests = log_parser.FilterRequests(log_parser.ParseJsonFile(filename))
-  return loading_model.ResourceGraph(requests)
-
-
-def _ProcessJson(json_data):
-  assert json_data
-  return loading_model.ResourceGraph(log_parser.FilterRequests(
-      [log_parser.RequestData.FromDict(r) for r in json_data]))
+def _ProcessRequests(filename, ad_rules_filename='',
+                     tracking_rules_filename=''):
+  with open(filename) as f:
+    trace = loading_trace.LoadingTrace.FromJsonDict(json.load(f))
+    content_lens = (
+        content_classification_lens.ContentClassificationLens.WithRulesFiles(
+            trace, ad_rules_filename, tracking_rules_filename))
+    return loading_model.ResourceGraph(trace, content_lens)
 
 
 def InvalidCommand(cmd):
@@ -180,7 +164,7 @@ def InvalidCommand(cmd):
 
 
 def DoCost(arg_str):
-  parser = argparse.ArgumentParser(usage='cost [--parameter ...] REQUEST_JSON')
+  parser = argparse.ArgumentParser(description='Tabulates cost')
   parser.add_argument('request_json')
   parser.add_argument('--parameter', nargs='*', default=[])
   parser.add_argument('--path', action='store_true')
@@ -200,14 +184,17 @@ def DoCost(arg_str):
 
 def DoPng(arg_str):
   parser = argparse.ArgumentParser(
-      usage='png [--eog] [--highlight X[,...] REQUEST_JSON [PNG_OUTPUT]')
+      description='Generates a PNG from a trace')
   parser.add_argument('request_json')
   parser.add_argument('png_output', nargs='?')
   parser.add_argument('--eog', action='store_true')
   parser.add_argument('--highlight')
   parser.add_argument('--noads', action='store_true')
+  parser.add_argument('--ad_rules', default='')
+  parser.add_argument('--tracking_rules', default='')
   args = parser.parse_args(arg_str)
-  graph = _ProcessRequests(args.request_json)
+  graph = _ProcessRequests(
+      args.request_json, args.ad_rules, args.tracking_rules)
   if args.noads:
     graph.Set(node_filter=graph.FilterAds)
   tmp = tempfile.NamedTemporaryFile()
@@ -229,7 +216,7 @@ def DoPng(arg_str):
 
 
 def DoCompare(arg_str):
-  parser = argparse.ArgumentParser(usage='compare REQUEST_JSON REQUEST_JSON')
+  parser = argparse.ArgumentParser(description='Compares two traces')
   parser.add_argument('g1_json')
   parser.add_argument('g2_json')
   args = parser.parse_args(arg_str)
@@ -244,8 +231,7 @@ def DoCompare(arg_str):
 
 
 def DoPrefetchSetup(arg_str):
-  parser = argparse.ArgumentParser(
-      usage='prefetch_setup [--upload] REQUEST_JSON TARGET_HTML')
+  parser = argparse.ArgumentParser(description='Sets up prefetch')
   parser.add_argument('request_json')
   parser.add_argument('target_html')
   parser.add_argument('--upload', action='store_true')
@@ -255,7 +241,7 @@ def DoPrefetchSetup(arg_str):
     html.write(_GetPrefetchHtml(
         graph, name=os.path.basename(args.request_json)))
   if args.upload:
-    device = _SetupAndGetDevice()
+    device = device_setup.GetFirstDevice()
     destination = os.path.join('/sdcard/Download',
                                os.path.basename(args.target_html))
     device.adb.Push(args.target_html, destination)
@@ -265,8 +251,7 @@ def DoPrefetchSetup(arg_str):
 
 
 def DoLogRequests(arg_str):
-  parser = argparse.ArgumentParser(
-      usage='log_requests [--prefetch] --site URL --output JSON_OUTPUT')
+  parser = argparse.ArgumentParser(description='Logs requests of a load')
   parser.add_argument('--url', required=True)
   parser.add_argument('--output', required=True)
   parser.add_argument('--prefetch', action='store_true')
@@ -281,13 +266,12 @@ def DoLogRequests(arg_str):
 
 
 def DoFetch(arg_str):
-  parser = argparse.ArgumentParser(usage='fetch --site SITE --dir DIR\n'
-                                   'Fetches SITE into DIR with standard naming '
-                                   'that can be processed by ./cost_to_csv.py. '
-                                   'Both warm and cold fetches are done. '
-                                   'SITE can be a full url but the filename '
-                                   'may be strange so better to just use a '
-                                   'site (ie, domain).')
+  parser = argparse.ArgumentParser(description='Fetches SITE into DIR with '
+                                   'standard naming that can be processed by '
+                                   './cost_to_csv.py.  Both warm and cold '
+                                   'fetches are done.  SITE can be a full url '
+                                   'but the filename may be strange so better '
+                                   'to just use a site (ie, domain).')
   # Arguments are flags as it's easy to get the wrong order of site vs dir.
   parser.add_argument('--site', required=True)
   parser.add_argument('--dir', required=True)
@@ -302,22 +286,8 @@ def DoFetch(arg_str):
              local=False)
 
 
-def DoTracing(arg_str):
-  parser = argparse.ArgumentParser(
-      usage='tracing URL JSON_OUTPUT')
-  parser.add_argument('url')
-  parser.add_argument('json_output')
-  args = parser.parse_args(arg_str)
-  device = _SetupAndGetDevice()
-  request_logger = log_requests.AndroidRequestsLogger(device)
-  tracing = request_logger.LogTracing(args.url)
-  with open(args.json_output, 'w') as f:
-    _WriteJson(f, tracing)
-  logging.warning('Wrote ' + args.json_output)
-
-
 def DoLongPole(arg_str):
-  parser = argparse.ArgumentParser(usage='longpole [--noads] REQUEST_JSON')
+  parser = argparse.ArgumentParser(description='Calculates long pole')
   parser.add_argument('request_json')
   parser.add_argument('--noads', action='store_true')
   args = parser.parse_args(arg_str)
@@ -330,7 +300,7 @@ def DoLongPole(arg_str):
 
 
 def DoNodeCost(arg_str):
-  parser = argparse.ArgumentParser(usage='nodecost [--noads] REQUEST_JSON')
+  parser = argparse.ArgumentParser(description='Calculates node cost')
   parser.add_argument('request_json')
   parser.add_argument('--noads', action='store_true')
   args = parser.parse_args(arg_str)
@@ -346,7 +316,6 @@ COMMAND_MAP = {
     'compare': DoCompare,
     'prefetch_setup': DoPrefetchSetup,
     'log_requests': DoLogRequests,
-    'tracing': DoTracing,
     'longpole': DoLongPole,
     'nodecost': DoNodeCost,
     'fetch': DoFetch,
@@ -354,8 +323,8 @@ COMMAND_MAP = {
 
 def main():
   logging.basicConfig(level=logging.WARNING)
-  parser = argparse.ArgumentParser(usage=' '.join(COMMAND_MAP.keys()))
-  parser.add_argument('command')
+  parser = argparse.ArgumentParser(description='Analyzes loading')
+  parser.add_argument('command', help=' '.join(COMMAND_MAP.keys()))
   parser.add_argument('rest', nargs=argparse.REMAINDER)
   args = parser.parse_args()
   devil_chromium.Initialize()

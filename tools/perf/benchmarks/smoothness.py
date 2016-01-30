@@ -103,7 +103,8 @@ class SmoothnessMaps(perf_benchmark.PerfBenchmark):
 
 
 @benchmark.Disabled('android',
-                    'mac')     # crbug.com/567802
+                    'mac',     # crbug.com/567802
+                    'win')     # crbug.com/582472
 class SmoothnessKeyDesktopMoveCases(_Smoothness):
   page_set = page_sets.KeyDesktopMoveCasesPageSet
 
@@ -187,6 +188,7 @@ class SmoothnessGpuRasterizationKeyMobileSites(_Smoothness):
     return 'smoothness.gpu_rasterization.key_mobile_sites_smooth'
 
 
+@benchmark.Disabled('yosemite')  # crbug.com/581219
 class SmoothnessGpuRasterizationToughPathRenderingCases(_Smoothness):
   """Tests a selection of pages with SVG and 2D canvas paths with GPU
   rasterization.

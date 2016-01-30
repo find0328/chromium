@@ -147,6 +147,24 @@ public class ImeTest extends ContentShellTestBase {
     }
 
     @SmallTest
+    @Feature({"TextInput", "Main"})
+    public void testCommitEnterKeyWhileComposingText() throws Throwable {
+        focusElementAndWaitForStateUpdate("textarea");
+
+        setComposingText("hello", 1);
+        waitAndVerifyStatesAndCalls(0, "hello", 5, 5, 0, 5);
+
+        // Cancel the current composition and replace it with enter.
+        commitText("\n", 1);
+        // The second new line is not a user visible/editable one, it is a side-effect of Blink
+        // using <br> internally. This only happens when \n is at the end.
+        waitAndVerifyStatesAndCalls(1, "\n\n", 1, 1, -1, -1);
+
+        commitText("world", 1);
+        waitAndVerifyStatesAndCalls(2, "\nworld", 6, 6, -1, -1);
+    }
+
+    @SmallTest
     @Feature({"TextInput"})
     public void testImeCopy() throws Exception {
         commitText("hello", 1);
@@ -183,9 +201,16 @@ public class ImeTest extends ContentShellTestBase {
         // hideSoftKeyboard(), restartInput()
         waitForKeyboardStates(0, 1, 1, new Integer[] {});
 
+        // When input connection is null, we still need to set flags to prevent InputMethodService
+        // from entering fullscreen mode and from opening custom UI.
+        assertNull(mInputMethodManagerWrapper.getInputConnection());
+        assertEquals(EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI,
+                mInputMethodManagerWrapper.getEditorInfo().imeOptions);
+
         // showSoftInput(), restartInput()
         focusElement("input_number1");
         waitForKeyboardStates(1, 1, 2, new Integer[] {TextInputType.NUMBER});
+        assertNotNull(mInputMethodManagerWrapper.getInputConnection());
 
         focusElement("input_number2");
         // Hide should never be called here. Otherwise we will see a flicker. Restarted to
@@ -998,76 +1023,6 @@ public class ImeTest extends ContentShellTestBase {
         // InputMethodManager and/or input methods to call finishComposingText() in setting
         // current input connection as active or finishing the current input connection.
         assertNoFurtherStateUpdate(1);
-    }
-
-    @MediumTest
-    @Feature({"TextInput"})
-    public void testCommitTextWithDifferentCursorPositions() throws Throwable {
-        // Out of bound, treat this as commitText("ab", 1);
-        commitText("ab", 2);
-        assertEquals("ab", getTextBeforeCursor(10, 0));
-        assertEquals("", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(1, "ab", 2, 2, -1, -1);
-
-        commitText("cd", 0);
-        assertEquals("ab", getTextBeforeCursor(10, 0));
-        assertEquals("cd", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(3, "abcd", 2, 2, -1, -1);
-
-        commitText("ef", -1);
-        assertEquals("a", getTextBeforeCursor(10, 0));
-        assertEquals("befcd", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(5, "abefcd", 1, 1, -1, -1);
-    }
-
-    @MediumTest
-    @Feature({"TextInput"})
-    public void testSetComposingTextWithDifferentCursorPositions() throws Throwable {
-        // Out of bound, treat this as commitText("ab", 1);
-        setComposingText("ab", 2);
-        finishComposingText();
-        assertEquals("ab", getTextBeforeCursor(10, 0));
-        assertEquals("", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(1, "ab", 2, 2, -1, -1);
-
-        setComposingText("cd", 0);
-        finishComposingText();
-        assertEquals("ab", getTextBeforeCursor(10, 0));
-        assertEquals("cd", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(3, "abcd", 2, 2, -1, -1);
-
-        setComposingText("ef", -1);
-        finishComposingText();
-        assertEquals("a", getTextBeforeCursor(10, 0));
-        assertEquals("befcd", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(5, "abefcd", 1, 1, -1, -1);
-
-        setComposingText("gh", 1);
-        setComposingText("i", 0);
-        finishComposingText();
-        assertEquals("a", getTextBeforeCursor(10, 0));
-        assertEquals("ibefcd", getTextAfterCursor(10, 0));
-        waitAndVerifyStatesAndCalls(8, "aibefcd", 1, 1, -1, -1);
-    }
-
-    private CharSequence getTextBeforeCursor(final int length, final int flags)
-            throws ExecutionException {
-        return ThreadUtils.runOnUiThreadBlocking(new Callable<CharSequence>() {
-            @Override
-            public CharSequence call() {
-                return mConnection.getTextBeforeCursor(length, flags);
-            }
-        });
-    }
-
-    private CharSequence getTextAfterCursor(final int length, final int flags)
-            throws ExecutionException {
-        return ThreadUtils.runOnUiThreadBlocking(new Callable<CharSequence>() {
-            @Override
-            public CharSequence call() {
-                return mConnection.getTextAfterCursor(length, flags);
-            }
-        });
     }
 
     private void performGo(TestCallbackHelperContainer testCallbackHelperContainer)

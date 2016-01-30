@@ -152,6 +152,7 @@ bool supportsInvalidation(CSSSelector::PseudoType type)
     case CSSSelector::PseudoShadow:
     case CSSSelector::PseudoSpatialNavigationFocus:
     case CSSSelector::PseudoListBox:
+    case CSSSelector::PseudoSlotted:
         return true;
     case CSSSelector::PseudoUnknown:
     case CSSSelector::PseudoLeftPage:
@@ -173,7 +174,8 @@ bool supportsInvalidationWithSelectorList(CSSSelector::PseudoType pseudo)
         || pseudo == CSSSelector::PseudoCue
         || pseudo == CSSSelector::PseudoHost
         || pseudo == CSSSelector::PseudoHostContext
-        || pseudo == CSSSelector::PseudoNot;
+        || pseudo == CSSSelector::PseudoNot
+        || pseudo == CSSSelector::PseudoSlotted;
 }
 
 #endif // ENABLE(ASSERT)
@@ -278,21 +280,29 @@ ALWAYS_INLINE InvalidationSet& RuleFeatureSet::ensurePseudoInvalidationSet(CSSSe
 
 bool RuleFeatureSet::extractInvalidationSetFeature(const CSSSelector& selector, InvalidationSetFeatures& features)
 {
-    if (selector.match() == CSSSelector::Tag && selector.tagQName().localName() != starAtom)
+    if (selector.match() == CSSSelector::Tag && selector.tagQName().localName() != starAtom) {
         features.tagName = selector.tagQName().localName();
-    else if (selector.match() == CSSSelector::Id)
+        return true;
+    }
+    if (selector.match() == CSSSelector::Id) {
         features.id = selector.value();
-    else if (selector.match() == CSSSelector::Class)
+        return true;
+    }
+    if (selector.match() == CSSSelector::Class) {
         features.classes.append(selector.value());
-    else if (selector.isAttributeSelector())
+        return true;
+    }
+    if (selector.isAttributeSelector()) {
         features.attributes.append(selector.attribute().localName());
-    else if (selector.pseudoType() == CSSSelector::PseudoWebKitCustomElement)
+        return true;
+    }
+    if (selector.pseudoType() == CSSSelector::PseudoWebKitCustomElement) {
         features.customPseudoElement = true;
-    else if (selector.pseudoType() == CSSSelector::PseudoBefore || selector.pseudoType() == CSSSelector::PseudoAfter)
+        return true;
+    }
+    if (selector.pseudoType() == CSSSelector::PseudoBefore || selector.pseudoType() == CSSSelector::PseudoAfter)
         features.hasBeforeOrAfter = true;
-    else
-        return false;
-    return true;
+    return false;
 }
 
 InvalidationSet* RuleFeatureSet::invalidationSetForSelector(const CSSSelector& selector, InvalidationType type)
@@ -515,7 +525,7 @@ void RuleFeatureSet::addFeaturesToInvalidationSets(const CSSSelector* selector, 
         if (current->relation() == CSSSelector::SubSelector)
             continue;
 
-        if (current->relationIsAffectedByPseudoContent()) {
+        if (current->relationIsAffectedByPseudoContent() || current->relation() == CSSSelector::ShadowSlot) {
             descendantFeatures.insertionPointCrossing = true;
             descendantFeatures.contentPseudoCrossing = true;
         }

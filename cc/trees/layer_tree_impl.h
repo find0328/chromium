@@ -8,9 +8,9 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "base/containers/hash_tables.h"
 #include "base/macros.h"
 #include "base/values.h"
 #include "cc/base/synced_property.h"
@@ -374,9 +374,6 @@ class CC_EXPORT LayerTreeImpl {
 
   LayerImpl* FindLayerThatIsHitByPoint(const gfx::PointF& screen_space_point);
 
-  LayerImpl* FindLayerWithWheelHandlerThatIsHitByPoint(
-      const gfx::PointF& screen_space_point);
-
   LayerImpl* FindLayerThatIsHitByPointInTouchHandlerRegion(
       const gfx::PointF& screen_space_point);
 
@@ -439,6 +436,11 @@ class CC_EXPORT LayerTreeImpl {
                                       const gfx::BoxF& box,
                                       gfx::BoxF* bounds) const;
 
+  bool have_wheel_event_handlers() const { return have_wheel_event_handlers_; }
+  void set_have_wheel_event_handlers(bool have_event_handlers) {
+    have_wheel_event_handlers_ = have_event_handlers;
+  }
+
  protected:
   explicit LayerTreeImpl(
       LayerTreeHostImpl* layer_tree_host_impl,
@@ -482,15 +484,15 @@ class CC_EXPORT LayerTreeImpl {
 
   scoped_refptr<SyncedElasticOverscroll> elastic_overscroll_;
 
-  typedef base::hash_map<int, LayerImpl*> LayerIdMap;
+  using LayerIdMap = std::unordered_map<int, LayerImpl*>;
   LayerIdMap layer_id_map_;
 
-  base::hash_map<uint64_t, ElementLayers> element_layers_map_;
+  std::unordered_map<uint64_t, ElementLayers> element_layers_map_;
 
   // Maps from clip layer ids to scroll layer ids.  Note that this only includes
   // the subset of clip layers that act as scrolling containers.  (This is
   // derived from LayerImpl::scroll_clip_layer_ and exists to avoid O(n) walks.)
-  base::hash_map<int, int> clip_scroll_map_;
+  std::unordered_map<int, int> clip_scroll_map_;
 
   // Maps scroll layer ids to scrollbar layer ids.  For each scroll layer, there
   // may be 1 or 2 scrollbar layers (for vertical and horizontal).  (This is
@@ -526,10 +528,11 @@ class CC_EXPORT LayerTreeImpl {
 
   int render_surface_layer_list_id_;
 
+  bool have_wheel_event_handlers_;
+
   // Whether or not Blink's viewport size was shrunk by the height of the top
   // controls at the time of the last layout.
   bool top_controls_shrink_blink_size_;
-
   float top_controls_height_;
 
   // The amount that the top controls are shown from 0 (hidden) to 1 (fully

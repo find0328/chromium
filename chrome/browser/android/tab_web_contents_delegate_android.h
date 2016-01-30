@@ -45,7 +45,7 @@ class TabWebContentsDelegateAndroid
   scoped_ptr<content::BluetoothChooser> RunBluetoothChooser(
       content::WebContents* web_contents,
       const content::BluetoothChooser::EventHandler& event_handler,
-      const GURL& origin) override;
+      const url::Origin& origin) override;
   void CloseContents(content::WebContents* web_contents) override;
   bool ShouldFocusLocationBarByDefault(content::WebContents* source) override;
   blink::WebDisplayMode GetDisplayMode(
@@ -87,6 +87,7 @@ class TabWebContentsDelegateAndroid
                       const gfx::Rect& initial_rect,
                       bool user_gesture,
                       bool* was_blocked) override;
+  bool RequestAppBanner(content::WebContents* web_contents) override;
 
  private:
   // NotificationObserver implementation.

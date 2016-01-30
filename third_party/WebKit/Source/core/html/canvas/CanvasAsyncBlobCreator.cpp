@@ -5,12 +5,13 @@
 #include "CanvasAsyncBlobCreator.h"
 
 #include "core/dom/ContextLifecycleObserver.h"
-#include "core/fileapi/File.h"
+#include "core/fileapi/Blob.h"
 #include "platform/Task.h"
 #include "platform/ThreadSafeFunctional.h"
 #include "platform/graphics/ImageBuffer.h"
 #include "platform/heap/Handle.h"
 #include "platform/image-encoders/skia/PNGImageEncoder.h"
+#include "platform/threading/BackgroundTaskRunner.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebScheduler.h"
 #include "public/platform/WebTaskRunner.h"
@@ -24,6 +25,7 @@ namespace {
 
 const double SlackBeforeDeadline = 0.001; // a small slack period between deadline and current time for safety
 const int NumChannelsPng = 4;
+const int LongTaskImageSizeThreshold = 1000 * 1000; // The max image size we expect to encode in 14ms on Linux in PNG format
 
 bool isDeadlineNearOrPassed(double deadlineSeconds)
 {
@@ -67,14 +69,14 @@ private:
     CanvasAsyncBlobCreator* m_asyncBlobCreator;
 };
 
-PassRefPtr<CanvasAsyncBlobCreator> CanvasAsyncBlobCreator::create(PassRefPtr<DOMUint8ClampedArray> unpremultipliedRGBAImageData, const String& mimeType, const IntSize& size, FileCallback* callback, ExecutionContext* executionContext)
+PassRefPtr<CanvasAsyncBlobCreator> CanvasAsyncBlobCreator::create(PassRefPtr<DOMUint8ClampedArray> unpremultipliedRGBAImageData, const String& mimeType, const IntSize& size, BlobCallback* callback, ExecutionContext* executionContext)
 {
     RefPtr<CanvasAsyncBlobCreator> asyncBlobCreator = adoptRef(new CanvasAsyncBlobCreator(unpremultipliedRGBAImageData, mimeType, size, callback));
     asyncBlobCreator->createContextObserver(executionContext);
     return asyncBlobCreator.release();
 }
 
-CanvasAsyncBlobCreator::CanvasAsyncBlobCreator(PassRefPtr<DOMUint8ClampedArray> data, const String& mimeType, const IntSize& size, FileCallback* callback)
+CanvasAsyncBlobCreator::CanvasAsyncBlobCreator(PassRefPtr<DOMUint8ClampedArray> data, const String& mimeType, const IntSize& size, BlobCallback* callback)
     : m_cancelled(false)
     , m_data(data)
     , m_size(size)
@@ -110,7 +112,8 @@ void CanvasAsyncBlobCreator::scheduleAsyncBlobCreation(bool canUseIdlePeriodSche
         ASSERT(m_mimeType == "image/png");
         Platform::current()->mainThread()->scheduler()->postIdleTask(BLINK_FROM_HERE, WTF::bind<double>(&CanvasAsyncBlobCreator::initiatePngEncoding, this));
     } else {
-        getToBlobThreadInstance()->taskRunner()->postTask(BLINK_FROM_HERE, new Task(threadSafeBind(&CanvasAsyncBlobCreator::encodeImageOnEncoderThread, AllowCrossThreadAccess(this), quality)));
+        BackgroundTaskRunner::TaskSize taskSize = (m_size.height() * m_size.width() >= LongTaskImageSizeThreshold) ? BackgroundTaskRunner::TaskSizeLongRunningTask : BackgroundTaskRunner::TaskSizeShortRunningTask;
+        BackgroundTaskRunner::postOnBackgroundThread(BLINK_FROM_HERE, threadSafeBind(&CanvasAsyncBlobCreator::encodeImageOnEncoderThread, AllowCrossThreadAccess(this), quality), taskSize);
     }
 }
 
@@ -118,7 +121,7 @@ void CanvasAsyncBlobCreator::initiatePngEncoding(double deadlineSeconds)
 {
     m_encoderState = PNGImageEncoderState::create(m_size, m_encodedImage.get());
     if (!m_encoderState) {
-        Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&FileCallback::handleEvent, m_callback, nullptr));
+        Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&BlobCallback::handleEvent, m_callback, nullptr));
         m_selfRef.clear();
         return;
     }
@@ -155,8 +158,8 @@ void CanvasAsyncBlobCreator::idleEncodeRowsPng(double deadlineSeconds)
 
 void CanvasAsyncBlobCreator::createBlobAndCall()
 {
-    File* resultBlob = File::create(m_encodedImage->data(), m_encodedImage->size(), m_mimeType);
-    Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&FileCallback::handleEvent, m_callback, resultBlob));
+    Blob* resultBlob = Blob::create(m_encodedImage->data(), m_encodedImage->size(), m_mimeType);
+    Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&BlobCallback::handleEvent, m_callback, resultBlob));
     clearSelfReference(); // self-destruct once job is done.
 }
 
@@ -225,15 +228,6 @@ void CanvasAsyncBlobCreator::progressiveEncodeImageOnEncoderThread()
     scheduleCreateBlobAndCallOnMainThread();
 }
 
-WebThread* CanvasAsyncBlobCreator::getToBlobThreadInstance()
-{
-    DEFINE_STATIC_LOCAL(OwnPtr<WebThread>, s_toBlobThread, ());
-    if (!s_toBlobThread) {
-        s_toBlobThread = adoptPtr(Platform::current()->createThread("Async toBlob"));
-    }
-    return s_toBlobThread.get();
-}
-
 void CanvasAsyncBlobCreator::createContextObserver(ExecutionContext* executionContext)
 {
     m_contextObserver = adoptPtrWillBeNoop(new ContextObserver(executionContext, this));
@@ -259,7 +253,7 @@ void CanvasAsyncBlobCreator::scheduleCreateBlobAndCallOnMainThread()
 
 void CanvasAsyncBlobCreator::scheduleCreateNullptrAndCallOnMainThread()
 {
-    Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&FileCallback::handleEvent, m_callback, nullptr));
+    Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&BlobCallback::handleEvent, m_callback, nullptr));
     Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, threadSafeBind(&CanvasAsyncBlobCreator::clearSelfReference, AllowCrossThreadAccess(this)));
 }
 

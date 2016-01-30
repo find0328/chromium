@@ -58,7 +58,7 @@
 #include "grit/theme_resources.h"
 #include "ui/accessibility/ax_view_state.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/theme_provider.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/compositor/layer.h"
@@ -327,6 +327,17 @@ views::View* ToolbarView::GetTranslateBubbleAnchor() {
   return (translate_icon_view && translate_icon_view->visible())
              ? translate_icon_view
              : app_menu_button_;
+}
+
+void ToolbarView::OnBubbleCreatedForAnchor(views::View* anchor_view,
+                                           views::Widget* bubble_widget) {
+  if (bubble_widget &&
+      (anchor_view == location_bar()->star_view() ||
+       anchor_view == location_bar()->save_credit_card_icon_view() ||
+       anchor_view == location_bar()->translate_icon_view())) {
+    DCHECK(anchor_view);
+    bubble_widget->AddObserver(static_cast<BubbleIconView*>(anchor_view));
+  }
 }
 
 void ToolbarView::ExecuteExtensionCommand(

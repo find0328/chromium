@@ -85,18 +85,32 @@ void CalculateVisibleRects(const std::vector<LayerType*>& visible_layer_list,
       // necessarily have the same target (the root).
       if (clip_node->data.target_id != target_node->id &&
           non_root_surfaces_enabled) {
-        // In this case, layer has a clip parent (or shares the target with an
-        // ancestor layer that has clip parent) and the clip parent's target is
-        // different from the layer's target. As the layer's target has
-        // unclippped descendants, it is unclippped.
+        // In this case, layer has a clip parent or scroll parent (or shares the
+        // target with an ancestor layer that has clip parent) and the clip
+        // parent's target is different from the layer's target. As the layer's
+        // target has unclippped descendants, it is unclippped.
         if (!clip_node->data.layers_are_clipped) {
           layer->set_visible_rect_from_property_trees(gfx::Rect(layer_bounds));
           layer->set_clip_rect_in_target_space_from_property_trees(gfx::Rect());
           continue;
         }
         gfx::Transform clip_to_target;
-        success = transform_tree.ComputeTransform(
-            clip_node->data.target_id, target_node->id, &clip_to_target);
+        if (clip_node->data.target_id > target_node->id) {
+          // In this case, layer has a scroll parent. We need to keep the scale
+          // at the layer's target but remove the scale at the scroll parent's
+          // target.
+          success = transform_tree.ComputeTransformWithDestinationSublayerScale(
+              clip_node->data.target_id, target_node->id, &clip_to_target);
+          const TransformNode* source_node =
+              transform_tree.Node(clip_node->data.target_id);
+          if (source_node->data.sublayer_scale.x() != 0.f &&
+              source_node->data.sublayer_scale.y() != 0.f)
+            clip_to_target.Scale(1.0f / source_node->data.sublayer_scale.x(),
+                                 1.0f / source_node->data.sublayer_scale.y());
+        } else {
+          success = transform_tree.ComputeTransform(
+              clip_node->data.target_id, target_node->id, &clip_to_target);
+        }
         if (!success) {
           // An animated singular transform may become non-singular during the
           // animation, so we still need to compute a visible rect. In this
@@ -105,19 +119,28 @@ void CalculateVisibleRects(const std::vector<LayerType*>& visible_layer_list,
           layer->set_clip_rect_in_target_space_from_property_trees(gfx::Rect());
           continue;
         }
-        DCHECK_LT(clip_node->data.target_id, target_node->id);
         // We use the clip node's clip_in_target_space (and not
         // combined_clip_in_target_space) here because we want to clip
         // with respect to clip parent's local clip and not its combined clip as
         // the combined clip has even the clip parent's target's clip baked into
         // it and as our target is different, we don't want to use it in our
         // visible rect computation.
-        combined_clip_rect_in_target_space =
-            gfx::ToEnclosingRect(MathUtil::ProjectClippedRect(
-                clip_to_target, clip_node->data.clip_in_target_space));
-        clip_rect_in_target_space =
-            gfx::ToEnclosingRect(MathUtil::ProjectClippedRect(
-                clip_to_target, clip_node->data.clip_in_target_space));
+        if (clip_node->data.target_id < target_node->id) {
+          combined_clip_rect_in_target_space =
+              gfx::ToEnclosingRect(MathUtil::ProjectClippedRect(
+                  clip_to_target, clip_node->data.clip_in_target_space));
+          clip_rect_in_target_space =
+              gfx::ToEnclosingRect(MathUtil::ProjectClippedRect(
+                  clip_to_target, clip_node->data.clip_in_target_space));
+        } else {
+          combined_clip_rect_in_target_space =
+              gfx::ToEnclosingRect(MathUtil::MapClippedRect(
+                  clip_to_target, clip_node->data.clip_in_target_space));
+          clip_rect_in_target_space =
+              gfx::ToEnclosingRect(MathUtil::MapClippedRect(
+                  clip_to_target, clip_node->data.clip_in_target_space));
+        }
+
       } else {
         clip_rect_in_target_space =
             gfx::ToEnclosingRect(clip_node->data.clip_in_target_space);
@@ -204,20 +227,6 @@ void CalculateVisibleRects(const std::vector<LayerType*>& visible_layer_list,
 }
 
 template <typename LayerType>
-static bool IsRootLayerOfNewRenderingContext(LayerType* layer) {
-  if (layer->parent())
-    return !layer->parent()->Is3dSorted() && layer->Is3dSorted();
-  return layer->Is3dSorted();
-}
-
-template <typename LayerType>
-static inline bool LayerIsInExisting3DRenderingContext(LayerType* layer) {
-  return layer->Is3dSorted() && layer->parent() &&
-         layer->parent()->Is3dSorted() &&
-         layer->parent()->sorting_context_id() == layer->sorting_context_id();
-}
-
-template <typename LayerType>
 static bool TransformToScreenIsKnown(LayerType* layer,
                                      const TransformTree& tree) {
   const TransformNode* node = tree.Node(layer->transform_tree_index());
@@ -242,8 +251,17 @@ static bool IsLayerBackFaceVisible(LayerType* layer,
   // rendering context" or not. For Chromium code, we can determine whether we
   // are in a 3d rendering context by checking if the parent preserves 3d.
 
-  if (LayerIsInExisting3DRenderingContext(layer))
+  const TransformNode* node = tree.Node(layer->transform_tree_index());
+  const TransformNode* parent_node = tree.parent(node);
+  const bool is_3d_sorted = (node->data.sorting_context_id != 0);
+  const bool no_transfrom_node_created = (layer->id() != node->owner_id);
+  const bool parent_also_in_same_rendering_context =
+      parent_node &&
+      parent_node->data.sorting_context_id == node->data.sorting_context_id;
+  if (is_3d_sorted &&
+      (no_transfrom_node_created || parent_also_in_same_rendering_context)) {
     return DrawTransformFromPropertyTrees(layer, tree).IsBackFaceVisible();
+  }
 
   // In this case, either the layer establishes a new 3d rendering context, or
   // is not in a 3d rendering context at all.
@@ -255,8 +273,16 @@ static bool IsSurfaceBackFaceVisible(LayerType* layer,
                                      const TransformTree& tree) {
   if (HasSingularTransform(layer, tree))
     return false;
-  if (LayerIsInExisting3DRenderingContext(layer)) {
-    const TransformNode* node = tree.Node(layer->transform_tree_index());
+  const TransformNode* node = tree.Node(layer->transform_tree_index());
+  // If the render_surface is not part of a new or existing rendering context,
+  // then the layers that contribute to this surface will decide back-face
+  // visibility for themselves.
+  if (!node->data.sorting_context_id)
+    return false;
+
+  const TransformNode* parent_node = tree.parent(node);
+  if (parent_node &&
+      parent_node->data.sorting_context_id == node->data.sorting_context_id) {
     // Draw transform as a contributing render surface.
     // TODO(enne): we shouldn't walk the tree during a tree walk.
     gfx::Transform surface_draw_transform;
@@ -265,13 +291,9 @@ static bool IsSurfaceBackFaceVisible(LayerType* layer,
     return surface_draw_transform.IsBackFaceVisible();
   }
 
-  if (IsRootLayerOfNewRenderingContext(layer))
-    return layer->transform().IsBackFaceVisible();
-
-  // If the render_surface is not part of a new or existing rendering context,
-  // then the layers that contribute to this surface will decide back-face
-  // visibility for themselves.
-  return false;
+  // We use layer's transform to determine back face visibility when its the
+  // root of a new rendering context.
+  return layer->transform().IsBackFaceVisible();
 }
 
 template <typename LayerType>
@@ -312,13 +334,13 @@ static inline bool SubtreeShouldBeSkipped(LayerImpl* layer,
   if (layer->num_copy_requests_in_target_subtree() > 0)
     return false;
 
-  // We cannot skip the the subtree if a descendant has a wheel or touch handler
+  // We cannot skip the the subtree if a descendant has a touch handler
   // or the hit testing code will break (it requires fresh transforms, etc).
   // Though we don't need visible rect for hit testing, we need render surface's
   // drawable content rect which depends on layer's drawable content rect which
   // in turn depends on layer's clip rect that is computed while computing
   // visible rects.
-  if (layer->layer_or_descendant_has_input_handler())
+  if (layer->layer_or_descendant_has_touch_handler())
     return false;
 
   // If the layer is not drawn, then skip it and its subtree.
@@ -344,7 +366,7 @@ static inline bool SubtreeShouldBeSkipped(LayerImpl* layer,
   // The opacity of a layer always applies to its children (either implicitly
   // via a render surface or explicitly if the parent preserves 3D), so the
   // entire subtree can be skipped if this layer is fully transparent.
-  return !layer->opacity();
+  return !layer->EffectiveOpacity();
 }
 
 static inline bool SubtreeShouldBeSkipped(Layer* layer,
@@ -380,7 +402,8 @@ static inline bool SubtreeShouldBeSkipped(Layer* layer,
   // In particular, it should not cause the subtree to be skipped.
   // Similarly, for layers that might animate opacity using an impl-only
   // animation, their subtree should also not be skipped.
-  return !layer->opacity() && !layer->HasPotentiallyRunningOpacityAnimation() &&
+  return !layer->EffectiveOpacity() &&
+         !layer->HasPotentiallyRunningOpacityAnimation() &&
          !layer->OpacityCanAnimateOnImplThread();
 }
 
@@ -430,18 +453,19 @@ static bool LayerShouldBeSkipped(LayerType* layer,
 template <typename LayerType>
 void FindLayersThatNeedUpdates(
     LayerType* layer,
-    const TransformTree& tree,
-    bool subtree_is_visible_from_ancestor,
+    const TransformTree& transform_tree,
+    const EffectTree& effect_tree,
     typename LayerType::LayerListType* update_layer_list,
     std::vector<LayerType*>* visible_layer_list) {
+  DCHECK_GE(layer->effect_tree_index(), 0);
   bool layer_is_drawn =
-      layer->HasCopyRequest() ||
-      (subtree_is_visible_from_ancestor && !layer->hide_layer_and_subtree());
+      effect_tree.Node(layer->effect_tree_index())->data.is_drawn;
 
-  if (layer->parent() && SubtreeShouldBeSkipped(layer, layer_is_drawn, tree))
+  if (layer->parent() &&
+      SubtreeShouldBeSkipped(layer, layer_is_drawn, transform_tree))
     return;
 
-  if (!LayerShouldBeSkipped(layer, layer_is_drawn, tree)) {
+  if (!LayerShouldBeSkipped(layer, layer_is_drawn, transform_tree)) {
     visible_layer_list->push_back(layer);
     update_layer_list->push_back(layer);
   }
@@ -457,7 +481,7 @@ void FindLayersThatNeedUpdates(
   }
 
   for (size_t i = 0; i < layer->children().size(); ++i) {
-    FindLayersThatNeedUpdates(layer->child_at(i), tree, layer_is_drawn,
+    FindLayersThatNeedUpdates(layer->child_at(i), transform_tree, effect_tree,
                               update_layer_list, visible_layer_list);
   }
 }
@@ -679,9 +703,8 @@ static void ComputeVisibleRectsUsingPropertyTreesInternal(
                can_render_to_separate_surface);
   ComputeEffects(&property_trees->effect_tree);
 
-  const bool subtree_is_visible_from_ancestor = true;
   FindLayersThatNeedUpdates(root_layer, property_trees->transform_tree,
-                            subtree_is_visible_from_ancestor, update_layer_list,
+                            property_trees->effect_tree, update_layer_list,
                             visible_layer_list);
   CalculateVisibleRects<LayerType>(
       *visible_layer_list, property_trees->clip_tree,
@@ -915,15 +938,13 @@ static float LayerDrawOpacity(const LayerImpl* layer, const EffectTree& tree) {
 
 static float SurfaceDrawOpacity(RenderSurfaceImpl* render_surface,
                                 const EffectTree& tree) {
+  // Draw opacity of a surface is the product of opacities between the surface
+  // (included) and its target surface (excluded).
   const EffectNode* node = tree.Node(render_surface->EffectTreeIndex());
-  float target_opacity_tree_index = render_surface->TargetEffectTreeIndex();
-  if (target_opacity_tree_index < 0)
-    return node->data.screen_space_opacity;
-  const EffectNode* target_node = tree.Node(target_opacity_tree_index);
-  float draw_opacity = 1.f;
-  while (node != target_node) {
+  float draw_opacity = node->data.opacity;
+  for (node = tree.parent(node); node && !node->data.has_render_surface;
+       node = tree.parent(node)) {
     draw_opacity *= node->data.opacity;
-    node = tree.parent(node);
   }
   return draw_opacity;
 }

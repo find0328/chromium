@@ -143,6 +143,10 @@ public class ImeAdapter {
         if (mTextInputType == TextInputType.NONE) {
             mInputConnection = null;
             Log.d(TAG, "onCreateInputConnection returns null.");
+            // InputMethodService evaluates fullscreen mode even when the new input connection is
+            // null. This makes sure IME doesn't enter fullscreen mode or open custom UI.
+            outAttrs.imeOptions =
+                    EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
             return null;
         }
 
@@ -450,30 +454,27 @@ public class ImeAdapter {
                 flags));
     }
 
-    boolean commitText(CharSequence text) {
+    boolean sendCompositionToNative(CharSequence text, int newCursorPosition, boolean isCommit) {
         if (mNativeImeAdapterAndroid == 0) return false;
-        mViewEmbedder.onImeEvent();
 
+        // One WebView app detects Enter in JS by looking at KeyDown (http://crbug/577967).
+        if (text.equals("\n")) {
+            sendSyntheticKeyPress(KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.FLAG_SOFT_KEYBOARD | KeyEvent.FLAG_KEEP_TOUCH_MODE);
+            return true;
+        }
+
+        mViewEmbedder.onImeEvent();
         long timestampMs = SystemClock.uptimeMillis();
         nativeSendSyntheticKeyEvent(mNativeImeAdapterAndroid, WebInputEventType.RawKeyDown,
                 timestampMs, COMPOSITION_KEY_CODE, 0, 0);
 
-        nativeCommitText(mNativeImeAdapterAndroid, text.toString());
-
-        nativeSendSyntheticKeyEvent(mNativeImeAdapterAndroid, WebInputEventType.KeyUp, timestampMs,
-                COMPOSITION_KEY_CODE, 0, 0);
-        return true;
-    }
-
-    boolean setComposingText(CharSequence text, int newCursorPosition) {
-        if (mNativeImeAdapterAndroid == 0) return false;
-        mViewEmbedder.onImeEvent();
-
-        long timestampMs = SystemClock.uptimeMillis();
-        nativeSendSyntheticKeyEvent(mNativeImeAdapterAndroid, WebInputEventType.RawKeyDown,
-                timestampMs, COMPOSITION_KEY_CODE, 0, 0);
-
-        nativeSetComposingText(mNativeImeAdapterAndroid, text, text.toString(), newCursorPosition);
+        if (isCommit) {
+            nativeCommitText(mNativeImeAdapterAndroid, text.toString());
+        } else {
+            nativeSetComposingText(
+                    mNativeImeAdapterAndroid, text, text.toString(), newCursorPosition);
+        }
 
         nativeSendSyntheticKeyEvent(mNativeImeAdapterAndroid, WebInputEventType.KeyUp,
                 timestampMs, COMPOSITION_KEY_CODE, 0, 0);

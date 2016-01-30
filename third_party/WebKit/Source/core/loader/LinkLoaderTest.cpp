@@ -4,6 +4,7 @@
 
 #include "core/loader/LinkLoader.h"
 
+#include "core/fetch/MemoryCache.h"
 #include "core/fetch/ResourceFetcher.h"
 #include "core/frame/Settings.h"
 #include "core/html/LinkRelAttribute.h"
@@ -17,12 +18,15 @@
 
 namespace blink {
 
-class MockLinkLoaderClient : public LinkLoaderClient {
+class MockLinkLoaderClient final : public NoBaseWillBeGarbageCollectedFinalized<MockLinkLoaderClient>, public LinkLoaderClient {
+    WILL_BE_USING_GARBAGE_COLLECTED_MIXIN(MockLinkLoaderClient);
 public:
-    MockLinkLoaderClient(bool shouldLoad)
-        : m_shouldLoad(shouldLoad)
+    static PassOwnPtrWillBeRawPtr<MockLinkLoaderClient> create(bool shouldLoad)
     {
+        return adoptPtrWillBeNoop(new MockLinkLoaderClient(shouldLoad));
     }
+
+    DEFINE_INLINE_VIRTUAL_TRACE() { LinkLoaderClient::trace(visitor); }
 
     bool shouldLoadLink() override
     {
@@ -37,6 +41,11 @@ public:
     void didSendDOMContentLoadedForLinkPrerender() override {}
 
 private:
+    explicit MockLinkLoaderClient(bool shouldLoad)
+        : m_shouldLoad(shouldLoad)
+    {
+    }
+
     bool m_shouldLoad;
 };
 
@@ -101,8 +110,8 @@ TEST(LinkLoaderTest, Preload)
     for (const auto& testCase : cases) {
         OwnPtr<DummyPageHolder> dummyPageHolder = DummyPageHolder::create(IntSize(500, 500));
         dummyPageHolder->frame().settings()->setScriptEnabled(true);
-        MockLinkLoaderClient loaderClient(testCase.shouldLoad);
-        OwnPtrWillBeRawPtr<LinkLoader> loader = LinkLoader::create(&loaderClient);
+        OwnPtrWillBePersistent<MockLinkLoaderClient> loaderClient = MockLinkLoaderClient::create(testCase.shouldLoad);
+        OwnPtrWillBeRawPtr<LinkLoader> loader = LinkLoader::create(loaderClient.get());
         KURL hrefURL = KURL(KURL(), testCase.href);
         loader->loadLink(LinkRelAttribute("preload"),
             CrossOriginAttributeNotSet,
@@ -127,7 +136,9 @@ TEST(LinkLoaderTest, Preload)
                     ASSERT_STREQ(testCase.accept, resource->accept().string().ascii().data());
                 }
             }
+            dummyPageHolder->document().fetcher()->clearPreloads();
         }
+        memoryCache()->evictResources();
     }
 }
 
@@ -148,8 +159,8 @@ TEST(LinkLoaderTest, DNSPrefetch)
     for (const auto& testCase : cases) {
         OwnPtr<DummyPageHolder> dummyPageHolder = DummyPageHolder::create(IntSize(500, 500));
         dummyPageHolder->document().settings()->setDNSPrefetchingEnabled(true);
-        MockLinkLoaderClient loaderClient(testCase.shouldLoad);
-        OwnPtrWillBeRawPtr<LinkLoader> loader = LinkLoader::create(&loaderClient);
+        OwnPtrWillBePersistent<MockLinkLoaderClient> loaderClient = MockLinkLoaderClient::create(testCase.shouldLoad);
+        OwnPtrWillBeRawPtr<LinkLoader> loader = LinkLoader::create(loaderClient.get());
         KURL hrefURL = KURL(KURL(ParsedURLStringTag(), String("http://example.com")), testCase.href);
         NetworkHintsMock networkHints;
         loader->loadLink(LinkRelAttribute("dns-prefetch"),
@@ -182,8 +193,8 @@ TEST(LinkLoaderTest, Preconnect)
     // Test the cases with a single header
     for (const auto& testCase : cases) {
         OwnPtr<DummyPageHolder> dummyPageHolder = DummyPageHolder::create(IntSize(500, 500));
-        MockLinkLoaderClient loaderClient(testCase.shouldLoad);
-        OwnPtrWillBeRawPtr<LinkLoader> loader = LinkLoader::create(&loaderClient);
+        OwnPtrWillBePersistent<MockLinkLoaderClient> loaderClient = MockLinkLoaderClient::create(testCase.shouldLoad);
+        OwnPtrWillBeRawPtr<LinkLoader> loader = LinkLoader::create(loaderClient.get());
         KURL hrefURL = KURL(KURL(ParsedURLStringTag(), String("http://example.com")), testCase.href);
         NetworkHintsMock networkHints;
         loader->loadLink(LinkRelAttribute("preconnect"),

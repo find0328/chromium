@@ -33,7 +33,6 @@
 #include "core/animation/ElementAnimations.h"
 #include "core/animation/InterpolationEnvironment.h"
 #include "core/animation/InvalidatableInterpolation.h"
-#include "core/animation/SVGInterpolation.h"
 #include "core/css/CSSCursorImageValue.h"
 #include "core/css/resolver/StyleResolver.h"
 #include "core/dom/Document.h"
@@ -53,7 +52,6 @@
 #include "core/svg/SVGTitleElement.h"
 #include "core/svg/SVGUseElement.h"
 #include "core/svg/properties/SVGProperty.h"
-#include "platform/JSONValues.h"
 #include "wtf/TemporaryChange.h"
 #include "wtf/Threading.h"
 
@@ -189,23 +187,9 @@ bool SVGElement::isOutermostSVGSVGElement() const
 
 void SVGElement::reportAttributeParsingError(SVGParsingError error, const QualifiedName& name, const AtomicString& value)
 {
-    if (error == NoError)
+    if (error == SVGParseStatus::NoError)
         return;
-
-    String errorString = "<" + tagName() + "> attribute " + name.toString() + "=" + JSONValue::quoteString(value);
-    SVGDocumentExtensions& extensions = document().accessSVGExtensions();
-
-    if (error == NegativeValueForbiddenError) {
-        extensions.reportError("Invalid negative value for " + errorString);
-        return;
-    }
-
-    if (error == ParsingAttributeFailedError) {
-        extensions.reportError("Invalid value for " + errorString);
-        return;
-    }
-
-    ASSERT_NOT_REACHED();
+    document().accessSVGExtensions().reportError(error.format(tagName(), name, value));
 }
 
 String SVGElement::title() const
@@ -260,14 +244,8 @@ void SVGElement::applyActiveWebAnimations()
         &elementAnimations()->animationStack(), nullptr, nullptr, KeyframeEffect::DefaultPriority, isSVGAttributeHandle);
     for (auto& entry : activeInterpolationsMap) {
         const QualifiedName& attribute = entry.key.svgAttribute();
-        const Interpolation& interpolation = *entry.value.first();
-        if (interpolation.isInvalidatableInterpolation()) {
-            InterpolationEnvironment environment(*this, propertyFromAttribute(attribute)->baseValueBase());
-            InvalidatableInterpolation::applyStack(entry.value, environment);
-        } else {
-            // TODO(alancutter): Remove this old code path once animations have completely migrated to InterpolationTypes.
-            toSVGInterpolation(interpolation).apply(*this);
-        }
+        InterpolationEnvironment environment(*this, propertyFromAttribute(attribute)->baseValueBase());
+        InvalidatableInterpolation::applyStack(entry.value, environment);
     }
     svgRareData()->setWebAnimatedAttributesDirty(false);
 }

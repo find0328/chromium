@@ -1327,9 +1327,9 @@ void RenderFrameHostImpl::OnContextMenu(const ContextMenuParams& params) {
   // It is necessary to transform the coordinates to account for nested
   // RenderWidgetHosts, such as with out-of-process iframes.
   gfx::Point original_point(validated_params.x, validated_params.y);
-  gfx::Point transformed_point = original_point;
-  static_cast<RenderWidgetHostViewBase*>(GetView())
-      ->TransformPointToRootCoordSpace(original_point, &transformed_point);
+  gfx::Point transformed_point =
+      static_cast<RenderWidgetHostViewBase*>(GetView())
+          ->TransformPointToRootCoordSpace(original_point);
   validated_params.x = transformed_point.x();
   validated_params.y = transformed_point.y();
 
@@ -1684,7 +1684,7 @@ void RenderFrameHostImpl::OnToggleFullscreen(bool enter_fullscreen) {
   if (enter_fullscreen)
     delegate_->EnterFullscreenMode(GetLastCommittedURL().GetOrigin());
   else
-    delegate_->ExitFullscreenMode();
+    delegate_->ExitFullscreenMode(/* will_cause_resize */ true);
 
   // The previous call might change the fullscreen state. We need to make sure
   // the renderer is aware of that, which is done via the resize message.
@@ -2350,6 +2350,17 @@ void RenderFrameHostImpl::DidCancelPopupMenu() {
 }
 
 #elif defined(OS_ANDROID)
+
+void RenderFrameHostImpl::ActivateNearestFindResult(int request_id,
+                                                    float x,
+                                                    float y) {
+  Send(
+      new InputMsg_ActivateNearestFindResult(GetRoutingID(), request_id, x, y));
+}
+
+void RenderFrameHostImpl::RequestFindMatchRects(int current_version) {
+  Send(new FrameMsg_FindMatchRects(GetRoutingID(), current_version));
+}
 
 void RenderFrameHostImpl::DidSelectPopupMenuItems(
     const std::vector<int>& selected_indices) {

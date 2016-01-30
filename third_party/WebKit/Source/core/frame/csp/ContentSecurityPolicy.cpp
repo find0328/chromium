@@ -463,6 +463,17 @@ bool ContentSecurityPolicy::allowEval(ScriptState* scriptState, ContentSecurityP
     return isAllowedByAllWithStateAndExceptionStatus<&CSPDirectiveList::allowEval>(m_policies, scriptState, reportingStatus, exceptionStatus);
 }
 
+bool ContentSecurityPolicy::allowDynamic() const
+{
+    if (!experimentalFeaturesEnabled())
+        return false;
+    for (const auto& policy : m_policies) {
+        if (!policy->allowDynamic())
+            return false;
+    }
+    return true;
+}
+
 String ContentSecurityPolicy::evalDisabledErrorMessage() const
 {
     for (const auto& policy : m_policies) {
@@ -709,7 +720,7 @@ static void gatherSecurityPolicyViolationEventData(SecurityPolicyViolationEventI
     if (!SecurityOrigin::isSecure(document->url()) && document->loader())
         init.setStatusCode(document->loader()->response().httpStatusCode());
 
-    RefPtrWillBeRawPtr<ScriptCallStack> stack = currentScriptCallStack(1);
+    RefPtr<ScriptCallStack> stack = currentScriptCallStack(1);
     if (!stack || !stack->size())
         return;
 

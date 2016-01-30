@@ -888,11 +888,11 @@ bool CanvasRenderingContext2D::draw(const DrawFunc& drawFunc, const ContainsFunc
             return false;
     }
 
-    if (isFullCanvasCompositeMode(state().globalComposite()) || state().hasFilter()) {
+    if (isFullCanvasCompositeMode(state().globalComposite()) || state().hasFilter(canvas(), accessFont(), canvas()->size())) {
         compositedDraw(drawFunc, drawingCanvas(), paintType, imageType);
         didDraw(clipBounds);
     } else if (state().globalComposite() == SkXfermode::kSrc_Mode) {
-        clearCanvas(); // takes care of checkOvewrdraw()
+        clearCanvas(); // takes care of checkOverdraw()
         const SkPaint* paint = state().getPaint(paintType, DrawForegroundOnly, imageType);
         drawFunc(drawingCanvas(), paint);
         didDraw(clipBounds);
@@ -1162,7 +1162,7 @@ void CanvasRenderingContext2D::scrollPathIntoViewInternal(const Path& path)
     // Offset by the canvas rect
     LayoutRect pathRect(boundingRect);
     IntRect canvasRect = layoutBox->absoluteContentBox();
-    pathRect.move(canvasRect.x(), canvasRect.y());
+    pathRect.moveBy(canvasRect.location());
 
     renderer->scrollRectToVisible(
         pathRect, ScrollAlignment::alignCenterAlways, ScrollAlignment::alignTopAlways);
@@ -2218,11 +2218,9 @@ void CanvasRenderingContext2D::addHitRegion(const HitRegionOptions& options, Exc
     hitRegionPath.transform(state().transform());
 
     if (state().hasClip()) {
-        // FIXME: The hit regions should take clipping region into account.
-        // However, we have no way to get the region from canvas state stack by now.
-        // See http://crbug.com/387057
-        exceptionState.throwDOMException(NotSupportedError, "The specified path has no pixels.");
-        return;
+        hitRegionPath = state().intersectPathWithClip(hitRegionPath.skPath());
+        if (hitRegionPath.isEmpty())
+            exceptionState.throwDOMException(NotSupportedError, "The specified path has no pixels.");
     }
 
     if (!m_hitRegionManager)

@@ -68,11 +68,11 @@ void RecordDeliveryStatus(content::PushDeliveryStatus status) {
 blink::WebPushPermissionStatus ToPushPermission(
     content::PermissionStatus permission_status) {
   switch (permission_status) {
-    case content::PERMISSION_STATUS_GRANTED:
+    case content::PermissionStatus::GRANTED:
       return blink::WebPushPermissionStatusGranted;
-    case content::PERMISSION_STATUS_DENIED:
+    case content::PermissionStatus::DENIED:
       return blink::WebPushPermissionStatusDenied;
-    case content::PERMISSION_STATUS_ASK:
+    case content::PermissionStatus::ASK:
       return blink::WebPushPermissionStatusPrompt;
     default:
       NOTREACHED();
@@ -217,14 +217,16 @@ void PushMessagingServiceImpl::OnMessage(const std::string& app_id,
       g_browser_process->rappor_service(),
       "PushMessaging.MessageReceived.Origin", app_identifier.origin());
 
-  std::string data;
+  // The payload of a push message can be valid with content, valid with empty
+  // content, or null. Only set the payload data if it is non-null.
+  content::PushEventPayload payload;
   if (AreMessagePayloadsEnabled() && message.decrypted)
-    data = message.raw_data;
+    payload.setData(message.raw_data);
 
   // Dispatch the message to the appropriate Service Worker.
   content::BrowserContext::DeliverPushMessage(
       profile_, app_identifier.origin(),
-      app_identifier.service_worker_registration_id(), data,
+      app_identifier.service_worker_registration_id(), payload,
       base::Bind(&PushMessagingServiceImpl::DeliverMessageCallback,
                  weak_factory_.GetWeakPtr(), app_identifier.app_id(),
                  app_identifier.origin(),
@@ -235,7 +237,7 @@ void PushMessagingServiceImpl::OnMessage(const std::string& app_id,
   if (!message_dispatched_callback_for_testing_.is_null()) {
     message_dispatched_callback_for_testing_.Run(
         app_id, app_identifier.origin(),
-        app_identifier.service_worker_registration_id(), data);
+        app_identifier.service_worker_registration_id(), payload);
   }
 }
 
@@ -314,8 +316,8 @@ void PushMessagingServiceImpl::SetMessageCallbackForTesting(
 // Other gcm::GCMAppHandler methods --------------------------------------------
 
 void PushMessagingServiceImpl::OnMessagesDeleted(const std::string& app_id) {
-  // TODO(mvanouwerkerk): Fire push error event on the Service Worker
-  // corresponding to app_id.
+  // TODO(mvanouwerkerk): Consider firing an event on the Service Worker
+  // corresponding to |app_id| to inform the app about deleted messages.
 }
 
 void PushMessagingServiceImpl::OnSendError(
@@ -523,7 +525,7 @@ void PushMessagingServiceImpl::DidRequestPermission(
     const std::string& sender_id,
     const content::PushMessagingService::RegisterCallback& register_callback,
     content::PermissionStatus permission_status) {
-  if (permission_status != content::PERMISSION_STATUS_GRANTED) {
+  if (permission_status != content::PermissionStatus::GRANTED) {
     SubscribeEndWithError(register_callback,
                           content::PUSH_REGISTRATION_STATUS_PERMISSION_DENIED);
     return;

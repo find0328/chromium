@@ -101,7 +101,8 @@ struct SpdyNetworkTransactionTestParams {
 
 void UpdateSpdySessionDependencies(SpdyNetworkTransactionTestParams test_params,
                                    SpdySessionDependencies* session_deps) {
-  session_deps->use_alternative_services = true;
+  session_deps->parse_alternative_services = true;
+  session_deps->enable_alternative_service_with_different_host = true;
   session_deps->next_protos = SpdyNextProtos();
   if (test_params.ssl_type == HTTP_SPDY_VIA_ALT_SVC) {
     base::Time expiration = base::Time::Now() + base::TimeDelta::FromDays(1);
@@ -2539,7 +2540,7 @@ TEST_P(SpdyNetworkTransactionTest, ServerPushSingleDataFrame) {
 
   // Verify the pushed stream.
   EXPECT_TRUE(response2.headers.get() != NULL);
-  EXPECT_EQ("HTTP/1.1 200 OK", response2.headers->GetStatusLine());
+  EXPECT_EQ("HTTP/1.1 200", response2.headers->GetStatusLine());
 }
 
 TEST_P(SpdyNetworkTransactionTest, ServerPushBeforeSynReply) {
@@ -2582,7 +2583,7 @@ TEST_P(SpdyNetworkTransactionTest, ServerPushBeforeSynReply) {
 
   // Verify the pushed stream.
   EXPECT_TRUE(response2.headers.get() != NULL);
-  EXPECT_EQ("HTTP/1.1 200 OK", response2.headers->GetStatusLine());
+  EXPECT_EQ("HTTP/1.1 200", response2.headers->GetStatusLine());
 }
 
 TEST_P(SpdyNetworkTransactionTest, ServerPushSingleDataFrame2) {
@@ -2625,7 +2626,7 @@ TEST_P(SpdyNetworkTransactionTest, ServerPushSingleDataFrame2) {
 
   // Verify the pushed stream.
   EXPECT_TRUE(response2.headers.get() != NULL);
-  EXPECT_EQ("HTTP/1.1 200 OK", response2.headers->GetStatusLine());
+  EXPECT_EQ("HTTP/1.1 200", response2.headers->GetStatusLine());
 }
 
 TEST_P(SpdyNetworkTransactionTest, ServerPushServerAborted) {
@@ -2725,7 +2726,7 @@ TEST_P(SpdyNetworkTransactionTest, ServerPushDuplicate) {
 
   // Verify the pushed stream.
   EXPECT_TRUE(response2.headers.get() != NULL);
-  EXPECT_EQ("HTTP/1.1 200 OK", response2.headers->GetStatusLine());
+  EXPECT_EQ("HTTP/1.1 200", response2.headers->GetStatusLine());
 }
 
 TEST_P(SpdyNetworkTransactionTest, ServerPushMultipleDataFrame) {
@@ -2779,7 +2780,7 @@ TEST_P(SpdyNetworkTransactionTest, ServerPushMultipleDataFrame) {
 
   // Verify the pushed stream.
   EXPECT_TRUE(response2.headers.get() != NULL);
-  EXPECT_EQ("HTTP/1.1 200 OK", response2.headers->GetStatusLine());
+  EXPECT_EQ("HTTP/1.1 200", response2.headers->GetStatusLine());
 }
 
 TEST_P(SpdyNetworkTransactionTest, ServerPushMultipleDataFrameInterrupted) {
@@ -2832,7 +2833,7 @@ TEST_P(SpdyNetworkTransactionTest, ServerPushMultipleDataFrameInterrupted) {
 
   // Verify the pushed stream.
   EXPECT_TRUE(response2.headers.get() != NULL);
-  EXPECT_EQ("HTTP/1.1 200 OK", response2.headers->GetStatusLine());
+  EXPECT_EQ("HTTP/1.1 200", response2.headers->GetStatusLine());
 }
 
 TEST_P(SpdyNetworkTransactionTest, ServerPushInvalidAssociatedStreamID0) {
@@ -3067,7 +3068,7 @@ TEST_P(SpdyNetworkTransactionTest, SynReplyHeaders) {
 
     scoped_refptr<HttpResponseHeaders> headers = out.response_info.headers;
     EXPECT_TRUE(headers.get() != NULL);
-    void* iter = NULL;
+    size_t iter = 0;
     std::string name, value;
     SpdyHeaderBlock header_block;
     while (headers->EnumerateHeaderLines(&iter, &name, &value)) {
@@ -3180,7 +3181,7 @@ TEST_P(SpdyNetworkTransactionTest, SynReplyHeadersVary) {
     // Check the headers.
     scoped_refptr<HttpResponseHeaders> headers = out.response_info.headers;
     ASSERT_TRUE(headers.get() != NULL) << i;
-    void* iter = NULL;
+    size_t iter = 0;
     std::string name, value, lines;
     while (headers->EnumerateHeaderLines(&iter, &name, &value)) {
       lines.append(name);

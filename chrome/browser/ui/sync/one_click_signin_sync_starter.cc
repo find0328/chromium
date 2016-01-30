@@ -41,6 +41,7 @@
 #include "components/browser_sync/browser/profile_sync_service.h"
 #include "components/signin/core/browser/signin_manager.h"
 #include "components/signin/core/browser/signin_metrics.h"
+#include "components/signin/core/common/profile_management_switches.h"
 #include "components/sync_driver/sync_prefs.h"
 #include "content/public/browser/user_metrics.h"
 #include "net/base/url_util.h"
@@ -330,7 +331,8 @@ void OneClickSigninSyncStarter::CompleteInitForNewProfile(
       // the signin for the original profile was cancelled (must do this after
       // we have called Initialize() with the new profile, as otherwise this
       // object will get freed when the signin on the old profile is cancelled.
-      old_signin_manager->SignOut(signin_metrics::TRANSFER_CREDENTIALS);
+      old_signin_manager->SignOut(signin_metrics::TRANSFER_CREDENTIALS,
+                                  signin_metrics::SignoutDelete::IGNORE_METRIC);
 
       // Load policy for the just-created profile - once policy has finished
       // loading the signin process will complete.
@@ -357,8 +359,9 @@ void OneClickSigninSyncStarter::CompleteInitForNewProfile(
 #endif
 
 void OneClickSigninSyncStarter::CancelSigninAndDelete() {
-  SigninManagerFactory::GetForProfile(profile_)->SignOut(
-      signin_metrics::ABORT_SIGNIN);
+  SigninManagerFactory::GetForProfile(profile_)
+      ->SignOut(signin_metrics::ABORT_SIGNIN,
+                signin_metrics::SignoutDelete::IGNORE_METRIC);
   // The statement above results in a call to SigninFailed() which will free
   // this object, so do not refer to the OneClickSigninSyncStarter object
   // after this point.
@@ -409,18 +412,25 @@ void OneClickSigninSyncStarter::UntrustedSigninConfirmed(
 }
 
 void OneClickSigninSyncStarter::OnSyncConfirmationUIClosed(
-    bool configure_sync_first) {
-  if (configure_sync_first) {
-    content::RecordAction(
-        base::UserMetricsAction("Signin_Signin_WithAdvancedSyncSettings"));
-    chrome::ShowSettingsSubPage(browser_, chrome::kSyncSetupSubPage);
-  } else {
-    content::RecordAction(
-        base::UserMetricsAction("Signin_Signin_WithDefaultSyncSettings"));
-    ProfileSyncService* profile_sync_service = GetProfileSyncService();
-    if (profile_sync_service)
-      profile_sync_service->SetFirstSetupComplete();
-    FinishProfileSyncServiceSetup();
+    LoginUIService::SyncConfirmationUIClosedResults results) {
+  switch (results) {
+    case LoginUIService::CONFIGURE_SYNC_FIRST:
+      content::RecordAction(
+          base::UserMetricsAction("Signin_Signin_WithAdvancedSyncSettings"));
+      chrome::ShowSettingsSubPage(browser_, chrome::kSyncSetupSubPage);
+      break;
+    case LoginUIService::SYNC_WITH_DEFAULT_SETTINGS: {
+      content::RecordAction(
+          base::UserMetricsAction("Signin_Signin_WithDefaultSyncSettings"));
+      ProfileSyncService* profile_sync_service = GetProfileSyncService();
+      if (profile_sync_service)
+        profile_sync_service->SetFirstSetupComplete();
+      FinishProfileSyncServiceSetup();
+      break;
+    }
+    case LoginUIService::ABORT_SIGNIN:
+      FinishProfileSyncServiceSetup();
+      break;
   }
 
   delete this;
@@ -487,8 +497,12 @@ void OneClickSigninSyncStarter::AccountAddedToCookie(
       break;
     }
     case CONFIRM_SYNC_SETTINGS_FIRST:
-      // Blocks sync until the sync settings confirmation UI is closed.
-      DisplayFinalConfirmationBubble(base::string16());
+      if (switches::UsePasswordSeparatedSigninFlow()) {
+        DisplayModalSyncConfirmationWindow();
+      } else {
+        // Blocks sync until the sync settings confirmation UI is closed.
+        DisplayFinalConfirmationBubble(base::string16());
+      }
       return;
     case CONFIGURE_SYNC_FIRST:
       ShowSettingsPage(true);  // Show sync config UI.
@@ -515,6 +529,11 @@ void OneClickSigninSyncStarter::DisplayFinalConfirmationBubble(
   browser_ = EnsureBrowser(browser_, profile_, desktop_type_);
   LoginUIServiceFactory::GetForProfile(browser_->profile())->
       DisplayLoginResult(browser_, custom_message);
+}
+
+void OneClickSigninSyncStarter::DisplayModalSyncConfirmationWindow() {
+  browser_ = EnsureBrowser(browser_, profile_, desktop_type_);
+  browser_->window()->ShowModalSyncConfirmationWindow();
 }
 
 // static

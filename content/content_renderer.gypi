@@ -215,6 +215,7 @@
       'renderer/gpu/queue_message_swap_promise.h',
       'renderer/gpu/render_widget_compositor.cc',
       'renderer/gpu/render_widget_compositor.h',
+      'renderer/gpu/render_widget_compositor_delegate.h',
       'renderer/gpu/stream_texture_host_android.cc',
       'renderer/gpu/stream_texture_host_android.h',
       'renderer/history_controller.cc',
@@ -340,8 +341,6 @@
       'renderer/media/webmediaplayer_ms.h',
       'renderer/media/webmediaplayer_ms_compositor.cc',
       'renderer/media/webmediaplayer_ms_compositor.h',
-      'renderer/memory_benchmarking_extension.cc',
-      'renderer/memory_benchmarking_extension.h',
       'renderer/menu_item_builder.cc',
       'renderer/menu_item_builder.h',
       'renderer/mojo/service_registry_js_wrapper.cc',
@@ -801,11 +800,6 @@
       'sources!': [
         'renderer/webscrollbarbehavior_impl_mac.h',
         'renderer/webscrollbarbehavior_impl_mac.mm',
-      ],
-    }],
-    ['OS=="win" and win_use_allocator_shim==1', {
-      'dependencies': [
-          '../base/allocator/allocator.gyp:allocator',
       ],
     }],
     ['OS=="android"', {

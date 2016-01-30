@@ -519,8 +519,6 @@
       'browser/ui/toolbar/component_toolbar_actions_browsertest.cc',
       'browser/ui/toolbar/mock_component_toolbar_actions_factory.cc',
       'browser/ui/toolbar/mock_component_toolbar_actions_factory.h',
-      'browser/ui/toolbar/test_toolbar_model.cc',
-      'browser/ui/toolbar/test_toolbar_model.h',
       'browser/ui/website_settings/mock_permission_bubble_view.cc',
       'browser/ui/website_settings/mock_permission_bubble_view.h',
       'browser/ui/website_settings/permission_bubble_browser_test_util.cc',
@@ -826,6 +824,8 @@
       'browser/ui/webui/options/chromeos/accounts_options_browsertest.cc',
       'browser/ui/webui/options/chromeos/guest_mode_options_ui_browsertest.cc',
       'browser/ui/webui/options/chromeos/shared_options_browsertest.cc',
+      '../ui/base/ime/chromeos/input_method_whitelist.h',
+      '../ui/base/ime/chromeos/input_method_whitelist.cc',
     ],
     'chrome_browser_tests_views_non_cros_or_mac_sources': [
       # This should be brought up on OSX Views but not CrOS.
@@ -993,11 +993,13 @@
       'test/data/webui/settings/appearance_browsertest.js',
       'test/data/webui/settings/basic_page_browsertest.js',
       'test/data/webui/settings/bluetooth_page_browsertest_chromeos.js',
+      'test/data/webui/settings/change_picture_browsertest_chromeos.js',
       'test/data/webui/settings/cr_settings_browsertest.js',
       'test/data/webui/settings/on_startup_browsertest.js',
       'test/data/webui/settings/settings_page_browsertest.js',
       'test/data/webui/settings/settings_passwords_section_browsertest.js',
       'test/data/webui/settings/settings_subpage_browsertest.js',
+      'test/data/webui/webui_resource_async_browsertest.js',
     ],
     # TODO(rockot) bug 505926: These should be moved to a target in
     # //extensions but have old dependencies on chrome files. The chrome
@@ -1069,8 +1071,6 @@
       'browser/ui/search/instant_test_utils.h',
       'browser/ui/search/local_ntp_browsertest.cc',
       'browser/ui/startup/startup_browser_creator_interactive_uitest.cc',
-      'browser/ui/toolbar/test_toolbar_model.cc',
-      'browser/ui/toolbar/test_toolbar_model.h',
       'browser/ui/translate/translate_bubble_test_utils.h',
       'browser/ui/views/accessibility/navigation_accessibility_uitest_win.cc',
       'browser/ui/webui/options/language_dictionary_interactive_uitest.cc',
@@ -1087,7 +1087,7 @@
       'test/base/interactive_ui_tests_main.cc',
       'test/base/view_event_test_platform_part.h',
       'test/base/view_event_test_platform_part_chromeos.cc',
-      'test/base/view_event_test_platform_part_mac.mm',
+      'test/base/view_event_test_platform_part_default.cc',
       'test/ppapi/ppapi_interactive_browsertest.cc',
     ],
     # Panels sources not related to UI toolkit. ChromeOS doesn't use panels.
@@ -1212,7 +1212,6 @@
       '../ash/wm/ash_native_cursor_manager_interactive_uitest.cc',
       'browser/ui/views/ash/tab_scrubber_browsertest.cc',
       'browser/ui/window_sizer/window_sizer_ash_uitest.cc',
-      'test/base/view_event_test_platform_part_ash.cc',
     ],
     'chrome_interactive_ui_test_non_desktop_linux_sources': [
       # TODO(port): Everything here times out. Attempts have been made to fix
@@ -1788,7 +1787,7 @@
             '../ui/views/widget/desktop_aura/x11_topmost_window_finder_interactive_uitest.cc',
 
             # Use only the _chromeos version on ChromeOS.
-            'test/base/view_event_test_platform_part_ash.cc',
+            'test/base/view_event_test_platform_part_default.cc',
           ],
         }, {  # Non-ChromeOS.
           # ChromeOS doesn't use panels, everybody else does.
@@ -1828,13 +1827,6 @@
             # resulting .res files get referenced multiple times.
             '<(SHARED_INTERMEDIATE_DIR)/chrome_version/other_version.rc',
             '<(SHARED_INTERMEDIATE_DIR)/ui/resources/ui_unscaled_resources.rc',
-          ],
-          'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                 '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
           ],
           'msvs_settings': {
             'VCLinkerTool': {
@@ -2160,7 +2152,6 @@
         '../third_party/safe_browsing/safe_browsing.gyp:safe_browsing',
         '../third_party/webrtc/modules/modules.gyp:desktop_capture',
         '../third_party/widevine/cdm/widevine_cdm.gyp:widevine_cdm_version_h',
-        '../third_party/zlib/google/zip.gyp:compression_utils',
         '../ui/accessibility/accessibility.gyp:accessibility_test_support',
         '../ui/compositor/compositor.gyp:compositor_test_support',
         '../ui/resources/ui_resources.gyp:ui_resources',
@@ -2360,12 +2351,15 @@
             'browser/ui/bookmarks/bookmark_bubble_sign_in_delegate_browsertest.cc',
             # chromeos does not use cross-platform panels
             'browser/ui/panels/panel_extension_browsertest.cc',
+            # inline login UI is disabled on chromeos
+            'browser/ui/webui/signin/inline_login_ui_browsertest.cc',
             # chromeos does not use the desktop user manager
             'browser/ui/webui/signin/user_manager_ui_browsertest.cc',
           ],
           'dependencies': [
             '../dbus/dbus.gyp:dbus_test_support',
             '../build/linux/system.gyp:dbus',
+            '../chromeos/ime/input_method.gyp:gencode',
             '../components/components.gyp:drive_test_support',
             '../ui/login/login.gyp:login_resources',
           ],
@@ -2382,6 +2376,7 @@
             'test/data/webui/certificate_viewer_dialog_test.js',
             'test/data/webui/certificate_viewer_ui_test-inl.h',
             'test/data/webui/settings/bluetooth_page_browsertest_chromeos.js',
+            'test/data/webui/settings/change_picture_browsertest_chromeos.js',
           ],
         }],
         ['configuration_policy==1', {
@@ -2416,13 +2411,6 @@
           ],
           'dependencies': [
             'chrome_version_resources',
-          ],
-          'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(allocator_target)',
-              ],
-            }],
           ],
         }, { # else: OS != "win"
           'sources!': [
@@ -2520,15 +2508,6 @@
             'browser/policy/cloud/component_cloud_policy_browsertest.cc',
             'browser/prefs/pref_hash_browsertest.cc',
             'browser/ui/bookmarks/bookmark_bubble_sign_in_delegate_browsertest.cc',
-          ],
-        }],
-        ['os_posix == 1 and OS != "mac" and OS != "android"', {
-          'conditions': [
-            ['use_allocator!="none"', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
           ],
         }],
         ['chromeos == 1', {
@@ -2747,13 +2726,6 @@
           'dependencies': [
             'chrome_version_resources',
           ],
-          'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(allocator_target)',
-              ],
-            }],
-          ],
           'configurations': {
             'Debug_Base': {
               'msvs_settings': {
@@ -2800,20 +2772,6 @@
         }, {  # OS!="mac"
           'sources!': [
             'test/perf/mach_ports_performancetest.cc',
-          ],
-        }],
-        ['os_posix == 1 and OS != "mac" and OS != "android"', {
-          'conditions': [
-            ['use_allocator!="none"', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
-          ],
-        }],
-        ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
           ],
         }],
       ],  # conditions
@@ -2952,13 +2910,6 @@
           'dependencies': [
             'chrome_version_resources',
           ],
-          'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(allocator_target)',
-              ],
-            }],
-          ],
           'configurations': {
             'Debug': {
               'msvs_settings': {
@@ -3058,13 +3009,6 @@
           ],
           'dependencies': [
             'chrome_version_resources',
-          ],
-          'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(allocator_target)',
-              ],
-            }],
           ],
           'configurations': {
             'Debug': {
@@ -3181,6 +3125,7 @@
             '../net/net.gyp:net_java_test_support',
             '../sync/sync.gyp:sync_java',
             '../sync/sync.gyp:sync_java_test_support',
+            '../third_party/android_tools/android_tools.gyp:google_play_services_javalib'
           ],
           'includes': [ '../build/java.gypi' ],
         },

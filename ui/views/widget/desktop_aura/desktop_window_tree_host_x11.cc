@@ -30,7 +30,6 @@
 #include "ui/events/devices/x11/device_list_cache_x11.h"
 #include "ui/events/devices/x11/touch_factory_x11.h"
 #include "ui/events/event_utils.h"
-#include "ui/events/null_event_targeter.h"
 #include "ui/events/platform/platform_event_source.h"
 #include "ui/events/platform/x11/x11_event_source.h"
 #include "ui/gfx/display.h"
@@ -176,7 +175,6 @@ DesktopWindowTreeHostX11::DesktopWindowTreeHostX11(
       custom_window_shape_(false),
       urgency_hint_set_(false),
       activatable_(true),
-      modal_dialog_xid_(0),
       close_widget_factory_(this) {
 }
 
@@ -822,7 +820,7 @@ void DesktopWindowTreeHostX11::SetFullscreen(bool fullscreen) {
   if (fullscreen) {
     restored_bounds_in_pixels_ = bounds_in_pixels_;
     const gfx::Display display =
-        gfx::Screen::GetScreenFor(NULL)->GetDisplayNearestWindow(window());
+        gfx::Screen::GetScreen()->GetDisplayNearestWindow(window());
     bounds_in_pixels_ = ToPixelRect(display.bounds());
   } else {
     bounds_in_pixels_ = restored_bounds_in_pixels_;
@@ -940,10 +938,10 @@ void DesktopWindowTreeHostX11::SizeConstraintsChanged() {
 // DesktopWindowTreeHostX11, aura::WindowTreeHost implementation:
 
 gfx::Transform DesktopWindowTreeHostX11::GetRootTransform() const {
-  gfx::Display display = gfx::Screen::GetNativeScreen()->GetPrimaryDisplay();
+  gfx::Display display = gfx::Screen::GetScreen()->GetPrimaryDisplay();
   if (window_mapped_) {
     aura::Window* win = const_cast<aura::Window*>(window());
-    display = gfx::Screen::GetNativeScreen()->GetDisplayNearestWindow(win);
+    display = gfx::Screen::GetScreen()->GetDisplayNearestWindow(win);
   }
 
   float scale = display.device_scale_factor();
@@ -1289,7 +1287,7 @@ void DesktopWindowTreeHostX11::InitX11Window(
 gfx::Size DesktopWindowTreeHostX11::AdjustSize(
     const gfx::Size& requested_size_in_pixels) {
   std::vector<gfx::Display> displays =
-      gfx::Screen::GetScreenByType(gfx::SCREEN_TYPE_NATIVE)->GetAllDisplays();
+      gfx::Screen::GetScreen()->GetAllDisplays();
   // Compare against all monitor sizes. The window manager can move the window
   // to whichever monitor it wants.
   for (size_t i = 0; i < displays.size(); ++i) {
@@ -1527,8 +1525,7 @@ void DesktopWindowTreeHostX11::DispatchTouchEvent(ui::TouchEvent* event) {
 }
 
 void DesktopWindowTreeHostX11::DispatchKeyEvent(ui::KeyEvent* event) {
-  if (native_widget_delegate_->AsWidget()->IsActive())
-    GetInputMethod()->DispatchKeyEvent(event);
+  GetInputMethod()->DispatchKeyEvent(event);
 }
 
 void DesktopWindowTreeHostX11::ConvertEventToDifferentHost(
@@ -1536,9 +1533,9 @@ void DesktopWindowTreeHostX11::ConvertEventToDifferentHost(
     DesktopWindowTreeHostX11* host) {
   DCHECK_NE(this, host);
   const gfx::Display display_src =
-      gfx::Screen::GetNativeScreen()->GetDisplayNearestWindow(window());
+      gfx::Screen::GetScreen()->GetDisplayNearestWindow(window());
   const gfx::Display display_dest =
-      gfx::Screen::GetNativeScreen()->GetDisplayNearestWindow(host->window());
+      gfx::Screen::GetScreen()->GetDisplayNearestWindow(host->window());
   DCHECK_EQ(display_src.device_scale_factor(),
             display_dest.device_scale_factor());
   gfx::Vector2d offset = GetLocationOnNativeScreen() -
@@ -2019,26 +2016,6 @@ gfx::Rect DesktopWindowTreeHostX11::ToPixelRect(
   gfx::RectF rect_in_pixels = gfx::RectF(rect_in_dip);
   GetRootTransform().TransformRect(&rect_in_pixels);
   return gfx::ToEnclosingRect(rect_in_pixels);
-}
-
-XID DesktopWindowTreeHostX11::GetModalDialog() {
-  return modal_dialog_xid_;
-}
-
-void DesktopWindowTreeHostX11::DisableEventListening(XID dialog) {
-  DCHECK(dialog);
-  DCHECK(!modal_dialog_xid_);
-  modal_dialog_xid_ = dialog;
-  // ScopedWindowTargeter is used to temporarily replace the event-targeter
-  // with NullEventTargeter to make |dialog| modal.
-  targeter_for_modal_.reset(new aura::ScopedWindowTargeter(window(),
-      scoped_ptr<ui::EventTargeter>(new ui::NullEventTargeter)));
-}
-
-void DesktopWindowTreeHostX11::EnableEventListening() {
-  DCHECK(modal_dialog_xid_);
-  modal_dialog_xid_ = 0;
-  targeter_for_modal_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

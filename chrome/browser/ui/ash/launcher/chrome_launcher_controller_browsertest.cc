@@ -39,7 +39,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_iterator.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
@@ -147,16 +146,13 @@ void ClickAllAppsButtonFromStartPage(ui::test::EventGenerator* generator,
 
 // Find the browser that associated with |app_name|.
 Browser* FindBrowserForApp(const std::string& app_name) {
-  Browser* browser = nullptr;
-  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
+  for (auto* browser : *BrowserList::GetInstance()) {
     std::string browser_app_name =
-        web_app::GetExtensionIdFromApplicationName((*it)->app_name());
-    if (browser_app_name == app_name) {
-      browser = *it;
-      break;
-    }
+        web_app::GetExtensionIdFromApplicationName(browser->app_name());
+    if (browser_app_name == app_name)
+      return browser;
   }
-  return browser;
+  return nullptr;
 }
 
 // Close |app_browser| and wait until it's closed.
@@ -1633,13 +1629,11 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTest, ActivateAfterSessionRestore) {
   EXPECT_EQ(chrome::FindBrowserWithWindow(ash::wm::GetActiveWindow()),
             browser());
   // Check that the LRU browser list does only contain the original browser.
-  BrowserList* ash_browser_list =
-      BrowserList::GetInstance(chrome::HOST_DESKTOP_TYPE_ASH);
-  BrowserList::const_reverse_iterator it =
-      ash_browser_list->begin_last_active();
+  BrowserList* browser_list = BrowserList::GetInstance();
+  BrowserList::const_reverse_iterator it = browser_list->begin_last_active();
   EXPECT_EQ(*it, browser());
   ++it;
-  EXPECT_EQ(it, ash_browser_list->end_last_active());
+  EXPECT_EQ(it, browser_list->end_last_active());
 
   // Now request to either activate an existing app or create a new one.
   LauncherItemController* item_controller =
@@ -1822,7 +1816,7 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTestWithMultiMonitor,
   gfx::Rect app_list_bounds =
       test.shelf_view()->GetAppListButtonView()->GetBoundsInScreen();
   gfx::Display display =
-      ash::Shell::GetScreen()->GetDisplayNearestWindow(secondary_root_window);
+      gfx::Screen::GetScreen()->GetDisplayNearestWindow(secondary_root_window);
   const gfx::Point& origin = display.bounds().origin();
   app_list_bounds.Offset(-origin.x(), -origin.y());
 
@@ -2150,11 +2144,10 @@ IN_PROC_BROWSER_TEST_F(ShelfAppBrowserTest, V1AppNavigation) {
 
   // Find the browser which holds our app.
   Browser* app_browser = NULL;
-  const BrowserList* ash_browser_list =
-      BrowserList::GetInstance(chrome::HOST_DESKTOP_TYPE_ASH);
+  const BrowserList* browser_list = BrowserList::GetInstance();
   for (BrowserList::const_reverse_iterator it =
-           ash_browser_list->begin_last_active();
-       it != ash_browser_list->end_last_active() && !app_browser; ++it) {
+           browser_list->begin_last_active();
+       it != browser_list->end_last_active() && !app_browser; ++it) {
     if ((*it)->is_app()) {
       app_browser = *it;
       break;

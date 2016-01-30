@@ -101,6 +101,11 @@ class RoundTripTestCookieStore : public net::CookieStore {
     store_->GetAllCookiesForURLAsync(url, callback);
   }
 
+  void GetAllCookiesAsync(const GetCookieListCallback& callback) override {
+    RoundTrip();
+    store_->GetAllCookiesAsync(callback);
+  }
+
   void DeleteCookieAsync(const GURL& url,
                          const std::string& cookie_name,
                          const base::Closure& callback) override {
@@ -130,6 +135,11 @@ class RoundTripTestCookieStore : public net::CookieStore {
   void DeleteSessionCookiesAsync(const DeleteCallback& callback) override {
     RoundTrip();
     store_->DeleteSessionCookiesAsync(callback);
+  }
+
+  void FlushStore(const base::Closure& callback) override {
+    RoundTrip();
+    store_->FlushStore(callback);
   }
 
   scoped_ptr<CookieStore::CookieChangedSubscription> AddCallbackForCookie(
@@ -208,8 +218,11 @@ class TestPersistentCookieStore
     std::vector<net::CanonicalCookie*> cookies;
     net::CookieOptions options;
     options.set_include_httponly();
-    cookies.push_back(net::CanonicalCookie::Create(kTestCookieURL, "a=b",
-                                                   base::Time::Now(), options));
+
+    scoped_ptr<net::CanonicalCookie> cookie(net::CanonicalCookie::Create(
+        kTestCookieURL, "a=b", base::Time::Now(), options));
+    cookies.push_back(cookie.release());
+
     // Some canonical cookies cannot be converted into System cookies, for
     // example if value is not valid utf8. Such cookies are ignored.
     net::CanonicalCookie* bad_canonical_cookie = new net::CanonicalCookie(
@@ -504,7 +517,7 @@ TEST(CookieStoreIOS, GetAllCookiesForURLAsync) {
       [NSHTTPCookieStorage sharedHTTPCookieStorage];
   EXPECT_EQ(0u, [[system_store cookies] count]);
   // Flushing should not have any effect.
-  cookie_store->Flush(base::Closure());
+  cookie_store->FlushStore(base::Closure());
   // Check we can get the cookie even though cookies are disabled.
   GetAllCookiesCallback callback;
   cookie_store->GetAllCookiesForURLAsync(
@@ -714,7 +727,7 @@ TEST_F(CookieStoreIOSWithBackend, ManualFlush) {
   EXPECT_FALSE(backend_->flushed());
 
   // The store should be flushed even if it is not dirty.
-  store_->Flush(base::Closure());
+  store_->FlushStore(base::Closure());
   EXPECT_TRUE(backend_->flushed());
 
   store_->UnSynchronize();

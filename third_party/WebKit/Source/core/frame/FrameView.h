@@ -222,9 +222,6 @@ public:
     void setIsPainting(bool val) const { m_isPainting = val; }
     bool isPainting() const;
 
-    void setNodeToDraw(Node*);
-    Node* nodeToDraw() const { return m_nodeToDraw.get(); }
-
     Color documentBackgroundColor() const;
 
     // Run all needed lifecycle stages. After calling this method, all frames will be in the lifecycle state PaintInvalidationClean.
@@ -258,7 +255,7 @@ public:
         UrlFragmentDontScroll
     };
     bool processUrlFragment(const KURL&, UrlFragmentBehavior = UrlFragmentScroll);
-    void clearScrollAnchor();
+    void clearFragmentAnchor();
 
     // Methods to convert points and rects between the coordinate space of the layoutObject, and this view.
     IntRect convertFromLayoutObject(const LayoutObject&, const IntRect&) const;
@@ -359,6 +356,7 @@ public:
     IntRect scrollableAreaBoundingBox() const override;
     bool scrollAnimatorEnabled() const override;
     bool usesCompositedScrolling() const override;
+    bool shouldScrollOnMainThread() const override;
     GraphicsLayer* layerForScrolling() const override;
     GraphicsLayer* layerForHorizontalScrollbar() const override;
     GraphicsLayer* layerForVerticalScrollbar() const override;
@@ -573,16 +571,19 @@ public:
 
     // Paint properties for SPv2 Only.
     void setPreTranslation(PassRefPtr<TransformPaintPropertyNode> preTranslation) { m_preTranslation = preTranslation; }
-    const TransformPaintPropertyNode* preTranslation() const { return m_preTranslation.get(); }
+    TransformPaintPropertyNode* preTranslation() const { return m_preTranslation.get(); }
 
     void setScrollTranslation(PassRefPtr<TransformPaintPropertyNode> scrollTranslation) { m_scrollTranslation = scrollTranslation; }
-    const TransformPaintPropertyNode* scrollTranslation() const { return m_scrollTranslation.get(); }
+    TransformPaintPropertyNode* scrollTranslation() const { return m_scrollTranslation.get(); }
 
     void setContentClip(PassRefPtr<ClipPaintPropertyNode> contentClip) { m_contentClip = contentClip; }
-    const ClipPaintPropertyNode* contentClip() const { return m_contentClip.get(); }
+    ClipPaintPropertyNode* contentClip() const { return m_contentClip.get(); }
 
     // TODO(ojan): Merge this with IntersectionObserver once it lands.
     IntRect computeVisibleArea();
+
+    // Viewport size that should be used for viewport units (i.e. 'vh'/'vw').
+    FloatSize viewportSizeForViewportUnits() const;
 
 protected:
     // Scroll the content via the compositor.
@@ -690,8 +691,8 @@ private:
     bool updateWidgets();
 
     bool processUrlFragmentHelper(const String&, UrlFragmentBehavior);
-    void maintainScrollPositionAtAnchor(Node*);
-    void scrollToAnchor();
+    void setFragmentAnchor(Node*);
+    void scrollToFragmentAnchor();
     void scrollPositionChanged();
     void didScrollTimerFired(Timer<FrameView>*);
 
@@ -729,7 +730,7 @@ private:
 
     bool isFrameViewScrollbar(const Widget* child) const { return horizontalScrollbar() == child || verticalScrollbar() == child; }
 
-    ScrollingCoordinator* scrollingCoordinator();
+    ScrollingCoordinator* scrollingCoordinator() const;
 
     void prepareLayoutAnalyzer();
     PassRefPtr<TracedValue> analyzerCounters();
@@ -802,8 +803,6 @@ private:
 
     bool m_isTrackingPaintInvalidations; // Used for testing.
 
-    RefPtrWillBeMember<Node> m_nodeToDraw;
-
     // TODO(wangxianzhu): Use document cycle state for spv2 and synchronzied painting.
     mutable bool m_isPainting;
 
@@ -811,7 +810,7 @@ private:
     unsigned m_visuallyNonEmptyPixelCount;
     bool m_isVisuallyNonEmpty;
 
-    RefPtrWillBeMember<Node> m_scrollAnchor;
+    RefPtrWillBeMember<Node> m_fragmentAnchor;
 
     // layoutObject to hold our custom scroll corner.
     LayoutScrollbarPart* m_scrollCorner;
@@ -889,11 +888,11 @@ private:
     // The hierarchy of transform subtree created by a FrameView.
     // [ preTranslation ]               The offset from Widget::frameRect. Establishes viewport.
     //     +---[ scrollTranslation ]    Frame scrolling.
-    //                                  TODO(trchen): This is going away in favor of Settings::rootLayerScrolls.
+    // TODO(trchen): These will not be needed once settings->rootLayerScrolls() is enabled.
     RefPtr<TransformPaintPropertyNode> m_preTranslation;
     RefPtr<TransformPaintPropertyNode> m_scrollTranslation;
     // The content clip clips the document (= LayoutView) but not the scrollbars.
-    // TODO(trchen): Going away in favor of Settings::rootLayerScrolls too.
+    // TODO(trchen): This will not be needed once settings->rootLayerScrolls() is enabled.
     RefPtr<ClipPaintPropertyNode> m_contentClip;
 
     bool m_isUpdatingAllLifecyclePhases;
@@ -923,6 +922,7 @@ inline void FrameView::incrementVisuallyNonEmptyPixelCount(const IntSize& size)
 }
 
 DEFINE_TYPE_CASTS(FrameView, Widget, widget, widget->isFrameView(), widget.isFrameView());
+DEFINE_TYPE_CASTS(FrameView, ScrollableArea, scrollableArea, scrollableArea->isFrameView(), scrollableArea.isFrameView());
 
 } // namespace blink
 

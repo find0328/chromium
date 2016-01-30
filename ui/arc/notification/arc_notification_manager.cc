@@ -9,35 +9,27 @@
 
 namespace arc {
 
-ArcNotificationManager::ArcNotificationManager(ArcBridgeService* arc_bridge,
+ArcNotificationManager::ArcNotificationManager(ArcBridgeService* bridge_service,
                                                const AccountId& main_profile_id)
-    : arc_bridge_(arc_bridge),
+    : ArcService(bridge_service),
       main_profile_id_(main_profile_id),
       binding_(this) {
-  // This must be initialized after ArcBridgeService.
-  DCHECK(arc_bridge_);
-  DCHECK_EQ(arc_bridge_, ArcBridgeService::Get());
-  arc_bridge_->AddObserver(this);
+  arc_bridge_service()->AddObserver(this);
 }
 
 ArcNotificationManager::~ArcNotificationManager() {
-  // This should be free'd before ArcBridgeService.
-  DCHECK(ArcBridgeService::Get());
-  DCHECK_EQ(arc_bridge_, ArcBridgeService::Get());
-  arc_bridge_->RemoveObserver(this);
+  arc_bridge_service()->RemoveObserver(this);
 }
 
 void ArcNotificationManager::OnNotificationsInstanceReady() {
   NotificationsInstance* notifications_instance =
-      arc_bridge_->notifications_instance();
+      arc_bridge_service()->notifications_instance();
   if (!notifications_instance) {
     VLOG(2) << "Request to refresh app list when bridge service is not ready.";
     return;
   }
 
-  NotificationsHostPtr host;
-  binding_.Bind(mojo::GetProxy(&host));
-  notifications_instance->Init(std::move(host));
+  notifications_instance->Init(binding_.CreateInterfacePtrAndBind());
 }
 
 void ArcNotificationManager::OnNotificationPosted(ArcNotificationDataPtr data) {
@@ -75,8 +67,9 @@ void ArcNotificationManager::SendNotificationRemovedFromChrome(
 
   scoped_ptr<ArcNotificationItem> item(items_.take_and_erase(it));
 
-  arc_bridge_->notifications_instance()->SendNotificationEventToAndroid(
-      key, ARC_NOTIFICATION_EVENT_CLOSED);
+  arc_bridge_service()
+      ->notifications_instance()
+      ->SendNotificationEventToAndroid(key, ArcNotificationEvent::CLOSED);
 }
 
 void ArcNotificationManager::SendNotificationClickedOnChrome(
@@ -87,8 +80,44 @@ void ArcNotificationManager::SendNotificationClickedOnChrome(
     return;
   }
 
-  arc_bridge_->notifications_instance()->SendNotificationEventToAndroid(
-      key, ARC_NOTIFICATION_EVENT_BODY_CLICKED);
+  arc_bridge_service()
+      ->notifications_instance()
+      ->SendNotificationEventToAndroid(key, ArcNotificationEvent::BODY_CLICKED);
+}
+
+void ArcNotificationManager::SendNotificationButtonClickedOnChrome(
+    const std::string& key, int button_index) {
+  if (!items_.contains(key)) {
+    VLOG(3) << "Chrome requests to fire a click event on notification (key: "
+            << key << "), but it is gone.";
+    return;
+  }
+
+  arc::ArcNotificationEvent command;
+  switch (button_index) {
+    case 0:
+      command = ArcNotificationEvent::BUTTON1_CLICKED;
+      break;
+    case 1:
+      command = ArcNotificationEvent::BUTTON2_CLICKED;
+      break;
+    case 2:
+      command = ArcNotificationEvent::BUTTON3_CLICKED;
+      break;
+    case 3:
+      command = ArcNotificationEvent::BUTTON4_CLICKED;
+      break;
+    case 4:
+      command = ArcNotificationEvent::BUTTON5_CLICKED;
+      break;
+    default:
+      VLOG(3) << "Invalid button index (key: " << key << ", index: " <<
+          button_index << ").";
+      return;
+  }
+
+  arc_bridge_service()
+      ->notifications_instance()->SendNotificationEventToAndroid(key, command);
 }
 
 }  // namespace arc

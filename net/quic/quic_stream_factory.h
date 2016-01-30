@@ -149,6 +149,7 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
       bool delay_tcp_race,
       int max_server_configs_stored_in_properties,
       bool close_sessions_on_ip_change,
+      bool disable_quic_on_timeout_with_open_streams,
       int idle_connection_timeout_seconds,
       bool migrate_sessions_on_network_change,
       const QuicTagVector& connection_options);
@@ -226,7 +227,13 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
                       IPEndPoint addr,
                       NetworkChangeNotifier::NetworkHandle network);
 
-  // Helper method that initiates migration of active sessions
+  // Finds an alternative to |old_network| from the platform's list of connected
+  // networks. Returns NetworkChangeNotifier::kInvalidNetworkHandle if no
+  // alternative is found.
+  NetworkChangeNotifier::NetworkHandle FindAlternateNetwork(
+      NetworkChangeNotifier::NetworkHandle old_network);
+
+  // Method that initiates migration of active sessions
   // currently bound to |network| to an alternate network, if one
   // exists. Idle sessions bound to |network| are closed. If there is
   // no alternate network to migrate active sessions onto, active
@@ -234,6 +241,16 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
   // |network| otherwise. Sessions not bound to |network| are left unchanged.
   void MaybeMigrateOrCloseSessions(NetworkChangeNotifier::NetworkHandle network,
                                    bool force_close);
+
+  // Method that initiates early migration of |session| if |session| is
+  // active and if there is an alternate network than the one to which
+  // |session| is currently bound.
+  void MaybeMigrateSessionEarly(QuicChromiumClientSession* session);
+
+  // Method that migrates |session| over to using |new_network|.
+  void MigrateSessionToNetwork(
+      QuicChromiumClientSession* session,
+      NetworkChangeNotifier::NetworkHandle new_network);
 
   // NetworkChangeNotifier::IPAddressObserver methods:
 
@@ -474,7 +491,7 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
 
   // If more than |yield_after_packets_| packets have been read or more than
   // |yield_after_duration_| time has passed, then
-  // QuicPacketReader::StartReading() yields by doing a PostTask().
+  // QuicChromiumPacketReader::StartReading() yields by doing a PostTask().
   int yield_after_packets_;
   QuicTime::Delta yield_after_duration_;
 
@@ -500,6 +517,8 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
   std::set<HostPortPair> quic_supported_servers_at_startup_;
 
   NetworkConnection network_connection_;
+
+  QuicPromisedByUrlMap promised_by_url_;
 
   base::TaskRunner* task_runner_;
 

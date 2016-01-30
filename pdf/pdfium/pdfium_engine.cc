@@ -606,6 +606,13 @@ PDFiumEngine::PDFiumEngine(PDFEngine::Client* client)
   IFSDK_PAUSE::version = 1;
   IFSDK_PAUSE::user = NULL;
   IFSDK_PAUSE::NeedToPauseNow = Pause_NeedToPauseNow;
+
+#if defined(OS_LINUX)
+  // PreviewModeClient does not know its pp::Instance.
+  pp::Instance* instance = client_->GetPluginInstance();
+  if (instance)
+    g_last_instance_id = instance->pp_instance();
+#endif
 }
 
 PDFiumEngine::~PDFiumEngine() {
@@ -1113,8 +1120,10 @@ std::string PDFiumEngine::GetMetadata(const std::string& key) {
 
 void PDFiumEngine::OnPartialDocumentLoaded() {
   file_access_.m_FileLen = doc_loader_.document_size();
-  fpdf_availability_ = FPDFAvail_Create(&file_availability_, &file_access_);
-  DCHECK(fpdf_availability_);
+  if (!fpdf_availability_) {
+    fpdf_availability_ = FPDFAvail_Create(&file_availability_, &file_access_);
+    DCHECK(fpdf_availability_);
+  }
 
   // Currently engine does not deal efficiently with some non-linearized files.
   // See http://code.google.com/p/chromium/issues/detail?id=59400
@@ -1157,6 +1166,10 @@ void PDFiumEngine::OnNewDataAvailable() {
 void PDFiumEngine::OnDocumentComplete() {
   if (!doc_ || !form_) {
     file_access_.m_FileLen = doc_loader_.document_size();
+    if (!fpdf_availability_) {
+      fpdf_availability_ = FPDFAvail_Create(&file_availability_, &file_access_);
+      DCHECK(fpdf_availability_);
+    }
     LoadDocument();
     return;
   }
@@ -2501,10 +2514,12 @@ bool PDFiumEngine::TryLoadingDoc(bool with_password,
     password_cstr = password.c_str();
     password_tries_remaining_--;
   }
-  if (doc_loader_.IsDocumentComplete())
+  if (doc_loader_.IsDocumentComplete() &&
+      !FPDFAvail_IsLinearized(fpdf_availability_)) {
     doc_ = FPDF_LoadCustomDocument(&file_access_, password_cstr);
-  else
+  } else {
     doc_ = FPDFAvail_GetDocument(fpdf_availability_, password_cstr);
+  }
 
   if (!doc_ && FPDF_GetLastError() == FPDF_ERR_PASSWORD)
     *needs_password = true;

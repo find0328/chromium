@@ -99,7 +99,7 @@ bool LayoutMultiColumnSet::isPageLogicalHeightKnown() const
 
 LayoutUnit LayoutMultiColumnSet::nextLogicalTopForUnbreakableContent(LayoutUnit flowThreadOffset, LayoutUnit contentLogicalHeight) const
 {
-    ASSERT(pageLogicalTopForOffset(flowThreadOffset) == flowThreadOffset);
+    ASSERT(flowThreadOffset.mightBeSaturated() || pageLogicalTopForOffset(flowThreadOffset) == flowThreadOffset);
     FragmentationContext* enclosingFragmentationContext = multiColumnFlowThread()->enclosingFragmentationContext();
     if (!enclosingFragmentationContext) {
         // If there's no enclosing fragmentation context, there'll ever be only one row, and all
@@ -118,7 +118,7 @@ LayoutUnit LayoutMultiColumnSet::nextLogicalTopForUnbreakableContent(LayoutUnit 
     LayoutUnit firstRowLogicalBottomInFlowThread = firstRow.logicalTopInFlowThread() + firstRow.logicalHeight() * usedColumnCount();
     if (flowThreadOffset >= firstRowLogicalBottomInFlowThread)
         return flowThreadOffset; // We're not in the first row. Give up.
-    LayoutUnit newLogicalHeight = enclosingFragmentationContext->fragmentainerLogicalHeightAt(firstRowLogicalBottomInFlowThread);
+    LayoutUnit newLogicalHeight = enclosingFragmentationContext->fragmentainerLogicalHeightAt(firstRow.blockOffsetInEnclosingFragmentationContext() + firstRow.logicalHeight());
     if (contentLogicalHeight > newLogicalHeight) {
         // The next outer column or page doesn't have enough space either. Give up and stay where
         // we are.
@@ -145,12 +145,12 @@ LayoutMultiColumnSet* LayoutMultiColumnSet::previousSiblingMultiColumnSet() cons
     return nullptr;
 }
 
-bool LayoutMultiColumnSet::hasFragmentainerGroupForColumnAt(LayoutUnit offsetInFlowThread) const
+bool LayoutMultiColumnSet::hasFragmentainerGroupForColumnAt(LayoutUnit bottomOffsetInFlowThread) const
 {
     const MultiColumnFragmentainerGroup& lastRow = lastFragmentainerGroup();
-    if (lastRow.logicalTopInFlowThread() > offsetInFlowThread)
+    if (lastRow.logicalTopInFlowThread() > bottomOffsetInFlowThread)
         return true;
-    return offsetInFlowThread - lastRow.logicalTopInFlowThread() < lastRow.logicalHeight() * usedColumnCount();
+    return bottomOffsetInFlowThread - lastRow.logicalTopInFlowThread() <= lastRow.logicalHeight() * usedColumnCount();
 }
 
 MultiColumnFragmentainerGroup& LayoutMultiColumnSet::appendNewFragmentainerGroup()
@@ -163,12 +163,27 @@ MultiColumnFragmentainerGroup& LayoutMultiColumnSet::appendNewFragmentainerGroup
         LayoutUnit blockOffsetInFlowThread = previousGroup.logicalTopInFlowThread() + previousGroup.logicalHeight() * usedColumnCount();
         previousGroup.setLogicalBottomInFlowThread(blockOffsetInFlowThread);
         newGroup.setLogicalTopInFlowThread(blockOffsetInFlowThread);
-
         newGroup.setLogicalTop(previousGroup.logicalTop() + previousGroup.logicalHeight());
         newGroup.resetColumnHeight();
     }
     m_fragmentainerGroups.append(newGroup);
     return m_fragmentainerGroups.last();
+}
+
+LayoutUnit LayoutMultiColumnSet::logicalTopFromMulticolContentEdge() const
+{
+    // We subtract the position of the first column set or spanner placeholder, rather than the
+    // "before" border+padding of the multicol container. This distinction doesn't matter after
+    // layout, but during layout it does: The flow thread (i.e. the multicol contents) is laid out
+    // before the column sets and spanner placeholders, which means that compesating for a top
+    // border+padding that hasn't yet been baked into the offset will produce the wrong results in
+    // the first layout pass, and we'd end up performing a wasted layout pass in many cases.
+    const LayoutBox& firstColumnBox = *multiColumnFlowThread()->firstMultiColumnBox();
+    // The top margin edge of the first column set or spanner placeholder is flush with the top
+    // content edge of the multicol container. The margin here never collapses with other margins,
+    // so we can just subtract it. Column sets never have margins, but spanner placeholders may.
+    LayoutUnit firstColumnBoxMarginEdge = firstColumnBox.logicalTop() - multiColumnBlockFlow()->marginBeforeForChild(firstColumnBox);
+    return logicalTop() - firstColumnBoxMarginEdge;
 }
 
 LayoutUnit LayoutMultiColumnSet::logicalTopInFlowThread() const
@@ -410,4 +425,4 @@ LayoutRect LayoutMultiColumnSet::flowThreadPortionRect() const
     return portionRect;
 }
 
-}
+} // namespace blink

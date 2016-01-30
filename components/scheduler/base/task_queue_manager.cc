@@ -8,6 +8,7 @@
 #include <set>
 
 #include "base/bind.h"
+#include "base/metrics/histogram_macros.h"
 #include "components/scheduler/base/real_time_domain.h"
 #include "components/scheduler/base/task_queue_impl.h"
 #include "components/scheduler/base/task_queue_manager_delegate.h"
@@ -16,6 +17,21 @@
 #include "components/scheduler/base/work_queue_sets.h"
 
 namespace scheduler {
+
+namespace {
+const size_t kRecordRecordTaskDelayHistogramsEveryNTasks = 10;
+
+void RecordDelayedTaskLateness(base::TimeDelta lateness) {
+  UMA_HISTOGRAM_TIMES("RendererScheduler.TaskQueueManager.DelayedTaskLateness",
+                      lateness);
+}
+
+void RecordImmediateTaskQueueingDuration(tracked_objects::Duration duration) {
+  UMA_HISTOGRAM_TIMES(
+      "RendererScheduler.TaskQueueManager.ImmediateTaskQueueingDuration",
+      base::TimeDelta::FromMilliseconds(duration.InMilliseconds()));
+}
+}
 
 TaskQueueManager::TaskQueueManager(
     scoped_refptr<TaskQueueManagerDelegate> delegate,
@@ -26,6 +42,7 @@ TaskQueueManager::TaskQueueManager(
       delegate_(delegate),
       task_was_run_on_quiescence_monitored_queue_(false),
       work_batch_size_(1),
+      task_count_(0),
       tracing_category_(tracing_category),
       disabled_by_default_tracing_category_(
           disabled_by_default_tracing_category),
@@ -138,11 +155,11 @@ void TaskQueueManager::MaybeScheduleImmediateWork(
 
 void TaskQueueManager::MaybeScheduleDelayedWork(
     const tracked_objects::Location& from_here,
-    LazyNow* lazy_now,
+    base::TimeTicks now,
     base::TimeDelta delay) {
   DCHECK(main_thread_checker_.CalledOnValidThread());
   DCHECK_GE(delay, base::TimeDelta());
-  base::TimeTicks run_time = lazy_now->Now() + delay;
+  base::TimeTicks run_time = now + delay;
   // De-duplicate DoWork posts.
   if (!main_thread_pending_wakeups_.insert(run_time).second)
     return;
@@ -252,6 +269,8 @@ TaskQueueManager::ProcessTaskResult TaskQueueManager::ProcessTaskFromWorkQueue(
     return ProcessTaskResult::DEFERRED;
   }
 
+  MaybeRecordTaskDelayHistograms(pending_task, queue);
+
   TRACE_TASK_EXECUTION("TaskQueueManager::ProcessTaskFromWorkQueue",
                        pending_task);
   if (queue->GetShouldNotifyObservers()) {
@@ -277,6 +296,26 @@ TaskQueueManager::ProcessTaskResult TaskQueueManager::ProcessTaskFromWorkQueue(
   pending_task.task.Reset();
   *out_previous_task = pending_task;
   return ProcessTaskResult::EXECUTED;
+}
+
+void TaskQueueManager::MaybeRecordTaskDelayHistograms(
+    const internal::TaskQueueImpl::Task& pending_task,
+    const internal::TaskQueueImpl* queue) {
+  if ((task_count_++ % kRecordRecordTaskDelayHistogramsEveryNTasks) != 0)
+    return;
+
+  // Record delayed task lateness and immediate task queueing durations, but
+  // only for auto-pumped queues.  Manually pumped and after wakeup queues can
+  // have arbitarially large delayes, which would cloud any analysis.
+  if (queue->GetPumpPolicy() == TaskQueue::PumpPolicy::AUTO) {
+    if (!pending_task.delayed_run_time.is_null()) {
+      RecordDelayedTaskLateness(delegate_->NowTicks() -
+                                pending_task.delayed_run_time);
+    } else if (!pending_task.time_posted.is_null()) {
+      RecordImmediateTaskQueueingDuration(tracked_objects::TrackedTime::Now() -
+                                          pending_task.time_posted);
+    }
+  }
 }
 
 bool TaskQueueManager::RunsTasksOnCurrentThread() const {
@@ -353,6 +392,16 @@ void TaskQueueManager::OnTaskQueueEnabled(internal::TaskQueueImpl* queue) {
   if (!queue->immediate_work_queue()->Empty() ||
       !queue->delayed_work_queue()->Empty()) {
     MaybeScheduleImmediateWork(FROM_HERE);
+  }
+}
+
+void TaskQueueManager::OnTriedToSelectBlockedWorkQueue(
+    internal::WorkQueue* work_queue) {
+  DCHECK(main_thread_checker_.CalledOnValidThread());
+  DCHECK(!work_queue->Empty());
+  if (observer_) {
+    observer_->OnTriedToExecuteBlockedTask(*work_queue->task_queue(),
+                                           *work_queue->GetFrontTask());
   }
 }
 

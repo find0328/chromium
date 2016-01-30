@@ -8,7 +8,6 @@
 #include <list>
 #include <vector>
 
-#include "base/memory/linked_ptr.h"
 #import "base/mac/scoped_nsobject.h"
 #include "base/timer/timer.h"
 #include "content/common/gpu/gpu_command_buffer_stub.h"
@@ -21,6 +20,9 @@
 
 namespace content {
 
+class CALayerTree;
+class CALayerPartialDamageTree;
+
 class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
                                         public ImageTransportSurface,
                                         public ui::GpuSwitchingObserver {
@@ -30,7 +32,7 @@ class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
                                   gfx::PluginWindowHandle handle);
 
   // GLSurface implementation
-  bool Initialize() override;
+  bool Initialize(gfx::GLSurface::Format format) override;
   void Destroy() override;
   bool Resize(const gfx::Size& size,
               float scale_factor,
@@ -53,10 +55,11 @@ class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
                        float opacity,
                        unsigned background_color,
                        unsigned edge_aa_mask,
-                       const gfx::RectF& bounds_rect,
+                       const gfx::RectF& rect,
                        bool is_clipped,
                        const gfx::RectF& clip_rect,
-                       const gfx::Transform& transform) override;
+                       const gfx::Transform& transform,
+                       int sorting_context_id) override;
   bool IsSurfaceless() const override;
 
   // ImageTransportSurface implementation
@@ -74,13 +77,6 @@ class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
   ~ImageTransportSurfaceOverlayMac() override;
 
   gfx::SwapResult SwapBuffersInternal(const gfx::Rect& pixel_damage_rect);
-
-  void UpdateRootAndPartialDamagePlanes(
-      const linked_ptr<OverlayPlane>& new_root_plane,
-      const gfx::RectF& pixel_damage_rect);
-  void UpdateOverlayPlanes(
-      const std::vector<linked_ptr<OverlayPlane>>& new_overlay_planes);
-  void UpdateCALayerTree();
 
   // Returns true if the front of |pending_swaps_| has completed, or has timed
   // out by |now|.
@@ -122,8 +118,8 @@ class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
 
   // Planes that have been scheduled, but have not had a subsequent SwapBuffers
   // call made yet.
-  linked_ptr<OverlayPlane> pending_root_plane_;
-  std::vector<linked_ptr<OverlayPlane>> pending_overlay_planes_;
+  scoped_ptr<CALayerPartialDamageTree> pending_partial_damage_tree_;
+  scoped_ptr<CALayerTree> pending_ca_layer_tree_;
 
   // A queue of all frames that have been created by SwapBuffersInternal but
   // have not yet been displayed. This queue is checked at the beginning of
@@ -131,9 +127,8 @@ class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
   std::deque<linked_ptr<PendingSwap>> pending_swaps_;
 
   // The planes that are currently being displayed on the screen.
-  linked_ptr<OverlayPlane> current_root_plane_;
-  std::list<linked_ptr<OverlayPlane>> current_partial_damage_planes_;
-  std::list<linked_ptr<OverlayPlane>> current_overlay_planes_;
+  scoped_ptr<CALayerPartialDamageTree> current_partial_damage_tree_;
+  scoped_ptr<CALayerTree> current_ca_layer_tree_;
 
   // The time of the last swap was issued. If this is more than two vsyncs, then
   // use the simpler non-smooth animation path.
@@ -143,10 +138,6 @@ class ImageTransportSurfaceOverlayMac : public gfx::GLSurface,
   bool vsync_parameters_valid_;
   base::TimeTicks vsync_timebase_;
   base::TimeDelta vsync_interval_;
-
-  // Calls to ScheduleCALayer come in back-to-front. This is reset to 1 at each
-  // swap and increments with each call to ScheduleCALayer.
-  int next_ca_layer_z_order_;
 
   base::Timer display_pending_swap_timer_;
   base::WeakPtrFactory<ImageTransportSurfaceOverlayMac> weak_factory_;

@@ -541,7 +541,7 @@ void ReplaceSelectionCommand::removeRedundantStylesAndKeepStyleSpanInline(Insert
         }
 
         // FIXME: Tolerate differences in id, class, and style attributes.
-        if (element->parentNode() && isNonTableCellHTMLBlockElement(element) && areIdenticalElements(element, element->parentNode())
+        if (element->parentNode() && isNonTableCellHTMLBlockElement(element) && areIdenticalElements(*element, *element->parentNode())
             && createVisiblePosition(firstPositionInNode(element->parentNode())).deepEquivalent() == createVisiblePosition(firstPositionInNode(element)).deepEquivalent()
             && createVisiblePosition(lastPositionInNode(element->parentNode())).deepEquivalent() == createVisiblePosition(lastPositionInNode(element)).deepEquivalent()) {
             insertedNodes.willRemoveNodePreservingChildren(*element);
@@ -642,6 +642,10 @@ void ReplaceSelectionCommand::makeInsertedContentRoundTrippableWithHTMLTreeBuild
 
         if (!node->isHTMLElement())
             continue;
+        // moveElementOutOfAncestor() in a previous iteration might have failed,
+        // and |node| might have been detached from the document tree.
+        if (!node->inDocument())
+            continue;
 
         HTMLElement& element = toHTMLElement(*node);
         if (isProhibitedParagraphChild(element.localName())) {
@@ -656,10 +660,10 @@ void ReplaceSelectionCommand::makeInsertedContentRoundTrippableWithHTMLTreeBuild
     }
 }
 
-void ReplaceSelectionCommand::moveElementOutOfAncestor(PassRefPtrWillBeRawPtr<Element> prpElement, PassRefPtrWillBeRawPtr<ContainerNode> prpAncestor)
+void ReplaceSelectionCommand::moveElementOutOfAncestor(PassRefPtrWillBeRawPtr<Element> prpElement, PassRefPtrWillBeRawPtr<Element> prpAncestor)
 {
     RefPtrWillBeRawPtr<Element> element = prpElement;
-    RefPtrWillBeRawPtr<ContainerNode> ancestor = prpAncestor;
+    RefPtrWillBeRawPtr<Element> ancestor = prpAncestor;
 
     if (!ancestor->parentNode()->hasEditableStyle())
         return;
@@ -1380,10 +1384,13 @@ void ReplaceSelectionCommand::completeHTMLReplacement(const Position &lastPositi
         return;
     }
 
+    m_startOfInsertedRange = start;
+    m_endOfInsertedRange = end;
+
     if (m_selectReplacement)
-        setEndingSelection(VisibleSelection(start, end, SEL_DEFAULT_AFFINITY, endingSelection().isDirectional()));
+        setEndingSelection(VisibleSelection(start, end, SelDefaultAffinity, endingSelection().isDirectional()));
     else
-        setEndingSelection(VisibleSelection(end, SEL_DEFAULT_AFFINITY, endingSelection().isDirectional()));
+        setEndingSelection(VisibleSelection(end, SelDefaultAffinity, endingSelection().isDirectional()));
 }
 
 void ReplaceSelectionCommand::mergeTextNodesAroundPosition(Position& position, Position& positionOnlyToBeUpdated)
@@ -1532,6 +1539,9 @@ bool ReplaceSelectionCommand::performTrivialReplace(const ReplacementFragment& f
         && shouldRemoveEndBR(toHTMLBRElement(nodeAfterInsertionPos.get()), createVisiblePosition(positionBeforeNode(nodeAfterInsertionPos.get()))))
         removeNodeAndPruneAncestors(nodeAfterInsertionPos.get());
 
+    m_startOfInsertedRange = start;
+    m_endOfInsertedRange = end;
+
     VisibleSelection selectionAfterReplace(m_selectReplacement ? start : end, end);
 
     setEndingSelection(selectionAfterReplace);
@@ -1544,12 +1554,19 @@ bool ReplaceSelectionCommand::isReplaceSelectionCommand() const
     return true;
 }
 
+EphemeralRange ReplaceSelectionCommand::insertedRange() const
+{
+    return EphemeralRange(m_startOfInsertedRange, m_endOfInsertedRange);
+}
+
 DEFINE_TRACE(ReplaceSelectionCommand)
 {
     visitor->trace(m_startOfInsertedContent);
     visitor->trace(m_endOfInsertedContent);
     visitor->trace(m_insertionStyle);
     visitor->trace(m_documentFragment);
+    visitor->trace(m_startOfInsertedRange);
+    visitor->trace(m_endOfInsertedRange);
     CompositeEditCommand::trace(visitor);
 }
 

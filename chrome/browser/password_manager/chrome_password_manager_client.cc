@@ -184,7 +184,8 @@ bool ChromePasswordManagerClient::IsPasswordManagementEnabledForCurrentPage()
     // Do not fill nor save password when a user is signing in for sync. This
     // is because users need to remember their password if they are syncing as
     // this is effectively their master password.
-    is_enabled = entry->GetURL().host() != chrome::kChromeUIChromeSigninHost;
+    is_enabled =
+        entry->GetURL().host_piece() != chrome::kChromeUIChromeSigninHost;
   }
   if (log_manager_->IsLoggingActive()) {
     password_manager::BrowserSavePasswordProgressLogger logger(
@@ -475,6 +476,15 @@ void ChromePasswordManagerClient::ShowPasswordEditingPopup(
           driver_factory_->GetDriverForFrame(render_frame_host), observer_,
           web_contents(), web_contents()->GetNativeView());
   popup_controller_->Show(false /* display_password */);
+}
+
+void ChromePasswordManagerClient::PromptUserToEnableAutosignin() {
+#if BUILDFLAG(ANDROID_JAVA_UI)
+  // TODO(crbug.com/532876): pop up the dialog.
+#else
+  PasswordsClientUIDelegateFromWebContents(web_contents())
+      ->OnPromptEnableAutoSignin();
+#endif
 }
 
 void ChromePasswordManagerClient::GenerationAvailableForForm(

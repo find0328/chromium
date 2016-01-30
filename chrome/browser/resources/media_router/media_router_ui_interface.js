@@ -22,11 +22,11 @@ cr.define('media_router.ui', function() {
    *
    * @param {string} sinkId The ID of the sink to which the Media Route was
    *     creating a route.
-   * @param {?media_router.Route} route The newly create route to the sink
-   *     if route creation succeeded; null otherwise
+   * @param {string} routeId The ID of the newly created route that corresponds
+   *     to the sink if route creation succeeded; empty otherwise.
    */
-  function onCreateRouteResponseReceived(sinkId, route) {
-    container.onCreateRouteResponseReceived(sinkId, route);
+  function onCreateRouteResponseReceived(sinkId, routeId) {
+    container.onCreateRouteResponseReceived(sinkId, routeId);
   }
 
   /**
@@ -50,25 +50,39 @@ cr.define('media_router.ui', function() {
   /**
    * Populates the WebUI with data obtained from Media Router.
    *
-   * @param {{deviceMissingUrl: string,
+   * @param {{firstRunFlowCloudPrefLearnMoreUrl: string,
+   *          deviceMissingUrl: string,
    *          sinks: !Array<!media_router.Sink>,
    *          routes: !Array<!media_router.Route>,
    *          castModes: !Array<!media_router.CastMode>,
-   *          wasFirstRunFlowAcknowledged: boolean}} data
+   *          wasFirstRunFlowAcknowledged: boolean,
+   *          showFirstRunFlowCloudPref: boolean}} data
    * Parameters in data:
+   *   firstRunFlowCloudPrefLearnMoreUrl - url to open when the cloud services
+   *       pref learn more link is clicked.
    *   deviceMissingUrl - url to be opened on "Device missing?" clicked.
    *   sinks - list of sinks to be displayed.
    *   routes - list of routes that are associated with the sinks.
    *   castModes - list of available cast modes.
    *   wasFirstRunFlowAcknowledged - true if first run flow was previously
    *       acknowledged by user.
+   *   showFirstRunFlowCloudPref - true if the cloud pref option should be
+   *       shown.
    */
   function setInitialData(data) {
+    container.firstRunFlowCloudPrefLearnMoreUrl =
+        data['firstRunFlowCloudPrefLearnMoreUrl'];
     container.deviceMissingUrl = data['deviceMissingUrl'];
     container.castModeList = data['castModes'];
     container.allSinks = data['sinks'];
     container.routeList = data['routes'];
-    container.showFirstRunFlow = !data['wasFirstRunFlowAcknowledged'];
+    container.showFirstRunFlowCloudPref =
+        data['showFirstRunFlowCloudPref'];
+    // Some users acknowledged the first run flow before the cloud prefs
+    // setting was implemented. These users will see the first run flow
+    // again.
+    container.showFirstRunFlow = !data['wasFirstRunFlowAcknowledged'] ||
+        container.showFirstRunFlowCloudPref;
     container.maybeShowRouteDetailsOnOpen();
     media_router.browserApi.onInitialDataReceived();
   }
@@ -107,7 +121,7 @@ cr.define('media_router.ui', function() {
    * @param {number} height
    */
   function updateMaxHeight(height) {
-    container.updateMaxSinkListHeight(height);
+    container.updateMaxDialogHeight(height);
   }
 
   return {
@@ -129,9 +143,12 @@ cr.define('media_router.browserApi', function() {
 
   /**
    * Indicates that the user has acknowledged the first run flow.
+   *
+   * @param {boolean} optedIntoCloudServices Whether or not the user opted into
+   *                  cloud services.
    */
-  function acknowledgeFirstRunFlow() {
-    chrome.send('acknowledgeFirstRunFlow');
+  function acknowledgeFirstRunFlow(optedIntoCloudServices) {
+    chrome.send('acknowledgeFirstRunFlow', [optedIntoCloudServices]);
   }
 
   /**
@@ -215,6 +232,15 @@ cr.define('media_router.browserApi', function() {
   }
 
   /**
+   * Reports whether or not a route was created successfully.
+   *
+   * @param {boolean} success
+   */
+  function reportRouteCreation(success) {
+    chrome.send('reportRouteCreation', [success]);
+  }
+
+  /**
    * Reports the cast mode that the user selected.
    *
    * @param {number} castModeType
@@ -284,6 +310,7 @@ cr.define('media_router.browserApi', function() {
     reportInitialState: reportInitialState,
     reportNavigateToView: reportNavigateToView,
     reportSelectedCastMode: reportSelectedCastMode,
+    reportRouteCreation: reportRouteCreation,
     reportSinkCount: reportSinkCount,
     reportTimeToClickSink: reportTimeToClickSink,
     reportTimeToInitialActionClose: reportTimeToInitialActionClose,

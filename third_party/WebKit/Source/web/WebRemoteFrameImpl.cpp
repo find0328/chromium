@@ -7,6 +7,7 @@
 #include "core/frame/FrameView.h"
 #include "core/frame/Settings.h"
 #include "core/html/HTMLFrameOwnerElement.h"
+#include "core/layout/LayoutObject.h"
 #include "core/page/Page.h"
 #include "platform/heap/Handle.h"
 #include "public/platform/WebFloatRect.h"
@@ -248,12 +249,6 @@ void WebRemoteFrameImpl::addMessageToConsole(const WebConsoleMessage&)
 void WebRemoteFrameImpl::collectGarbage()
 {
     ASSERT_NOT_REACHED();
-}
-
-bool WebRemoteFrameImpl::checkIfRunInsecureContent(const WebURL&) const
-{
-    ASSERT_NOT_REACHED();
-    return false;
 }
 
 v8::Local<v8::Value> WebRemoteFrameImpl::executeScriptAndReturnValue(
@@ -813,6 +808,14 @@ void WebRemoteFrameImpl::didStopLoading()
             toWebLocalFrameImpl(parent()->toWebLocalFrame());
         parentFrame->frame()->loader().checkCompleted();
     }
+}
+
+bool WebRemoteFrameImpl::isIgnoredForHitTest() const
+{
+    HTMLFrameOwnerElement* owner = frame()->deprecatedLocalOwner();
+    if (!owner || !owner->layoutObject())
+        return false;
+    return owner->layoutObject()->style()->pointerEvents() == PE_NONE;
 }
 
 WebRemoteFrameImpl::WebRemoteFrameImpl(WebTreeScopeType scope, WebRemoteFrameClient* client)

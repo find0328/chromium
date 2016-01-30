@@ -64,10 +64,6 @@
 #include "ipc/mojo/ipc_channel_mojo.h"
 #include "third_party/mojo/src/mojo/edk/embedder/embedder.h"
 
-#if defined(TCMALLOC_TRACE_MEMORY_SUPPORTED)
-#include "third_party/tcmalloc/chromium/src/gperftools/heap-profiler.h"
-#endif
-
 #if defined(USE_OZONE)
 #include "ui/ozone/public/client_native_pixmap_factory.h"
 #endif
@@ -388,7 +384,11 @@ void ChildThreadImpl::Init(const Options& options) {
     IPC::Logging::GetInstance()->SetIPCSender(this);
 #endif
 
-  mojo_ipc_support_.reset(new IPC::ScopedIPCSupport(GetIOTaskRunner()));
+  if (!IsInBrowserProcess()) {
+    // Don't double-initialize IPC support in single-process mode.
+    mojo_ipc_support_.reset(new IPC::ScopedIPCSupport(GetIOTaskRunner()));
+  }
+
   mojo_application_.reset(new MojoApplication(GetIOTaskRunner()));
 
   sync_message_filter_ = channel_->CreateSyncMessageFilter();
@@ -518,8 +518,9 @@ void ChildThreadImpl::Shutdown() {
   file_system_dispatcher_.reset();
   quota_dispatcher_.reset();
   WebFileSystemImpl::DeleteThreadSpecificInstance();
-  // ChildDiscardableSharedMemoryManager has to be destroyed while
-  // |thread_safe_sender_| and |message_loop_| are still valid.
+}
+
+void ChildThreadImpl::ShutdownDiscardableSharedMemoryManager() {
   discardable_shared_memory_manager_.reset();
 }
 
@@ -687,10 +688,10 @@ void ChildThreadImpl::OnBindExternalMojoShellHandle(
 #elif defined(OS_WIN)
   base::PlatformFile handle = file;
 #endif
-  mojo::ScopedMessagePipeHandle message_pipe =
-      mojo_shell_channel_init_.Init(handle, GetIOTaskRunner());
-  DCHECK(message_pipe.is_valid());
-  MojoShellConnectionImpl::Get()->BindToMessagePipe(std::move(message_pipe));
+  mojo_shell_channel_init_.Init(
+      handle, GetIOTaskRunner(),
+      base::Bind(&MojoShellConnectionImpl::BindToMessagePipe,
+                 base::Unretained(MojoShellConnectionImpl::Get())));
 #endif  // defined(MOJO_SHELL_CLIENT)
 }
 

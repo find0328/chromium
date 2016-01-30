@@ -156,7 +156,7 @@ JavaScriptDialogManager* WebContentsDelegate::GetJavaScriptDialogManager(
 scoped_ptr<BluetoothChooser> WebContentsDelegate::RunBluetoothChooser(
     WebContents* web_contents,
     const BluetoothChooser::EventHandler& event_handler,
-    const GURL& origin) {
+    const url::Origin& origin) {
   return nullptr;
 }
 
@@ -257,6 +257,10 @@ SecurityStyle WebContentsDelegate::GetSecurityStyle(
 void WebContentsDelegate::ShowCertificateViewerInDevTools(
     WebContents* web_contents,
     int cert_id) {
+}
+
+bool WebContentsDelegate::RequestAppBanner(content::WebContents* web_contents) {
+  return false;
 }
 
 }  // namespace content

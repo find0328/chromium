@@ -47,7 +47,8 @@ const char* kVariationNames[] = {
   "user_input_points",
   "visible_media_playing_points",
   "hidden_media_playing_points",
-  "web_app_installed_points"
+  "web_app_installed_points",
+  "first_daily_engagement_points",
 };
 
 // Length of time between metrics logging.
@@ -120,10 +121,11 @@ double SiteEngagementScore::param_values[] = {
     7,     // DECAY_PERIOD_IN_DAYS
     5,     // DECAY_POINTS
     0.5,   // NAVIGATION_POINTS
-    0.05,  // USER_INPUT_POINTS
+    0.2,   // USER_INPUT_POINTS
     0.02,  // VISIBLE_MEDIA_POINTS
     0.01,  // HIDDEN_MEDIA_POINTS
     5,     // WEB_APP_INSTALLED_POINTS
+    0.5,   // FIRST_DAILY_ENGAGEMENT
 };
 
 const char* SiteEngagementScore::kRawScoreKey = "rawScore";
@@ -162,6 +164,10 @@ double SiteEngagementScore::GetHiddenMediaPoints() {
 
 double SiteEngagementScore::GetWebAppInstalledPoints() {
   return param_values[WEB_APP_INSTALLED_POINTS];
+}
+
+double SiteEngagementScore::GetFirstDailyEngagementPoints() {
+  return param_values[FIRST_DAILY_ENGAGEMENT];
 }
 
 void SiteEngagementScore::UpdateFromVariations() {
@@ -208,6 +214,7 @@ double SiteEngagementScore::Score() const {
 }
 
 void SiteEngagementScore::AddPoints(double points) {
+  DCHECK_NE(0, points);
   // As the score is about to be updated, commit any decay that has happened
   // since the last update.
   raw_score_ = DecayedScore();
@@ -216,6 +223,13 @@ void SiteEngagementScore::AddPoints(double points) {
   if (!last_engagement_time_.is_null() &&
       now.LocalMidnight() != last_engagement_time_.LocalMidnight()) {
     points_added_today_ = 0;
+  }
+
+  if (points_added_today_ == 0) {
+    // Award bonus engagement for the first engagement of the day for a site.
+    points += GetFirstDailyEngagementPoints();
+    SiteEngagementMetrics::RecordEngagement(
+        SiteEngagementMetrics::ENGAGEMENT_FIRST_DAILY_ENGAGEMENT);
   }
 
   double to_add = std::min(kMaxPoints - raw_score_,
@@ -236,7 +250,7 @@ void SiteEngagementScore::Reset(double points) {
   last_engagement_time_ = clock_->Now();
 }
 
-bool SiteEngagementScore::MaxPointsPerDayAdded() {
+bool SiteEngagementScore::MaxPointsPerDayAdded() const {
   if (!last_engagement_time_.is_null() &&
       clock_->Now().LocalMidnight() != last_engagement_time_.LocalMidnight()) {
     return false;
@@ -309,6 +323,21 @@ double SiteEngagementScore::BonusScore() const {
     return GetWebAppInstalledPoints();
 
   return 0;
+}
+
+void SiteEngagementScore::SetParamValuesForTesting() {
+  param_values[MAX_POINTS_PER_DAY] = 5;
+  param_values[DECAY_PERIOD_IN_DAYS] = 7;
+  param_values[DECAY_POINTS] = 5;
+  param_values[NAVIGATION_POINTS] = 0.5;
+  param_values[USER_INPUT_POINTS] = 0.05;
+  param_values[VISIBLE_MEDIA_POINTS] = 0.02;
+  param_values[HIDDEN_MEDIA_POINTS] = 0.01;
+  param_values[WEB_APP_INSTALLED_POINTS] = 5;
+
+  // This is set to zero to avoid interference with tests and is set when
+  // testing this functionality.
+  param_values[FIRST_DAILY_ENGAGEMENT] = 0;
 }
 
 const char SiteEngagementService::kEngagementParams[] = "SiteEngagement";

@@ -123,6 +123,7 @@
 #include "platform/EventDispatchForbiddenScope.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/UserGestureIndicator.h"
+#include "platform/graphics/CompositorMutableProperties.h"
 #include "platform/scroll/ScrollableArea.h"
 #include "wtf/BitVector.h"
 #include "wtf/HashFunctions.h"
@@ -996,10 +997,10 @@ void Element::decrementCompositorProxiedProperties(uint32_t mutableProperties)
 uint32_t Element::compositorMutableProperties() const
 {
     if (!hasRareData())
-        return WebCompositorMutablePropertyNone;
+        return CompositorMutableProperty::kNone;
     if (CompositorProxiedPropertySet* set = elementRareData()->proxiedPropertyCounts())
         return set->proxiedProperties();
-    return WebCompositorMutablePropertyNone;
+    return CompositorMutableProperty::kNone;
 }
 
 bool Element::hasNonEmptyLayoutSize() const
@@ -1708,7 +1709,6 @@ PassRefPtr<ComputedStyle> Element::styleForLayoutObject()
             style->setHasInlineTransform(inlineStyle->hasProperty(CSSPropertyTransform));
     }
 
-    document().didRecalculateStyleForElement();
     return style.release();
 }
 
@@ -1789,9 +1789,9 @@ StyleRecalcChange Element::recalcOwnStyle(StyleRecalcChange change)
 
     StyleRecalcChange localChange = ComputedStyle::stylePropagationDiff(oldStyle.get(), newStyle.get());
     if (localChange == NoChange) {
-        INCREMENT_STYLE_STATS_COUNTER(*document().styleResolver(), stylesUnchanged, 1);
+        INCREMENT_STYLE_STATS_COUNTER(document().styleEngine(), stylesUnchanged, 1);
     } else {
-        INCREMENT_STYLE_STATS_COUNTER(*document().styleResolver(), stylesChanged, 1);
+        INCREMENT_STYLE_STATS_COUNTER(document().styleEngine(), stylesChanged, 1);
     }
 
     if (localChange == Reattach) {
@@ -2444,7 +2444,8 @@ bool Element::supportsFocus() const
     // But supportsFocus must return true when the element is editable, or else
     // it won't be focusable. Furthermore, supportsFocus cannot just return true
     // always or else tabIndex() will change for all HTML elements.
-    return hasElementFlag(TabIndexWasSetExplicitly) || (hasEditableStyle() && parentNode() && !parentNode()->hasEditableStyle())
+    return hasElementFlag(TabIndexWasSetExplicitly)
+        || isRootEditableElement()
         || (isShadowHost(this) && authorShadowRoot() && authorShadowRoot()->delegatesFocus())
         || supportsSpatialNavigationFocus();
 }

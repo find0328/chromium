@@ -45,8 +45,8 @@
 #include "ui/base/default_theme_provider.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/models/list_selection_model.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/compositor/compositing_recorder.h"
 #include "ui/compositor/paint_recorder.h"
@@ -527,6 +527,7 @@ void NewTabButton::PaintFill(bool pressed,
                              gfx::Canvas* canvas) const {
   bool custom_image;
   const int bg_id = tab_strip_->GetBackgroundResourceId(&custom_image);
+  const ui::ThemeProvider* tp = GetThemeProvider();
 
   gfx::ScopedCanvas scoped_canvas(canvas);
 
@@ -547,7 +548,7 @@ void NewTabButton::PaintFill(bool pressed,
       paint.setAntiAlias(true);
       skia::RefPtr<SkDrawLooper> looper = CreateShadowDrawLooper(0x26);
       paint.setLooper(looper.get());
-      paint.setColor(Tab::kInactiveTabColor);
+      paint.setColor(tp->GetColor(ThemeProperties::COLOR_BACKGROUND_TAB));
       canvas->DrawPath(fill, paint);
     }
 
@@ -561,11 +562,10 @@ void NewTabButton::PaintFill(bool pressed,
   // Draw the fill background image.
   const gfx::Size size(GetLayoutSize(NEW_TAB_BUTTON));
   if (custom_image || !md) {
-    const ui::ThemeProvider* theme_provider = GetThemeProvider();
-    gfx::ImageSkia* background = theme_provider->GetImageSkiaNamed(bg_id);
+    gfx::ImageSkia* background = tp->GetImageSkiaNamed(bg_id);
     // For custom tab backgrounds the background starts at the top of the tab
     // strip. Otherwise the background starts at the top of the frame.
-    const int offset_y = theme_provider->HasCustomImage(bg_id) ?
+    const int offset_y = tp->HasCustomImage(bg_id) ?
         -GetLayoutConstant(TAB_TOP_EXCLUSION_HEIGHT) : background_offset_.y();
 
     // The new tab background is mirrored in RTL mode, but the theme background
@@ -1376,6 +1376,10 @@ bool TabStrip::CanPaintThrobberToLayer() const {
   return !touch_layout_ && !dragging && !IsAnimating();
 }
 
+bool TabStrip::IsIncognito() const {
+  return controller()->IsIncognito();
+}
+
 bool TabStrip::IsImmersiveStyle() const {
   return immersive_style_;
 }
@@ -1392,12 +1396,15 @@ int TabStrip::GetBackgroundResourceId(bool* custom_image) const {
   // If a custom theme does not provide a replacement tab background, but does
   // provide a replacement frame image, HasCustomImage() on the tab background
   // ID will return false, but the theme provider will make a custom image from
-  // the frame image.
+  // the frame image.  Furthermore, since the theme provider will create the
+  // incognito frame image from the normal frame image, in incognito mode we
+  // need to look for a custom incognito _or_ regular frame image.
   const bool incognito = controller()->IsIncognito();
   const int id = incognito ?
       IDR_THEME_TAB_BACKGROUND_INCOGNITO : IDR_THEME_TAB_BACKGROUND;
   const int frame_id = incognito ? IDR_THEME_FRAME_INCOGNITO : IDR_THEME_FRAME;
-  *custom_image = tp->HasCustomImage(id) || tp->HasCustomImage(frame_id);
+  *custom_image = tp->HasCustomImage(id) || tp->HasCustomImage(frame_id) ||
+      (incognito && tp->HasCustomImage(IDR_THEME_FRAME));
   return id;
 }
 
@@ -2337,7 +2344,7 @@ gfx::Rect TabStrip::GetDropBounds(int drop_index,
                         drop_indicator_height);
 
   // If the rect doesn't fit on the monitor, push the arrow to the bottom.
-  gfx::Screen* screen = gfx::Screen::GetScreenFor(GetWidget()->GetNativeView());
+  gfx::Screen* screen = gfx::Screen::GetScreen();
   gfx::Display display = screen->GetDisplayMatching(drop_bounds);
   *is_beneath = !display.bounds().Contains(drop_bounds);
   if (*is_beneath)
@@ -2480,8 +2487,13 @@ void TabStrip::GenerateIdealBounds() {
       tabs_.set_ideal_bounds(i, tabs_bounds[i]);
   }
 
-  const int new_tab_x = tabs_.ideal_bounds(tabs_.view_size() - 1).right() -
-                        GetLayoutConstant(TABSTRIP_NEW_TAB_BUTTON_OVERLAP);
+  const int max_new_tab_x = width() - newtab_button_bounds_.width();
+  // For non-stacked tabs the ideal bounds may go outside the bounds of the
+  // tabstrip. Constrain the x-coordinate of the new tab button so that it is
+  // always visible.
+  const int new_tab_x = std::min(
+      max_new_tab_x, tabs_.ideal_bounds(tabs_.view_size() - 1).right() -
+                         GetLayoutConstant(TABSTRIP_NEW_TAB_BUTTON_OVERLAP));
   const int old_max_x = newtab_button_bounds_.right();
   newtab_button_bounds_.set_origin(gfx::Point(new_tab_x, 0));
   if (newtab_button_bounds_.right() != old_max_x)

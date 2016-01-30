@@ -34,7 +34,12 @@ String getSha256String(const String& content)
     return "sha256-" + base64Encode(reinterpret_cast<char*>(digest.data()), digest.size(), Base64DoNotInsertLFs);
 }
 
+template<typename CharType> inline bool isASCIIAlphanumericOrHyphen(CharType c)
+{
+    return isASCIIAlphanumeric(c) || c == '-';
 }
+
+} // namespace
 
 CSPDirectiveList::CSPDirectiveList(ContentSecurityPolicy* policy, ContentSecurityPolicyHeaderType type, ContentSecurityPolicyHeaderSource source)
     : m_policy(policy)
@@ -122,6 +127,11 @@ bool CSPDirectiveList::checkNonce(SourceListDirective* directive, const String& 
 bool CSPDirectiveList::checkHash(SourceListDirective* directive, const CSPHashValue& hashValue) const
 {
     return !directive || directive->allowHash(hashValue);
+}
+
+bool CSPDirectiveList::checkDynamic(SourceListDirective* directive) const
+{
+    return !directive || directive->allowDynamic();
 }
 
 bool CSPDirectiveList::checkSource(SourceListDirective* directive, const KURL& url, ContentSecurityPolicy::RedirectStatus redirectStatus) const
@@ -405,6 +415,11 @@ bool CSPDirectiveList::allowScriptHash(const CSPHashValue& hashValue) const
 bool CSPDirectiveList::allowStyleHash(const CSPHashValue& hashValue) const
 {
     return checkHash(operativeDirective(m_styleSrc.get()), hashValue);
+}
+
+bool CSPDirectiveList::allowDynamic() const
+{
+    return checkDynamic(operativeDirective(m_scriptSrc.get()));
 }
 
 const String& CSPDirectiveList::pluginTypesText() const
@@ -719,7 +734,7 @@ String CSPDirectiveList::parseSuboriginName(const String& policy)
 
     const UChar* begin = position;
 
-    skipWhile<UChar, isASCIIAlphanumeric>(position, end);
+    skipWhile<UChar, isASCIIAlphanumericOrHyphen>(position, end);
     if (position != end && !isASCIISpace(*position)) {
         m_policy->reportInvalidSuboriginFlags("Invalid character \'" + String(position, 1) + "\' in suborigin.");
         return String();

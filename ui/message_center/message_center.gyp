@@ -66,6 +66,8 @@
         'notifier_settings.h',
         'popup_timer.cc',
         'popup_timer.h',
+        'popup_timers_controller.cc',
+        'popup_timers_controller.h',
         'views/bounded_label.cc',
         'views/bounded_label.h',
         'views/constants.h',
@@ -237,12 +239,6 @@
             # Exclude everything except main().
             ['exclude', '\\.(cc|mm)$'],
             ['include', '^test/run_all_unittests\\.cc$'],
-          ],
-        }],
-        # See http://crbug.com/162998#c4 for why this is needed.
-        ['OS=="linux" and use_allocator!="none"', {
-          'dependencies': [
-            '../../base/allocator/allocator.gyp:allocator',
           ],
         }],
       ],

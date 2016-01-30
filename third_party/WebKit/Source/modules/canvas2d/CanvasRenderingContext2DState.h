@@ -74,6 +74,7 @@ public:
     bool hasClip() const { return m_hasClip; }
     bool hasComplexClip() const { return m_hasComplexClip; }
     void playbackClips(SkCanvas* canvas) const { m_clipList.playback(canvas); }
+    SkPath intersectPathWithClip(const SkPath& path) const { return m_clipList.intersectPathWithClip(path); }
 
     void setFont(const Font&, CSSFontSelector*);
     const Font& font() const;
@@ -85,7 +86,7 @@ public:
     void setUnparsedFilter(const String& filterString) { m_unparsedFilter = filterString; }
     const String& unparsedFilter() const { return m_unparsedFilter; }
     SkImageFilter* getFilter(Element*, const Font&, IntSize canvasSize) const;
-    bool hasFilter() const { return m_filterValue; }
+    bool hasFilter(Element*, const Font&, IntSize canvasSize) const;
 
     void setStrokeStyle(CanvasStyle*);
     CanvasStyle* strokeStyle() const { return m_strokeStyle.get(); }
@@ -227,6 +228,6 @@ private:
     ClipList m_clipList;
 };
 
-} // blink
+} // namespace blink
 
 #endif

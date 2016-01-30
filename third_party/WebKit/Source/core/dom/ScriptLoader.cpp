@@ -303,7 +303,10 @@ bool ScriptLoader::fetchScript(const String& sourceUrl, FetchRequest::DeferOptio
             request.setCrossOriginAccessControl(elementDocument->securityOrigin(), crossOrigin);
         request.setCharset(scriptCharset());
 
-        bool scriptPassesCSP = elementDocument->contentSecurityPolicy()->allowScriptWithNonce(m_element->fastGetAttribute(HTMLNames::nonceAttr));
+        // Skip fetch-related CSP checks if the script element has a valid nonce, or if dynamically
+        // injected script is whitelisted and this script is not parser-inserted.
+        bool scriptPassesCSP = elementDocument->contentSecurityPolicy()->allowScriptWithNonce(m_element->fastGetAttribute(HTMLNames::nonceAttr)) || (!isParserInserted() && elementDocument->contentSecurityPolicy()->allowDynamic());
+
         if (scriptPassesCSP)
             request.setContentSecurityCheck(DoNotCheckContentSecurityPolicy);
         request.setDefer(defer);
@@ -369,9 +372,10 @@ bool ScriptLoader::executeScript(const ScriptSourceCode& sourceCode, double* com
     const ContentSecurityPolicy* csp = elementDocument->contentSecurityPolicy();
     bool shouldBypassMainWorldCSP = (frame && frame->script().shouldBypassMainWorldCSP())
         || csp->allowScriptWithNonce(m_element->fastGetAttribute(HTMLNames::nonceAttr))
-        || csp->allowScriptWithHash(sourceCode.source());
+        || csp->allowScriptWithHash(sourceCode.source().toString())
+        || (!isParserInserted() && csp->allowDynamic());
 
-    if (!m_isExternalScript && (!shouldBypassMainWorldCSP && !csp->allowInlineScript(elementDocument->url(), m_startLineNumber, sourceCode.source()))) {
+    if (!m_isExternalScript && (!shouldBypassMainWorldCSP && !csp->allowInlineScript(elementDocument->url(), m_startLineNumber, sourceCode.source().toString()))) {
         return false;
     }
 
@@ -467,9 +471,9 @@ void ScriptLoader::notifyFinished(Resource* resource)
     ScriptRunner::ExecutionType runOrder = m_willExecuteInOrder ? ScriptRunner::IN_ORDER_EXECUTION : ScriptRunner::ASYNC_EXECUTION;
     if (m_resource->errorOccurred()) {
         dispatchErrorEvent();
-        // dispatchErrorEvent might move the HTMLScriptElement to a new
-        // document. In that case, we must notify the ScriptRunner of the new
-        // document, not the ScriptRunner of the old docuemnt.
+        // The error handler can move the HTMLScriptElement to a new document.
+        // In that case, we must notify the ScriptRunner of the new document,
+        // not the ScriptRunner of the old docuemnt.
         contextDocument = m_element->document().contextDocument().get();
         if (!contextDocument)
             return;

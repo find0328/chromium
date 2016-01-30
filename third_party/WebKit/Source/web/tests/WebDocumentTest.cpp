@@ -26,8 +26,8 @@ namespace blink {
 using blink::FrameTestHelpers::WebViewHelper;
 using blink::URLTestHelpers::toKURL;
 
-const char* kDefaultOrigin = "https://example.test/";
-const char* kManifestDummyFilePath = "manifest-dummy.html";
+const char kDefaultOrigin[] = "https://example.test/";
+const char kManifestDummyFilePath[] = "manifest-dummy.html";
 
 class WebDocumentTest : public ::testing::Test {
 protected:
@@ -67,11 +67,13 @@ TEST_F(WebDocumentTest, InsertStyleSheet)
     WebDocument webDoc = topWebDocument();
     Document* coreDoc = topDocument();
 
+    unsigned startCount = coreDoc->styleEngine().styleForElementCount();
+
     webDoc.insertStyleSheet("body { color: green }");
 
     // Check insertStyleSheet did not cause a synchronous style recalc.
-    unsigned accessCount = coreDoc->styleEngine().resolverAccessCount();
-    ASSERT_EQ(0U, accessCount);
+    unsigned elementCount = coreDoc->styleEngine().styleForElementCount() - startCount;
+    ASSERT_EQ(0U, elementCount);
 
     HTMLElement* bodyElement = coreDoc->body();
     ASSERT(bodyElement);

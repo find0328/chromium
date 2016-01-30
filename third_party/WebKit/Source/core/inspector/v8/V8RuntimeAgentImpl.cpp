@@ -30,12 +30,10 @@
 
 #include "core/inspector/v8/V8RuntimeAgentImpl.h"
 
-#include "bindings/core/v8/ScriptState.h"
-#include "core/inspector/InjectedScript.h"
-#include "core/inspector/InjectedScriptManager.h"
-#include "core/inspector/InspectorState.h"
-#include "core/inspector/RemoteObjectId.h"
 #include "core/inspector/v8/IgnoreExceptionsScope.h"
+#include "core/inspector/v8/InjectedScript.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
+#include "core/inspector/v8/RemoteObjectId.h"
 #include "core/inspector/v8/V8Debugger.h"
 #include "core/inspector/v8/V8DebuggerImpl.h"
 #include "platform/JSONValues.h"
@@ -73,15 +71,15 @@ void V8RuntimeAgentImpl::evaluate(ErrorString* errorString, const String& expres
         *errorString = "Cannot find default execution context";
         return;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(*executionContextId);
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(*executionContextId);
+    if (!injectedScript) {
         *errorString = "Cannot find execution context with given id";
         return;
     }
     Optional<IgnoreExceptionsScope> ignoreExceptionsScope;
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         ignoreExceptionsScope.emplace(m_debugger);
-    injectedScript.evaluate(errorString, expression, objectGroup ? *objectGroup : "", asBool(includeCommandLineAPI), asBool(returnByValue), asBool(generatePreview), &result, wasThrown, &exceptionDetails);
+    injectedScript->evaluate(errorString, expression, objectGroup ? *objectGroup : "", asBool(includeCommandLineAPI), asBool(returnByValue), asBool(generatePreview), &result, wasThrown, &exceptionDetails);
 }
 
 void V8RuntimeAgentImpl::callFunctionOn(ErrorString* errorString, const String& objectId, const String& expression, const RefPtr<JSONArray>* const optionalArguments, const bool* const doNotPauseOnExceptionsAndMuteConsole, const bool* const returnByValue, const bool* generatePreview, RefPtr<TypeBuilder::Runtime::RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown)
@@ -91,8 +89,8 @@ void V8RuntimeAgentImpl::callFunctionOn(ErrorString* errorString, const String& 
         *errorString = "Invalid object id";
         return;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
+    if (!injectedScript) {
         *errorString = "Inspected frame has gone";
         return;
     }
@@ -103,7 +101,7 @@ void V8RuntimeAgentImpl::callFunctionOn(ErrorString* errorString, const String& 
     Optional<IgnoreExceptionsScope> ignoreExceptionsScope;
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         ignoreExceptionsScope.emplace(m_debugger);
-    injectedScript.callFunctionOn(errorString, objectId, expression, arguments, asBool(returnByValue), asBool(generatePreview), &result, wasThrown);
+    injectedScript->callFunctionOn(errorString, objectId, expression, arguments, asBool(returnByValue), asBool(generatePreview), &result, wasThrown);
 }
 
 void V8RuntimeAgentImpl::getProperties(ErrorString* errorString, const String& objectId, const bool* ownProperties, const bool* accessorPropertiesOnly, const bool* generatePreview, RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::PropertyDescriptor>>& result, RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::InternalPropertyDescriptor>>& internalProperties, RefPtr<TypeBuilder::Debugger::ExceptionDetails>& exceptionDetails)
@@ -113,18 +111,18 @@ void V8RuntimeAgentImpl::getProperties(ErrorString* errorString, const String& o
         *errorString = "Invalid object id";
         return;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
+    if (!injectedScript) {
         *errorString = "Inspected frame has gone";
         return;
     }
 
     IgnoreExceptionsScope ignoreExceptionsScope(m_debugger);
 
-    injectedScript.getProperties(errorString, objectId, asBool(ownProperties), asBool(accessorPropertiesOnly), asBool(generatePreview), &result, &exceptionDetails);
+    injectedScript->getProperties(errorString, objectId, asBool(ownProperties), asBool(accessorPropertiesOnly), asBool(generatePreview), &result, &exceptionDetails);
 
     if (!exceptionDetails && !asBool(accessorPropertiesOnly))
-        injectedScript.getInternalProperties(errorString, objectId, &internalProperties, &exceptionDetails);
+        injectedScript->getInternalProperties(errorString, objectId, &internalProperties, &exceptionDetails);
 }
 
 void V8RuntimeAgentImpl::releaseObject(ErrorString* errorString, const String& objectId)
@@ -134,13 +132,13 @@ void V8RuntimeAgentImpl::releaseObject(ErrorString* errorString, const String& o
         *errorString = "Invalid object id";
         return;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
-    if (injectedScript.isEmpty())
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
+    if (!injectedScript)
         return;
     bool pausingOnNextStatement = m_debugger->pausingOnNextStatement();
     if (pausingOnNextStatement)
         m_debugger->setPauseOnNextStatement(false);
-    injectedScript.releaseObject(objectId);
+    injectedScript->releaseObject(objectId);
     if (pausingOnNextStatement)
         m_debugger->setPauseOnNextStatement(true);
 }
@@ -171,7 +169,7 @@ void V8RuntimeAgentImpl::setCustomObjectFormatterEnabled(ErrorString*, bool enab
     injectedScriptManager()->setCustomObjectFormatterEnabled(enabled);
 }
 
-void V8RuntimeAgentImpl::setInspectorState(InspectorState* state)
+void V8RuntimeAgentImpl::setInspectorState(PassRefPtr<JSONObject> state)
 {
     m_state = state;
 }
@@ -194,7 +192,7 @@ void V8RuntimeAgentImpl::restore()
     m_frontend->executionContextsCleared();
     String error;
     enable(&error);
-    if (m_state->getBoolean(V8RuntimeAgentImplState::customObjectFormatterEnabled))
+    if (m_state->booleanProperty(V8RuntimeAgentImplState::customObjectFormatterEnabled, false))
         injectedScriptManager()->setCustomObjectFormatterEnabled(true);
 }
 
@@ -208,13 +206,15 @@ void V8RuntimeAgentImpl::disable(ErrorString* errorString)
     m_enabled = false;
 }
 
-void V8RuntimeAgentImpl::reportExecutionContextCreated(ScriptState* scriptState, const String& type, const String& origin, const String& humanReadableName, const String& frameId)
+void V8RuntimeAgentImpl::reportExecutionContextCreated(v8::Local<v8::Context> context, const String& type, const String& origin, const String& humanReadableName, const String& frameId)
 {
     if (!m_enabled)
         return;
-    InjectedScript injectedScript = injectedScriptManager()->injectedScriptFor(scriptState);
+    InjectedScript* injectedScript = injectedScriptManager()->injectedScriptFor(context);
+    if (!injectedScript)
+        return;
     RefPtr<ExecutionContextDescription> description = ExecutionContextDescription::create()
-        .setId(injectedScript.contextId())
+        .setId(injectedScript->contextId())
         .setName(humanReadableName)
         .setOrigin(origin)
         .setFrameId(frameId);
@@ -224,9 +224,9 @@ void V8RuntimeAgentImpl::reportExecutionContextCreated(ScriptState* scriptState,
 }
 
 
-void V8RuntimeAgentImpl::reportExecutionContextDestroyed(ScriptState* scriptState)
+void V8RuntimeAgentImpl::reportExecutionContextDestroyed(v8::Local<v8::Context> context)
 {
-    int contextId = injectedScriptManager()->discardInjectedScriptFor(scriptState);
+    int contextId = injectedScriptManager()->discardInjectedScriptFor(context);
     if (m_enabled)
         m_frontend->executionContextDestroyed(contextId);
 }

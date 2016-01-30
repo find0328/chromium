@@ -188,6 +188,7 @@ public:
     GraphicsLayer* layerForScrollCorner() const override;
 
     bool usesCompositedScrolling() const override;
+    bool shouldScrollOnMainThread() const override;
     void scrollControlWasSetNeedsPaintInvalidation() override;
     bool shouldUseIntegerScrollOffset() const override;
     bool isActive() const override;
@@ -227,11 +228,13 @@ public:
     // FIXME: We shouldn't allow access to m_overflowRect outside this class.
     LayoutRect overflowRect() const { return m_overflowRect; }
 
-    void scrollToPosition(const DoublePoint& scrollPosition, ScrollOffsetClamping = ScrollOffsetUnclamped, ScrollBehavior = ScrollBehaviorInstant, ScrollType = ProgrammaticScroll);
+    void scrollToPosition(const DoublePoint& scrollPosition, ScrollOffsetClamping = ScrollOffsetUnclamped,
+        ScrollBehavior = ScrollBehaviorInstant, ScrollType = ProgrammaticScroll);
 
-    void scrollToOffset(const DoubleSize& scrollOffset, ScrollOffsetClamping clamp = ScrollOffsetUnclamped, ScrollBehavior scrollBehavior = ScrollBehaviorInstant)
+    void scrollToOffset(const DoubleSize& scrollOffset, ScrollOffsetClamping clamp = ScrollOffsetUnclamped,
+        ScrollBehavior scrollBehavior = ScrollBehaviorInstant, ScrollType scrollType = ProgrammaticScroll)
     {
-        scrollToPosition(-scrollOrigin() + scrollOffset, clamp, scrollBehavior);
+        scrollToPosition(-scrollOrigin() + scrollOffset, clamp, scrollBehavior, scrollType);
     }
 
     void scrollToXOffset(double x, ScrollOffsetClamping clamp = ScrollOffsetUnclamped, ScrollBehavior scrollBehavior = ScrollBehaviorInstant)
@@ -246,7 +249,7 @@ public:
 
     void setScrollPosition(const DoublePoint& position, ScrollType scrollType, ScrollBehavior scrollBehavior = ScrollBehaviorInstant) override
     {
-        scrollToOffset(toDoubleSize(position), ScrollOffsetClamped, scrollBehavior);
+        scrollToOffset(toDoubleSize(position), ScrollOffsetClamped, scrollBehavior, scrollType);
     }
 
     void updateScrollDimensions(DoubleSize& scrollOffset, bool& autoHorizontalScrollBarChanged, bool& autoVerticalScrollBarChanged);
@@ -300,7 +303,7 @@ public:
     bool scrollsOverflow() const { return m_scrollsOverflow; }
 
     // Rectangle encompassing the scroll corner and resizer rect.
-    IntRect scrollCornerAndResizerRect() const;
+    IntRect scrollCornerAndResizerRect() const final;
 
     enum LCDTextMode {
         ConsiderLCDText,
@@ -329,6 +332,7 @@ public:
     IntRect rectForVerticalScrollbar(const IntRect& borderBoxRect) const;
 
     Widget* widget() override;
+    bool isPaintLayerScrollableArea() const override { return true; }
 
     DECLARE_VIRTUAL_TRACE();
 
@@ -408,6 +412,10 @@ private:
     bool m_hasBeenDisposed;
 #endif
 };
+
+DEFINE_TYPE_CASTS(PaintLayerScrollableArea, ScrollableArea, scrollableArea,
+    scrollableArea->isPaintLayerScrollableArea(),
+    scrollableArea.isPaintLayerScrollableArea());
 
 } // namespace blink
 

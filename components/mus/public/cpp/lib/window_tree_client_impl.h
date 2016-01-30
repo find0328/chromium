@@ -14,6 +14,7 @@
 #include "base/observer_list.h"
 #include "components/mus/common/types.h"
 #include "components/mus/public/cpp/window.h"
+#include "components/mus/public/cpp/window_manager_delegate.h"
 #include "components/mus/public/cpp/window_tree_connection.h"
 #include "components/mus/public/interfaces/window_tree.mojom.h"
 #include "mojo/public/cpp/bindings/associated_binding.h"
@@ -35,12 +36,16 @@ enum class ChangeType;
 // Manages the connection with the Window Server service.
 class WindowTreeClientImpl : public WindowTreeConnection,
                              public mojom::WindowTreeClient,
-                             public mojom::WindowManagerInternal {
+                             public mojom::WindowManager,
+                             public WindowManagerClient {
  public:
   WindowTreeClientImpl(WindowTreeDelegate* delegate,
                        WindowManagerDelegate* window_manager_delegate,
                        mojo::InterfaceRequest<mojom::WindowTreeClient> request);
   ~WindowTreeClientImpl() override;
+
+  // Establishes the connection by way of the WindowTreeFactory.
+  void ConnectViaWindowTreeFactory(mojo::ApplicationImpl* app);
 
   // Wait for OnEmbed(), returning when done.
   void WaitForEmbed();
@@ -208,11 +213,10 @@ class WindowTreeClientImpl : public WindowTreeConnection,
                                        mojom::Cursor cursor) override;
   void OnChangeCompleted(uint32_t change_id, bool success) override;
   void RequestClose(uint32_t window_id) override;
-  void GetWindowManagerInternal(
-      mojo::AssociatedInterfaceRequest<WindowManagerInternal> internal)
-      override;
+  void GetWindowManager(
+      mojo::AssociatedInterfaceRequest<WindowManager> internal) override;
 
-  // Overridden from WindowManagerInternal:
+  // Overridden from WindowManager:
   void WmSetBounds(uint32_t change_id,
                    Id window_id,
                    mojo::RectPtr transit_bounds) override;
@@ -223,6 +227,10 @@ class WindowTreeClientImpl : public WindowTreeConnection,
   void WmCreateTopLevelWindow(uint32_t change_id,
                               mojo::Map<mojo::String, mojo::Array<uint8_t>>
                                   transport_properties) override;
+
+  // Overriden from WindowManagerClient:
+  void SetFrameDecorationValues(
+      mojom::FrameDecorationValuesPtr values) override;
 
   // This is set once and only once when we get OnEmbed(). It gives the unique
   // id for this connection.
@@ -259,10 +267,9 @@ class WindowTreeClientImpl : public WindowTreeConnection,
 
   base::ObserverList<WindowTreeConnectionObserver> observers_;
 
-  scoped_ptr<mojo::AssociatedBinding<mojom::WindowManagerInternal>>
+  scoped_ptr<mojo::AssociatedBinding<mojom::WindowManager>>
       window_manager_internal_;
-  mojom::WindowManagerInternalClientAssociatedPtr
-      window_manager_internal_client_;
+  mojom::WindowManagerClientAssociatedPtr window_manager_internal_client_;
 
   MOJO_DISALLOW_COPY_AND_ASSIGN(WindowTreeClientImpl);
 };

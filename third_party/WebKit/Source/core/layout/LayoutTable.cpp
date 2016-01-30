@@ -281,7 +281,7 @@ void LayoutTable::updateLogicalWidth()
         LayoutUnit marginTotal = marginStart + marginEnd;
 
         // Subtract out our margins to get the available content width.
-        LayoutUnit availableContentLogicalWidth = std::max<LayoutUnit>(0, containerWidthInInlineDirection - marginTotal);
+        LayoutUnit availableContentLogicalWidth = (containerWidthInInlineDirection - marginTotal).clampNegativeToZero();
         if (shrinkToAvoidFloats() && cb->isLayoutBlockFlow() && toLayoutBlockFlow(cb)->containsFloats() && !hasPerpendicularContainingBlock)
             availableContentLogicalWidth = shrinkLogicalWidthToAvoidFloats(marginStart, marginEnd, toLayoutBlockFlow(cb));
 
@@ -327,7 +327,7 @@ LayoutUnit LayoutTable::convertStyleLogicalWidthToComputedWidth(const Length& st
         return computeIntrinsicLogicalWidthUsing(styleLogicalWidth, availableWidth, bordersPaddingAndSpacingInRowDirection());
 
     // HTML tables' width styles already include borders and paddings, but CSS tables' width styles do not.
-    LayoutUnit borders = 0;
+    LayoutUnit borders;
     bool isCSSTable = !isHTMLTableElement(node());
     if (isCSSTable && styleLogicalWidth.isSpecified() && styleLogicalWidth.isPositive() && style()->boxSizing() == CONTENT_BOX)
         borders = borderStart() + borderEnd() + (collapseBorders() ? LayoutUnit() : paddingStart() + paddingEnd());
@@ -340,7 +340,7 @@ LayoutUnit LayoutTable::convertStyleLogicalHeightToComputedHeight(const Length& 
     LayoutUnit borderAndPaddingBefore = borderBefore() + (collapseBorders() ? LayoutUnit() : paddingBefore());
     LayoutUnit borderAndPaddingAfter = borderAfter() + (collapseBorders() ? LayoutUnit() : paddingAfter());
     LayoutUnit borderAndPadding = borderAndPaddingBefore + borderAndPaddingAfter;
-    LayoutUnit computedLogicalHeight = 0;
+    LayoutUnit computedLogicalHeight;
     if (styleLogicalHeight.isFixed()) {
         // HTML tables size as though CSS height includes border/padding, CSS tables do not.
         LayoutUnit borders = LayoutUnit();
@@ -356,7 +356,7 @@ LayoutUnit LayoutTable::convertStyleLogicalHeightToComputedHeight(const Length& 
     } else {
         ASSERT_NOT_REACHED();
     }
-    return std::max<LayoutUnit>(0, computedLogicalHeight);
+    return computedLogicalHeight.clampNegativeToZero();
 }
 
 void LayoutTable::layoutCaption(LayoutTableCaption& caption)
@@ -450,8 +450,8 @@ void LayoutTable::layout()
         // if ( oldWidth != width() || columns.size() + 1 != columnPos.size() )
         m_tableLayout->layout();
 
-        LayoutUnit totalSectionLogicalHeight = 0;
-        LayoutUnit oldTableLogicalTop = 0;
+        LayoutUnit totalSectionLogicalHeight;
+        LayoutUnit oldTableLogicalTop;
         for (unsigned i = 0; i < m_captions.size(); i++)
             oldTableLogicalTop += m_captions[i]->logicalHeight() + m_captions[i]->marginBefore() + m_captions[i]->marginAfter();
 
@@ -495,7 +495,7 @@ void LayoutTable::layout()
 
         setLogicalHeight(logicalHeight() + borderAndPaddingBefore);
 
-        LayoutUnit computedLogicalHeight = 0;
+        LayoutUnit computedLogicalHeight;
 
         Length logicalHeightLength = style()->logicalHeight();
         if (logicalHeightLength.isIntrinsic() || (logicalHeightLength.isSpecified() && logicalHeightLength.isPositive()))
@@ -1356,7 +1356,7 @@ bool LayoutTable::nodeAtPoint(HitTestResult& result, const HitTestLocation& loca
     LayoutRect boundsRect(adjustedLocation, size());
     if (visibleToHitTestRequest(result.hitTestRequest()) && (action == HitTestBlockBackground || action == HitTestChildBlockBackground) && locationInContainer.intersects(boundsRect)) {
         updateHitTestResult(result, flipForWritingMode(locationInContainer.point() - toLayoutSize(adjustedLocation)));
-        if (!result.addNodeToListBasedTestResult(node(), locationInContainer, boundsRect))
+        if (result.addNodeToListBasedTestResult(node(), locationInContainer, boundsRect) == StopHitTesting)
             return true;
     }
 
@@ -1461,4 +1461,4 @@ LayoutUnit LayoutTable::paddingRight() const
     return LayoutBlock::paddingRight();
 }
 
-}
+} // namespace blink

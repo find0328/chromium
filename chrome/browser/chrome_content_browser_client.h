@@ -279,6 +279,8 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
   bool PreSpawnRenderer(sandbox::TargetPolicy* policy) override;
   base::string16 GetAppContainerSidForSandboxType(
       int sandbox_type) const override;
+  bool IsWin32kLockdownEnabledForMimeType(
+      const std::string& mime_type) const override;
 #endif
   void RegisterFrameMojoShellServices(
       content::ServiceRegistry* registry,
@@ -286,6 +288,8 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
   void RegisterRenderFrameMojoServices(
       content::ServiceRegistry* registry,
       content::RenderFrameHost* render_frame_host) override;
+  void RegisterInProcessMojoApplications(
+      StaticMojoApplicationMap* apps) override;
   void RegisterOutOfProcessMojoApplications(
       OutOfProcessMojoApplicationMap* apps) override;
   void OpenURL(content::BrowserContext* browser_context,

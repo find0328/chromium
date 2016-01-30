@@ -6,11 +6,11 @@
 
 (Redirect the following to the general model module once we have one)
 A model is an object with the following methods.
-  CostMs(): return the cost of the cost in milliseconds.
-  Set(): set model-specifical parameters.
+  CostMs(): return the cost of the model in milliseconds.
+  Set(): set model-specific parameters.
 
 ResourceGraph
-  This creates a DAG of resource dependancies from loading.log_requests to model
+  This creates a DAG of resource dependencies from loading.log_requests to model
   loading time. The model may be parameterized by changing the loading time of
   a particular or all resources.
 """
@@ -21,7 +21,8 @@ import urlparse
 import sys
 
 import dag
-import log_parser
+import loading_trace
+import request_dependencies_lens
 
 class ResourceGraph(object):
   """A model of loading by a DAG (tree?) of resource dependancies.
@@ -29,14 +30,18 @@ class ResourceGraph(object):
   Set parameters:
     cache_all: if true, assume zero loading time for all resources.
   """
-
-  def __init__(self, requests):
-    """Create from a parsed request set.
+  def __init__(self, trace, content_lens=None):
+    """Create from a LoadingTrace (or json of a trace).
 
     Args:
-      requests: [RequestData, ...] filtered RequestData from loading.log_parser.
+      trace: (LoadingTrace/JSON) Loading trace or JSON of a trace.
+      content_lens: (ContentClassificationLens) Lens used to annotate the
+                    nodes, or None.
     """
-    self._BuildDag(requests)
+    if type(trace) == dict:
+      trace = loading_trace.LoadingTrace.FromJsonDict(trace)
+    self._content_lens = content_lens
+    self._BuildDag(trace)
     self._global_start = min([n.StartTime() for n in self._node_info])
     # Sort before splitting children so that we can correctly dectect if a
     # reparented child is actually a dependency for a child of its new parent.
@@ -182,7 +187,7 @@ class ResourceGraph(object):
       while n.Predecessors():
         n = reduce(lambda costliest, next:
                    next if (self._node_filter(next) and
-                            cost[next.Index()] > cost[costliest.Index()])
+                            costs[next.Index()] > costs[costliest.Index()])
                         else costliest,
                    n.Predecessors())
         path_list.insert(0, self._node_info[n.Index()])
@@ -197,7 +202,8 @@ class ResourceGraph(object):
     Returns:
       True if the node is not ad-related.
     """
-    return not self._IsAdUrl(self._node_info[node.Index()].Url())
+    node_info = self._node_info[node.Index()]
+    return not (node_info.IsAd() or node_info.IsTracking())
 
   def MakeGraphviz(self, output, highlight=None):
     """Output a graphviz representation of our DAG.
@@ -242,7 +248,9 @@ class ResourceGraph(object):
       for s in n.Successors():
         style = 'color = orange'
         annotations = self._EdgeAnnotation(n, s)
-        if 'parser' in annotations:
+        if 'redirect' in annotations:
+          style = 'color = black'
+        elif 'parser' in annotations:
           style = 'color = red'
         elif 'stack' in annotations:
           style = 'color = blue'
@@ -291,9 +299,27 @@ class ResourceGraph(object):
   ## Internal items
   ##
 
-  _CONTENT_TYPE_TO_COLOR = {'html': 'red', 'css': 'green', 'script': 'blue',
-                            'json': 'purple', 'gif_image': 'grey',
-                            'image': 'orange', 'other': 'white'}
+  _CONTENT_KIND_TO_COLOR = {
+      'application':     'blue',      # Scripts.
+      'font':            'grey70',
+      'image':           'orange',    # This probably catches gifs?
+      'video':           'hotpink1',
+      }
+
+  _CONTENT_TYPE_TO_COLOR = {
+      'html':            'red',
+      'css':             'green',
+      'script':          'blue',
+      'javascript':      'blue',
+      'json':            'purple',
+      'gif':             'grey',
+      'image':           'orange',
+      'jpeg':            'orange',
+      'png':             'orange',
+      'plain':           'brown3',
+      'octet-stream':    'brown3',
+      'other':           'white',
+      }
 
   # This resource type may induce a timing dependency. See _SplitChildrenByTime
   # for details.
@@ -319,13 +345,16 @@ class ResourceGraph(object):
         request: The request associated with this node.
       """
       self._request = request
+      self._is_ad = False
+      self._is_tracking = False
       self._node = node
       self._edge_costs = {}
       self._edge_annotations = {}
-      # All fields in timing are millis relative to requestTime, which is epoch
+      # All fields in timing are millis relative to request_time, which is epoch
       # seconds.
-      self._node_cost = max([t for f, t in request.timing._asdict().iteritems()
-                             if f != 'requestTime'])
+      self._node_cost = max(
+          [0] + [t for f, t in request.timing._asdict().iteritems()
+                 if f != 'request_time'])
 
     def __str__(self):
       return self.ShortName()
@@ -335,6 +364,21 @@ class ResourceGraph(object):
 
     def Index(self):
       return self._node.Index()
+
+    def SetRequestContent(self, is_ad, is_tracking):
+      """Sets the kind of content the request relates to.
+
+      Args:
+        is_ad: (bool) Whether the request is an Ad.
+        is_tracking: (bool) Whether the request is related to tracking.
+      """
+      (self._is_ad, self._is_tracking) = (is_ad, is_tracking)
+
+    def IsAd(self):
+      return self._is_ad
+
+    def IsTracking(self):
+      return self._is_tracking
 
     def Request(self):
       return self._request
@@ -346,20 +390,38 @@ class ResourceGraph(object):
       return self._edge_costs[s]
 
     def StartTime(self):
-      return self._request.timing.requestTime * 1000
+      return self._request.timing.request_time * 1000
 
     def EndTime(self):
-      return self._request.timing.requestTime * 1000 + self._node_cost
+      return self._request.timing.request_time * 1000 + self._node_cost
 
     def EdgeAnnotation(self, s):
       assert s.Node() in self.Node().Successors()
       return self._edge_annotations.get(s, [])
 
     def ContentType(self):
-      return log_parser.Resource.FromRequest(self._request).GetContentType()
+      return self._request.GetContentType()
 
     def ShortName(self):
-      return log_parser.Resource.FromRequest(self._request).GetShortName()
+      """Returns either the hostname of the resource, or the filename,
+      or the end of the path. Tries to include the domain as much as possible.
+      """
+      parsed = urlparse.urlparse(self._request.url)
+      path = parsed.path
+      hostname = parsed.hostname if parsed.hostname else '?.?.?'
+      if path != '' and path != '/':
+        last_path = parsed.path.split('/')[-1]
+        if len(last_path) < 10:
+          if len(path) < 10:
+            return hostname + '/' + path
+          else:
+            return hostname + '/..' + parsed.path[-10:]
+        elif len(last_path) > 10:
+          return hostname + '/..' + last_path[:5]
+        else:
+          return hostname + '/..' + last_path
+      else:
+        return hostname
 
     def Url(self):
       return self._request.url
@@ -422,7 +484,7 @@ class ResourceGraph(object):
     return self._node_info[parent.Index()].EdgeAnnotation(
         self._node_info[child.Index()])
 
-  def _BuildDag(self, requests):
+  def _BuildDag(self, trace):
     """Build DAG of resources.
 
     Build a DAG from our requests and augment with _NodeInfo (see above) in a
@@ -431,112 +493,40 @@ class ResourceGraph(object):
     Creates self._nodes and self._node_info.
 
     Args:
-      requests: [Request, ...] Requests from loading.log_parser.
+      trace: A LoadingTrace.
     """
     self._nodes = []
     self._node_info = []
-    indicies_by_url = {}
-    requests_by_completion = log_parser.SortedByCompletion(requests)
-    for request in requests:
+    index_by_request = {}
+    for request in trace.request_track.GetEvents():
       next_index = len(self._nodes)
-      indicies_by_url.setdefault(request.url, []).append(next_index)
+      assert request not in index_by_request
+      index_by_request[request] = next_index
       node = dag.Node(next_index)
       node_info = self._NodeInfo(node, request)
+      if self._content_lens:
+        node_info.SetRequestContent(
+            self._content_lens.IsAdRequest(request),
+            self._content_lens.IsTrackingRequest(request))
       self._nodes.append(node)
       self._node_info.append(node_info)
-    for url, indicies in indicies_by_url.iteritems():
-      if len(indicies) > 1:
-        logging.warning('Multiple loads (%d) for url: %s' %
-                        (len(indicies), url))
-    for i in xrange(len(requests)):
-      request = requests[i]
-      current_node_info = self._node_info[i]
-      resource = log_parser.Resource.FromRequest(current_node_info.Request())
-      initiator = request.initiator
-      initiator_type = initiator['type']
-      predecessor_url = None
-      predecessor_type = None
-      # Classify & infer the predecessor. If a candidate url we identify as the
-      # predecessor is not in index_by_url, then we haven't seen it in our
-      # requests and we will try to find a better predecessor.
-      if initiator_type == 'parser':
-        url = initiator['url']
-        if url in indicies_by_url:
-          predecessor_url = url
-          predecessor_type = 'parser'
-      elif initiator_type == 'script' and 'stackTrace' in initiator:
-        for frame in initiator['stackTrace']:
-          url = frame['url']
-          if url in indicies_by_url:
-            predecessor_url = url
-            predecessor_type = 'stack'
-            break
-      elif initiator_type == 'script':
-        # When the initiator is a script without a stackTrace, infer that it
-        # comes from the most recent script from the same hostname.  TLD+1 might
-        # be better, but finding what is a TLD requires a database.
-        request_hostname = urlparse.urlparse(request.url).hostname
-        sorted_script_requests_from_hostname = [
-            r for r in requests_by_completion
-            if (resource.GetContentType() in ('script', 'html', 'json')
-                and urlparse.urlparse(r.url).hostname == request_hostname)]
-        most_recent = None
-        # Linear search is bad, but this shouldn't matter here.
-        for r in sorted_script_requests_from_hostname:
-          if r.timestamp < request.timing.requestTime:
-            most_recent = r
-          else:
-            break
-        if most_recent is not None:
-          url = most_recent.url
-          if url in indicies_by_url:
-            predecessor_url = url
-            predecessor_type = 'script_inferred'
-      # TODO(mattcary): we skip initiator type other, is that correct?
-      if predecessor_url is not None:
-        predecessor = self._FindBestPredecessor(
-            current_node_info, indicies_by_url[predecessor_url])
-        edge_cost = current_node_info.StartTime() - predecessor.EndTime()
-        if edge_cost < 0:
-          edge_cost = 0
-        if current_node_info.StartTime() < predecessor.StartTime():
+
+    dependencies = request_dependencies_lens.RequestDependencyLens(
+        trace).GetRequestDependencies()
+    for parent_rq, child_rq, reason in dependencies:
+      parent = self._node_info[index_by_request[parent_rq]]
+      child = self._node_info[index_by_request[child_rq]]
+      edge_cost = child.StartTime() - parent.EndTime()
+      if edge_cost < 0:
+        edge_cost = 0
+        if child.StartTime() < parent.StartTime():
           logging.error('Inverted dependency: %s->%s',
-                        predecessor.ShortName(), current_node_info.ShortName())
-          # Note that current.StartTime() < predecessor.EndTime() appears to
-          # happen a fair amount in practice.
-        predecessor.Node().AddSuccessor(current_node_info.Node())
-        predecessor.SetEdgeCost(current_node_info, edge_cost)
-        predecessor.AddEdgeAnnotation(current_node_info, predecessor_type)
-
-  def _FindBestPredecessor(self, node_info, candidate_indicies):
-    """Find best predecessor for node_info
-
-    If there is only one candidate, we use it regardless of timings. We will
-    later warn about inverted dependencies. If there are more than one, we use
-    the latest whose end time is before node_info's start time. If there is no
-    such candidate, we throw up our hands and return an arbitrary one.
-
-    Args:
-      node_info: _NodeInfo of interest.
-      candidate_indicies: indicies of candidate predecessors.
-
-    Returns:
-      _NodeInfo of best predecessor.
-    """
-    assert candidate_indicies
-    if len(candidate_indicies) == 1:
-      return self._node_info[candidate_indicies[0]]
-    candidate = self._node_info[candidate_indicies[0]]
-    for i in xrange(1, len(candidate_indicies)):
-      next_candidate = self._node_info[candidate_indicies[i]]
-      if (next_candidate.EndTime() < node_info.StartTime() and
-          next_candidate.StartTime() > candidate.StartTime()):
-        candidate = next_candidate
-    if candidate.EndTime() > node_info.StartTime():
-      logging.warning('Multiple candidates but all inverted for ' +
-                      node_info.ShortName())
-    return candidate
-
+                        parent.ShortName(), child.ShortName())
+          # Note that child.StartTime() < parent.EndTime() appears to happen a
+          # fair amount in practice.
+      parent.Node().AddSuccessor(child.Node())
+      parent.SetEdgeCost(child, edge_cost)
+      parent.AddEdgeAnnotation(child, reason)
 
   def _SplitChildrenByTime(self, parent):
     """Split children of a node by request times.
@@ -609,6 +599,17 @@ class ResourceGraph(object):
         current.ReparentTo(parent, children_by_end_time[end_mark])
         children_by_end_time[end_mark].AddEdgeAnnotation(current, 'timing')
 
+  def _ContentTypeToColor(self, content_type):
+    if not content_type:
+      type_str = 'other'
+    elif '/' in content_type:
+      kind, type_str = content_type.split('/', 1)
+      if kind in self._CONTENT_KIND_TO_COLOR:
+        return self._CONTENT_KIND_TO_COLOR[kind]
+    else:
+      type_str = content_type
+    return self._CONTENT_TYPE_TO_COLOR[type_str]
+
   def _GraphvizNode(self, index, highlight):
     """Returns a graphviz node description for a given node.
 
@@ -623,8 +624,8 @@ class ResourceGraph(object):
       is oval if its max-age is less than 300s (or if it's not cacheable).
     """
     node_info = self._node_info[index]
-    color = self._CONTENT_TYPE_TO_COLOR[node_info.ContentType()]
-    max_age = log_parser.MaxAge(node_info.Request())
+    color = self._ContentTypeToColor(node_info.ContentType())
+    max_age = node_info.Request().MaxAge()
     shape = 'polygon' if max_age > 300 else 'oval'
     styles = ['filled']
     if highlight:
@@ -632,6 +633,8 @@ class ResourceGraph(object):
         if fragment in node_info.Url():
           styles.append('dotted')
           break
+    if node_info.IsAd() or node_info.IsTracking():
+      styles += ['bold', 'diagonals']
     return ('%d [label = "%s\\n%.2f->%.2f (%.2f)"; style = "%s"; '
             'fillcolor = %s; shape = %s];\n'
             % (index, node_info.ShortName(),
@@ -639,82 +642,6 @@ class ResourceGraph(object):
                node_info.EndTime() - self._global_start,
                node_info.EndTime() - node_info.StartTime(),
                ','.join(styles), color, shape))
-
-  @classmethod
-  def _IsAdUrl(cls, url):
-    """Return true if the url is an ad.
-
-    We group content that doesn't seem to be specific to the website along with
-    ads, eg staticxx.facebook.com, as well as analytics like googletagmanager (?
-    is this correct?).
-
-    Args:
-      url: The full string url to examine.
-
-    Returns:
-      True iff the url appears to be an ad.
-
-    """
-    # See below for how these patterns are defined.
-    AD_PATTERNS = ['2mdn.net',
-                   'admarvel.com',
-                   'adnxs.com',
-                   'adobedtm.com',
-                   'adsrvr.org',
-                   'adsafeprotected.com',
-                   'adsymptotic.com',
-                   'adtech.de',
-                   'adtechus.com',
-                   'advertising.com',
-                   'atwola.com',  # brand protection from cscglobal.com?
-                   'bounceexchange.com',
-                   'betrad.com',
-                   'casalemedia.com',
-                   'cloudfront.net//test.png',
-                   'cloudfront.net//atrk.js',
-                   'contextweb.com',
-                   'crwdcntrl.net',
-                   'doubleclick.net',
-                   'dynamicyield.com',
-                   'krxd.net',
-                   'facebook.com//ping',
-                   'fastclick.net',
-                   'google.com//-ads.js',
-                   'cse.google.com',  # Custom search engine.
-                   'googleadservices.com',
-                   'googlesyndication.com',
-                   'googletagmanager.com',
-                   'lightboxcdn.com',
-                   'mediaplex.com',
-                   'meltdsp.com',
-                   'mobile.nytimes.com//ads-success',
-                   'mookie1.com',
-                   'newrelic.com',
-                   'nr-data.net',   # Apparently part of newrelic.
-                   'optnmnstr.com',
-                   'pubmatic.com',
-                   'quantcast.com',
-                   'quantserve.com',
-                   'rubiconproject.com',
-                   'scorecardresearch.com',
-                   'sekindo.com',
-                   'serving-sys.com',
-                   'sharethrough.com',
-                   'staticxx.facebook.com',  # ?
-                   'syndication.twimg.com',
-                   'tapad.com',
-                   'yieldmo.com',
-                ]
-    parts = urlparse.urlparse(url)
-    for pattern in AD_PATTERNS:
-      if '//' in pattern:
-        domain, path = pattern.split('//')
-      else:
-        domain, path = (pattern, None)
-      if parts.netloc.endswith(domain):
-        if not path or path in parts.path:
-          return True
-    return False
 
   def _ExtractImages(self):
     """Return interesting image resources.

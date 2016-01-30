@@ -20,6 +20,7 @@
 #include "components/autofill/core/common/autofill_util.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_field_data.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebVector.h"
 #include "third_party/WebKit/public/web/WebDocument.h"
@@ -60,6 +61,10 @@ enum FieldFilterMask {
   FILTER_NONE                      = 0,
   FILTER_DISABLED_ELEMENTS         = 1 << 0,
   FILTER_READONLY_ELEMENTS         = 1 << 1,
+  // Filters non-focusable elements with the exception of select elements, which
+  // are sometimes made non-focusable because they are present for accessibility
+  // while a prettier, non-<select> dropdown is shown. We still want to autofill
+  // the non-focusable <select>.
   FILTER_NON_FOCUSABLE_ELEMENTS    = 1 << 2,
   FILTER_ALL_NON_EDITABLE_ELEMENTS = FILTER_DISABLED_ELEMENTS |
                                      FILTER_READONLY_ELEMENTS |
@@ -811,7 +816,9 @@ void ForEachMatchingFormFieldCommon(
 
     if (((filters & FILTER_DISABLED_ELEMENTS) && !element->isEnabled()) ||
         ((filters & FILTER_READONLY_ELEMENTS) && element->isReadOnly()) ||
-        ((filters & FILTER_NON_FOCUSABLE_ELEMENTS) && !element->isFocusable()))
+        // See description for FILTER_NON_FOCUSABLE_ELEMENTS.
+        ((filters & FILTER_NON_FOCUSABLE_ELEMENTS) && !element->isFocusable() &&
+         !IsSelectElement(*element)))
       continue;
 
     callback(data.fields[i], is_initiating_element, element);
@@ -1419,7 +1426,7 @@ bool WebFormElementToFormData(
   // If the completed URL is not valid, just use the action we get from
   // WebKit.
   if (!form->action.is_valid())
-    form->action = GURL(form_element.action());
+    form->action = GURL(blink::WebStringToGURL(form_element.action()));
 
   WebVector<WebFormControlElement> control_elements;
   form_element.getFormControlElements(control_elements);
@@ -1502,6 +1509,7 @@ bool UnownedCheckoutFormElementsAndFieldSetsToFormData(
     "address",
     "delivery",
     "shipping",
+    "wallet"
   };
 
   for (const auto& keyword : kKeywords) {

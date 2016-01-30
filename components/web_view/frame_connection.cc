@@ -10,6 +10,7 @@
 #include "base/callback.h"
 #include "build/build_config.h"
 #include "components/clipboard/public/interfaces/clipboard.mojom.h"
+#include "components/mus/public/interfaces/display.mojom.h"
 #include "components/mus/public/interfaces/gpu.mojom.h"
 #include "components/mus/public/interfaces/window_tree_host.mojom.h"
 #include "components/resource_provider/public/interfaces/resource_provider.mojom.h"
@@ -100,6 +101,7 @@ void FrameConnection::Init(mojo::ApplicationImpl* app,
   mojo::Array<mojo::String> window_manager_interfaces;
   window_manager_interfaces.push_back(mus::mojom::Gpu::Name_);
   window_manager_interfaces.push_back(mus::mojom::WindowTreeHostFactory::Name_);
+  window_manager_interfaces.push_back(mus::mojom::DisplayManager::Name_);
   filter->filter.insert("mojo:mus", std::move(window_manager_interfaces));
 
   mojo::Array<mojo::String> test_runner_interfaces;
@@ -118,7 +120,7 @@ void FrameConnection::Init(mojo::ApplicationImpl* app,
   params.set_filter(std::move(filter));
   application_connection_ = app->ConnectToApplication(&params);
   application_connection_->ConnectToService(&frame_client_);
-  application_connection_->AddContentHandlerIDCallback(on_got_id_callback);
+  application_connection_->AddRemoteIDCallback(on_got_id_callback);
 }
 
 mus::mojom::WindowTreeClientPtr FrameConnection::GetWindowTreeClient() {
@@ -129,8 +131,8 @@ mus::mojom::WindowTreeClientPtr FrameConnection::GetWindowTreeClient() {
 }
 
 uint32_t FrameConnection::GetContentHandlerID() const {
-  uint32_t content_handler_id = mojo::Shell::kInvalidContentHandlerID;
-  if (!application_connection_->GetContentHandlerID(&content_handler_id))
+  uint32_t content_handler_id = mojo::Shell::kInvalidApplicationID;
+  if (!application_connection_->GetRemoteContentHandlerID(&content_handler_id))
     NOTREACHED();
   return content_handler_id;
 }

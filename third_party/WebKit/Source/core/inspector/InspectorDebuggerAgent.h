@@ -84,12 +84,13 @@ public:
 
     // Called by InspectorInstrumentation.
     bool isPaused();
-    PassRefPtrWillBeRawPtr<ScriptAsyncCallStack> currentAsyncStackTraceForConsole();
+    PassRefPtr<ScriptAsyncCallStack> currentAsyncStackTraceForConsole();
     void scriptExecutionBlockedByCSP(const String& directiveText);
     void willExecuteScript(int scriptId);
     void didExecuteScript();
 
     // InspectorBaseAgent overrides.
+    void setState(PassRefPtr<JSONObject>) override;
     void init() override;
     void setFrontend(InspectorFrontend*) override;
     void clearFrontend() override;

@@ -76,7 +76,7 @@ public:
         SVGDocument,
         XSLStyleSheet,
         LinkPrefetch,
-        LinkSubresource,
+        LinkPreload,
         TextTrack,
         ImportResource,
         Media, // Audio or video file requested by a HTML5 media element
@@ -125,7 +125,6 @@ public:
 
     virtual bool shouldIgnoreHTTPStatusCodeErrors() const { return false; }
 
-    ResourceRequest& mutableResourceRequest() { return m_resourceRequest; }
     const ResourceRequest& resourceRequest() const { return m_resourceRequest; }
     const ResourceRequest& lastResourceRequest() const;
 
@@ -265,6 +264,7 @@ public:
     virtual void onMemoryDump(WebMemoryDumpLevelOfDetail, WebProcessMemoryDump*) const;
 
     static const char* resourceTypeToString(Type, const FetchInitiatorInfo&);
+    static const char* resourceTypeName(Type);
 
     // TODO(japhet): Remove once oilpan ships, it doesn't need the WeakPtr.
     WeakPtrWillBeRawPtr<Resource> asWeakPtr();
@@ -442,15 +442,10 @@ protected:
     Resource::Type m_type;
 };
 
-#if !LOG_DISABLED
-// Intended to be used in LOG statements.
-const char* ResourceTypeName(Resource::Type);
-#endif
-
 #define DEFINE_RESOURCE_TYPE_CASTS(typeName) \
     DEFINE_TYPE_CASTS(typeName##Resource, Resource, resource, resource->type() == Resource::typeName, resource.type() == Resource::typeName); \
     inline typeName##Resource* to##typeName##Resource(const ResourcePtr<Resource>& ptr) { return to##typeName##Resource(ptr.get()); }
 
-}
+} // namespace blink
 
 #endif

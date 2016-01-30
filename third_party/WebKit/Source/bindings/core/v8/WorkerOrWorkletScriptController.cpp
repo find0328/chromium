@@ -171,7 +171,7 @@ bool WorkerOrWorkletScriptController::initializeContextIfNeeded()
     return v8CallBoolean(globalObject->SetPrototype(context, jsGlobalScope));
 }
 
-ScriptValue WorkerOrWorkletScriptController::evaluate(const String& script, const String& fileName, const TextPosition& scriptStartPosition, CachedMetadataHandler* cacheHandler, V8CacheOptions v8CacheOptions)
+ScriptValue WorkerOrWorkletScriptController::evaluate(const CompressibleString& script, const String& fileName, const TextPosition& scriptStartPosition, CachedMetadataHandler* cacheHandler, V8CacheOptions v8CacheOptions)
 {
     if (!initializeContextIfNeeded())
         return ScriptValue();
@@ -302,7 +302,6 @@ void WorkerOrWorkletScriptController::rethrowExceptionFromImportedScript(PassRef
 DEFINE_TRACE(WorkerOrWorkletScriptController)
 {
     visitor->trace(m_globalScope);
-    visitor->trace(m_rejectedPromises);
 }
 
 } // namespace blink

@@ -64,6 +64,7 @@
 #include "platform/weborigin/SecurityOrigin.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebCursorInfo.h"
+#include "public/platform/WebFloatRect.h"
 #include "public/platform/WebFrameScheduler.h"
 #include "public/platform/WebRect.h"
 #include "public/platform/WebURLRequest.h"
@@ -519,6 +520,14 @@ IntRect ChromeClientImpl::viewportToScreen(const IntRect& rectInViewport) const
     return screenRect;
 }
 
+FloatRect ChromeClientImpl::windowToViewport(const FloatRect& rectInWindow) const
+{
+    WebFloatRect viewportRect(rectInWindow);
+    if (m_webView->client())
+        m_webView->client()->convertWindowToViewport(&viewportRect);
+    return viewportRect;
+}
+
 WebScreenInfo ChromeClientImpl::screenInfo() const
 {
     return m_webView->client() ? m_webView->client()->screenInfo() : WebScreenInfo();
@@ -849,12 +858,12 @@ DOMWindow* ChromeClientImpl::pagePopupWindowForTesting() const
 
 bool ChromeClientImpl::shouldOpenModalDialogDuringPageDismissal(const DialogType& dialogType, const String& dialogMessage, Document::PageDismissalType dismissalType) const
 {
-    const char* kDialogs[] = {"alert", "confirm", "prompt"};
+    const char* const kDialogs[] = { "alert", "confirm", "prompt" };
     int dialog = static_cast<int>(dialogType);
     ASSERT_WITH_SECURITY_IMPLICATION(0 <= dialog);
     ASSERT_WITH_SECURITY_IMPLICATION(dialog < static_cast<int>(WTF_ARRAY_LENGTH(kDialogs)));
 
-    const char* kDismissals[] = {"beforeunload", "pagehide", "unload"};
+    const char* const kDismissals[] = { "beforeunload", "pagehide", "unload" };
     int dismissal = static_cast<int>(dismissalType) - 1; // Exclude NoDismissal.
     ASSERT_WITH_SECURITY_IMPLICATION(0 <= dismissal);
     ASSERT_WITH_SECURITY_IMPLICATION(dismissal < static_cast<int>(WTF_ARRAY_LENGTH(kDismissals)));
@@ -870,6 +879,19 @@ bool ChromeClientImpl::shouldOpenModalDialogDuringPageDismissal(const DialogType
 void ChromeClientImpl::needTouchEvents(bool needsTouchEvents)
 {
     m_webView->hasTouchEventHandlers(needsTouchEvents);
+}
+
+void ChromeClientImpl::setHaveWheelEventHandlers(bool hasEventHandlers)
+{
+    if (WebLayerTreeView* treeView = m_webView->layerTreeView())
+        treeView->setHaveWheelEventHandlers(hasEventHandlers);
+}
+
+bool ChromeClientImpl::haveWheelEventHandlers() const
+{
+    if (WebLayerTreeView* treeView = m_webView->layerTreeView())
+        return treeView->haveWheelEventHandlers();
+    return false;
 }
 
 void ChromeClientImpl::setTouchAction(TouchAction touchAction)

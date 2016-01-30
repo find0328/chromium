@@ -53,9 +53,11 @@
 #include "content/browser/mojo/mojo_shell_context.h"
 #include "content/browser/net/browser_online_state_observer.h"
 #include "content/browser/renderer_host/media/media_stream_manager.h"
+#include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/speech/speech_recognition_manager_impl.h"
 #include "content/browser/startup_task_runner.h"
 #include "content/browser/time_zone_monitor.h"
+#include "content/browser/utility_process_host_impl.h"
 #include "content/browser/webui/content_web_ui_controller_factory.h"
 #include "content/browser/webui/url_data_manager.h"
 #include "content/common/content_switches_internal.h"
@@ -152,14 +154,14 @@
 #include "content/browser/renderer_host/render_sandbox_host_linux.h"
 #include "content/browser/zygote_host/zygote_host_impl_linux.h"
 #include "sandbox/linux/suid/client/setuid_sandbox_host.h"
+
+#if !defined(OS_ANDROID)
+#include "content/browser/ppapi_plugin_process_host.h"
+#endif
 #endif
 
 #if defined(ENABLE_PLUGINS)
 #include "content/browser/plugin_service_impl.h"
-#endif
-
-#if defined(TCMALLOC_TRACE_MEMORY_SUPPORTED)
-#include "third_party/tcmalloc/chromium/src/gperftools/heap-profiler.h"
 #endif
 
 #if defined(USE_X11)
@@ -174,7 +176,6 @@
 #endif
 
 #if defined(MOJO_SHELL_CLIENT)
-#include "components/mus/public/interfaces/window_manager.mojom.h"
 #include "content/common/mojo/mojo_shell_connection_impl.h"
 #include "mojo/converters/network/network_type_converters.h"
 #include "mojo/shell/public/cpp/application_impl.h"
@@ -221,6 +222,9 @@ void SetupSandbox(const base::CommandLine& parsed_command_line) {
   // Tickle the sandbox host and zygote host so they fork now.
   RenderSandboxHostLinux::GetInstance()->Init();
   ZygoteHostImpl::GetInstance()->Init(sandbox_binary.value());
+  RenderProcessHostImpl::EarlyZygoteLaunch();
+  PpapiPluginProcessHost::EarlyZygoteLaunch();
+  UtilityProcessHostImpl::EarlyZygoteLaunch();
 }
 #endif
 
@@ -645,7 +649,7 @@ void BrowserMainLoop::PostMainMessageLoopStart() {
           BrowserSurfaceTextureManager::GetInstance());
     }
   }
-#if !defined(USE_AURA)
+
   if (!parsed_command_line_.HasSwitch(
       switches::kDisableScreenOrientationLock)) {
     TRACE_EVENT0("startup",
@@ -654,7 +658,6 @@ void BrowserMainLoop::PostMainMessageLoopStart() {
         new ScreenOrientationDelegateAndroid());
     ScreenOrientationProvider::SetDelegate(screen_orientation_delegate_.get());
   }
-#endif
 #endif
 
 #if defined(OS_MACOSX) && !defined(OS_IOS)
@@ -1194,7 +1197,7 @@ int BrowserMainLoop::BrowserThreadsStarted() {
 
   bool always_uses_gpu = true;
   bool established_gpu_channel = false;
-#if defined(OS_ANDROID) && !defined(USE_AURA)
+#if defined(OS_ANDROID)
   // TODO(crbug.com/439322): This should be set to |true|.
   established_gpu_channel = false;
   BrowserGpuChannelHostFactory::Initialize(established_gpu_channel);
@@ -1412,7 +1415,7 @@ base::FilePath BrowserMainLoop::GetStartupTraceFileName(
       return trace_file;
 
     if (trace_file.empty()) {
-#if defined(OS_ANDROID) && !defined(USE_AURA)
+#if defined(OS_ANDROID)
       TracingControllerAndroid::GenerateTracingFilePath(&trace_file);
 #else
       // Default to saving the startup trace into the current dir.
@@ -1420,7 +1423,7 @@ base::FilePath BrowserMainLoop::GetStartupTraceFileName(
 #endif
     }
   } else {
-#if defined(OS_ANDROID) && !defined(USE_AURA)
+#if defined(OS_ANDROID)
     TracingControllerAndroid::GenerateTracingFilePath(&trace_file);
 #else
     trace_file = tracing::TraceConfigFile::GetInstance()->GetResultFile();

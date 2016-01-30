@@ -208,7 +208,6 @@
     [RaisesException] DOMString pageProperty(DOMString propertyName, long pageNumber);
     [RaisesException] DOMString pageSizeAndMarginsInPixels(long pageIndex, long width, long height, long marginTop, long marginRight, long marginBottom, long marginLeft);
 
-    [RaisesException] void setDeviceScaleFactor(float scaleFactor);
     [RaisesException] void setPageScaleFactor(float scaleFactor);
     [RaisesException] void setPageScaleFactorLimits(float minScaleFactor, float maxScaleFactor);
 
@@ -345,7 +344,6 @@
     ClientRectList focusRingRects(Element element);
     ClientRectList outlineRects(Element element);
     void setCapsLockState(boolean enabled);
-    void setSelectionPaintingWithoutSelectionGapsEnabled(boolean enabled);
 
     // Returns whether the scrollbar was able to be shown or hidden; not all platforms
     // support overlay scrollbars.
@@ -358,4 +356,6 @@
 
     // TODO(liberato): remove once autoplay gesture override experiment concludes.
     void triggerAutoplayViewportCheck(HTMLMediaElement mediaElement);
+
+    int getScrollAnimationState(Node node);
 };

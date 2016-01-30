@@ -14,9 +14,8 @@ from core import find_dependencies
 from core import path_util
 
 _TELEMETRY_DEPS = [
-    'build/android/devil/',
-    'third_party/catapult/',
-    'tools/telemetry/']
+  'third_party/catapult/',
+]
 
 
 def _GetCurrentTelemetryDependencies():

@@ -122,16 +122,14 @@ if (!is_nacl) {
   net_shared_sources += gypi_values.net_non_nacl_sources
 
   net_shared_deps += [
-    "//base:prefs",
     "//base/third_party/dynamic_annotations",
+    "//components/prefs",
     "//sdch",
     "//third_party/zlib",
   ]
 
   if (!use_kerberos) {
     net_shared_sources -= [
-      "http/http_auth_gssapi_posix.cc",
-      "http/http_auth_gssapi_posix.h",
       "http/http_auth_handler_negotiate.cc",
       "http/http_auth_handler_negotiate.h",
     ]
@@ -180,6 +178,7 @@ if (!is_nacl) {
       "socket/ssl_client_socket_nss.h",
       "socket/ssl_server_socket_nss.cc",
       "socket/ssl_server_socket_nss.h",
+      "ssl/token_binding_nss.cc",
     ]
     if (is_ios) {
       # Always removed for !ios below.
@@ -224,8 +223,11 @@ if (!is_nacl) {
       "ssl/ssl_platform_key.h",
       "ssl/ssl_platform_key_task_runner.cc",
       "ssl/ssl_platform_key_task_runner.h",
+      "ssl/test_ssl_private_key.cc",
+      "ssl/test_ssl_private_key.h",
       "ssl/threaded_ssl_private_key.cc",
       "ssl/threaded_ssl_private_key.h",
+      "ssl/token_binding_openssl.cc",
     ]
   }
 
@@ -254,10 +256,15 @@ if (!is_nacl) {
         "cert/cert_database_openssl.cc",
         "cert/cert_verify_proc_openssl.cc",
         "cert/test_root_certs_openssl.cc",
-        "http/http_auth_gssapi_posix.cc",
-        "http/http_auth_gssapi_posix.h",
       ]
     }
+  }
+
+  if (!use_kerberos || is_android) {
+    net_shared_sources -= [
+      "http/http_auth_gssapi_posix.cc",
+      "http/http_auth_gssapi_posix.h",
+    ]
   }
 
   if (use_glib && use_gconf && !is_chromeos) {
@@ -317,6 +324,11 @@ if (!is_nacl) {
     # libssl, but our bundled copy is not built in OpenSSL ports. Pull that file
     # in directly.
     net_shared_sources += [ "third_party/nss/ssl/cmpcert.c" ]
+  }
+
+  if (is_chromecast && use_nss_certs) {
+    net_shared_sources += [ "ssl/ssl_platform_key_chromecast.cc" ]
+    net_shared_sources -= [ "ssl/ssl_platform_key_nss.cc" ]
   }
 
   if (!enable_mdns) {
@@ -1167,6 +1179,7 @@ if (is_linux) {
       "tools/quic/quic_packet_reader.h",
       "tools/quic/quic_packet_writer_wrapper.cc",
       "tools/quic/quic_packet_writer_wrapper.h",
+      "tools/quic/quic_process_packet_interface.h",
       "tools/quic/quic_server.cc",
       "tools/quic/quic_server.h",
       "tools/quic/quic_socket_utils.cc",
@@ -1394,8 +1407,6 @@ test("net_unittests") {
     ":test_support",
     "//base",
     "//base:i18n",
-    "//base:prefs_test_support",
-    "//base/allocator",
     "//base/third_party/dynamic_annotations",
     "//crypto",
     "//crypto:platform",
@@ -1474,7 +1485,6 @@ test("net_unittests") {
   } else {
     sources -= [
       "quic/test_tools/crypto_test_utils_openssl.cc",
-      "socket/ssl_client_socket_openssl_unittest.cc",
       "ssl/ssl_client_session_cache_openssl_unittest.cc",
     ]
   }

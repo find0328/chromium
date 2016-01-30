@@ -22,13 +22,13 @@
       'dependencies': [
         'app_shell_version_header',
         '<(DEPTH)/base/base.gyp:base',
-        '<(DEPTH)/base/base.gyp:base_prefs',
         '<(DEPTH)/components/components.gyp:devtools_discovery',
         '<(DEPTH)/components/components.gyp:devtools_http_handler',
         '<(DEPTH)/components/components.gyp:pref_registry',
         '<(DEPTH)/components/components.gyp:update_client',
         '<(DEPTH)/components/components.gyp:user_prefs',
         '<(DEPTH)/components/components.gyp:web_cache_renderer',
+        '<(DEPTH)/components/prefs/prefs.gyp:prefs',
         '<(DEPTH)/content/content.gyp:content',
         '<(DEPTH)/content/content.gyp:content_browser',
         '<(DEPTH)/content/content.gyp:content_gpu',
@@ -133,11 +133,6 @@
             '<(DEPTH)/sandbox/sandbox.gyp:sandbox',
           ],
         }],
-        ['OS=="win" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ],
-        }],
         ['OS=="mac"', {
           'product_name': '<(app_shell_product_name)',
           'dependencies!': [
@@ -221,11 +216,6 @@
           ],
           'sources': [
             '<@(app_shell_unittests_sources_chromeos)',
-          ],
-        }],
-        ['OS=="win" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
           ],
         }],
       ],

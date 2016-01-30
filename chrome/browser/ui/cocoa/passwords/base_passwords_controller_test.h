@@ -31,9 +31,6 @@ class ManagePasswordsControllerTest : public CocoaProfileTest {
   void SetUpUpdatePendingState(bool multiple_forms);
   void SetUpConfirmationState();
   void SetUpManageState();
-  void SetUpAccountChooser(
-      ScopedVector<const autofill::PasswordForm> local,
-      ScopedVector<const autofill::PasswordForm> federations);
 
   // An opportunity for tests to override the constructor parameter of
   // ManagePasswordsBubbleModel.
@@ -46,11 +43,8 @@ class ManagePasswordsControllerTest : public CocoaProfileTest {
 };
 
 // Helper delegate for testing the views of the password management bubble.
-@interface ContentViewDelegateMock
-    : NSObject<ManagePasswordsBubbleContentViewDelegate> {
- @private
-  BOOL _dismissed;
-}
+@interface ContentViewDelegateMock : NSObject<BasePasswordsContentViewDelegate>
+@property(nonatomic) ManagePasswordsBubbleModel* model;
 @property(readonly, nonatomic) BOOL dismissed;
 @end
 

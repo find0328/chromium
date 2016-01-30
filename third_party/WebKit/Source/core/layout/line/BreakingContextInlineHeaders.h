@@ -340,7 +340,7 @@ inline bool shouldAddBorderPaddingMargin(LineLayoutItem child, bool &checkSide)
 inline LayoutUnit inlineLogicalWidthFromAncestorsIfNeeded(LineLayoutItem child, bool start = true, bool end = true)
 {
     unsigned lineDepth = 1;
-    LayoutUnit extraWidth = 0;
+    LayoutUnit extraWidth;
     LineLayoutItem parent = child.parent();
     while (parent.isLayoutInline() && lineDepth++ < cMaxLineDepth) {
         LineLayoutInline parentAsLayoutInline(parent);
@@ -523,7 +523,7 @@ inline float firstPositiveWidth(const WordMeasurements& wordMeasurements)
     return 0;
 }
 
-ALWAYS_INLINE TextDirection textDirectionFromUnicode(WTF::Unicode::Direction direction)
+ALWAYS_INLINE TextDirection textDirectionFromUnicode(WTF::Unicode::CharDirection direction)
 {
     return direction == WTF::Unicode::RightToLeft
         || direction == WTF::Unicode::RightToLeftArabic ? RTL : LTR;
@@ -532,7 +532,7 @@ ALWAYS_INLINE TextDirection textDirectionFromUnicode(WTF::Unicode::Direction dir
 ALWAYS_INLINE float textWidth(LineLayoutText text, unsigned from, unsigned len, const Font& font, float xPos, bool collapseWhiteSpace, HashSet<const SimpleFontData*>* fallbackFonts = nullptr, FloatRect* glyphBounds = nullptr)
 {
     if ((!from && len == text.textLength()) || text.style()->hasTextCombine())
-        return text.width(from, len, font, xPos, text.style()->direction(), fallbackFonts, glyphBounds);
+        return text.width(from, len, font, LayoutUnit(xPos), text.style()->direction(), fallbackFonts, glyphBounds);
 
     TextRun run = constructTextRun(font, text, from, len, text.styleRef());
     run.setTabSize(!collapseWhiteSpace, text.style()->tabSize());
@@ -984,6 +984,6 @@ inline IndentTextOrNot requiresIndent(bool isFirstLine, bool isAfterHardLineBrea
     return indentText;
 }
 
-}
+} // namespace blink
 
 #endif // BreakingContextInlineHeaders_h

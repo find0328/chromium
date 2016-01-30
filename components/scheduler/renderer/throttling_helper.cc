@@ -79,6 +79,10 @@ void ThrottlingHelper::DecreaseThrottleRefCount(TaskQueue* task_queue) {
   }
 }
 
+void ThrottlingHelper::UnregisterTaskQueue(TaskQueue* task_queue) {
+  throttled_queues_.erase(task_queue);
+}
+
 void ThrottlingHelper::OnTimeDomainHasImmediateWork() {
   // Forward to the main thread if called from another thread.
   if (!task_runner_->RunsTasksOnCurrentThread()) {
@@ -141,7 +145,8 @@ void ThrottlingHelper::MaybeSchedulePumpThrottledTasksLocked(
     const tracked_objects::Location& from_here,
     base::TimeTicks now,
     base::TimeTicks unthrottled_runtime) {
-  base::TimeTicks throttled_runtime = ThrottledRunTime(unthrottled_runtime);
+  base::TimeTicks throttled_runtime =
+      ThrottledRunTime(std::max(now, unthrottled_runtime));
   // If there is a pending call to PumpThrottledTasks and it's sooner than
   // |unthrottled_runtime| then return.
   if (!pending_pump_throttled_tasks_runtime_.is_null() &&

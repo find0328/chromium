@@ -69,7 +69,6 @@ class TooltipController;
 namespace wm {
 class AcceleratorFilter;
 class CompoundEventFilter;
-class NestedAcceleratorController;
 class ShadowController;
 class VisibilityController;
 class WindowModalityController;
@@ -85,9 +84,9 @@ class AutoclickController;
 class BluetoothNotificationController;
 class CaptureController;
 class DesktopBackgroundController;
-class DisplayAnimator;
 class DisplayChangeObserver;
 class DisplayColorManager;
+class DisplayConfigurationController;
 class WindowTreeHostManager;
 class DisplayErrorObserver;
 class DisplayManager;
@@ -208,9 +207,6 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   // If you want to get the root Window of the active window, just use
   // |wm::GetActiveWindow()->GetRootWindow()|.
   static aura::Window* GetTargetRootWindow();
-
-  // Returns the global Screen object that's always active in ash.
-  static gfx::Screen* GetScreen();
 
   // Returns all root windows.
   static aura::Window::Windows GetAllRootWindows();
@@ -349,6 +345,9 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   }
 
   DisplayManager* display_manager() { return display_manager_.get(); }
+  DisplayConfigurationController* display_configuration_controller() {
+    return display_configuration_controller_.get();
+  }
   ::wm::CompoundEventFilter* env_filter() {
     return env_filter_.get();
   }
@@ -523,7 +522,6 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   ui::DisplayConfigurator* display_configurator() {
     return display_configurator_.get();
   }
-  DisplayAnimator* display_animator() { return display_animator_.get(); }
   DisplayErrorObserver* display_error_observer() {
     return display_error_observer_.get();
   }
@@ -605,6 +603,9 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   // Initializes the root window so that it can host browser windows.
   void InitRootWindow(aura::Window* root_window);
 
+  // Hides the shelf view if any are visible.
+  void HideShelf();
+
   // ash::SystemModalContainerEventFilterDelegate overrides:
   bool CanWindowReceiveEvents(aura::Window* window) override;
 
@@ -639,7 +640,6 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   std::vector<WindowAndBoundsPair> to_restore_;
 
   scoped_ptr<UserMetricsRecorder> user_metrics_recorder_;
-  scoped_ptr< ::wm::NestedAcceleratorController> nested_accelerator_controller_;
   scoped_ptr<AcceleratorController> accelerator_controller_;
   scoped_ptr<ShellDelegate> delegate_;
   scoped_ptr<SystemTrayDelegate> system_tray_delegate_;
@@ -705,6 +705,7 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   scoped_ptr< ::wm::AcceleratorFilter> accelerator_filter_;
 
   scoped_ptr<DisplayManager> display_manager_;
+  scoped_ptr<DisplayConfigurationController> display_configuration_controller_;
 
   scoped_ptr<LocaleNotificationController> locale_notification_controller_;
 
@@ -724,7 +725,6 @@ class ASH_EXPORT Shell : public SystemModalContainerEventFilterDelegate,
   // Controls video output device state.
   scoped_ptr<ui::DisplayConfigurator> display_configurator_;
   scoped_ptr<DisplayColorManager> display_color_manager_;
-  scoped_ptr<DisplayAnimator> display_animator_;
   scoped_ptr<DisplayErrorObserver> display_error_observer_;
   scoped_ptr<ProjectingObserver> projecting_observer_;
 

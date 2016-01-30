@@ -39,7 +39,7 @@
 #include "grit/components_scaled_resources.h"
 #include "grit/theme_resources.h"
 #include "ui/base/layout.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/image/image_skia.h"
@@ -482,6 +482,10 @@ SkColor ThemeService::GetColor(int id, bool otr) const {
       // The active color is overridden in Gtk2UI.
       return SkColorSetA(
           GetColor(ThemeProperties::COLOR_TOOLBAR_BUTTON_ICON, otr), 0x33);
+    case ThemeProperties::COLOR_BACKGROUND_TAB:
+      return color_utils::HSLShift(
+          GetColor(ThemeProperties::COLOR_TOOLBAR, otr),
+          GetTint(ThemeProperties::TINT_BACKGROUND_TAB, otr));
     case ThemeProperties::COLOR_DETACHED_BOOKMARK_BAR_BACKGROUND:
       if (UsingDefaultTheme())
         break;
@@ -740,18 +744,18 @@ const ui::ThemeProvider& ThemeService::GetThemeProviderForProfile(
   // in incognito. Since the OSX version of ThemeService caches colors, and
   // both ThemeProviders use the same ThemeService some code needs to be
   // rearranged.
-  bool off_the_record = false;
+  bool incognito = false;
 #else
-  bool off_the_record = profile->IsOffTheRecord();
+  bool incognito = profile->GetProfileType() == Profile::INCOGNITO_PROFILE;
 #endif
-  return off_the_record ? service->otr_theme_provider_
-                        : service->original_theme_provider_;
+  return incognito ? service->otr_theme_provider_
+                   : service->original_theme_provider_;
 }
 
 ThemeService::BrowserThemeProvider::BrowserThemeProvider(
     const ThemeService& theme_service,
-    bool off_the_record)
-    : theme_service_(theme_service), off_the_record_(off_the_record) {}
+    bool incognito)
+    : theme_service_(theme_service), incognito_(incognito) {}
 
 ThemeService::BrowserThemeProvider::~BrowserThemeProvider() {}
 
@@ -761,7 +765,7 @@ gfx::ImageSkia* ThemeService::BrowserThemeProvider::GetImageSkiaNamed(
 }
 
 SkColor ThemeService::BrowserThemeProvider::GetColor(int id) const {
-  return theme_service_.GetColor(id, off_the_record_);
+  return theme_service_.GetColor(id, incognito_);
 }
 
 int ThemeService::BrowserThemeProvider::GetDisplayProperty(int id) const {

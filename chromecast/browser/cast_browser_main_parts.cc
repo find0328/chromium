@@ -35,8 +35,10 @@
 #include "chromecast/browser/pref_service_helper.h"
 #include "chromecast/browser/url_request_context_factory.h"
 #include "chromecast/common/platform_client_auth.h"
+#include "chromecast/media/audio/cast_audio_manager_factory.h"
 #include "chromecast/media/base/key_systems_common.h"
 #include "chromecast/media/base/media_message_loop.h"
+#include "chromecast/media/base/video_plane_controller.h"
 #include "chromecast/net/connectivity_checker.h"
 #include "chromecast/public/cast_media_shlib.h"
 #include "chromecast/public/cast_sys_info.h"
@@ -47,7 +49,6 @@
 #include "content/public/common/content_switches.h"
 #include "gpu/command_buffer/service/gpu_switches.h"
 #include "media/audio/audio_manager.h"
-#include "media/audio/audio_manager_factory.h"
 #include "media/base/media.h"
 #include "ui/compositor/compositor_switches.h"
 
@@ -70,9 +71,13 @@
 #endif
 
 #if defined(USE_AURA)
+// gn check ignored on OverlayManagerCast as it's not a public ozone
+// header, but is exported to allow injecting the overlay-composited
+// callback.
 #include "chromecast/graphics/cast_screen.h"
 #include "ui/aura/env.h"
 #include "ui/gfx/screen.h"
+#include "ui/ozone/platform/cast/overlay_manager_cast.h"  // nogncheck
 #endif
 
 namespace {
@@ -310,11 +315,12 @@ int CastBrowserMainParts::PreCreateThreads() {
   if (!base::CreateDirectory(home_dir))
     return 1;
 
+  // Hook for internal code
+  cast_browser_process_->browser_client()->PreCreateThreads();
+
   // AudioManager is created immediately after threads are created, requiring
   // AudioManagerFactory to be set beforehand.
-  scoped_ptr< ::media::AudioManagerFactory> audio_manager_factory =
-      cast_browser_process_->browser_client()->CreateAudioManagerFactory();
-  ::media::AudioManager::SetFactory(audio_manager_factory.release());
+  ::media::AudioManager::SetFactory(new media::CastAudioManagerFactory());
 #endif
 
 #if defined(USE_AURA)
@@ -323,9 +329,8 @@ int CastBrowserMainParts::PreCreateThreads() {
   // code.  See CastContentWindow::CreateWindowTree for update when resolution
   // is available.
   cast_browser_process_->SetCastScreen(make_scoped_ptr(new CastScreen));
-  DCHECK(!gfx::Screen::GetScreenByType(gfx::SCREEN_TYPE_NATIVE));
-  gfx::Screen::SetScreenInstance(gfx::SCREEN_TYPE_NATIVE,
-                                 cast_browser_process_->cast_screen());
+  DCHECK(!gfx::Screen::GetScreen());
+  gfx::Screen::SetScreenInstance(cast_browser_process_->cast_screen());
 #endif
 
   content::ChildProcessSecurityPolicy::GetInstance()->RegisterWebSafeScheme(
@@ -380,6 +385,15 @@ void CastBrowserMainParts::PreMainMessageLoopRun() {
 
   media::CastMediaShlib::Initialize(cmd_line->argv());
   ::media::InitializeMediaLibrary();
+
+#if defined(USE_AURA) && !defined(DISABLE_DISPLAY)
+  // TODO(halliwell) move audio builds to use ozone_platform_cast, then can
+  // simplify this by removing DISABLE_DISPLAY condition.  Should then also
+  // assert(ozone_platform_cast) in BUILD.gn where it depends on //ui/ozone.
+  ui::OverlayManagerCast::SetOverlayCompositedCallback(
+      base::Bind(&media::VideoPlaneController::SetGeometry,
+                 base::Unretained(media::VideoPlaneController::GetInstance())));
+#endif
 
   cast_browser_process_->SetCastService(
       cast_browser_process_->browser_client()->CreateCastService(

@@ -7,11 +7,11 @@
 #include "core/layout/LayoutBlock.h"
 #include "core/layout/LayoutInline.h"
 #include "core/layout/LayoutView.h"
+#include "core/layout/api/LineLayoutAPIShim.h"
 #include "core/layout/api/LineLayoutBoxModel.h"
 #include "core/layout/api/SelectionState.h"
 #include "core/layout/line/InlineFlowBox.h"
 #include "core/paint/BoxPainter.h"
-#include "core/paint/LineLayoutPaintShim.h"
 #include "core/paint/PaintInfo.h"
 #include "core/paint/PaintLayer.h"
 #include "platform/graphics/GraphicsContextStateSaver.h"
@@ -45,12 +45,6 @@ void InlineFlowBoxPainter::paint(const PaintInfo& paintInfo, const LayoutPoint& 
 
     // Paint our children.
     PaintInfo childInfo(paintInfo);
-    LayoutObject* inlineFlowBoxLayoutObject = LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.lineLayoutItem());
-    if (childInfo.paintingRoot && childInfo.paintingRoot->isDescendantOf(inlineFlowBoxLayoutObject))
-        childInfo.paintingRoot = 0;
-    else
-        childInfo.updatePaintingRootForChildren(inlineFlowBoxLayoutObject);
-
     for (InlineBox* curr = m_inlineFlowBox.firstChild(); curr; curr = curr->nextOnLine()) {
         if (curr->lineLayoutItem().isText() || !curr->boxModelObject().hasSelfPaintingLayer())
             curr->paint(childInfo, paintOffset, lineTop, lineBottom);
@@ -68,7 +62,7 @@ void InlineFlowBoxPainter::paintFillLayers(const PaintInfo& paintInfo, const Col
 
 void InlineFlowBoxPainter::paintFillLayer(const PaintInfo& paintInfo, const Color& c, const FillLayer& fillLayer, const LayoutRect& rect, SkXfermode::Mode op)
 {
-    LayoutBoxModelObject* boxModel = toLayoutBoxModelObject(LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject()));
+    LayoutBoxModelObject* boxModel = toLayoutBoxModelObject(LineLayoutAPIShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject()));
     StyleImage* img = fillLayer.image();
     bool hasFillImage = img && img->canRender();
     if ((!hasFillImage && !m_inlineFlowBox.lineLayoutItem().style()->hasBorderRadius()) || (!m_inlineFlowBox.prevLineBox() && !m_inlineFlowBox.nextLineBox()) || !m_inlineFlowBox.parent()) {
@@ -135,7 +129,7 @@ LayoutRect InlineFlowBoxPainter::paintRectForImageStrip(const LayoutPoint& paint
     // strip. Even though that strip has been broken up across multiple lines, you still paint it
     // as though you had one single line. This means each line has to pick up the background where
     // the previous line left off.
-    LayoutUnit logicalOffsetOnLine = 0;
+    LayoutUnit logicalOffsetOnLine;
     LayoutUnit totalLogicalWidth;
     if (direction == LTR) {
         for (const InlineFlowBox* curr = m_inlineFlowBox.prevLineBox(); curr; curr = curr->prevLineBox())
@@ -183,12 +177,12 @@ InlineFlowBoxPainter::BorderPaintingType InlineFlowBoxPainter::getBorderPaintTyp
 void InlineFlowBoxPainter::paintBoxDecorationBackground(const PaintInfo& paintInfo, const LayoutPoint& paintOffset, const LayoutRect& cullRect)
 {
     ASSERT(paintInfo.phase == PaintPhaseForeground);
-    LayoutObject* inlineFlowBoxLayoutObject = LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.lineLayoutItem());
-    if (!paintInfo.shouldPaintWithinRoot(inlineFlowBoxLayoutObject) || m_inlineFlowBox.lineLayoutItem().style()->visibility() != VISIBLE)
+    if (m_inlineFlowBox.lineLayoutItem().style()->visibility() != VISIBLE)
         return;
 
     // You can use p::first-line to specify a background. If so, the root line boxes for
     // a line may actually have to paint a background.
+    LayoutObject* inlineFlowBoxLayoutObject = LineLayoutAPIShim::layoutObjectFrom(m_inlineFlowBox.lineLayoutItem());
     const ComputedStyle* styleToUse = m_inlineFlowBox.lineLayoutItem().style(m_inlineFlowBox.isFirstLineStyle());
     bool shouldPaintBoxDecorationBackground;
     if (m_inlineFlowBox.parent())
@@ -228,7 +222,7 @@ void InlineFlowBoxPainter::paintBoxDecorationBackground(const PaintInfo& paintIn
     case DontPaintBorders:
         break;
     case PaintBordersWithoutClip:
-        BoxPainter::paintBorder(*toLayoutBoxModelObject(LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject())), paintInfo, adjustedFrameRect, m_inlineFlowBox.lineLayoutItem().styleRef(m_inlineFlowBox.isFirstLineStyle()), BackgroundBleedNone, m_inlineFlowBox.includeLogicalLeftEdge(), m_inlineFlowBox.includeLogicalRightEdge());
+        BoxPainter::paintBorder(*toLayoutBoxModelObject(LineLayoutAPIShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject())), paintInfo, adjustedFrameRect, m_inlineFlowBox.lineLayoutItem().styleRef(m_inlineFlowBox.isFirstLineStyle()), BackgroundBleedNone, m_inlineFlowBox.includeLogicalLeftEdge(), m_inlineFlowBox.includeLogicalRightEdge());
         break;
     case PaintBordersWithClip:
         // FIXME: What the heck do we do with RTL here? The math we're using is obviously not right,
@@ -236,14 +230,14 @@ void InlineFlowBoxPainter::paintBoxDecorationBackground(const PaintInfo& paintIn
         LayoutRect imageStripPaintRect = paintRectForImageStrip(adjustedPaintOffset, frameRect.size(), LTR);
         GraphicsContextStateSaver stateSaver(paintInfo.context);
         paintInfo.context.clip(adjustedClipRect);
-        BoxPainter::paintBorder(*toLayoutBoxModelObject(LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject())), paintInfo, imageStripPaintRect, m_inlineFlowBox.lineLayoutItem().styleRef(m_inlineFlowBox.isFirstLineStyle()));
+        BoxPainter::paintBorder(*toLayoutBoxModelObject(LineLayoutAPIShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject())), paintInfo, imageStripPaintRect, m_inlineFlowBox.lineLayoutItem().styleRef(m_inlineFlowBox.isFirstLineStyle()));
         break;
     }
 }
 
 void InlineFlowBoxPainter::paintMask(const PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
-    if (!paintInfo.shouldPaintWithinRoot(LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.lineLayoutItem())) || m_inlineFlowBox.lineLayoutItem().style()->visibility() != VISIBLE || paintInfo.phase != PaintPhaseMask)
+    if (m_inlineFlowBox.lineLayoutItem().style()->visibility() != VISIBLE || paintInfo.phase != PaintPhaseMask)
         return;
 
     LayoutRect frameRect = frameRectClampedToLineTopAndBottomIfNeeded();
@@ -285,7 +279,7 @@ void InlineFlowBoxPainter::paintMask(const PaintInfo& paintInfo, const LayoutPoi
         return; // Don't paint anything while we wait for the image to load.
     }
 
-    LayoutBoxModelObject* boxModel = toLayoutBoxModelObject(LineLayoutPaintShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject()));
+    LayoutBoxModelObject* boxModel = toLayoutBoxModelObject(LineLayoutAPIShim::layoutObjectFrom(m_inlineFlowBox.boxModelObject()));
     // The simple case is where we are the only box for this object. In those
     // cases only a single call to draw is required.
     if (!m_inlineFlowBox.prevLineBox() && !m_inlineFlowBox.nextLineBox()) {

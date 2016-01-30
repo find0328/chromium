@@ -33,6 +33,7 @@
 #include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/thread_task_runner_handle.h"
 #include "ui/aura/client/capture_client.h"
 #include "ui/aura/client/focus_client.h"
 #include "ui/aura/client/screen_position_client.h"
@@ -47,12 +48,6 @@
 #include "ui/gfx/screen.h"
 #include "ui/wm/core/coordinate_conversion.h"
 #include "ui/wm/public/activation_client.h"
-
-#if defined(OS_CHROMEOS)
-#include "ash/display/display_animator.h"
-#include "base/sys_info.h"
-#include "base/time/time.h"
-#endif  // defined(OS_CHROMEOS)
 
 #if defined(USE_X11)
 #include "ui/base/x/x11_util.h"
@@ -77,16 +72,6 @@ namespace {
 // (one here and another one in display_manager) in sync, which is error prone.
 // This is initialized in the constructor, and then in CreatePrimaryHost().
 int64_t primary_display_id = -1;
-
-// Specifies how long the display change should have been disabled
-// after each display change operations.
-// |kCycleDisplayThrottleTimeoutMs| is set to be longer to avoid
-// changing the settings while the system is still configurating
-// displays. It will be overriden by |kAfterDisplayChangeThrottleTimeoutMs|
-// when the display change happens, so the actual timeout is much shorter.
-const int64_t kAfterDisplayChangeThrottleTimeoutMs = 500;
-const int64_t kCycleDisplayThrottleTimeoutMs = 4000;
-const int64_t kSwapDisplayThrottleTimeoutMs = 500;
 
 #if defined(USE_OZONE) && defined(OS_CHROMEOS)
 // Add 20% more cursor motion on non-integrated displays.
@@ -245,22 +230,6 @@ class FocusActivationStore {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-// DisplayChangeLimiter
-
-WindowTreeHostManager::DisplayChangeLimiter::DisplayChangeLimiter()
-    : throttle_timeout_(base::Time::Now()) {}
-
-void WindowTreeHostManager::DisplayChangeLimiter::SetThrottleTimeout(
-    int64_t throttle_ms) {
-  throttle_timeout_ =
-      base::Time::Now() + base::TimeDelta::FromMilliseconds(throttle_ms);
-}
-
-bool WindowTreeHostManager::DisplayChangeLimiter::IsThrottled() const {
-  return base::Time::Now() < throttle_timeout_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // WindowTreeHostManager
 
 WindowTreeHostManager::WindowTreeHostManager()
@@ -270,10 +239,6 @@ WindowTreeHostManager::WindowTreeHostManager()
       mirror_window_controller_(new MirrorWindowController()),
       cursor_display_id_for_restore_(gfx::Display::kInvalidDisplayID),
       weak_ptr_factory_(this) {
-#if defined(OS_CHROMEOS)
-  if (base::SysInfo::IsRunningOnChromeOS())
-    limiter_.reset(new DisplayChangeLimiter);
-#endif
   // Reset primary display to make sure that tests don't use
   // stale display info from previous tests.
   primary_display_id = gfx::Display::kInvalidDisplayID;
@@ -282,7 +247,7 @@ WindowTreeHostManager::WindowTreeHostManager()
 WindowTreeHostManager::~WindowTreeHostManager() {}
 
 void WindowTreeHostManager::Start() {
-  Shell::GetScreen()->AddObserver(this);
+  gfx::Screen::GetScreen()->AddObserver(this);
   Shell::GetInstance()->display_manager()->set_delegate(this);
 }
 
@@ -296,9 +261,9 @@ void WindowTreeHostManager::Shutdown() {
   cursor_window_controller_.reset();
   mirror_window_controller_.reset();
 
-  Shell::GetScreen()->RemoveObserver(this);
+  gfx::Screen::GetScreen()->RemoveObserver(this);
 
-  int64_t primary_id = Shell::GetScreen()->GetPrimaryDisplay().id();
+  int64_t primary_id = gfx::Screen::GetScreen()->GetPrimaryDisplay().id();
 
   // Delete non primary root window controllers first, then
   // delete the primary root window controller.
@@ -426,46 +391,10 @@ WindowTreeHostManager::GetAllRootWindowControllers() {
   return controllers;
 }
 
-void WindowTreeHostManager::ToggleMirrorMode() {
-  DisplayManager* display_manager = GetDisplayManager();
-  if (display_manager->num_connected_displays() <= 1)
+void WindowTreeHostManager::SwapPrimaryDisplayForTest() {
+  if (gfx::Screen::GetScreen()->GetNumDisplays() <= 1)
     return;
-
-  if (limiter_) {
-    if (limiter_->IsThrottled())
-      return;
-    limiter_->SetThrottleTimeout(kCycleDisplayThrottleTimeoutMs);
-  }
-#if defined(OS_CHROMEOS)
-  Shell* shell = Shell::GetInstance();
-  DisplayAnimator* animation = shell->display_animator();
-  animation->StartFadeOutAnimation(base::Bind(
-      &WindowTreeHostManager::SetMirrorModeAfterAnimation,
-      weak_ptr_factory_.GetWeakPtr(), !display_manager->IsInMirrorMode()));
-#endif
-}
-
-void WindowTreeHostManager::SwapPrimaryDisplay() {
-  if (limiter_) {
-    if (limiter_->IsThrottled())
-      return;
-    limiter_->SetThrottleTimeout(kSwapDisplayThrottleTimeoutMs);
-  }
-
-  if (Shell::GetScreen()->GetNumDisplays() > 1) {
-#if defined(OS_CHROMEOS)
-    DisplayAnimator* animation = Shell::GetInstance()->display_animator();
-    if (animation) {
-      animation->StartFadeOutAnimation(
-          base::Bind(&WindowTreeHostManager::OnFadeOutForSwapDisplayFinished,
-                     weak_ptr_factory_.GetWeakPtr()));
-    } else {
-      SetPrimaryDisplay(ScreenUtil::GetSecondaryDisplay());
-    }
-#else
-    SetPrimaryDisplay(ScreenUtil::GetSecondaryDisplay());
-#endif
-  }
+  SetPrimaryDisplay(ScreenUtil::GetSecondaryDisplay());
 }
 
 void WindowTreeHostManager::SetPrimaryDisplayId(int64_t id) {
@@ -504,7 +433,8 @@ void WindowTreeHostManager::SetPrimaryDisplay(
   if (!non_primary_host)
     return;
 
-  gfx::Display old_primary_display = Shell::GetScreen()->GetPrimaryDisplay();
+  gfx::Display old_primary_display =
+      gfx::Screen::GetScreen()->GetPrimaryDisplay();
 
   // Swap root windows between current and new primary display.
   AshWindowTreeHost* primary_host = window_tree_hosts_[primary_display_id];
@@ -529,13 +459,8 @@ void WindowTreeHostManager::SetPrimaryDisplay(
                                        new_primary_display.GetWorkAreaInsets());
 
   // Update the dispay manager with new display info.
-  std::vector<DisplayInfo> display_info_list;
-  display_info_list.push_back(
-      display_manager->GetDisplayInfo(primary_display_id));
-  display_info_list.push_back(
-      display_manager->GetDisplayInfo(ScreenUtil::GetSecondaryDisplay().id()));
   GetDisplayManager()->set_force_bounds_changed(true);
-  GetDisplayManager()->UpdateDisplays(display_info_list);
+  GetDisplayManager()->UpdateDisplays();
   GetDisplayManager()->set_force_bounds_changed(false);
 }
 
@@ -544,7 +469,7 @@ void WindowTreeHostManager::UpdateMouseLocationAfterDisplayChange() {
   // use the same native location. Otherwise find the display closest
   // to the current cursor location in screen coordinates.
 
-  gfx::Point point_in_screen = Shell::GetScreen()->GetCursorScreenPoint();
+  gfx::Point point_in_screen = gfx::Screen::GetScreen()->GetCursorScreenPoint();
   gfx::Point target_location_in_native;
   int64_t closest_distance_squared = -1;
   DisplayManager* display_manager = GetDisplayManager();
@@ -719,7 +644,7 @@ void WindowTreeHostManager::DeleteHost(AshWindowTreeHost* host_to_delete) {
   // Delete most of root window related objects, but don't delete
   // root window itself yet because the stack may be using it.
   controller->Shutdown();
-  base::MessageLoop::current()->DeleteSoon(FROM_HERE, controller);
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, controller);
 }
 
 void WindowTreeHostManager::OnDisplayRemoved(const gfx::Display& display) {
@@ -784,7 +709,7 @@ void WindowTreeHostManager::OnDisplayMetricsChanged(const gfx::Display& display,
 }
 
 void WindowTreeHostManager::OnHostResized(const aura::WindowTreeHost* host) {
-  gfx::Display display = Shell::GetScreen()->GetDisplayNearestWindow(
+  gfx::Display display = gfx::Screen::GetScreen()->GetDisplayNearestWindow(
       const_cast<aura::Window*>(host->window()));
 
   DisplayManager* display_manager = GetDisplayManager();
@@ -818,7 +743,7 @@ void WindowTreeHostManager::CloseMirroringDisplayIfNotNecessary() {
 void WindowTreeHostManager::PreDisplayConfigurationChange(bool clear_focus) {
   FOR_EACH_OBSERVER(Observer, observers_, OnDisplayConfigurationChanging());
   focus_activation_store_->Store(clear_focus);
-  gfx::Screen* screen = Shell::GetScreen();
+  gfx::Screen* screen = gfx::Screen::GetScreen();
   gfx::Point point_in_screen = screen->GetCursorScreenPoint();
   cursor_location_in_screen_coords_for_restore_ = point_in_screen;
 
@@ -833,9 +758,6 @@ void WindowTreeHostManager::PreDisplayConfigurationChange(bool clear_focus) {
 }
 
 void WindowTreeHostManager::PostDisplayConfigurationChange() {
-  if (limiter_)
-    limiter_->SetThrottleTimeout(kAfterDisplayChangeThrottleTimeoutMs);
-
   focus_activation_store_->Restore();
 
   DisplayManager* display_manager = GetDisplayManager();
@@ -846,7 +768,7 @@ void WindowTreeHostManager::PostDisplayConfigurationChange() {
     layout_store->UpdateMultiDisplayState(
         pair, display_manager->IsInMirrorMode(), layout.default_unified);
 
-    if (Shell::GetScreen()->GetNumDisplays() > 1) {
+    if (gfx::Screen::GetScreen()->GetNumDisplays() > 1) {
       int64_t primary_id = layout.primary_id;
       SetPrimaryDisplayId(primary_id == gfx::Display::kInvalidDisplayID
                               ? pair.first
@@ -856,7 +778,7 @@ void WindowTreeHostManager::PostDisplayConfigurationChange() {
       // doesn't exist, or b) the primary_id has already been
       // set to the same and didn't update it.
       layout_store->UpdatePrimaryDisplayId(
-          pair, Shell::GetScreen()->GetPrimaryDisplay().id());
+          pair, gfx::Screen::GetScreen()->GetPrimaryDisplay().id());
     }
   }
   FOR_EACH_OBSERVER(Observer, observers_, OnDisplayConfigurationChanged());
@@ -917,17 +839,6 @@ AshWindowTreeHost* WindowTreeHostManager::AddWindowTreeHostForDisplay(
     ash_host->ConfineCursorToRootWindow();
 #endif
   return ash_host;
-}
-
-void WindowTreeHostManager::OnFadeOutForSwapDisplayFinished() {
-#if defined(OS_CHROMEOS)
-  SetPrimaryDisplay(ScreenUtil::GetSecondaryDisplay());
-  Shell::GetInstance()->display_animator()->StartFadeInAnimation();
-#endif
-}
-
-void WindowTreeHostManager::SetMirrorModeAfterAnimation(bool mirror) {
-  GetDisplayManager()->SetMirrorMode(mirror);
 }
 
 }  // namespace ash

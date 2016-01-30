@@ -12,7 +12,9 @@ import os
 import sys
 
 file_dir = os.path.dirname(__file__)
-sys.path.append(os.path.join(file_dir, '..', '..', 'telemetry'))
+sys.path.append(os.path.join(file_dir, '..', '..', 'perf'))
+from chrome_telemetry_build import chromium_config
+sys.path.append(chromium_config.GetTelemetryDir())
 
 from telemetry.internal.backends.chrome_inspector import inspector_websocket
 from telemetry.internal.backends.chrome_inspector import websocket
@@ -167,6 +169,15 @@ class DevToolsConnection(object):
                              result['result']):
       raise DevToolsConnectionException(
           'Unexpected response for %s: %s' % (method, result))
+
+  def ClearCache(self):
+    """Clears buffer cache.
+
+    Will assert that the browser supports cache clearing.
+    """
+    res = self.SyncRequest('Network.canClearBrowserCache')
+    assert res['result'], 'Cache clearing is not supported by this browser.'
+    self.SyncRequest('Network.clearBrowserCache')
 
   def SetUpMonitoring(self):
     for domain in self._domains_to_enable:

@@ -35,7 +35,7 @@
 #include "ui/aura/window.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/layout.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
 #include "ui/compositor/layer_animator.h"
@@ -48,10 +48,6 @@
 #include "ui/views/mus/window_manager_frame_values.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
-
-#if defined(ENABLE_SUPERVISED_USERS)
-#include "chrome/browser/ui/views/profiles/supervised_user_avatar_label.h"
-#endif
 
 namespace {
 
@@ -74,6 +70,7 @@ const int kTabstripTopSpacingShort = 0;
 // to hit easily.
 const int kTabShadowHeight = 4;
 
+#if defined(FRAME_AVATAR_BUTTON)
 // Combines View::ConvertPointToTarget() and View::HitTest() for a given
 // |point|. Converts |point| from |src| to |dst| and hit tests it against |dst|.
 bool ConvertedHitTest(views::View* src,
@@ -85,6 +82,7 @@ bool ConvertedHitTest(views::View* src,
   views::View::ConvertPointToTarget(src, dst, &converted_point);
   return dst->HitTestPoint(converted_point);
 }
+#endif
 
 const views::WindowManagerFrameValues& frame_values() {
   return views::WindowManagerFrameValues::instance();
@@ -103,7 +101,6 @@ BrowserNonClientFrameViewMus::BrowserNonClientFrameViewMus(
     BrowserFrame* frame,
     BrowserView* browser_view)
     : BrowserNonClientFrameView(frame, browser_view),
-      web_app_left_header_view_(nullptr),
       window_icon_(nullptr),
       tab_strip_(nullptr) {}
 
@@ -182,14 +179,9 @@ void BrowserNonClientFrameViewMus::UpdateThrobber(bool running) {
 }
 
 void BrowserNonClientFrameViewMus::UpdateToolbar() {
-  if (web_app_left_header_view_)
-    web_app_left_header_view_->Update();
 }
 
 views::View* BrowserNonClientFrameViewMus::GetLocationIconView() const {
-  if (web_app_left_header_view_)
-    return web_app_left_header_view_->GetLocationIconView();
-
   return nullptr;
 }
 
@@ -218,20 +210,6 @@ int BrowserNonClientFrameViewMus::NonClientHitTest(const gfx::Point& point) {
 #if defined(FRAME_AVATAR_BUTTON)
   if (hit_test == HTCAPTION && new_avatar_button() &&
       ConvertedHitTest(this, new_avatar_button(), point)) {
-    return HTCLIENT;
-  }
-#endif
-
-  // See if the point is actually within the web app back button.
-  if (hit_test == HTCAPTION && web_app_left_header_view_ &&
-      ConvertedHitTest(this, web_app_left_header_view_, point)) {
-    return HTCLIENT;
-  }
-
-#if defined(ENABLE_SUPERVISED_USERS)
-  // ...or within the avatar label, if it's a supervised user.
-  if (hit_test == HTCAPTION && supervised_user_avatar_label() &&
-      ConvertedHitTest(this, supervised_user_avatar_label(), point)) {
     return HTCLIENT;
   }
 #endif
@@ -280,9 +258,6 @@ void BrowserNonClientFrameViewMus::OnPaint(gfx::Canvas* canvas) {
     PaintImmersiveLightbarStyleHeader(canvas);
     return;
   }
-
-  if (web_app_left_header_view_)
-    web_app_left_header_view_->SetPaintAsActive(ShouldPaintAsActive());
 
   if (browser_view()->IsToolbarVisible())
     PaintToolbarBackground(canvas);
@@ -364,32 +339,13 @@ gfx::ImageSkia BrowserNonClientFrameViewMus::GetFaviconForTabIconView() {
     return gfx::ImageSkia();
   return delegate->GetWindowIcon();
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// views::ButtonListener:
-
-void BrowserNonClientFrameViewMus::ButtonPressed(views::Button* sender,
-                                                 const ui::Event& event) {
-#if !defined(FRAME_AVATAR_BUTTON)
-  NOTREACHED();
-#else
-  DCHECK(sender == new_avatar_button());
-  int command = IDC_SHOW_AVATAR_MENU;
-  if (event.IsMouseEvent() &&
-      static_cast<const ui::MouseEvent&>(event).IsRightMouseButton()) {
-    command = IDC_SHOW_FAST_USER_SWITCHER;
-  }
-  chrome::ExecuteCommand(browser_view()->browser(), command);
-#endif
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // BrowserNonClientFrameViewMus, protected:
 
 // BrowserNonClientFrameView:
 void BrowserNonClientFrameViewMus::UpdateNewAvatarButtonImpl() {
 #if defined(FRAME_AVATAR_BUTTON)
-  UpdateNewAvatarButton(this, NewAvatarButton::NATIVE_BUTTON);
+  UpdateNewAvatarButton(AvatarButtonStyle::NATIVE);
 #endif
 }
 
@@ -576,15 +532,20 @@ void BrowserNonClientFrameViewMus::PaintToolbarBackground(gfx::Canvas* canvas) {
   const ui::ThemeProvider* tp = GetThemeProvider();
 
   if (ui::MaterialDesignController::IsModeMaterial()) {
-    // Paint the main toolbar image.  Since this image is also used to draw the
-    // tab background, we must use the tab strip offset to compute the image
-    // source y position.  If you have to debug this code use an image editor
-    // to paint a diagonal line through the toolbar image and ensure it lines up
-    // across the tab and toolbar.
-    gfx::ImageSkia* theme_toolbar = tp->GetImageSkiaNamed(IDR_THEME_TOOLBAR);
-    canvas->TileImageInt(*theme_toolbar, x + GetThemeBackgroundXInset(),
-                         y - GetTopInset(false), x, y, w,
-                         theme_toolbar->height());
+    if (tp->HasCustomImage(IDR_THEME_TOOLBAR)) {
+      // Paint the main toolbar image.  Since this image is also used to draw
+      // the tab background, we must use the tab strip offset to compute the
+      // image source y position.  If you have to debug this code use an image
+      // editor to paint a diagonal line through the toolbar image and ensure it
+      // lines up across the tab and toolbar.
+      gfx::ImageSkia* theme_toolbar = tp->GetImageSkiaNamed(IDR_THEME_TOOLBAR);
+      canvas->TileImageInt(*theme_toolbar, x + GetThemeBackgroundXInset(),
+                           y - GetTopInset(false), x, y, w,
+                           theme_toolbar->height());
+    } else {
+      canvas->FillRect(toolbar_bounds,
+                       tp->GetColor(ThemeProperties::COLOR_TOOLBAR));
+    }
 
     // Draw the separator line atop the toolbar, on the left and right of the
     // tabstrip.

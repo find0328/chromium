@@ -251,9 +251,7 @@ class WindowAndFrame : public mus::WindowTreeDelegate {
   }
 
   mojom::FrameClientPtr GetFrameClientPtr() {
-    mojom::FrameClientPtr client_ptr;
-    frame_client_binding_.Bind(GetProxy(&client_ptr));
-    return client_ptr;
+    return frame_client_binding_.CreateInterfacePtrAndBind();
   }
 
   void Bind(mojo::InterfaceRequest<mojom::FrameClient> request) {
@@ -316,7 +314,7 @@ class FrameTest : public mojo::test::ApplicationTestBase,
     request->url = mojo::String::From(application_impl()->url());
     request->originating_time_ticks = navigation_start_time.ToInternalValue();
     window_and_frame->server_frame()->RequestNavigate(
-        mojom::NAVIGATION_TARGET_TYPE_EXISTING_FRAME,
+        mojom::NavigationTargetType::EXISTING_FRAME,
         window_and_frame->window()->id(), std::move(request));
     return WaitForViewAndFrame();
   }
@@ -378,7 +376,7 @@ class FrameTest : public mojo::test::ApplicationTestBase,
 
     mus::CreateSingleWindowTreeHost(application_impl(),
                                     mus::mojom::WindowTreeHostClientPtr(), this,
-                                    &host_, nullptr, nullptr);
+                                    &host_, nullptr);
 
     ASSERT_TRUE(DoRunLoopWithTimeout());
     std::swap(window_manager_, most_recent_connection_);

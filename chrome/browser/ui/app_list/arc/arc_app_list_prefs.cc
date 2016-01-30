@@ -121,8 +121,6 @@ ArcAppListPrefs::ArcAppListPrefs(const base::FilePath& base_path,
   }
 
   bridge_service_->AddObserver(this);
-  if (bridge_service_->app_instance())
-    OnAppInstanceReady();
   OnStateChanged(bridge_service_->state());
 }
 
@@ -283,9 +281,7 @@ void ArcAppListPrefs::OnAppInstanceReady() {
     return;
   }
 
-  arc::AppHostPtr host;
-  binding_.Bind(mojo::GetProxy(&host));
-  app_instance->Init(std::move(host));
+  app_instance->Init(binding_.CreateInterfacePtrAndBind());
   app_instance->RefreshAppList();
 }
 
@@ -411,8 +407,6 @@ void ArcAppListPrefs::OnAppIcon(const mojo::String& package,
                                 mojo::Array<uint8_t> icon_png_data) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK_NE(0u, icon_png_data.size());
-  DCHECK(scale_factor >= arc::SCALE_FACTOR_SCALE_FACTOR_100P &&
-         scale_factor < arc::SCALE_FACTOR_NUM_SCALE_FACTORS);
 
   std::string app_id = GetAppId(package, activity);
   if (!IsRegistered(app_id)) {

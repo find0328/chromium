@@ -65,14 +65,13 @@
 #include "core/inspector/DOMEditor.h"
 #include "core/inspector/DOMPatchSupport.h"
 #include "core/inspector/IdentifiersFactory.h"
-#include "core/inspector/InjectedScriptHost.h"
-#include "core/inspector/InjectedScriptManager.h"
 #include "core/inspector/InspectedFrames.h"
 #include "core/inspector/InspectorHighlight.h"
 #include "core/inspector/InspectorHistory.h"
-#include "core/inspector/InspectorState.h"
 #include "core/inspector/InstrumentingAgents.h"
-#include "core/inspector/RemoteObjectId.h"
+#include "core/inspector/v8/InjectedScriptHost.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
+#include "core/inspector/v8/RemoteObjectId.h"
 #include "core/layout/HitTestResult.h"
 #include "core/layout/LayoutView.h"
 #include "core/loader/DocumentLoader.h"
@@ -154,14 +153,13 @@ bool parseQuad(const RefPtr<JSONArray>& quadArray, FloatQuad* quad)
     return true;
 }
 
-ScriptValue nodeAsScriptValue(ScriptState* scriptState, Node* node)
+v8::Local<v8::Value> nodeV8Value(v8::Local<v8::Context> context, Node* node)
 {
-    ScriptState::Scope scope(scriptState);
-    v8::Isolate* isolate = scriptState->isolate();
-    ExceptionState exceptionState(ExceptionState::ExecutionContext, "nodeAsScriptValue", "InjectedScriptHost", scriptState->context()->Global(), isolate);
-    if (!BindingSecurity::shouldAllowAccessTo(isolate, callingDOMWindow(isolate), node, exceptionState))
-        return ScriptValue(scriptState, v8::Null(isolate));
-    return ScriptValue(scriptState, toV8(node, scriptState->context()->Global(), isolate));
+    v8::Isolate* isolate = context->GetIsolate();
+    ExceptionState exceptionState(ExceptionState::ExecutionContext, "nodeV8Value", "InjectedScriptHost", context->Global(), isolate);
+    if (!node || !BindingSecurity::shouldAllowAccessTo(isolate, callingDOMWindow(isolate), node, exceptionState))
+        return v8::Null(isolate);
+    return toV8(node, context->Global(), isolate);
 }
 
 } // namespace
@@ -529,7 +527,7 @@ void InspectorDOMAgent::enable(ErrorString*)
 
 bool InspectorDOMAgent::enabled() const
 {
-    return m_state->getBoolean(DOMAgentState::domAgentEnabled);
+    return m_state->booleanProperty(DOMAgentState::domAgentEnabled, false);
 }
 
 void InspectorDOMAgent::disable(ErrorString* errorString)
@@ -1217,18 +1215,18 @@ Node* InspectorDOMAgent::nodeForRemoteId(ErrorString* errorString, const String&
         *errorString = "Invalid remote object id";
         return nullptr;
     }
-    InjectedScript injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
-    if (injectedScript.isEmpty()) {
+    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(remoteId.get());
+    if (!injectedScript) {
         *errorString = "Cannot find context for specified object id";
         return nullptr;
     }
-    ScriptState::Scope scope(injectedScript.scriptState());
-    v8::Local<v8::Value> value = injectedScript.findObject(*remoteId);
+    v8::HandleScope handles(injectedScript->isolate());
+    v8::Local<v8::Value> value = injectedScript->findObject(*remoteId);
     if (value.IsEmpty()) {
         *errorString = "Node for given objectId not found";
         return nullptr;
     }
-    v8::Isolate* isolate = injectedScript.scriptState()->isolate();
+    v8::Isolate* isolate = injectedScript->isolate();
     if (!V8Node::hasInstance(value, isolate)) {
         *errorString = "Object id doesn't reference a Node";
         return nullptr;
@@ -2066,18 +2064,14 @@ void InspectorDOMAgent::pushNodesByBackendIdsToFrontend(ErrorString* errorString
 
 class InspectableNode final : public InjectedScriptHost::InspectableObject {
 public:
-    explicit InspectableNode(Node* node) : m_node(node) { }
-    ScriptValue get(ScriptState* state) override
+    explicit InspectableNode(Node* node) : m_nodeId(DOMNodeIds::idForNode(node)) { }
+
+    v8::Local<v8::Value> get(v8::Local<v8::Context> context) override
     {
-        return nodeAsScriptValue(state, m_node);
-    }
-    DEFINE_INLINE_VIRTUAL_TRACE()
-    {
-        visitor->trace(m_node);
-        InspectableObject::trace(visitor);
+        return nodeV8Value(context, DOMNodeIds::nodeForId(m_nodeId));
     }
 private:
-    RawPtrWillBeMember<Node> m_node;
+    int m_nodeId;
 };
 
 void InspectorDOMAgent::setInspectedNode(ErrorString* errorString, int nodeId)
@@ -2085,7 +2079,7 @@ void InspectorDOMAgent::setInspectedNode(ErrorString* errorString, int nodeId)
     Node* node = assertNode(errorString, nodeId);
     if (!node)
         return;
-    m_injectedScriptManager->injectedScriptHost()->addInspectedObject(adoptPtrWillBeNoop(new InspectableNode(node)));
+    m_injectedScriptManager->injectedScriptHost()->addInspectedObject(adoptPtr(new InspectableNode(node)));
     if (m_client)
         m_client->setInspectedNode(node);
 }
@@ -2125,12 +2119,12 @@ PassRefPtr<TypeBuilder::Runtime::RemoteObject> InspectorDOMAgent::resolveNode(No
     ScriptState* scriptState = ScriptState::forMainWorld(frame);
     if (!scriptState)
         return nullptr;
-    InjectedScript injectedScript = m_injectedScriptManager->injectedScriptFor(scriptState);
-    if (injectedScript.isEmpty())
-        return nullptr;
 
-    ScriptValue scriptValue = nodeAsScriptValue(scriptState, node);
-    return injectedScript.wrapObject(scriptValue, objectGroup);
+    ScriptState::Scope scope(scriptState);
+    InjectedScript* injectedScript = m_injectedScriptManager->injectedScriptFor(scriptState->context());
+    if (!injectedScript)
+        return nullptr;
+    return injectedScript->wrapObject(nodeV8Value(scriptState->context(), node), objectGroup);
 }
 
 bool InspectorDOMAgent::pushDocumentUponHandlelessOperation(ErrorString* errorString)
@@ -2147,7 +2141,6 @@ DEFINE_TRACE(InspectorDOMAgent)
 {
     visitor->trace(m_domListener);
     visitor->trace(m_inspectedFrames);
-    visitor->trace(m_injectedScriptManager);
 #if ENABLE(OILPAN)
     visitor->trace(m_documentNodeToIdMap);
     visitor->trace(m_danglingNodeToIdMaps);

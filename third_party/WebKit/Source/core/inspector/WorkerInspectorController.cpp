@@ -32,15 +32,11 @@
 
 #include "core/InspectorBackendDispatcher.h"
 #include "core/InspectorFrontend.h"
-#include "core/inspector/InjectedScriptHost.h"
-#include "core/inspector/InjectedScriptManager.h"
 #include "core/inspector/InspectorConsoleAgent.h"
 #include "core/inspector/InspectorFrontendChannel.h"
 #include "core/inspector/InspectorHeapProfilerAgent.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InspectorProfilerAgent.h"
-#include "core/inspector/InspectorState.h"
-#include "core/inspector/InspectorStateClient.h"
 #include "core/inspector/InspectorTaskRunner.h"
 #include "core/inspector/InspectorTimelineAgent.h"
 #include "core/inspector/InstrumentingAgents.h"
@@ -48,6 +44,8 @@
 #include "core/inspector/WorkerDebuggerAgent.h"
 #include "core/inspector/WorkerRuntimeAgent.h"
 #include "core/inspector/WorkerThreadDebugger.h"
+#include "core/inspector/v8/InjectedScriptHost.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/workers/WorkerGlobalScope.h"
 #include "core/workers/WorkerReportingProxy.h"
 #include "core/workers/WorkerThread.h"
@@ -56,16 +54,6 @@
 namespace blink {
 
 namespace {
-
-class WorkerStateClient final : public InspectorStateClient {
-    USING_FAST_MALLOC(WorkerStateClient);
-public:
-    WorkerStateClient(WorkerGlobalScope* context) { }
-    ~WorkerStateClient() override { }
-
-private:
-    void updateInspectorStateCookie(const String& cookie) override { }
-};
 
 class RunInspectorCommandsTask final : public InspectorTaskRunner::Task {
 public:
@@ -85,7 +73,7 @@ private:
     WorkerThread* m_thread;
 };
 
-}
+} // namespace
 
 class WorkerInspectorController::PageInspectorProxy final : public NoBaseWillBeGarbageCollectedFinalized<WorkerInspectorController::PageInspectorProxy>, public InspectorFrontendChannel {
     USING_FAST_MALLOC_WILL_BE_REMOVED(PageInspectorProxy);
@@ -130,12 +118,10 @@ public:
 
 WorkerInspectorController::WorkerInspectorController(WorkerGlobalScope* workerGlobalScope)
     : m_workerGlobalScope(workerGlobalScope)
-    , m_stateClient(adoptPtr(new WorkerStateClient(workerGlobalScope)))
-    , m_state(adoptPtrWillBeNoop(new InspectorCompositeState(m_stateClient.get())))
     , m_instrumentingAgents(InstrumentingAgents::create())
-    , m_injectedScriptManager(InjectedScriptManager::createForWorker())
     , m_workerThreadDebugger(adoptPtr(new WorkerThreadDebugger(workerGlobalScope->thread())))
-    , m_agents(m_instrumentingAgents.get(), m_state.get())
+    , m_injectedScriptManager(InjectedScriptManager::create(m_workerThreadDebugger.get()))
+    , m_agents(m_instrumentingAgents.get())
     , m_inspectorTaskRunner(adoptPtr(new InspectorTaskRunner(v8::Isolate::GetCurrent())))
     , m_beforeInitlizedScope(adoptPtr(new InspectorTaskRunner::IgnoreInterruptsScope(m_inspectorTaskRunner.get())))
     , m_paused(false)
@@ -159,7 +145,10 @@ WorkerInspectorController::WorkerInspectorController(WorkerGlobalScope* workerGl
 
     m_agents.append(InspectorTimelineAgent::create());
 
-    m_injectedScriptManager->injectedScriptHost()->init(workerConsoleAgentPtr, m_workerDebuggerAgent->v8DebuggerAgent(), nullptr, m_workerThreadDebugger->debugger(), adoptPtr(new WorkerInjectedScriptHostClient()));
+    m_injectedScriptManager->injectedScriptHost()->init(
+        nullptr,
+        bind<>(&InspectorConsoleAgent::clearAllMessages, workerConsoleAgentPtr),
+        adoptPtr(new WorkerInjectedScriptHostClient()));
 }
 
 WorkerInspectorController::~WorkerInspectorController()
@@ -174,7 +163,6 @@ void WorkerInspectorController::registerModuleAgent(PassOwnPtrWillBeRawPtr<Inspe
 void WorkerInspectorController::connectFrontend()
 {
     ASSERT(!m_frontend);
-    m_state->unmute();
     m_pageInspectorProxy = PageInspectorProxy::create(m_workerGlobalScope);
     m_frontend = adoptPtr(new InspectorFrontend(frontendChannel()));
     m_backendDispatcher = InspectorBackendDispatcher::create(frontendChannel());
@@ -189,9 +177,6 @@ void WorkerInspectorController::disconnectFrontend()
         return;
     m_backendDispatcher->clearFrontend();
     m_backendDispatcher.clear();
-    // Destroying agents would change the state, but we don't want that.
-    // Pre-disconnect state will be used to restore inspector agents.
-    m_state->mute();
     m_agents.clearFrontend();
     m_frontend.clear();
     InspectorInstrumentation::frontendDeleted();
@@ -202,9 +187,7 @@ void WorkerInspectorController::restoreInspectorStateFromCookie(const String& in
 {
     ASSERT(!m_frontend);
     connectFrontend();
-    m_state->loadFromCookie(inspectorCookie);
-
-    m_agents.restore();
+    m_agents.restore(inspectorCookie);
 }
 
 void WorkerInspectorController::dispatchMessageFromFrontend(const String& message)
@@ -260,9 +243,7 @@ void WorkerInspectorController::pauseOnStart()
 DEFINE_TRACE(WorkerInspectorController)
 {
     visitor->trace(m_workerGlobalScope);
-    visitor->trace(m_state);
     visitor->trace(m_instrumentingAgents);
-    visitor->trace(m_injectedScriptManager);
     visitor->trace(m_backendDispatcher);
     visitor->trace(m_agents);
     visitor->trace(m_pageInspectorProxy);

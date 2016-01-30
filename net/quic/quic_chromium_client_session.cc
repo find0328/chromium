@@ -178,10 +178,11 @@ QuicChromiumClientSession::QuicChromiumClientSession(
     QuicCryptoClientConfig* crypto_config,
     const char* const connection_description,
     base::TimeTicks dns_resolution_end_time,
+    QuicPromisedByUrlMap* promised_by_url,
     base::TaskRunner* task_runner,
     scoped_ptr<SocketPerformanceWatcher> socket_performance_watcher,
     NetLog* net_log)
-    : QuicClientSessionBase(connection, config),
+    : QuicClientSessionBase(connection, promised_by_url, config),
       server_id_(server_id),
       require_confirmation_(false),
       stream_factory_(stream_factory),
@@ -199,7 +200,7 @@ QuicChromiumClientSession::QuicChromiumClientSession(
       disabled_reason_(QUIC_DISABLED_NOT),
       weak_factory_(this) {
   sockets_.push_back(std::move(socket));
-  packet_readers_.push_back(make_scoped_ptr(new QuicPacketReader(
+  packet_readers_.push_back(make_scoped_ptr(new QuicChromiumPacketReader(
       sockets_.back().get(), clock, this, yield_after_packets,
       yield_after_duration, net_log_)));
   crypto_stream_.reset(
@@ -941,7 +942,7 @@ void QuicChromiumClientSession::OnReadError(
 bool QuicChromiumClientSession::OnPacket(const QuicEncryptedPacket& packet,
                                          IPEndPoint local_address,
                                          IPEndPoint peer_address) {
-  connection()->ProcessUdpPacket(local_address, peer_address, packet);
+  ProcessUdpPacket(local_address, peer_address, packet);
   if (!connection()->connected()) {
     NotifyFactoryOfSessionClosedLater();
     return false;
@@ -1001,7 +1002,7 @@ void QuicChromiumClientSession::OnConnectTimeout() {
 
 bool QuicChromiumClientSession::MigrateToSocket(
     scoped_ptr<DatagramClientSocket> socket,
-    scoped_ptr<QuicPacketReader> reader,
+    scoped_ptr<QuicChromiumPacketReader> reader,
     scoped_ptr<QuicPacketWriter> writer) {
   DCHECK_EQ(sockets_.size(), packet_readers_.size());
   if (sockets_.size() >= kMaxReadersPerQuicSession) {

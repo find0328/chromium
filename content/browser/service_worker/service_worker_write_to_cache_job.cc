@@ -341,8 +341,10 @@ void ServiceWorkerWriteToCacheJob::OnResponseStarted(
     version_->SetMainScriptHttpResponseInfo(net_request_->response_info());
   }
 
-  if (net_request_->response_info().network_accessed)
+  if (net_request_->response_info().network_accessed &&
+      !(net_request_->response_info().was_cached)) {
     version_->embedded_worker()->OnNetworkAccessedForScriptLoad();
+  }
 
   http_info_.reset(new net::HttpResponseInfo(net_request_->response_info()));
   scoped_refptr<HttpResponseInfoIOBuffer> info_buffer =
@@ -365,12 +367,10 @@ void ServiceWorkerWriteToCacheJob::OnWriteHeadersComplete(net::Error error) {
     NotifyStartError(net::URLRequestStatus::FromError(error));
     return;
   }
-  SetStatus(net::URLRequestStatus());
   NotifyHeadersComplete();
 }
 
 void ServiceWorkerWriteToCacheJob::OnWriteDataComplete(net::Error error) {
-  SetStatus(net::URLRequestStatus::FromError(error));
   DCHECK_NE(net::ERR_IO_PENDING, error);
   if (io_buffer_bytes_ == 0)
     error = NotifyFinishedCaching(net::URLRequestStatus::FromError(error), "");
@@ -452,7 +452,6 @@ void ServiceWorkerWriteToCacheJob::NotifyStartErrorHelper(
   net::URLRequestStatus reported_status = status;
   std::string reported_status_message = status_message;
 
-  SetStatus(reported_status);
   NotifyStartError(reported_status);
 }
 

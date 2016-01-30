@@ -42,7 +42,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_iterator.h"
+#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -67,7 +67,6 @@
 #include "content/public/browser/notification_details.h"
 #include "content/public/browser/notification_source.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
@@ -916,8 +915,7 @@ bool TabsQueryFunction::RunSync() {
   Browser* last_active_browser = chrome::FindAnyBrowser(
       GetProfile(), include_incognito(), chrome::GetActiveDesktop());
   Browser* current_browser = GetCurrentBrowser();
-  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
-    Browser* browser = *it;
+  for (auto* browser : *BrowserList::GetInstance()) {
     if (!GetProfile()->IsSameProfile(browser->profile()))
       continue;
 
@@ -988,19 +986,29 @@ bool TabsQueryFunction::RunSync() {
         continue;
       }
 
-      // "title" and "url" properties are considered privileged data and can
-      // only be checked if the extension has the "tabs" permission. Otherwise,
-      // these properties are ignored.
-      if (extension_->permissions_data()->HasAPIPermissionForTab(
-              ExtensionTabUtil::GetTabId(web_contents), APIPermission::kTab)) {
+      if (!title.empty() || !url_patterns.is_empty()) {
+        // "title" and "url" properties are considered privileged data and can
+        // only be checked if the extension has the "tabs" permission or it has
+        // access to the WebContents's origin. Otherwise, this tab is considered
+        // not matched.
+        if (!extension_->permissions_data()->HasAPIPermissionForTab(
+                ExtensionTabUtil::GetTabId(web_contents),
+                APIPermission::kTab) &&
+            !extension_->permissions_data()->HasHostPermission(
+                web_contents->GetURL())) {
+          continue;
+        }
+
         if (!title.empty() &&
             !base::MatchPattern(web_contents->GetTitle(),
-                                base::UTF8ToUTF16(title)))
+                                base::UTF8ToUTF16(title))) {
           continue;
+        }
 
         if (!url_patterns.is_empty() &&
-            !url_patterns.MatchesURL(web_contents->GetURL()))
+            !url_patterns.MatchesURL(web_contents->GetURL())) {
           continue;
+        }
       }
 
       if (loading_status_set && loading != web_contents->IsLoading())
@@ -1335,12 +1343,10 @@ bool TabsUpdateFunction::UpdateURL(const std::string &url_string,
   // JavaScript URLs can do the same kinds of things as cross-origin XHR, so
   // we need to check host permissions before allowing them.
   if (url.SchemeIs(url::kJavaScriptScheme)) {
-    content::RenderProcessHost* process = web_contents_->GetRenderProcessHost();
     if (!extension()->permissions_data()->CanAccessPage(
             extension(),
             web_contents_->GetURL(),
             tab_id,
-            process ? process->GetID() : -1,
             &error_)) {
       return false;
     }
@@ -1856,12 +1862,10 @@ bool ExecuteCodeInTabFunction::CanExecuteScriptOnPage() {
 
   // NOTE: This can give the wrong answer due to race conditions, but it is OK,
   // we check again in the renderer.
-  content::RenderProcessHost* process = contents->GetRenderProcessHost();
   if (!extension()->permissions_data()->CanAccessPage(
           extension(),
           contents->GetURL(),
           execute_tab_id_,
-          process ? process->GetID() : -1,
           &error_)) {
     return false;
   }

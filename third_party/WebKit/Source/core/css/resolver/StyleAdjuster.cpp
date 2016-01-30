@@ -48,7 +48,6 @@
 #include "core/svg/SVGSVGElement.h"
 #include "platform/Length.h"
 #include "platform/transforms/TransformOperations.h"
-#include "public/platform/WebCompositorMutableProperties.h"
 #include "wtf/Assertions.h"
 
 namespace blink {
@@ -340,12 +339,6 @@ void StyleAdjuster::adjustStyleForHTMLElement(ComputedStyle& style, const Comput
         return;
 
     if (isHTMLTableCellElement(element)) {
-        // If we have a <td> that specifies a float property, in quirks mode we just drop the float property.
-        // FIXME: Why is this only <td> and not <th>?
-        if (element.hasTagName(tdTag) && m_useQuirksModeStyles) {
-            style.setDisplay(TABLE_CELL);
-            style.setFloating(NoFloat);
-        }
         // FIXME: We shouldn't be overriding start/-webkit-auto like this. Do it in html.css instead.
         // Table headers with a text-align of -webkit-auto will change the text-align to center.
         if (element.hasTagName(thTag) && style.textAlign() == TASTART)
@@ -363,10 +356,6 @@ void StyleAdjuster::adjustStyleForHTMLElement(ComputedStyle& style, const Comput
     }
 
     if (isHTMLTableElement(element)) {
-        // Sites commonly use display:inline/block on <td>s and <table>s. In quirks mode we force
-        // these tags to retain their display types.
-        if (m_useQuirksModeStyles)
-            style.setDisplay(style.isDisplayInlineType() ? INLINE_TABLE : TABLE);
         // Tables never support the -webkit-* values for text-align and will reset back to the default.
         if (style.textAlign() == WEBKIT_LEFT || style.textAlign() == WEBKIT_CENTER || style.textAlign() == WEBKIT_RIGHT)
             style.setTextAlign(TASTART);
@@ -489,4 +478,4 @@ void StyleAdjuster::adjustStyleForDisplay(ComputedStyle& style, const ComputedSt
     }
 }
 
-}
+} // namespace blink

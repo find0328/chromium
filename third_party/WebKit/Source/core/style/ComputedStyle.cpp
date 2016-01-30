@@ -35,6 +35,7 @@
 #include "core/style/ShadowList.h"
 #include "core/style/StyleImage.h"
 #include "core/style/StyleInheritedData.h"
+#include "core/style/StyleVariableData.h"
 #include "platform/LengthFunctions.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/fonts/Font.h"
@@ -1833,6 +1834,17 @@ void ComputedStyle::copyChildDependentFlagsFrom(const ComputedStyle& other)
     setEmptyState(other.emptyState());
     if (other.hasExplicitlyInheritedProperties())
         setHasExplicitlyInheritedProperties();
+}
+
+bool ComputedStyle::shadowListHasCurrentColor(const ShadowList* shadowList)
+{
+    if (!shadowList)
+        return false;
+    for (size_t i = shadowList->shadows().size(); i--; ) {
+        if (shadowList->shadows()[i].color().isCurrentColor())
+            return true;
+    }
+    return false;
 }
 
 } // namespace blink

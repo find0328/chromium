@@ -281,7 +281,8 @@ public:
     void removeCachedCollapsedBorders(const LayoutTableCell*);
     // Returns true if any collapsed borders of the cell changed.
     bool setCachedCollapsedBorder(const LayoutTableCell*, CollapsedBorderSide, const CollapsedBorderValue&);
-    const CollapsedBorderValue& cachedCollapsedBorder(const LayoutTableCell*, CollapsedBorderSide) const;
+    // Returns null if the border is not cached (there is no such collapsed border or the border is invisible).
+    const CollapsedBorderValue* cachedCollapsedBorder(const LayoutTableCell*, CollapsedBorderSide) const;
 
     // distributeExtraLogicalHeightToRows methods return the *consumed* extra logical height.
     // FIXME: We may want to introduce a structure holding the in-flux layout information.
@@ -330,7 +331,7 @@ private:
     void updateRowsHeightHavingOnlySpanningCells(LayoutTableCell*, struct SpanningRowsHeight&, unsigned&, Vector<int>&);
 
     void populateSpanningRowsHeightFromCell(LayoutTableCell*, struct SpanningRowsHeight&);
-    void distributeExtraRowSpanHeightToPercentRows(LayoutTableCell*, int, int&, Vector<int>&);
+    void distributeExtraRowSpanHeightToPercentRows(LayoutTableCell*, float, int&, Vector<int>&);
     void distributeWholeExtraRowSpanHeightToPercentRows(LayoutTableCell*, float, int&, Vector<int>&);
     void distributeExtraRowSpanHeightToAutoRows(LayoutTableCell*, int, int&, Vector<int>&);
     void distributeExtraRowSpanHeightToRemainingRows(LayoutTableCell*, int, int&, Vector<int>&);
@@ -406,6 +407,7 @@ private:
 
     // This map holds the collapsed border values for cells with collapsed borders.
     // It is held at LayoutTableSection level to spare memory consumption by table cells.
+    // Invisible borders are never stored in this map.
     using CellsCollapsedBordersMap = HashMap<std::pair<const LayoutTableCell*, int>, CollapsedBorderValue>;
     CellsCollapsedBordersMap m_cellsCollapsedBorders;
 };

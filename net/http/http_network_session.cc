@@ -96,11 +96,13 @@ HttpNetworkSession::Params::Params()
       spdy_stream_max_recv_window_size(kSpdyStreamMaxRecvWindowSize),
       spdy_initial_max_concurrent_streams(0),
       time_func(&base::TimeTicks::Now),
-      use_alternative_services(false),
+      parse_alternative_services(false),
+      enable_alternative_service_with_different_host(false),
       alternative_service_probability_threshold(1),
       enable_npn(true),
       enable_brotli(false),
       enable_quic(false),
+      disable_quic_on_timeout_with_open_streams(false),
       enable_quic_for_proxies(false),
       enable_quic_port_selection(true),
       quic_always_require_handshake_confirmation(false),
@@ -128,7 +130,8 @@ HttpNetworkSession::Params::Params()
       quic_idle_connection_timeout_seconds(kIdleConnectionTimeoutSeconds),
       quic_disable_preconnect_if_0rtt(false),
       quic_migrate_sessions_on_network_change(false),
-      proxy_delegate(NULL) {
+      proxy_delegate(NULL),
+      enable_token_binding(false) {
   quic_supported_versions.push_back(QUIC_VERSION_25);
 }
 
@@ -178,6 +181,7 @@ HttpNetworkSession::HttpNetworkSession(const Params& params)
           params.quic_delay_tcp_race,
           params.quic_max_server_configs_stored_in_properties,
           params.quic_close_sessions_on_ip_change,
+          params.disable_quic_on_timeout_with_open_streams,
           params.quic_idle_connection_timeout_seconds,
           params.quic_migrate_sessions_on_network_change,
           params.quic_connection_options),

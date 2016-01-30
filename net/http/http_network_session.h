@@ -107,8 +107,11 @@ class NET_EXPORT HttpNetworkSession
     std::string trusted_spdy_proxy;
     // URLs to exclude from forced SPDY.
     std::set<HostPortPair> forced_spdy_exclusions;
-    // Process Alt-Svc headers.
-    bool use_alternative_services;
+    // Whether to parse Alt-Svc headers.
+    bool parse_alternative_services;
+    // Whether to enable Alt-Svc entries with hostname different than that of
+    // the origin.
+    bool enable_alternative_service_with_different_host;
     // Only honor alternative service entries which have a higher probability
     // than this value.
     double alternative_service_probability_threshold;
@@ -121,6 +124,8 @@ class NET_EXPORT HttpNetworkSession
 
     // Enables QUIC support.
     bool enable_quic;
+    // Disable QUIC if a connection times out with open streams.
+    bool disable_quic_on_timeout_with_open_streams;
     // Enables QUIC for proxies.
     bool enable_quic_for_proxies;
     // Instruct QUIC to use consistent ephemeral ports when talking to
@@ -189,6 +194,8 @@ class NET_EXPORT HttpNetworkSession
     // changes.
     bool quic_migrate_sessions_on_network_change;
     ProxyDelegate* proxy_delegate;
+    // Enable support for Token Binding.
+    bool enable_token_binding;
   };
 
   enum SocketPoolType {

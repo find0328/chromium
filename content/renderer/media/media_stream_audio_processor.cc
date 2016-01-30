@@ -102,15 +102,8 @@ void RecordProcessingState(AudioTrackProcessingStates state) {
 }
 
 bool IsDelayAgnosticAecEnabled() {
-  // Note: It's important to query the field trial state first, to ensure that
-  // UMA reports the correct group.
-  const std::string group_name =
-      base::FieldTrialList::FindFullName("UseDelayAgnosticAEC");
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kDisableDelayAgnosticAec))
-    return false;
-
-  return (group_name == "Enabled" || group_name == "DefaultEnabled");
+  return !command_line->HasSwitch(switches::kDisableDelayAgnosticAec);
 }
 
 // Checks if the default minimum starting volume value for the AGC is overridden
@@ -439,8 +432,13 @@ void MediaStreamAudioProcessor::OnPlayoutData(media::AudioBus* audio_bus,
                                               int sample_rate,
                                               int audio_delay_milliseconds) {
   DCHECK(render_thread_checker_.CalledOnValidThread());
-  DCHECK(audio_processing_->echo_control_mobile()->is_enabled() ^
-         audio_processing_->echo_cancellation()->is_enabled());
+#if defined(OS_ANDROID) || defined(OS_IOS)
+  DCHECK(audio_processing_->echo_control_mobile()->is_enabled());
+  DCHECK(!audio_processing_->echo_cancellation()->is_enabled());
+#else
+  DCHECK(!audio_processing_->echo_control_mobile()->is_enabled());
+  DCHECK(audio_processing_->echo_cancellation()->is_enabled());
+#endif
 
   TRACE_EVENT0("audio", "MediaStreamAudioProcessor::OnPlayoutData");
   DCHECK_LT(audio_delay_milliseconds,

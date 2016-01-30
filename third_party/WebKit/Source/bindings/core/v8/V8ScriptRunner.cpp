@@ -195,7 +195,7 @@ void setCacheTimeStamp(CachedMetadataHandler* cacheHandler)
 // Check previously stored timestamp.
 bool isResourceHotForCaching(CachedMetadataHandler* cacheHandler, int hotHours)
 {
-    const double kCacheWithinSeconds = hotHours * 60 * 60;
+    const double cacheWithinSeconds = hotHours * 60 * 60;
     unsigned tag = cacheTag(CacheTagTimeStamp, cacheHandler);
     CachedMetadata* cachedMetadata = cacheHandler->cachedMetadata(tag);
     if (!cachedMetadata)
@@ -204,7 +204,7 @@ bool isResourceHotForCaching(CachedMetadataHandler* cacheHandler, int hotHours)
     const int size = sizeof(timeStamp);
     ASSERT(cachedMetadata->size() == size);
     memcpy(&timeStamp, cachedMetadata->data(), size);
-    return (WTF::currentTime() - timeStamp) < kCacheWithinSeconds;
+    return (WTF::currentTime() - timeStamp) < cacheWithinSeconds;
 }
 
 // Final compile call for a streamed compilation. Most decisions have already
@@ -333,7 +333,7 @@ v8::MaybeLocal<v8::Script> V8ScriptRunner::compileScript(const ScriptSourceCode&
     return compileScript(v8String(isolate, source.source()), source.url(), source.sourceMapUrl(), source.startPosition(), isolate, source.resource(), source.streamer(), source.resource() ? source.resource()->cacheHandler() : nullptr, accessControlStatus, cacheOptions);
 }
 
-v8::MaybeLocal<v8::Script> V8ScriptRunner::compileScript(const String& code, const String& fileName, const String& sourceMapUrl, const TextPosition& textPosition, v8::Isolate* isolate, CachedMetadataHandler* cacheMetadataHandler, AccessControlStatus accessControlStatus, V8CacheOptions v8CacheOptions)
+v8::MaybeLocal<v8::Script> V8ScriptRunner::compileScript(const CompressibleString& code, const String& fileName, const String& sourceMapUrl, const TextPosition& textPosition, v8::Isolate* isolate, CachedMetadataHandler* cacheMetadataHandler, AccessControlStatus accessControlStatus, V8CacheOptions v8CacheOptions)
 {
     if (code.length() >= v8::String::kMaxLength) {
         V8ThrowException::throwGeneralError(isolate, "Source file too large.");

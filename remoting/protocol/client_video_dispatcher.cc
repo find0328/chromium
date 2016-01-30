@@ -28,25 +28,21 @@ struct ClientVideoDispatcher::PendingFrame {
 ClientVideoDispatcher::ClientVideoDispatcher(VideoStub* video_stub)
     : ChannelDispatcherBase(kVideoChannelName),
       video_stub_(video_stub),
-      parser_(base::Bind(&ClientVideoDispatcher::ProcessVideoPacket,
-                         base::Unretained(this)),
-              reader()),
-      weak_factory_(this) {
-}
+      weak_factory_(this) {}
+ClientVideoDispatcher::~ClientVideoDispatcher() {}
 
-ClientVideoDispatcher::~ClientVideoDispatcher() {
-}
-
-void ClientVideoDispatcher::ProcessVideoPacket(
-    scoped_ptr<VideoPacket> video_packet,
-    const base::Closure& done) {
-  base::ScopedClosureRunner done_runner(done);
+void ClientVideoDispatcher::OnIncomingMessage(
+    scoped_ptr<CompoundBuffer> message) {
+  scoped_ptr<VideoPacket> video_packet =
+      ParseMessage<VideoPacket>(message.get());
+  if (!video_packet)
+    return;
 
   int frame_id = video_packet->frame_id();
 
   if (!video_packet->has_frame_id()) {
     video_stub_->ProcessVideoPacket(std::move(video_packet),
-                                    done_runner.Release());
+                                    base::Bind(&base::DoNothing));
     return;
   }
 

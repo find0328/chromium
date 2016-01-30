@@ -16,7 +16,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -358,11 +357,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Screen
      */
     @SuppressWarnings("javadoc")
     public interface InternalAccessDelegate {
-        /**
-         * @see View#drawChild(Canvas, View, long)
-         */
-        boolean drawChild(Canvas canvas, View child, long drawingTime);
-
         /**
          * @see View#onKeyUp(keyCode, KeyEvent)
          */
@@ -1036,17 +1030,6 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Screen
     @CalledByNative
     private int getPhysicalBackingHeightPix() {
         return mPhysicalBackingHeightPix;
-    }
-
-    /* TODO(aelias): Remove these when downstream callers disappear. */
-    @VisibleForTesting
-    public int getViewportSizeOffsetWidthPix() {
-        return 0;
-    }
-
-    @VisibleForTesting
-    public int getViewportSizeOffsetHeightPix() {
-        return mTopControlsShrinkBlinkSize ? mTopControlsHeightPix : 0;
     }
 
     /**
@@ -2363,7 +2346,7 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Screen
         final float controlsOffsetPix = controlsOffsetYCss * deviceScale;
         // TODO(aelias): Remove last argument after downstream removes it.
         getContentViewClient().onOffsetsForFullscreenChanged(
-                controlsOffsetPix, contentOffsetYPix, 0);
+                controlsOffsetPix, contentOffsetYPix);
 
         if (mBrowserAccessibilityManager != null) {
             mBrowserAccessibilityManager.notifyFrameInfoInitialized();
@@ -2449,7 +2432,7 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Screen
         } else {
             if (getWindowAndroid() == null) return;
             Context windowContext = getWindowAndroid().getContext().get();
-            if (WindowAndroid.activityFromContext(windowContext) == null) return;
+            if (windowContext == null) return;
             mSelectPopup = new SelectPopupDialog(
                     this, windowContext, popupItems, multiple, selectedIndices);
         }
@@ -2550,6 +2533,10 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Screen
     }
 
     private boolean showPastePopup(int x, int y) {
+        if (mContainerView.getParent() == null || mContainerView.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+
         if (!mHasInsertion || !canPaste()) return false;
         final float contentOffsetYPix = mRenderCoordinates.getContentOffsetYPix();
         getPastePopup().show(x, (int) (y + contentOffsetYPix));
@@ -3143,8 +3130,8 @@ public class ContentViewCore implements AccessibilityStateChangeListener, Screen
         return mWheelScrollFactorInPixels;
     }
 
-    ContentVideoViewClient getContentVideoViewClient() {
-        return getContentViewClient().getContentVideoViewClient();
+    ContentVideoViewEmbedder getContentVideoViewEmbedder() {
+        return getContentViewClient().getContentVideoViewEmbedder();
     }
 
     @CalledByNative

@@ -99,7 +99,6 @@ IPC_STRUCT_BEGIN(GpuMsg_EstablishChannel_Params)
   IPC_STRUCT_MEMBER(uint64_t, client_tracing_id)
   IPC_STRUCT_MEMBER(bool, preempts)
   IPC_STRUCT_MEMBER(bool, preempted)
-  IPC_STRUCT_MEMBER(bool, allow_future_sync_points)
   IPC_STRUCT_MEMBER(bool, allow_real_time_streams)
 IPC_STRUCT_END()
 
@@ -653,25 +652,6 @@ IPC_MESSAGE_ROUTED2(GpuCommandBufferMsg_UpdateVSyncParameters,
                     base::TimeTicks /* timebase */,
                     base::TimeDelta /* interval */)
 
-// Inserts a sync point into the channel. This is handled on the IO thread, so
-// can be expected to be reasonably fast, but the sync point is actually
-// retired in order with respect to the other calls. The sync point is shared
-// across channels.
-IPC_SYNC_MESSAGE_ROUTED1_1(GpuCommandBufferMsg_InsertSyncPoint,
-                           bool /* retire */,
-                           uint32_t /* sync_point */)
-
-// Retires the sync point.
-IPC_MESSAGE_ROUTED1(GpuCommandBufferMsg_RetireSyncPoint,
-                    uint32_t /* sync_point */)
-
-// Makes this command buffer signal when a sync point is reached, by sending
-// back a GpuCommandBufferMsg_SignalSyncPointAck message with the same
-// signal_id.
-IPC_MESSAGE_ROUTED2(GpuCommandBufferMsg_SignalSyncPoint,
-                    uint32_t /* sync_point */,
-                    uint32_t /* signal_id */)
-
 IPC_MESSAGE_ROUTED2(GpuCommandBufferMsg_SignalSyncToken,
                     gpu::SyncToken /* sync_token */,
                     uint32_t /* signal_id */)
@@ -853,26 +833,3 @@ IPC_MESSAGE_ROUTED0(AcceleratedJpegDecoderMsg_Destroy)
 IPC_MESSAGE_ROUTED2(AcceleratedJpegDecoderHostMsg_DecodeAck,
                     int32_t, /* bitstream_buffer_id */
                     media::JpegDecodeAccelerator::Error /* error */)
-
-#if defined(OS_CHROMEOS)
-//------------------------------------------------------------------------------
-// Arc Video Accelerator Messages
-// These messages are sent from the Browser process to GPU process.
-
-// Tells the GPU process to create a new channel for communication with
-// ArcVideoAccelerator. The channel is returned using
-// GpuHostMsg_ArcVideoAcceleratorChannelCreated message.
-IPC_MESSAGE_CONTROL0(GpuMsg_CreateArcVideoAcceleratorChannel)
-
-// Tells the GPU process to shutdown arc video service and terminate all
-// instances of ArcVideoAccelerator.
-IPC_MESSAGE_CONTROL0(GpuMsg_ShutdownArcVideoService)
-
-//------------------------------------------------------------------------------
-// Arc Video Accelerator Host Messages
-// These messages are sent from the GPU process to Browser process.
-
-// Response from GPU to a GpuMsg_CreateArcVideoAcceleratorChannel message.
-IPC_MESSAGE_CONTROL1(GpuHostMsg_ArcVideoAcceleratorChannelCreated,
-                     IPC::ChannelHandle /* handle to channel */)
-#endif

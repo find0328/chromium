@@ -9,6 +9,7 @@
 #include "components/mus/public/cpp/property_type_converters.h"
 #include "components/mus/public/cpp/window.h"
 #include "components/mus/public/cpp/window_property.h"
+#include "components/mus/public/cpp/window_tree_connection.h"
 #include "mojo/converters/geometry/geometry_type_converters.h"
 #include "ui/aura/client/default_capture_client.h"
 #include "ui/aura/client/window_tree_client.h"
@@ -37,6 +38,8 @@ namespace views {
 namespace {
 
 DEFINE_WINDOW_PROPERTY_KEY(mus::Window*, kMusWindow, nullptr);
+
+MUS_DEFINE_WINDOW_PROPERTY_KEY(NativeWidgetMus*, kNativeWidgetMusKey, nullptr);
 
 // TODO: figure out what this should be.
 class FocusRulesImpl : public wm::BaseFocusRules {
@@ -155,16 +158,15 @@ class ClientSideNonClientFrameView : public NonClientFrameView {
   DISALLOW_COPY_AND_ASSIGN(ClientSideNonClientFrameView);
 };
 
-mus::mojom::ResizeBehavior ResizeBehaviorFromDelegate(
-    WidgetDelegate* delegate) {
-  int32_t behavior = mus::mojom::RESIZE_BEHAVIOR_NONE;
+int ResizeBehaviorFromDelegate(WidgetDelegate* delegate) {
+  int32_t behavior = mus::mojom::kResizeBehaviorNone;
   if (delegate->CanResize())
-    behavior |= mus::mojom::RESIZE_BEHAVIOR_CAN_RESIZE;
+    behavior |= mus::mojom::kResizeBehaviorCanResize;
   if (delegate->CanMaximize())
-    behavior |= mus::mojom::RESIZE_BEHAVIOR_CAN_MAXIMIZE;
+    behavior |= mus::mojom::kResizeBehaviorCanMaximize;
   if (delegate->CanMinimize())
-    behavior |= mus::mojom::RESIZE_BEHAVIOR_CAN_MINIMIZE;
-  return static_cast<mus::mojom::ResizeBehavior>(behavior);
+    behavior |= mus::mojom::kResizeBehaviorCanMinimize;
+  return behavior;
 }
 
 }  // namespace
@@ -186,6 +188,8 @@ NativeWidgetMus::NativeWidgetMus(internal::NativeWidgetDelegate* delegate,
       close_widget_factory_(this) {
   // TODO(fsamuel): Figure out lifetime of |window_|.
   aura::SetMusWindow(content_, window_);
+
+  window->SetLocalProperty(kNativeWidgetMusKey, this);
 }
 
 NativeWidgetMus::~NativeWidgetMus() {
@@ -193,6 +197,20 @@ NativeWidgetMus::~NativeWidgetMus() {
     delete native_widget_delegate_;
   else
     CloseNow();
+}
+
+// static
+void NativeWidgetMus::NotifyFrameChanged(
+    mus::WindowTreeConnection* connection) {
+  for (mus::Window* window : connection->GetRoots()) {
+    NativeWidgetMus* native_widget =
+        window->GetLocalProperty(kNativeWidgetMusKey);
+    if (native_widget && native_widget->GetWidget()->non_client_view()) {
+      native_widget->GetWidget()->non_client_view()->Layout();
+      native_widget->GetWidget()->non_client_view()->SchedulePaint();
+      native_widget->UpdateClientArea();
+    }
+  }
 }
 
 void NativeWidgetMus::OnPlatformWindowClosed() {
@@ -255,7 +273,8 @@ void NativeWidgetMus::ConfigurePropertiesForNewWindow(
 
   (*properties)[mus::mojom::WindowManager::kWindowType_Property] =
       mojo::TypeConverter<const std::vector<uint8_t>, int32_t>::Convert(
-          mojo::ConvertTo<mus::mojom::WindowType>(init_params.type));
+          static_cast<int32_t>(
+              mojo::ConvertTo<mus::mojom::WindowType>(init_params.type)));
   (*properties)[mus::mojom::WindowManager::kResizeBehavior_Property] =
       mojo::TypeConverter<const std::vector<uint8_t>, int32_t>::Convert(
           ResizeBehaviorFromDelegate(init_params.delegate));
@@ -288,8 +307,7 @@ void NativeWidgetMus::InitNativeWidget(const Widget::InitParams& params) {
     }
     aura::Env::GetInstance()->set_context_factory(context_factory_.get());
   }
-  window_tree_host_.reset(
-      new WindowTreeHostMus(shell_, this, window_, surface_type_));
+  window_tree_host_.reset(new WindowTreeHostMus(shell_, this, window_));
   window_tree_host_->AddObserver(this);
   window_tree_host_->InitHost();
   aura::Env::GetInstance()->set_context_factory(default_context_factory);

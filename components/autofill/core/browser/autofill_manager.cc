@@ -40,6 +40,7 @@
 #include "components/autofill/core/browser/autofill_metrics.h"
 #include "components/autofill/core/browser/autofill_profile.h"
 #include "components/autofill/core/browser/autofill_type.h"
+#include "components/autofill/core/browser/country_names.h"
 #include "components/autofill/core/browser/credit_card.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_structure.h"
@@ -97,6 +98,18 @@ bool SectionIsAutofilled(const FormStructure& form_structure,
   return false;
 }
 
+// Returns the credit card field |value| trimmed from whitespace and with stop
+// characters removed.
+base::string16 SanitizeCreditCardFieldValue(const base::string16& value) {
+  base::string16 sanitized;
+  base::TrimWhitespace(value, base::TRIM_ALL, &sanitized);
+  // Some sites have ____-____-____-____ in their credit card number fields, for
+  // example.
+  base::ReplaceChars(sanitized, base::ASCIIToUTF16("-_"),
+                     base::ASCIIToUTF16(""), &sanitized);
+  return sanitized;
+}
+
 }  // namespace
 
 AutofillManager::AutofillManager(
@@ -129,6 +142,7 @@ AutofillManager::AutofillManager(
   if (enable_download_manager == ENABLE_AUTOFILL_DOWNLOAD_MANAGER) {
     download_manager_.reset(new AutofillDownloadManager(driver, this));
   }
+  CountryNames::SetLocaleString(app_locale_);
 }
 
 AutofillManager::~AutofillManager() {}
@@ -387,7 +401,9 @@ void AutofillManager::OnQueryFormFieldAutofill(int query_id,
 
   std::vector<Suggestion> suggestions;
 
-  external_delegate_->OnQuery(query_id, form, field, bounding_box);
+  gfx::RectF transformed_box =
+      driver_->TransformBoundingBoxToViewportCoordinates(bounding_box);
+  external_delegate_->OnQuery(query_id, form, field, transformed_box);
 
   // Need to refresh models before using the form_event_loggers.
   bool is_autofill_possible = RefreshDataModels();
@@ -761,7 +777,7 @@ void AutofillManager::OnSetDataList(const std::vector<base::string16>& values,
 }
 
 void AutofillManager::OnLoadedServerPredictions(
-    std::string response_xml,
+    std::string response,
     const std::vector<std::string>& form_signatures) {
   // We obtain the current valid FormStructures represented by
   // |form_signatures|. We invert both lists because most recent forms are at
@@ -783,7 +799,7 @@ void AutofillManager::OnLoadedServerPredictions(
     return;
 
   // Parse and store the server predictions.
-  FormStructure::ParseQueryResponse(std::move(response_xml), queried_forms,
+  FormStructure::ParseQueryResponse(std::move(response), queried_forms,
                                     client_->GetRapporService());
 
   // Forward form structures to the password generation manager to detect
@@ -963,7 +979,7 @@ void AutofillManager::ImportFormData(const FormStructure& submitted_form) {
       }
     }
 
-    DumpAutofillData(imported_credit_card);
+    DumpAutofillData(!!imported_credit_card);
   }
 #endif  // ENABLE_FORM_DEBUG_DUMP
 
@@ -1135,6 +1151,7 @@ AutofillManager::AutofillManager(AutofillDriver* driver,
       weak_ptr_factory_(this) {
   DCHECK(driver_);
   DCHECK(client_);
+  CountryNames::SetLocaleString(app_locale_);
 }
 
 bool AutofillManager::RefreshDataModels() {
@@ -1523,8 +1540,11 @@ std::vector<Suggestion> AutofillManager::GetProfileSuggestions(
 std::vector<Suggestion> AutofillManager::GetCreditCardSuggestions(
     const FormFieldData& field,
     const AutofillType& type) const {
+  // The field value is sanitized before attempting to match it to the user's
+  // data.
   std::vector<Suggestion> suggestions =
-      personal_data_->GetCreditCardSuggestions(type, field.value);
+      personal_data_->GetCreditCardSuggestions(
+          type, SanitizeCreditCardFieldValue(field.value));
   for (size_t i = 0; i < suggestions.size(); i++) {
     suggestions[i].frontend_id =
         MakeFrontendID(suggestions[i].backend_id, std::string());

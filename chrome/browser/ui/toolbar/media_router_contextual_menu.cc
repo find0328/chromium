@@ -5,16 +5,25 @@
 #include "base/logging.h"
 #include "base/metrics/user_metrics.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/extensions/component_migration_helper.h"
 #include "chrome/browser/media/router/media_router_factory.h"
 #include "chrome/browser/media/router/media_router_mojo_impl.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/singleton_tabs.h"
+#include "chrome/browser/ui/toolbar/component_toolbar_actions_factory.h"
 #include "chrome/browser/ui/toolbar/media_router_contextual_menu.h"
+#include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+#include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "extensions/common/constants.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/menu_model_delegate.h"
+
+#if defined(GOOGLE_CHROME_BUILD)
+#include "base/prefs/pref_service.h"
+#include "chrome/common/pref_names.h"
+#endif  // defined(GOOGLE_CHROME_BUILD)
 
 MediaRouterContextualMenu::MediaRouterContextualMenu(Browser* browser)
     : browser_(browser),
@@ -26,7 +35,13 @@ MediaRouterContextualMenu::MediaRouterContextualMenu(Browser* browser)
                                   IDS_MEDIA_ROUTER_LEARN_MORE);
   menu_model_.AddItemWithStringId(IDC_MEDIA_ROUTER_HELP,
                                   IDS_MEDIA_ROUTER_HELP);
+  menu_model_.AddItemWithStringId(IDC_MEDIA_ROUTER_REMOVE_TOOLBAR_ACTION,
+                                  IDS_EXTENSIONS_UNINSTALL);
   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+#if defined(GOOGLE_CHROME_BUILD)
+  menu_model_.AddCheckItemWithStringId(IDC_MEDIA_ROUTER_CLOUD_SERVICES_TOGGLE,
+                                       IDS_MEDIA_ROUTER_CLOUD_SERVICES_TOGGLE);
+#endif  // defined(GOOGLE_CHROME_BUILD)
   menu_model_.AddItemWithStringId(IDC_MEDIA_ROUTER_REPORT_ISSUE,
                                   IDS_MEDIA_ROUTER_REPORT_ISSUE);
 }
@@ -35,6 +50,12 @@ MediaRouterContextualMenu::~MediaRouterContextualMenu() {
 }
 
 bool MediaRouterContextualMenu::IsCommandIdChecked(int command_id) const {
+#if defined(GOOGLE_CHROME_BUILD)
+  if (command_id == IDC_MEDIA_ROUTER_CLOUD_SERVICES_TOGGLE) {
+    return browser_->profile()->GetPrefs()->GetBoolean(
+        prefs::kMediaRouterEnableCloudServices);
+  }
+#endif  // defined(GOOGLE_CHROME_BUILD)
   return false;
 }
 
@@ -42,34 +63,19 @@ bool MediaRouterContextualMenu::IsCommandIdEnabled(int command_id) const {
   return true;
 }
 
+bool MediaRouterContextualMenu::IsCommandIdVisible(int command_id) const {
+#if defined(GOOGLE_CHROME_BUILD)
+  // Cloud services preference is not set or used if sync is disabled.
+  if (command_id == IDC_MEDIA_ROUTER_CLOUD_SERVICES_TOGGLE)
+    return browser_->profile()->IsSyncAllowed();
+#endif  // defined(GOOGLE_CHROME_BUILD)
+  return true;
+}
+
 bool MediaRouterContextualMenu::GetAcceleratorForCommandId(
     int command_id,
     ui::Accelerator* accelerator) {
   return false;
-}
-
-base::string16 MediaRouterContextualMenu::GetLabelForCommandId(
-    int command_id) const {
-  int string_id;
-  switch (command_id) {
-    case IDC_MEDIA_ROUTER_ABOUT:
-      string_id = IDS_MEDIA_ROUTER_ABOUT;
-      break;
-    case IDC_MEDIA_ROUTER_HELP:
-      string_id = IDS_MEDIA_ROUTER_HELP;
-      break;
-    case IDC_MEDIA_ROUTER_LEARN_MORE:
-      string_id = IDS_MEDIA_ROUTER_LEARN_MORE;
-      break;
-    case IDC_MEDIA_ROUTER_REPORT_ISSUE:
-      string_id = IDS_MEDIA_ROUTER_REPORT_ISSUE;
-      break;
-    default:
-      NOTREACHED();
-      return base::string16();
-  }
-
-  return l10n_util::GetStringUTF16(string_id);
 }
 
 void MediaRouterContextualMenu::ExecuteCommand(int command_id,
@@ -81,10 +87,24 @@ void MediaRouterContextualMenu::ExecuteCommand(int command_id,
   const char kCastLearnMorePageUrl[] =
       "https://www.google.com/chrome/devices/chromecast/learn.html";
 
+#if defined(GOOGLE_CHROME_BUILD)
+  PrefService* pref_service;
+#endif  // defined(GOOGLE_CHROME_BUILD)
   switch (command_id) {
     case IDC_MEDIA_ROUTER_ABOUT:
       chrome::ShowSingletonTab(browser_, GURL(kAboutPageUrl));
       break;
+#if defined(GOOGLE_CHROME_BUILD)
+    case IDC_MEDIA_ROUTER_CLOUD_SERVICES_TOGGLE:
+      pref_service = browser_->profile()->GetPrefs();
+      pref_service->SetBoolean(prefs::kMediaRouterEnableCloudServices,
+          !pref_service->GetBoolean(prefs::kMediaRouterEnableCloudServices));
+
+      // If this has been set before, this is a no-op.
+      pref_service->SetBoolean(prefs::kMediaRouterCloudServicesPrefSet,
+                               true);
+      break;
+#endif  // defined(GOOGLE_CHROME_BUILD)
     case IDC_MEDIA_ROUTER_HELP:
       chrome::ShowSingletonTab(browser_, GURL(kCastHelpCenterPageUrl));
       base::RecordAction(base::UserMetricsAction(
@@ -92,6 +112,9 @@ void MediaRouterContextualMenu::ExecuteCommand(int command_id,
       break;
     case IDC_MEDIA_ROUTER_LEARN_MORE:
       chrome::ShowSingletonTab(browser_, GURL(kCastLearnMorePageUrl));
+      break;
+    case IDC_MEDIA_ROUTER_REMOVE_TOOLBAR_ACTION:
+      RemoveMediaRouterComponentAction();
       break;
     case IDC_MEDIA_ROUTER_REPORT_ISSUE:
       ReportIssue();
@@ -115,4 +138,9 @@ void MediaRouterContextualMenu::ReportIssue() {
                            media_router->media_route_provider_extension_id() +
                            "/feedback.html");
   chrome::ShowSingletonTab(browser_, GURL(feedback_url));
+}
+
+void MediaRouterContextualMenu::RemoveMediaRouterComponentAction() {
+  ToolbarActionsModel::Get(browser_->profile())->component_migration_helper()
+      ->OnActionRemoved(ComponentToolbarActionsFactory::kMediaRouterActionId);
 }

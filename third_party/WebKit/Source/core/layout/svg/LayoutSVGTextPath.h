@@ -30,7 +30,7 @@ public:
     explicit LayoutSVGTextPath(Element*);
 
     Path layoutPath() const;
-    float startOffset() const;
+    float calculateStartOffset(float) const;
 
     bool isChildAllowed(LayoutObject*, const ComputedStyle&) const override;
 
@@ -44,6 +44,6 @@ private:
 
 DEFINE_LAYOUT_OBJECT_TYPE_CASTS(LayoutSVGTextPath, isSVGTextPath());
 
-}
+} // namespace blink
 
 #endif // LayoutSVGTextPath_h

@@ -145,10 +145,12 @@ interface Event
     getter cancelBubble
     getter cancelable
     getter currentTarget
+    getter deepPath
     getter defaultPrevented
     getter eventPhase
     getter path
     getter returnValue
+    getter scoped
     getter srcElement
     getter target
     getter timeStamp

@@ -17,9 +17,7 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/taskbar_decorator.h"
 #include "chrome/browser/ui/views/profiles/avatar_menu_button.h"
-#include "chrome/browser/ui/views/profiles/new_avatar_button.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
-#include "chrome/browser/ui/views/theme_image_mapper.h"
 #include "components/signin/core/common/profile_management_switches.h"
 #include "grit/theme_resources.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -30,19 +28,12 @@
 #include "ui/views/background.h"
 #include "ui/views/resources/grit/views_resources.h"
 
-#if defined(ENABLE_SUPERVISED_USERS)
-#include "chrome/browser/ui/views/profiles/supervised_user_avatar_label.h"
-#endif
-
 BrowserNonClientFrameView::BrowserNonClientFrameView(BrowserFrame* frame,
                                                      BrowserView* browser_view)
     : frame_(frame),
       browser_view_(browser_view),
-#if defined(ENABLE_SUPERVISED_USERS)
-      supervised_user_avatar_label_(nullptr),
-#endif
 #if defined(FRAME_AVATAR_BUTTON)
-      new_avatar_button_(nullptr),
+      profile_switcher_(this),
 #endif
       avatar_button_(nullptr) {
   // The profile manager may by null in tests.
@@ -102,19 +93,12 @@ void BrowserNonClientFrameView::ChildPreferredSizeChanged(View* child) {
 #if defined(FRAME_AVATAR_BUTTON)
   // Only perform a re-layout if the avatar button has changed, since that
   // can affect the size of the tabs.
-  if (child == new_avatar_button_) {
+  if (child == new_avatar_button()) {
     InvalidateLayout();
     frame_->GetRootView()->Layout();
   }
 #endif
 }
-
-#if defined(ENABLE_SUPERVISED_USERS)
-void BrowserNonClientFrameView::OnThemeChanged() {
-  if (supervised_user_avatar_label_)
-    supervised_user_avatar_label_->UpdateLabelStyle();
-}
-#endif
 
 bool BrowserNonClientFrameView::ShouldPaintAsThemed() const {
   return browser_view_->IsBrowserTypeNormal();
@@ -157,10 +141,7 @@ gfx::ImageSkia* BrowserNonClientFrameView::GetFrameImage() const {
 
   // Otherwise, never theme app and popup windows.
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  return rb.GetImageSkiaNamed(
-      chrome::MapThemeImage(chrome::GetHostDesktopTypeForNativeWindow(
-                                browser_view_->GetNativeWindow()),
-                            resource_id));
+  return rb.GetImageSkiaNamed(resource_id);
 }
 
 gfx::ImageSkia* BrowserNonClientFrameView::GetFrameOverlayImage() const {
@@ -196,16 +177,6 @@ void BrowserNonClientFrameView::UpdateAvatar() {
 void BrowserNonClientFrameView::UpdateOldAvatarButton() {
   if (browser_view_->ShouldShowAvatar()) {
     if (!avatar_button_) {
-#if defined(ENABLE_SUPERVISED_USERS)
-      Profile* profile = browser_view_->browser()->profile();
-      if (profile->IsSupervised() && !supervised_user_avatar_label_) {
-        supervised_user_avatar_label_ =
-            new SupervisedUserAvatarLabel(browser_view_);
-        supervised_user_avatar_label_->set_id(
-            VIEW_ID_SUPERVISED_USER_AVATAR_LABEL);
-        AddChildView(supervised_user_avatar_label_);
-      }
-#endif
       avatar_button_ = new AvatarMenuButton(browser_view_);
       avatar_button_->set_id(VIEW_ID_AVATAR_BUTTON);
       AddChildView(avatar_button_);
@@ -214,14 +185,6 @@ void BrowserNonClientFrameView::UpdateOldAvatarButton() {
       frame_->GetRootView()->Layout();
     }
   } else if (avatar_button_) {
-#if defined(ENABLE_SUPERVISED_USERS)
-    // The avatar label can just be there if there is also an avatar button.
-    if (supervised_user_avatar_label_) {
-      RemoveChildView(supervised_user_avatar_label_);
-      delete supervised_user_avatar_label_;
-      supervised_user_avatar_label_ = nullptr;
-    }
-#endif
     RemoveChildView(avatar_button_);
     delete avatar_button_;
     avatar_button_ = nullptr;
@@ -251,24 +214,8 @@ void BrowserNonClientFrameView::UpdateOldAvatarButton() {
 
 #if defined(FRAME_AVATAR_BUTTON)
 void BrowserNonClientFrameView::UpdateNewAvatarButton(
-    views::ButtonListener* listener,
-    const NewAvatarButton::AvatarButtonStyle style) {
-  // This should never be called in incognito mode.
-  DCHECK(browser_view_->IsRegularOrGuestSession());
-
-  if (browser_view_->ShouldShowAvatar()) {
-    if (!new_avatar_button_) {
-      new_avatar_button_ =
-          new NewAvatarButton(listener, style, browser_view_->browser());
-      new_avatar_button_->set_id(VIEW_ID_NEW_AVATAR_BUTTON);
-      AddChildView(new_avatar_button_);
-      frame_->GetRootView()->Layout();
-    }
-  } else if (new_avatar_button_) {
-    delete new_avatar_button_;
-    new_avatar_button_ = nullptr;
-    frame_->GetRootView()->Layout();
-  }
+    const AvatarButtonStyle style) {
+  profile_switcher_.Update(style);
 }
 #endif
 

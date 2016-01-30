@@ -1330,6 +1330,8 @@ void HWNDMessageHandler::OnDestroy() {
 void HWNDMessageHandler::OnDisplayChange(UINT bits_per_pixel,
                                          const gfx::Size& screen_size) {
   delegate_->HandleDisplayChange();
+  // Force a WM_NCCALCSIZE to occur to ensure that we handle auto hide
+  // taskbars correctly.
   SendFrameChanged();
 }
 
@@ -1519,20 +1521,6 @@ LRESULT HWNDMessageHandler::OnMouseActivate(UINT message,
     ::RemoveProp(hwnd(), ui::kIgnoreTouchMouseActivateForWindow);
     return MA_NOACTIVATE;
   }
-  // A child window activation should be treated as if we lost activation.
-  POINT cursor_pos = {0};
-  ::GetCursorPos(&cursor_pos);
-  ::ScreenToClient(hwnd(), &cursor_pos);
-  // The code below exists for child windows like NPAPI plugins etc which need
-  // to be activated whenever we receive a WM_MOUSEACTIVATE message. Don't put
-  // transparent child windows in this bucket as they are not supposed to grab
-  // activation.
-  // TODO(ananta)
-  // Get rid of this code when we deprecate NPAPI plugins.
-  HWND child = ::RealChildWindowFromPoint(hwnd(), cursor_pos);
-  if (::IsWindow(child) && child != hwnd() && ::IsWindowVisible(child) &&
-      !(::GetWindowLong(child, GWL_EXSTYLE) & WS_EX_TRANSPARENT))
-    PostProcessActivateMessage(WA_INACTIVE, false);
 
   // TODO(beng): resolve this with the GetWindowLong() check on the subsequent
   //             line.
@@ -1988,6 +1976,13 @@ void HWNDMessageHandler::OnSettingChange(UINT flags, const wchar_t* section) {
       delegate_->HandleWorkAreaChanged();
     SetMsgHandled(FALSE);
   }
+
+  // If the work area is changing, then it could be as a result of the taskbar
+  // broadcasting the WM_SETTINGCHANGE message due to changes in auto hide
+  // settings, etc. Force a WM_NCCALCSIZE to occur to ensure that we handle
+  // this correctly.
+  if (flags == SPI_SETWORKAREA)
+    SendFrameChanged();
 }
 
 void HWNDMessageHandler::OnSize(UINT param, const gfx::Size& size) {
@@ -2557,12 +2552,15 @@ bool HWNDMessageHandler::HandleMouseInputForCaption(unsigned int message,
         // so we need to call it inside a ScopedRedrawLock. This may cause
         // other negative side-effects
         // (ex/ stifling non-client mouse releases).
+        // We may be deleted in the context of DefWindowProc. Don't refer to
+        // any member variables after the DefWindowProc call.
+        left_button_down_on_caption_ = false;
+
         if (delegate_->IsUsingCustomFrame()) {
           DefWindowProcWithRedrawLock(WM_NCLBUTTONDOWN, HTCAPTION, l_param);
         } else {
           DefWindowProc(hwnd(), WM_NCLBUTTONDOWN, HTCAPTION, l_param);
         }
-        left_button_down_on_caption_ = false;
       }
       break;
     }

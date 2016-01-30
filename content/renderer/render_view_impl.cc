@@ -13,6 +13,7 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/debug/alias.h"
+#include "base/debug/crash_logging.h"
 #include "base/files/file_path.h"
 #include "base/i18n/rtl.h"
 #include "base/json/json_writer.h"
@@ -109,6 +110,7 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_util.h"
 #include "skia/ext/platform_canvas.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebCString.h"
 #include "third_party/WebKit/public/platform/WebConnectionType.h"
 #include "third_party/WebKit/public/platform/WebDragData.h"
@@ -135,7 +137,6 @@
 #include "third_party/WebKit/public/web/WebDocument.h"
 #include "third_party/WebKit/public/web/WebElement.h"
 #include "third_party/WebKit/public/web/WebFileChooserParams.h"
-#include "third_party/WebKit/public/web/WebFindOptions.h"
 #include "third_party/WebKit/public/web/WebFormControlElement.h"
 #include "third_party/WebKit/public/web/WebFormElement.h"
 #include "third_party/WebKit/public/web/WebFrame.h"
@@ -149,8 +150,6 @@
 #include "third_party/WebKit/public/web/WebPageImportanceSignals.h"
 #include "third_party/WebKit/public/web/WebPlugin.h"
 #include "third_party/WebKit/public/web/WebPluginAction.h"
-#include "third_party/WebKit/public/web/WebPluginContainer.h"
-#include "third_party/WebKit/public/web/WebPluginDocument.h"
 #include "third_party/WebKit/public/web/WebRange.h"
 #include "third_party/WebKit/public/web/WebRuntimeFeatures.h"
 #include "third_party/WebKit/public/web/WebScriptSource.h"
@@ -181,8 +180,6 @@
 #include "content/renderer/android/content_detector.h"
 #include "content/renderer/android/email_detector.h"
 #include "content/renderer/android/phone_number_detector.h"
-#include "third_party/WebKit/public/platform/WebFloatPoint.h"
-#include "third_party/WebKit/public/platform/WebFloatRect.h"
 #include "ui/gfx/geometry/rect_f.h"
 
 #elif defined(OS_WIN)
@@ -220,7 +217,6 @@ using blink::WebDragOperation;
 using blink::WebDragOperationsMask;
 using blink::WebElement;
 using blink::WebFileChooserCompletion;
-using blink::WebFindOptions;
 using blink::WebFormControlElement;
 using blink::WebFormElement;
 using blink::WebFrame;
@@ -242,8 +238,6 @@ using blink::WebPeerConnection00HandlerClient;
 using blink::WebPeerConnectionHandler;
 using blink::WebPeerConnectionHandlerClient;
 using blink::WebPluginAction;
-using blink::WebPluginContainer;
-using blink::WebPluginDocument;
 using blink::WebPoint;
 using blink::WebRange;
 using blink::WebRect;
@@ -276,8 +270,6 @@ using base::TimeDelta;
 
 #if defined(OS_ANDROID)
 using blink::WebContentDetectionResult;
-using blink::WebFloatPoint;
-using blink::WebFloatRect;
 using blink::WebHitTestResult;
 #endif
 
@@ -316,8 +308,10 @@ static RenderViewImpl* (*g_create_render_view_impl)(
 Referrer RenderViewImpl::GetReferrerFromRequest(
     WebFrame* frame,
     const WebURLRequest& request) {
-  return Referrer(GURL(request.httpHeaderField(WebString::fromUTF8("Referer"))),
-                  request.referrerPolicy());
+  return Referrer(
+      blink::WebStringToGURL(request.httpHeaderField(
+          WebString::fromUTF8("Referer"))),
+      request.referrerPolicy());
 }
 
 // static
@@ -644,7 +638,6 @@ RenderViewImpl::RenderViewImpl(CompositorDependencies* compositor_deps,
       focused_plugin_id_(-1),
 #endif
 #if defined(ENABLE_PLUGINS)
-      plugin_find_handler_(NULL),
       focused_pepper_plugin_(NULL),
       pepper_last_mouse_event_target_(NULL),
 #endif
@@ -679,6 +672,14 @@ void RenderViewImpl::Initialize(const ViewMsg_New_Params& params,
   if (command_line.HasSwitch(switches::kStatsCollectionController))
     stats_collection_observer_.reset(new StatsCollectionObserver(this));
 
+  // Debug cases of https://crbug.com/575245.
+  base::debug::SetCrashKeyValue("rvinit_view_id",
+                                base::IntToString(routing_id()));
+  base::debug::SetCrashKeyValue("rvinit_proxy_id",
+                                base::IntToString(params.proxy_routing_id));
+  base::debug::SetCrashKeyValue(
+      "rvinit_main_frame_id", base::IntToString(params.main_frame_routing_id));
+
   if (params.main_frame_routing_id != MSG_ROUTING_NONE) {
     main_render_frame_ = RenderFrameImpl::CreateMainFrame(
         this, params.main_frame_routing_id, params.main_frame_widget_routing_id,
@@ -688,13 +689,13 @@ void RenderViewImpl::Initialize(const ViewMsg_New_Params& params,
   if (params.proxy_routing_id != MSG_ROUTING_NONE) {
     CHECK(params.swapped_out);
     if (main_render_frame_) {
-      DCHECK(!SiteIsolationPolicy::IsSwappedOutStateForbidden());
+      CHECK(!SiteIsolationPolicy::IsSwappedOutStateForbidden());
       RenderFrameProxy* proxy = RenderFrameProxy::CreateProxyToReplaceFrame(
           main_render_frame_, params.proxy_routing_id,
           blink::WebTreeScopeType::Document);
       main_render_frame_->set_render_frame_proxy(proxy);
     } else {
-      DCHECK(SiteIsolationPolicy::IsSwappedOutStateForbidden());
+      CHECK(SiteIsolationPolicy::IsSwappedOutStateForbidden());
       // Pass MSG_ROUTING_NONE for opener, since actual opener (if any) will be
       // set separately below.
       RenderFrameProxy::CreateFrameProxy(params.proxy_routing_id, routing_id(),
@@ -740,6 +741,8 @@ void RenderViewImpl::Initialize(const ViewMsg_New_Params& params,
       !command_line.HasSwitch(switches::kDisableThreadedScrolling));
   webview()->settings()->setRootLayerScrolls(
       command_line.HasSwitch(switches::kRootLayerScrolls));
+  webview()->settings()->setScrollAnchoringEnabled(
+      command_line.HasSwitch(switches::kEnableScrollAnchoring));
 
   ApplyWebPreferencesInternal(webkit_preferences_, webview(), compositor_deps_);
 
@@ -801,8 +804,17 @@ void RenderViewImpl::Initialize(const ViewMsg_New_Params& params,
 
   // If we have an opener_frame but we weren't created by a renderer, then it's
   // the browser asking us to set our opener to another frame.
-  if (opener_frame && !was_created_by_renderer)
+  if (opener_frame && !was_created_by_renderer) {
     webview()->mainFrame()->setOpener(opener_frame);
+
+    // Ensure that sandbox flags are inherited from an opener in a different
+    // process.  In that case, the browser process will set any inherited
+    // sandbox flags in |replicated_frame_state|, so apply them here.
+    if (webview()->mainFrame()->isWebLocalFrame()) {
+      webview()->mainFrame()->toWebLocalFrame()->forceSandboxFlags(
+          params.replicated_frame_state.sandbox_flags);
+    }
+  }
 
   // If we are initially swapped out, navigate to kSwappedOutURL.
   // This ensures we are in a unique origin that others cannot script.
@@ -1329,8 +1341,6 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
                         OnSetEditCommandsForNextKeyEvent)
     IPC_MESSAGE_HANDLER(ViewMsg_CopyImageAt, OnCopyImageAt)
     IPC_MESSAGE_HANDLER(ViewMsg_SaveImageAt, OnSaveImageAt)
-    IPC_MESSAGE_HANDLER(ViewMsg_Find, OnFind)
-    IPC_MESSAGE_HANDLER(ViewMsg_StopFinding, OnStopFinding)
     IPC_MESSAGE_HANDLER(ViewMsg_SetPageScale, OnSetPageScale)
     IPC_MESSAGE_HANDLER(ViewMsg_Zoom, OnZoom)
     IPC_MESSAGE_HANDLER(ViewMsg_SetZoomLevelForLoadingURL,
@@ -1381,9 +1391,6 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(ViewMsg_ForceRedraw, OnForceRedraw)
     IPC_MESSAGE_HANDLER(ViewMsg_SelectWordAroundCaret, OnSelectWordAroundCaret)
 #if defined(OS_ANDROID)
-    IPC_MESSAGE_HANDLER(InputMsg_ActivateNearestFindResult,
-                        OnActivateNearestFindResult)
-    IPC_MESSAGE_HANDLER(ViewMsg_FindMatchRects, OnFindMatchRects)
     IPC_MESSAGE_HANDLER(ViewMsg_UpdateTopControlsState,
                         OnUpdateTopControlsState)
     IPC_MESSAGE_HANDLER(ViewMsg_ExtractSmartClipData, OnExtractSmartClipData)
@@ -1607,10 +1614,11 @@ WebView* RenderViewImpl::createView(WebLocalFrame* creator,
     params.opener_top_level_frame_url = creator->top()->document().url();
   } else {
     params.opener_top_level_frame_url =
-        GURL(creator->top()->securityOrigin().toString());
+        blink::WebStringToGURL(creator->top()->securityOrigin().toString());
   }
 
-  GURL security_url(creator->document().securityOrigin().toString());
+  GURL security_url(blink::WebStringToGURL(
+      creator->document().securityOrigin().toString()));
   if (!security_url.is_valid())
     security_url = GURL();
   params.opener_security_origin = security_url;
@@ -1638,7 +1646,7 @@ WebView* RenderViewImpl::createView(WebLocalFrame* creator,
   // TODO(vangelis): Can we tell if the new view will be a background page?
   bool never_visible = false;
 
-  ViewMsg_Resize_Params initial_size = ViewMsg_Resize_Params();
+  ResizeParams initial_size = ResizeParams();
   initial_size.screen_info = screen_info_;
 
   // The initial hidden state for the RenderViewImpl here has to match what the
@@ -1943,9 +1951,11 @@ void RenderViewImpl::startDragging(WebLocalFrame* frame,
                                    WebDragOperationsMask mask,
                                    const WebImage& image,
                                    const WebPoint& webImageOffset) {
+  blink::WebRect offset_in_window(webImageOffset.x, webImageOffset.y, 0, 0);
+  convertViewportToWindow(&offset_in_window);
   DropData drop_data(DropDataBuilder::Build(data));
   drop_data.referrer_policy = frame->document().referrerPolicy();
-  gfx::Vector2d imageOffset(webImageOffset.x, webImageOffset.y);
+  gfx::Vector2d imageOffset(offset_in_window.x, offset_in_window.y);
   Send(new DragHostMsg_StartDragging(routing_id(), drop_data, mask,
                                      image.getSkBitmap(), imageOffset,
                                      possible_drag_event_info_));
@@ -2217,16 +2227,6 @@ void RenderViewImpl::CheckPreferredSize() {
                                                       preferred_size_));
 }
 
-void RenderViewImpl::SendFindReply(int request_id,
-                                   int match_count,
-                                   int ordinal,
-                                   const WebRect& selection_rect,
-                                   bool final_status_update) {
-  Send(new ViewHostMsg_Find_Reply(routing_id(), request_id, match_count,
-                                  selection_rect, ordinal,
-                                  final_status_update));
-}
-
 blink::WebString RenderViewImpl::acceptLanguages() {
   return WebString::fromUTF8(renderer_preferences_.accept_languages);
 }
@@ -2304,227 +2304,6 @@ blink::WebElement RenderViewImpl::GetFocusedElement() const {
   return WebElement();
 }
 
-blink::WebPlugin* RenderViewImpl::GetWebPluginForFind() {
-  if (!webview())
-    return NULL;
-
-  WebFrame* main_frame = webview()->mainFrame();
-  if (main_frame->isWebLocalFrame() &&
-      main_frame->document().isPluginDocument())
-    return webview()->mainFrame()->document().to<WebPluginDocument>().plugin();
-
-#if defined(ENABLE_PLUGINS)
-  if (plugin_find_handler_)
-    return plugin_find_handler_->container()->plugin();
-#endif
-
-  return NULL;
-}
-
-void RenderViewImpl::OnFind(int request_id,
-                            const base::string16& search_text,
-                            const WebFindOptions& options) {
-  DCHECK(!search_text.empty());
-
-  WebFrame* main_frame = webview()->mainFrame();
-  blink::WebPlugin* plugin = GetWebPluginForFind();
-  // Check if the plugin still exists in the document.
-  if (plugin) {
-    if (options.findNext) {
-      // Just navigate back/forward.
-      plugin->selectFindResult(options.forward);
-    } else {
-      if (!plugin->startFind(
-          search_text, options.matchCase, request_id)) {
-        // Send "no results".
-        SendFindReply(request_id, 0, 0, gfx::Rect(), true);
-      }
-    }
-    return;
-  }
-
-  WebFrame* frame_after_main = main_frame->traverseNext(true);
-  WebFrame* focused_frame = webview()->focusedFrame();
-  WebFrame* search_frame = focused_frame;  // start searching focused frame.
-
-  bool multi_frame = (frame_after_main != main_frame);
-
-  // If we have multiple frames, we don't want to wrap the search within the
-  // frame, so we check here if we only have main_frame in the chain.
-  bool wrap_within_frame = !multi_frame;
-
-  WebRect selection_rect;
-  bool result = false;
-
-  // If something is selected when we start searching it means we cannot just
-  // increment the current match ordinal; we need to re-generate it.
-  WebRange current_selection = focused_frame->selectionRange();
-
-  do {
-    result = search_frame->find(
-        request_id, search_text, options, wrap_within_frame, &selection_rect);
-
-    if (!result) {
-      // don't leave text selected as you move to the next frame.
-      search_frame->executeCommand(WebString::fromUTF8("Unselect"),
-                                   GetFocusedElement());
-
-      // Find the next frame, but skip the invisible ones.
-      do {
-        // What is the next frame to search? (we might be going backwards). Note
-        // that we specify wrap=true so that search_frame never becomes NULL.
-        search_frame = options.forward ?
-            search_frame->traverseNext(true) :
-            search_frame->traversePrevious(true);
-      } while (!search_frame->hasVisibleContent() &&
-               search_frame != focused_frame);
-
-      // Make sure selection doesn't affect the search operation in new frame.
-      search_frame->executeCommand(WebString::fromUTF8("Unselect"),
-                                   GetFocusedElement());
-
-      // If we have multiple frames and we have wrapped back around to the
-      // focused frame, we need to search it once more allowing wrap within
-      // the frame, otherwise it will report 'no match' if the focused frame has
-      // reported matches, but no frames after the focused_frame contain a
-      // match for the search word(s).
-      if (multi_frame && search_frame == focused_frame) {
-        result = search_frame->find(
-            request_id, search_text, options, true,  // Force wrapping.
-            &selection_rect);
-      }
-    }
-
-    webview()->setFocusedFrame(search_frame);
-  } while (!result && search_frame != focused_frame);
-
-  if (options.findNext && current_selection.isNull()) {
-    // Force the main_frame to report the actual count.
-    main_frame->increaseMatchCount(0, request_id);
-  } else {
-    // If nothing is found, set result to "0 of 0", otherwise, set it to
-    // "-1 of 1" to indicate that we found at least one item, but we don't know
-    // yet what is active.
-    int ordinal = result ? -1 : 0;  // -1 here means, we might know more later.
-    int match_count = result ? 1 : 0;  // 1 here means possibly more coming.
-
-    // If we find no matches then this will be our last status update.
-    // Otherwise the scoping effort will send more results.
-    bool final_status_update = !result;
-
-    SendFindReply(request_id, match_count, ordinal, selection_rect,
-                  final_status_update);
-
-    // Scoping effort begins, starting with the mainframe.
-    search_frame = main_frame;
-
-    main_frame->resetMatchCount();
-
-    do {
-      // Cancel all old scoping requests before starting a new one.
-      search_frame->cancelPendingScopingEffort();
-
-      // We don't start another scoping effort unless at least one match has
-      // been found.
-      if (result) {
-        // Start new scoping request. If the scoping function determines that it
-        // needs to scope, it will defer until later.
-        search_frame->scopeStringMatches(request_id,
-                                         search_text,
-                                         options,
-                                         true);  // reset the tickmarks
-      }
-
-      // Iterate to the next frame. The frame will not necessarily scope, for
-      // example if it is not visible.
-      search_frame = search_frame->traverseNext(true);
-    } while (search_frame != main_frame);
-  }
-}
-
-void RenderViewImpl::OnStopFinding(StopFindAction action) {
-  WebView* view = webview();
-  if (!view)
-    return;
-
-  blink::WebPlugin* plugin = GetWebPluginForFind();
-  if (plugin) {
-    plugin->stopFind();
-    return;
-  }
-
-  bool clear_selection = action == STOP_FIND_ACTION_CLEAR_SELECTION;
-  if (clear_selection) {
-    view->focusedFrame()->executeCommand(WebString::fromUTF8("Unselect"),
-                                         GetFocusedElement());
-  }
-
-  WebFrame* frame = view->mainFrame();
-  while (frame) {
-    frame->stopFinding(clear_selection);
-    frame = frame->traverseNext(false);
-  }
-
-  if (action == STOP_FIND_ACTION_ACTIVATE_SELECTION) {
-    WebFrame* focused_frame = view->focusedFrame();
-    if (focused_frame) {
-      WebDocument doc = focused_frame->document();
-      if (!doc.isNull()) {
-        WebElement element = doc.focusedElement();
-        if (!element.isNull())
-          element.simulateClick();
-      }
-    }
-  }
-}
-
-#if defined(OS_ANDROID)
-void RenderViewImpl::OnActivateNearestFindResult(int request_id,
-                                                 float x, float y) {
-  if (!webview())
-      return;
-
-  WebFrame* main_frame = webview()->mainFrame();
-  WebRect selection_rect;
-  int ordinal = main_frame->selectNearestFindMatch(WebFloatPoint(x, y),
-                                                   &selection_rect);
-  if (ordinal == -1) {
-    // Something went wrong, so send a no-op reply (force the main_frame to
-    // report the current match count) in case the host is waiting for a
-    // response due to rate-limiting).
-    main_frame->increaseMatchCount(0, request_id);
-    return;
-  }
-
-  SendFindReply(request_id,
-                -1 /* number_of_matches */,
-                ordinal,
-                selection_rect,
-                true /* final_update */);
-}
-
-void RenderViewImpl::OnFindMatchRects(int current_version) {
-  if (!webview())
-      return;
-
-  WebFrame* main_frame = webview()->mainFrame();
-  std::vector<gfx::RectF> match_rects;
-
-  int rects_version = main_frame->findMatchMarkersVersion();
-  if (current_version != rects_version) {
-    WebVector<WebFloatRect> web_match_rects;
-    main_frame->findMatchRects(web_match_rects);
-    match_rects.reserve(web_match_rects.size());
-    for (size_t i = 0; i < web_match_rects.size(); ++i)
-      match_rects.push_back(gfx::RectF(web_match_rects[i]));
-  }
-
-  gfx::RectF active_rect = main_frame->activeFindMatchRect();
-  Send(new ViewHostMsg_FindMatchRects_Reply(routing_id(), rects_version,
-                                            match_rects, active_rect));
-}
-#endif
-
 void RenderViewImpl::OnSetPageScale(float page_scale_factor) {
   if (!webview())
     return;
@@ -2595,7 +2374,13 @@ void RenderViewImpl::OnAllowBindings(int enabled_bindings_flags) {
     new WebUIExtensionData(this);
 
     if (main_render_frame_)
-      main_render_frame_->EnableMojoBindings();
+      main_render_frame_->EnableMojoBindings(false /* for_layout_tests */);
+  }
+
+  if ((enabled_bindings_flags & BINDINGS_POLICY_MOJO) &&
+      !(enabled_bindings_ & BINDINGS_POLICY_MOJO) &&
+      main_render_frame_) {
+    main_render_frame_->EnableMojoBindings(true /* for_layout_tests */);
   }
 
   enabled_bindings_ |= enabled_bindings_flags;
@@ -2861,7 +2646,7 @@ void RenderViewImpl::OnMoveOrResizeStarted() {
     webview()->hidePopups();
 }
 
-void RenderViewImpl::OnResize(const ViewMsg_Resize_Params& params) {
+void RenderViewImpl::OnResize(const ResizeParams& params) {
   TRACE_EVENT0("renderer", "RenderViewImpl::OnResize");
   if (webview()) {
     webview()->hidePopups();
@@ -3141,6 +2926,7 @@ void RenderViewImpl::SetFocus(bool enable) {
 void RenderViewImpl::OnImeSetComposition(
     const base::string16& text,
     const std::vector<blink::WebCompositionUnderline>& underlines,
+    const gfx::Range& replacement_range,
     int selection_start,
     int selection_end) {
 #if defined(ENABLE_PLUGINS)
@@ -3176,8 +2962,19 @@ void RenderViewImpl::OnImeSetComposition(
   }
 #endif  // OS_WIN
 #endif  // ENABLE_PLUGINS
+  if (replacement_range.IsValid() && webview()) {
+    // Select the text in |replacement_range|, it will then be replaced by
+    // text added by the call to RenderWidget::OnImeSetComposition().
+    if (WebLocalFrame* frame = webview()->focusedFrame()->toWebLocalFrame()) {
+      WebRange webrange = WebRange::fromDocumentRange(
+          frame, replacement_range.start(), replacement_range.length());
+      if (!webrange.isNull())
+        frame->selectRange(webrange);
+    }
+  }
   RenderWidget::OnImeSetComposition(text,
                                     underlines,
+                                    replacement_range,
                                     selection_start,
                                     selection_end);
 }
@@ -3635,7 +3432,7 @@ void RenderViewImpl::SetFocusAndActivateForTesting(bool enable) {
 }
 
 void RenderViewImpl::SetDeviceScaleFactorForTesting(float factor) {
-  ViewMsg_Resize_Params params;
+  ResizeParams params;
   params.screen_info = screen_info_;
   params.screen_info.deviceScaleFactor = factor;
   params.new_size = size();

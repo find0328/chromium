@@ -192,10 +192,10 @@ source_set("browser") {
     sources += rebase_path(content_browser_gypi_values.webrtc_browser_sources,
                            ".",
                            "//content")
-    deps += [ "//jingle:jingle_glue" ]
-    if (is_linux) {
-      deps += [ "//third_party/libjingle:libjingle_webrtc" ]
-    }
+    deps += [
+      "//jingle:jingle_glue",
+      "//third_party/libjingle:libjingle_webrtc",
+    ]
     if (is_linux || is_mac || is_win) {
       sources += [
         "media/capture/desktop_capture_device.cc",
@@ -338,6 +338,10 @@ source_set("browser") {
     sources += rebase_path(content_browser_gypi_values.android_browser_sources,
                            ".",
                            "//content")
+    sources += rebase_path(
+            content_browser_gypi_values.android_in_process_browser_sources,
+            ".",
+            "//content")
     sources -= [
       "browser_ipc_logging.cc",
       "device_sensors/data_fetcher_shared_memory_default.cc",
@@ -347,6 +351,7 @@ source_set("browser") {
       "geolocation/network_location_request.h",
       "power_usage_monitor_impl.cc",
       "power_usage_monitor_impl.h",
+      "renderer_host/begin_frame_observer_proxy.cc",
       "tracing/tracing_ui.cc",
       "tracing/tracing_ui.h",
 
@@ -372,26 +377,13 @@ source_set("browser") {
       "speech/speech_recognizer_impl.cc",
       "speech/speech_recognizer_impl.h",
     ]
-
-    if (!use_aura) {
-      sources += rebase_path(
-              content_browser_gypi_values.android_non_aura_browser_sources,
-              ".",
-              "//content")
-      sources += rebase_path(
-              content_browser_gypi_values.android_in_process_browser_sources,
-              ".",
-              "//content")
-      sources -= [ "renderer_host/begin_frame_observer_proxy.cc" ]
-      deps += [ "//ui/android" ]
-    }
-
     deps -= [ "//device/battery" ]
     deps += [
       "//content/public/android:jni",
       "//media",
       "//media/mojo/interfaces",
       "//mojo/android:libsystem_java",
+      "//ui/android",
     ]
     defines += [ "APPCACHE_USE_SIMPLE_CACHE" ]
     libs += [ "jnigraphics" ]
@@ -417,10 +409,6 @@ source_set("browser") {
 
   if (is_chromeos) {
     sources -= [ "device_sensors/data_fetcher_shared_memory_default.cc" ]
-    sources += [
-      "gpu/gpu_arc_video_service_host.cc",
-      "gpu/gpu_arc_video_service_host.h",
-    ]
     deps += [
       "//chromeos",
       "//chromeos:power_manager_proto",

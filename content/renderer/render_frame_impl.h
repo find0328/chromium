@@ -27,6 +27,7 @@
 #include "content/public/common/console_message_level.h"
 #include "content/public/common/javascript_message_type.h"
 #include "content/public/common/referrer.h"
+#include "content/public/common/stop_find_action.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/renderer/render_frame_proxy.h"
 #include "content/renderer/renderer_webcookiejar_impl.h"
@@ -37,6 +38,7 @@
 #include "mojo/shell/public/interfaces/service_provider.mojom.h"
 #include "mojo/shell/public/interfaces/shell.mojom.h"
 #include "third_party/WebKit/public/platform/WebFocusType.h"
+#include "third_party/WebKit/public/platform/WebMediaPlayer.h"
 #include "third_party/WebKit/public/platform/modules/app_banner/WebAppBannerClient.h"
 #include "third_party/WebKit/public/web/WebAXObject.h"
 #include "third_party/WebKit/public/web/WebDataSource.h"
@@ -72,7 +74,6 @@ namespace blink {
 class WebGeolocationClient;
 class WebMouseEvent;
 class WebContentDecryptionModule;
-class WebMediaPlayer;
 class WebPresentationClient;
 class WebPushClient;
 class WebSecurityOrigin;
@@ -80,6 +81,7 @@ class WebWakeLockClient;
 struct WebCompositionUnderline;
 struct WebContextMenuData;
 struct WebCursorInfo;
+struct WebFindOptions;
 struct WebScreenInfo;
 }
 
@@ -288,6 +290,14 @@ class CONTENT_EXPORT RenderFrameImpl
   void FocusedNodeChangedForAccessibility(const blink::WebNode& node);
 
 #if defined(ENABLE_PLUGINS)
+  // Get/set the plugin which will be used to handle document find requests.
+  void set_plugin_find_handler(PepperPluginInstanceImpl* plugin) {
+    plugin_find_handler_ = plugin;
+  }
+  PepperPluginInstanceImpl* plugin_find_handler() {
+    return plugin_find_handler_;
+  }
+
   // Notification that a PPAPI plugin has been created.
   void PepperPluginCreated(RendererPpapiHost* host);
 
@@ -404,11 +414,13 @@ class CONTENT_EXPORT RenderFrameImpl
                                  const blink::WebPluginParams& params) override;
   blink::WebMediaPlayer* createMediaPlayer(
       blink::WebLocalFrame* frame,
+      blink::WebMediaPlayer::LoadType load_type,
       const blink::WebURL& url,
       blink::WebMediaPlayerClient* client,
       blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
       blink::WebContentDecryptionModule* initial_cdm,
-      const blink::WebString& sink_id) override;
+      const blink::WebString& sink_id,
+      blink::WebMediaSession* media_session) override;
   blink::WebMediaSession* createMediaSession() override;
   blink::WebApplicationCacheHost* createApplicationCacheHost(
       blink::WebLocalFrame* frame,
@@ -643,8 +655,9 @@ class CONTENT_EXPORT RenderFrameImpl
   void SendUpdateState();
 
   // Creates a MojoBindingsController to allow WebUI documents to communicate
-  // with the browser process.
-  void EnableMojoBindings();
+  // with the browser process. If |for_layout_tests| is true, the module system
+  // is exposed on a global "mojo" object rather than "define".
+  void EnableMojoBindings(bool for_layout_tests);
 
  protected:
   explicit RenderFrameImpl(const CreateParams& params);
@@ -773,14 +786,6 @@ class CONTENT_EXPORT RenderFrameImpl
   void OnTextTrackSettingsChanged(
       const FrameMsg_TextTrackSettings_Params& params);
   void OnPostMessageEvent(const FrameMsg_PostMessage_Params& params);
-#if defined(OS_ANDROID)
-  void OnSelectPopupMenuItems(bool canceled,
-                              const std::vector<int>& selected_indices);
-#elif defined(OS_MACOSX)
-  void OnSelectPopupMenuItem(int selected_index);
-  void OnCopyToFindPboard();
-#endif
-
   void OnCommitNavigation(const ResourceResponseHead& response,
                           const GURL& stream_url,
                           const CommonNavigationParams& common_params,
@@ -791,8 +796,22 @@ class CONTENT_EXPORT RenderFrameImpl
                           int error_code);
   void OnGetSavableResourceLinks();
   void OnGetSerializedHtmlWithLocalLinks(
-      const std::map<GURL, base::FilePath>& url_to_local_path);
+      const std::map<GURL, base::FilePath>& url_to_local_path,
+      const std::map<int, base::FilePath>& frame_routing_id_to_local_path);
   void OnSerializeAsMHTML(const FrameMsg_SerializeAsMHTML_Params& params);
+  void OnFind(int request_id,
+              const base::string16& search_text,
+              const blink::WebFindOptions& options);
+  void OnStopFinding(StopFindAction action);
+#if defined(OS_ANDROID)
+  void OnActivateNearestFindResult(int request_id, float x, float y);
+  void OnFindMatchRects(int current_version);
+  void OnSelectPopupMenuItems(bool canceled,
+                              const std::vector<int>& selected_indices);
+#elif defined(OS_MACOSX)
+  void OnSelectPopupMenuItem(int selected_index);
+  void OnCopyToFindPboard();
+#endif
 
   // Requests that the browser process navigates to |url|. If
   // |is_history_navigation_in_new_child| is true, the browser process should
@@ -944,6 +963,18 @@ class CONTENT_EXPORT RenderFrameImpl
   // |media_player_delegate_| is NULL, one is created.
   media::RendererWebMediaPlayerDelegate* GetWebMediaPlayerDelegate();
 
+  // Called to get the WebPlugin to handle find requests in the document.
+  // Returns nullptr if there is no such WebPlugin.
+  blink::WebPlugin* GetWebPluginForFind();
+
+  // Sends a reply to the current find operation handling if it was a
+  // synchronous find request.
+  void SendFindReply(int request_id,
+                     int match_count,
+                     int ordinal,
+                     const blink::WebRect& selection_rect,
+                     bool final_status_update);
+
   // Stores the WebLocalFrame we are associated with.  This is null from the
   // constructor until BindToWebFrame is called, and it is null after
   // frameDetached is called until destruction (which is asynchronous in the
@@ -1009,6 +1040,8 @@ class CONTENT_EXPORT RenderFrameImpl
   base::string16 pepper_composition_text_;
 
   PluginPowerSaverHelper* plugin_power_saver_helper_;
+
+  PepperPluginInstanceImpl* plugin_find_handler_;
 #endif
 
   RendererWebCookieJarImpl cookie_jar_;

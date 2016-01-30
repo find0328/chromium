@@ -258,7 +258,6 @@ public:
     String pageProperty(String, int, ExceptionState& = ASSERT_NO_EXCEPTION) const;
     String pageSizeAndMarginsInPixels(int, int, int, int, int, int, int, ExceptionState& = ASSERT_NO_EXCEPTION) const;
 
-    void setDeviceScaleFactor(float scaleFactor, ExceptionState&);
     void setPageScaleFactor(float scaleFactor, ExceptionState&);
     void setPageScaleFactorLimits(float minScaleFactor, float maxScaleFactor, ExceptionState&);
 
@@ -384,8 +383,6 @@ public:
 
     void setCapsLockState(bool enabled);
 
-    void setSelectionPaintingWithoutSelectionGapsEnabled(bool);
-
     bool setScrollbarVisibilityInScrollableArea(Node*, bool visible);
 
     void forceRestrictIFramePermissions();
@@ -398,6 +395,10 @@ public:
 
     // TODO(liberato): remove once autoplay gesture override experiment concludes.
     void triggerAutoplayViewportCheck(HTMLMediaElement*);
+
+    // Returns the run state of the node's scroll animator (see ScrollAnimatorCompositorCoordinater::RunState),
+    // or -1 if the node does not have a scrollable area.
+    int getScrollAnimationState(Node*) const;
 
 private:
     explicit Internals(ScriptState*);

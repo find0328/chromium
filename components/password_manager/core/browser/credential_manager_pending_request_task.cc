@@ -8,6 +8,7 @@
 
 #include "components/autofill/core/common/password_form.h"
 #include "components/password_manager/core/browser/affiliated_match_helper.h"
+#include "components/password_manager/core/browser/password_bubble_experiment.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
 #include "components/password_manager/core/common/credential_manager_types.h"
@@ -45,7 +46,6 @@ void CredentialManagerPendingRequestTask::OnGetPasswordStoreResults(
   ScopedVector<autofill::PasswordForm> local_results;
   ScopedVector<autofill::PasswordForm> affiliated_results;
   ScopedVector<autofill::PasswordForm> federated_results;
-  const autofill::PasswordForm* zero_click_form_to_return = nullptr;
   for (auto& form : results) {
     // PasswordFrom and GURL have different definition of origin.
     // PasswordForm definition: scheme, host, port and path.
@@ -85,30 +85,27 @@ void CredentialManagerPendingRequestTask::OnGetPasswordStoreResults(
   }
 
   // We only perform zero-click sign-in when the result is completely
-  // unambigious. If the user could theoretically choose from more than one
-  // option, cancel zero-click.
-  if (local_results.size() == 1u && !local_results[0]->skip_zero_click)
-    zero_click_form_to_return = local_results[0];
-
-  if (zero_click_form_to_return && delegate_->IsZeroClickAllowed()) {
-    // TODO(mkwst): This is all too complex now. We should just be able to check
-    // the first item in the list, since we're now only doing any of this work
-    // when there's only one item. Kill it all with fire in a future CL.
-    auto it = std::find(local_results.begin(), local_results.end(),
-                        zero_click_form_to_return);
-    CredentialInfo info(*zero_click_form_to_return,
-                        zero_click_form_to_return->federation_url.is_empty()
+  // unambigious. If there is one and only one entry, and zero-click is
+  // enabled for that entry, return it.
+  //
+  // Moreover, we only return such a credential if the user has opted-in via the
+  // first-run experience.
+  if (local_results.size() == 1u && !local_results[0]->skip_zero_click &&
+      delegate_->IsZeroClickAllowed() &&
+      !password_bubble_experiment::ShouldShowAutoSignInPromptFirstRunExperience(
+          delegate_->client()->GetPrefs())) {
+    CredentialInfo info(*local_results[0],
+                        local_results[0]->federation_url.is_empty()
                             ? CredentialType::CREDENTIAL_TYPE_PASSWORD
                             : CredentialType::CREDENTIAL_TYPE_FEDERATED);
-    DCHECK(it != local_results.end());
-    std::swap(*it, local_results[0]);
-    // Clear the form pointer since its owner is being passed.
-    zero_click_form_to_return = nullptr;
     delegate_->client()->NotifyUserAutoSignin(std::move(local_results));
     delegate_->SendCredential(id_, info);
     return;
   }
 
+  // Otherwise, return an empty credential if we're in zero-click-only mode
+  // or if the user chooses not to return a credential, and the credential the
+  // user chooses if they pick one.
   if (zero_click_only_ ||
       !delegate_->client()->PromptUserToChooseCredentials(
           std::move(local_results), std::move(federated_results), origin_,

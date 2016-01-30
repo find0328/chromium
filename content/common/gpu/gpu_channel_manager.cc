@@ -30,10 +30,6 @@
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_share_group.h"
 
-#if defined(OS_CHROMEOS)
-#include "content/common/gpu/media/gpu_arc_video_service.h"
-#endif
-
 namespace content {
 
 namespace {
@@ -142,10 +138,6 @@ bool GpuChannelManager::OnControlMessageReceived(const IPC::Message& msg) {
     IPC_MESSAGE_HANDLER(GpuMsg_CreateViewCommandBuffer,
                         OnCreateViewCommandBuffer)
     IPC_MESSAGE_HANDLER(GpuMsg_DestroyGpuMemoryBuffer, OnDestroyGpuMemoryBuffer)
-#if defined(OS_CHROMEOS)
-    IPC_MESSAGE_HANDLER(GpuMsg_CreateArcVideoAcceleratorChannel,
-                        OnCreateArcVideoAcceleratorChannel)
-#endif
     IPC_MESSAGE_HANDLER(GpuMsg_LoadedShader, OnLoadedShader)
     IPC_MESSAGE_HANDLER(GpuMsg_UpdateValueState, OnUpdateValueState)
 #if defined(OS_ANDROID)
@@ -171,13 +163,12 @@ scoped_ptr<GpuChannel> GpuChannelManager::CreateGpuChannel(
     int client_id,
     uint64_t client_tracing_id,
     bool preempts,
-    bool allow_future_sync_points,
     bool allow_real_time_streams) {
   return make_scoped_ptr(new GpuChannel(
       this, sync_point_manager(), watchdog_, share_group(), mailbox_manager(),
       preempts ? preemption_flag() : nullptr, task_runner_.get(),
       io_task_runner_.get(), client_id, client_tracing_id,
-      allow_future_sync_points, allow_real_time_streams));
+      allow_real_time_streams));
 }
 
 void GpuChannelManager::OnEstablishChannel(
@@ -185,7 +176,7 @@ void GpuChannelManager::OnEstablishChannel(
   DCHECK(!params.preempts || !params.preempted);
   scoped_ptr<GpuChannel> channel(CreateGpuChannel(
       params.client_id, params.client_tracing_id, params.preempts,
-      params.allow_future_sync_points, params.allow_real_time_streams));
+      params.allow_real_time_streams));
   if (params.preempted)
     channel->SetPreemptByFlag(preemption_flag_.get());
   IPC::ChannelHandle channel_handle = channel->Init(shutdown_event_);
@@ -254,28 +245,6 @@ void GpuChannelManager::OnDestroyGpuMemoryBuffer(
   // No sync token or invalid sync token, destroy immediately.
   DestroyGpuMemoryBuffer(id, client_id);
 }
-
-#if defined(OS_CHROMEOS)
-void GpuChannelManager::OnCreateArcVideoAcceleratorChannel() {
-  if (!gpu_arc_video_service_) {
-    gpu_arc_video_service_.reset(
-        new GpuArcVideoService(shutdown_event_, io_task_runner_));
-  }
-
-  gpu_arc_video_service_->CreateChannel(
-      base::Bind(&GpuChannelManager::ArcVideoAcceleratorChannelCreated,
-                 weak_factory_.GetWeakPtr()));
-}
-
-void GpuChannelManager::ArcVideoAcceleratorChannelCreated(
-    const IPC::ChannelHandle& handle) {
-  Send(new GpuHostMsg_ArcVideoAcceleratorChannelCreated(handle));
-}
-
-void GpuChannelManager::OnShutdownArcVideoService() {
-  gpu_arc_video_service_.reset();
-}
-#endif
 
 void GpuChannelManager::OnUpdateValueState(
     int client_id, unsigned int target, const gpu::ValueState& state) {

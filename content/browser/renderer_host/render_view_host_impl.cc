@@ -11,6 +11,7 @@
 
 #include "base/callback.h"
 #include "base/command_line.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/i18n/rtl.h"
 #include "base/json/json_reader.h"
 #include "base/message_loop/message_loop.h"
@@ -35,7 +36,6 @@
 #include "content/browser/host_zoom_map_impl.h"
 #include "content/browser/loader/resource_dispatcher_host_impl.h"
 #include "content/browser/renderer_host/dip_util.h"
-#include "content/browser/renderer_host/media/audio_renderer_host.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"
@@ -46,6 +46,7 @@
 #include "content/common/frame_messages.h"
 #include "content/common/input_messages.h"
 #include "content/common/inter_process_time_ticks_converter.h"
+#include "content/common/site_isolation_policy.h"
 #include "content/common/speech_recognition_messages.h"
 #include "content/common/swapped_out_messages.h"
 #include "content/common/view_messages.h"
@@ -74,7 +75,7 @@
 #include "content/public/common/url_constants.h"
 #include "content/public/common/url_utils.h"
 #include "net/base/filename_util.h"
-#include "net/base/net_util.h"
+#include "net/base/url_util.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "storage/browser/fileapi/isolated_context.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -240,21 +241,11 @@ RenderViewHostImpl::RenderViewHostImpl(SiteInstance* instance,
   GetProcess()->EnableSendQueue();
 
   if (ResourceDispatcherHostImpl::Get()) {
-    bool has_active_audio = false;
-    if (has_initialized_audio_host) {
-      scoped_refptr<AudioRendererHost> arh =
-          static_cast<RenderProcessHostImpl*>(GetProcess())
-              ->audio_renderer_host();
-      if (arh.get())
-        has_active_audio =
-            arh->RenderFrameHasActiveAudio(main_frame_routing_id_);
-    }
     BrowserThread::PostTask(
         BrowserThread::IO, FROM_HERE,
         base::Bind(&ResourceDispatcherHostImpl::OnRenderViewHostCreated,
                    base::Unretained(ResourceDispatcherHostImpl::Get()),
-                   GetProcess()->GetID(), GetRoutingID(),
-                   !GetWidget()->is_hidden(), has_active_audio));
+                   GetProcess()->GetID(), GetRoutingID()));
   }
 }
 
@@ -299,6 +290,15 @@ bool RenderViewHostImpl::CreateRenderView(
   DCHECK(GetProcess()->GetBrowserContext());
   CHECK(main_frame_routing_id_ != MSG_ROUTING_NONE ||
         proxy_route_id != MSG_ROUTING_NONE);
+
+  // If swappedout:// is disabled, we should not set both main_frame_routing_id_
+  // and proxy_route_id.  Log cases that this happens (without crashing) to
+  // track down https://crbug.com/574245.
+  // TODO(creis): Remove this once we've found the cause.
+  if (SiteIsolationPolicy::IsSwappedOutStateForbidden() &&
+      main_frame_routing_id_ != MSG_ROUTING_NONE &&
+      proxy_route_id != MSG_ROUTING_NONE)
+    base::debug::DumpWithoutCrashing();
 
   GetWidget()->set_renderer_initialized(true);
 
@@ -569,19 +569,6 @@ void RenderViewHostImpl::ClosePageIgnoringUnloadEvents() {
   delegate_->Close(this);
 }
 
-#if defined(OS_ANDROID)
-void RenderViewHostImpl::ActivateNearestFindResult(int request_id,
-                                                   float x,
-                                                   float y) {
-  Send(new InputMsg_ActivateNearestFindResult(GetRoutingID(),
-                                              request_id, x, y));
-}
-
-void RenderViewHostImpl::RequestFindMatchRects(int current_version) {
-  Send(new ViewMsg_FindMatchRects(GetRoutingID(), current_version));
-}
-#endif
-
 void RenderViewHostImpl::RenderProcessReady(RenderProcessHost* host) {
   if (render_view_ready_on_process_launch_) {
     render_view_ready_on_process_launch_ = false;
@@ -692,9 +679,11 @@ void RenderViewHostImpl::DragTargetDragEnter(
                  .append(register_name));
   }
 
-  Send(new DragMsg_TargetDragEnter(GetRoutingID(), filtered_data, client_pt,
-                                   screen_pt, operations_allowed,
-                                   key_modifiers));
+  const gfx::Point client_pt_in_viewport = ConvertDIPToViewport(client_pt);
+
+  Send(new DragMsg_TargetDragEnter(GetRoutingID(), filtered_data,
+                                   client_pt_in_viewport, screen_pt,
+                                   operations_allowed, key_modifiers));
 }
 
 void RenderViewHostImpl::DragTargetDragOver(
@@ -702,8 +691,10 @@ void RenderViewHostImpl::DragTargetDragOver(
     const gfx::Point& screen_pt,
     WebDragOperationsMask operations_allowed,
     int key_modifiers) {
-  Send(new DragMsg_TargetDragOver(GetRoutingID(), client_pt, screen_pt,
-                                  operations_allowed, key_modifiers));
+  const gfx::Point client_pt_in_viewport = ConvertDIPToViewport(client_pt);
+  Send(new DragMsg_TargetDragOver(GetRoutingID(), client_pt_in_viewport,
+                                  screen_pt, operations_allowed,
+                                  key_modifiers));
 }
 
 void RenderViewHostImpl::DragTargetDragLeave() {
@@ -714,17 +705,18 @@ void RenderViewHostImpl::DragTargetDrop(
     const gfx::Point& client_pt,
     const gfx::Point& screen_pt,
     int key_modifiers) {
-  Send(new DragMsg_TargetDrop(GetRoutingID(), client_pt, screen_pt,
+  const gfx::Point client_pt_in_viewport = ConvertDIPToViewport(client_pt);
+  Send(new DragMsg_TargetDrop(GetRoutingID(), client_pt_in_viewport, screen_pt,
                               key_modifiers));
 }
 
 void RenderViewHostImpl::DragSourceEndedAt(
     int client_x, int client_y, int screen_x, int screen_y,
     WebDragOperation operation) {
-  Send(new DragMsg_SourceEnded(GetRoutingID(),
-                               gfx::Point(client_x, client_y),
-                               gfx::Point(screen_x, screen_y),
-                               operation));
+  const gfx::Point client_pt_in_viewport =
+      ConvertDIPToViewport(gfx::Point(client_x, client_y));
+  Send(new DragMsg_SourceEnded(GetRoutingID(), client_pt_in_viewport,
+                               gfx::Point(screen_x, screen_y), operation));
 }
 
 void RenderViewHostImpl::DragSourceSystemDragEnded() {
@@ -954,26 +946,6 @@ void RenderViewHostImpl::ShutdownAndDestroy() {
 
   GetWidget()->ShutdownAndDestroyWidget(false);
   delete this;
-}
-
-void RenderViewHostImpl::RenderWidgetWillBeHidden() {
-  if (ResourceDispatcherHostImpl::Get()) {
-    BrowserThread::PostTask(
-        BrowserThread::IO, FROM_HERE,
-        base::Bind(&ResourceDispatcherHostImpl::OnRenderViewHostWasHidden,
-                   base::Unretained(ResourceDispatcherHostImpl::Get()),
-                   GetProcess()->GetID(), GetRoutingID()));
-  }
-}
-
-void RenderViewHostImpl::RenderWidgetWillBeShown() {
-  if (ResourceDispatcherHostImpl::Get()) {
-    BrowserThread::PostTask(
-        BrowserThread::IO, FROM_HERE,
-        base::Bind(&ResourceDispatcherHostImpl::OnRenderViewHostWasShown,
-                   base::Unretained(ResourceDispatcherHostImpl::Get()),
-                   GetProcess()->GetID(), GetRoutingID()));
-  }
 }
 
 void RenderViewHostImpl::CreateNewWindow(
@@ -1391,6 +1363,14 @@ void RenderViewHostImpl::PostRenderViewReady() {
 
 void RenderViewHostImpl::RenderViewReady() {
   delegate_->RenderViewReady(this);
+}
+
+gfx::Point RenderViewHostImpl::ConvertDIPToViewport(const gfx::Point& point) {
+  // The point in guest view is already converted.
+  if (!render_widget_host_->scale_input_to_viewport())
+    return point;
+  float scale = GetWidget()->GetView()->current_device_scale_factor();
+  return gfx::Point(point.x() * scale, point.y() * scale);
 }
 
 }  // namespace content

@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 #include "base/macros.h"
+#include "base/prefs/pref_registry_simple.h"
+#include "components/filesystem/public/cpp/prefs/pref_service_factory.h"
 #include "components/mus/public/cpp/property_type_converters.h"
 #include "mash/wm/public/interfaces/container.mojom.h"
 #include "mojo/public/c/system/main.h"
@@ -42,6 +44,10 @@ class WallpaperApplicationDelegate : public mojo::ApplicationDelegate {
   WallpaperApplicationDelegate() {}
   ~WallpaperApplicationDelegate() override {}
 
+  void OnLoaded(bool whatever) {
+    // TODO(erg): Now do something with this result.
+  }
+
  private:
   // mojo::ApplicationDelegate:
   void Initialize(mojo::ApplicationImpl* app) override {
@@ -49,6 +55,12 @@ class WallpaperApplicationDelegate : public mojo::ApplicationDelegate {
 
     aura_init_.reset(new views::AuraInit(app, "views_mus_resources.pak"));
     views::WindowManagerConnection::Create(app);
+
+    scoped_refptr<PrefRegistrySimple> registry = new PrefRegistrySimple;
+    registry->RegisterStringPref("filename", "", 0);
+    pref_service_ = filesystem::CreatePrefService(app, registry.get());
+    pref_service_->AddPrefInitObserver(base::Bind(
+        &WallpaperApplicationDelegate::OnLoaded, base::Unretained(this)));
 
     views::Widget* widget = new views::Widget;
     views::Widget::InitParams params(
@@ -58,17 +70,18 @@ class WallpaperApplicationDelegate : public mojo::ApplicationDelegate {
     std::map<std::string, std::vector<uint8_t>> properties;
     properties[mash::wm::mojom::kWindowContainer_Property] =
         mojo::TypeConverter<const std::vector<uint8_t>, int32_t>::Convert(
-            mash::wm::mojom::CONTAINER_USER_BACKGROUND);
+            static_cast<int32_t>(mash::wm::mojom::Container::USER_BACKGROUND));
     mus::Window* window =
         views::WindowManagerConnection::Get()->NewWindow(properties);
     params.native_widget = new views::NativeWidgetMus(
-        widget, app->shell(), window, mus::mojom::SURFACE_TYPE_DEFAULT);
+        widget, app->shell(), window, mus::mojom::SurfaceType::DEFAULT);
     widget->Init(params);
     widget->Show();
   }
 
   mojo::TracingImpl tracing_;
   scoped_ptr<views::AuraInit> aura_init_;
+  scoped_ptr<PrefService> pref_service_;
 
   DISALLOW_COPY_AND_ASSIGN(WallpaperApplicationDelegate);
 };

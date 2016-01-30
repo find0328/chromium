@@ -146,7 +146,6 @@ if (!is_android) {
         "//third_party/kasko",
         "//ui/gfx",
         "//win8/delegate_execute",
-        "//win8/metro_driver",
       ]
       data_deps = [
         "//chrome/app/version_assembly:version_assembly_manifest",
@@ -179,7 +178,6 @@ if (!is_android) {
         ":browser_dependencies",
         ":child_dependencies",
         ":manpage",
-        "//base/allocator",
 
         # Needed to use the master_preferences functions
         "//chrome/installer/util:with_no_strings",
@@ -294,7 +292,6 @@ if (is_mac || is_win) {
 
     deps = [
       ":browser_dependencies",
-      "//base/allocator",
       "//build/config/sanitizers:deps",
     ]
     if (is_win) {
@@ -395,7 +392,6 @@ if (is_mac || is_win) {
         ":child_dependencies",
         ":chrome_child_manifest",
         ":chrome_dll_version",
-        "//base/allocator",
         "//build/config/sanitizers:deps",
         "//components/browser_watcher:browser_watcher_client",
         "//components/crash/content/app",
@@ -596,7 +592,6 @@ if (is_chrome_branded) {
       "browser/resources/default_apps/drive.crx",
       "browser/resources/default_apps/external_extensions.json",
       "browser/resources/default_apps/gmail.crx",
-      "browser/resources/default_apps/search.crx",
       "browser/resources/default_apps/youtube.crx",
     ]
     outputs = [
@@ -985,7 +980,6 @@ if (is_android) {
       "//chrome/plugin",
       "//chrome/renderer",
       "//chrome/utility",
-      "//components/enhanced_bookmarks",
       "//content/public/app:both",
     ]
   }

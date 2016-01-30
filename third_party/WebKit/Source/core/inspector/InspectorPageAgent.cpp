@@ -57,7 +57,6 @@
 #include "core/inspector/InspectorDebuggerAgent.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InspectorResourceContentLoader.h"
-#include "core/inspector/InspectorState.h"
 #include "core/inspector/InstrumentingAgents.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/FrameLoader.h"
@@ -109,7 +108,7 @@ TypeBuilder::Page::DialogType::Enum dialogTypeToProtocol(ChromeClient::DialogTyp
     return TypeBuilder::Page::DialogType::Alert;
 }
 
-}
+} // namespace
 
 static bool decodeBuffer(const char* buffer, unsigned size, const String& textEncodingName, String* result)
 {
@@ -216,7 +215,7 @@ bool InspectorPageAgent::cachedResourceContent(Resource* cachedResource, String*
             *result = toCSSStyleSheetResource(cachedResource)->sheetText();
             return true;
         case Resource::Script:
-            *result = cachedResource->resourceBuffer() ? toScriptResource(cachedResource)->decodedText() : toScriptResource(cachedResource)->script();
+            *result = cachedResource->resourceBuffer() ? toScriptResource(cachedResource)->decodedText() : toScriptResource(cachedResource)->script().toString();
             return true;
         case Resource::ImportResource: // Fall through.
         case Resource::Raw: {
@@ -359,7 +358,7 @@ InspectorPageAgent::InspectorPageAgent(InspectedFrames* inspectedFrames, Client*
 
 void InspectorPageAgent::restore()
 {
-    if (m_state->getBoolean(PageAgentState::pageAgentEnabled)) {
+    if (m_state->booleanProperty(PageAgentState::pageAgentEnabled, false)) {
         ErrorString error;
         enable(&error);
     }
@@ -399,9 +398,6 @@ void InspectorPageAgent::addScriptToEvaluateOnLoad(ErrorString*, const String& s
         *identifier = String::number(++m_lastScriptIdentifier);
     } while (scripts->find(*identifier) != scripts->end());
     scripts->setString(*identifier, source);
-
-    // Force cookie serialization.
-    m_state->setObject(PageAgentState::pageAgentScriptsToEvaluateOnLoad, scripts);
 }
 
 void InspectorPageAgent::removeScriptToEvaluateOnLoad(ErrorString* error, const String& identifier)
@@ -638,7 +634,7 @@ void InspectorPageAgent::frameDetachedFromParent(LocalFrame* frame)
 
 bool InspectorPageAgent::screencastEnabled()
 {
-    return m_enabled && m_state->getBoolean(PageAgentState::screencastEnabled);
+    return m_enabled && m_state->booleanProperty(PageAgentState::screencastEnabled, false);
 }
 
 void InspectorPageAgent::frameStartedLoading(LocalFrame* frame)

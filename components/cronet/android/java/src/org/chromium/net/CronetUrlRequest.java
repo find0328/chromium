@@ -44,12 +44,16 @@ final class CronetUrlRequest implements UrlRequest {
             new UrlRequestMetrics(null, null, null, null);
 
     /* Native adapter object, owned by UrlRequest. */
-    @GuardedBy("mUrlRequestAdapterLock") private long mUrlRequestAdapter;
+    @GuardedBy("mUrlRequestAdapterLock")
+    private long mUrlRequestAdapter;
 
-    @GuardedBy("mUrlRequestAdapterLock") private boolean mStarted = false;
+    @GuardedBy("mUrlRequestAdapterLock")
+    private boolean mStarted = false;
     private boolean mDisableCache = false;
-    @GuardedBy("mUrlRequestAdapterLock") private boolean mWaitingOnRedirect = false;
-    @GuardedBy("mUrlRequestAdapterLock") private boolean mWaitingOnRead = false;
+    @GuardedBy("mUrlRequestAdapterLock")
+    private boolean mWaitingOnRedirect = false;
+    @GuardedBy("mUrlRequestAdapterLock")
+    private boolean mWaitingOnRead = false;
     /*
      * When a read call completes, should the ByteBuffer limit() be updated
      * instead of the position(). This controls legacy read() behavior.
@@ -190,7 +194,7 @@ final class CronetUrlRequest implements UrlRequest {
             try {
                 mUrlRequestAdapter = nativeCreateRequestAdapter(
                         mRequestContext.getUrlRequestContextAdapter(), mInitialUrl, mPriority);
-                mRequestContext.onRequestStarted(this);
+                mRequestContext.onRequestStarted();
                 if (mInitialMethod != null) {
                     if (!nativeSetHttpMethod(mUrlRequestAdapter, mInitialMethod)) {
                         throw new IllegalArgumentException("Invalid http method " + mInitialMethod);
@@ -435,7 +439,7 @@ final class CronetUrlRequest implements UrlRequest {
             }
             nativeDestroy(mUrlRequestAdapter, sendOnCanceled);
             mRequestContext.reportFinished(this);
-            mRequestContext.onRequestDestroyed(this);
+            mRequestContext.onRequestDestroyed();
             mUrlRequestAdapter = 0;
             if (mOnDestroyedCallbackForTesting != null) {
                 mOnDestroyedCallbackForTesting.run();

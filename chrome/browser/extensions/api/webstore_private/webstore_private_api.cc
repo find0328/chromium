@@ -125,8 +125,6 @@ const char kWebstoreLogin[] = "extensions.webstore_login";
 
 // Error messages that can be returned by the API.
 const char kAlreadyInstalledError[] = "This item is already installed";
-const char kCannotSpecifyIconDataAndUrlError[] =
-    "You cannot specify both icon data and an icon url";
 const char kInvalidBundleError[] = "Invalid bundle";
 const char kInvalidIconUrlError[] = "Invalid icon url";
 const char kInvalidIdError[] = "Invalid id";
@@ -191,11 +189,6 @@ WebstorePrivateBeginInstallWithManifest3Function::Run() {
   if (!crx_file::id_util::IdIsValid(details().id)) {
     return RespondNow(BuildResponse(api::webstore_private::RESULT_INVALID_ID,
                                     kInvalidIdError));
-  }
-
-  if (details().icon_data && details().icon_url) {
-    return RespondNow(BuildResponse(api::webstore_private::RESULT_ICON_ERROR,
-                                    kCannotSpecifyIconDataAndUrlError));
   }
 
   GURL icon_url;
@@ -332,11 +325,11 @@ void WebstorePrivateBeginInstallWithManifest3Function::HandleInstallProceed() {
       WebstoreInstaller::Approval::CreateWithNoInstallPrompt(
           chrome_details_.GetProfile(), details().id,
           std::move(parsed_manifest_), false));
-  approval->use_app_installed_bubble = details().app_install_bubble;
-  approval->enable_launcher = details().enable_launcher;
+  approval->use_app_installed_bubble = !!details().app_install_bubble;
+  approval->enable_launcher = !!details().enable_launcher;
   // If we are enabling the launcher, we should not show the app list in order
   // to train the user to open it themselves at least once.
-  approval->skip_post_install_ui = details().enable_launcher;
+  approval->skip_post_install_ui = !!details().enable_launcher;
   approval->dummy_extension = dummy_extension_.get();
   approval->installing_icon = gfx::ImageSkia::CreateFrom1xBitmap(icon_);
   if (details().authuser)

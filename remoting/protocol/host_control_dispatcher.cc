@@ -17,16 +17,8 @@ namespace remoting {
 namespace protocol {
 
 HostControlDispatcher::HostControlDispatcher()
-    : ChannelDispatcherBase(kControlChannelName),
-      clipboard_stub_(nullptr),
-      host_stub_(nullptr),
-      parser_(base::Bind(&HostControlDispatcher::OnMessageReceived,
-                         base::Unretained(this)),
-              reader()) {
-}
-
-HostControlDispatcher::~HostControlDispatcher() {
-}
+    : ChannelDispatcherBase(kControlChannelName) {}
+HostControlDispatcher::~HostControlDispatcher() {}
 
 void HostControlDispatcher::SetCapabilities(
     const Capabilities& capabilities) {
@@ -62,12 +54,15 @@ void HostControlDispatcher::SetCursorShape(
   writer()->Write(SerializeAndFrameMessage(message), base::Closure());
 }
 
-void HostControlDispatcher::OnMessageReceived(
-    scoped_ptr<ControlMessage> message, const base::Closure& done_task) {
+void HostControlDispatcher::OnIncomingMessage(
+    scoped_ptr<CompoundBuffer> buffer) {
   DCHECK(clipboard_stub_);
   DCHECK(host_stub_);
 
-  base::ScopedClosureRunner done_runner(done_task);
+  scoped_ptr<ControlMessage> message =
+      ParseMessage<ControlMessage>(buffer.get());
+  if (!message)
+    return;
 
   if (message->has_clipboard_event()) {
     clipboard_stub_->InjectClipboardEvent(message->clipboard_event());

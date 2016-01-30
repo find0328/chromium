@@ -47,6 +47,7 @@ static const uint32_t kInitialSessionFlowControlWindowForTest =
 static const QuicStreamId kClientDataStreamId1 = 5;
 static const QuicStreamId kClientDataStreamId2 = 7;
 static const QuicStreamId kClientDataStreamId3 = 9;
+static const QuicStreamId kServerDataStreamId1 = 4;
 
 // Returns the test peer IP address.
 IPAddressNumber TestPeerIPAddress();
@@ -75,7 +76,9 @@ void GenerateBody(std::string* body, int length);
 QuicEncryptedPacket* ConstructEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
+    bool multipath_flag,
     bool reset_flag,
+    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -86,7 +89,9 @@ QuicEncryptedPacket* ConstructEncryptedPacket(
 QuicEncryptedPacket* ConstructEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
+    bool multipath_flag,
     bool reset_flag,
+    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -97,7 +102,9 @@ QuicEncryptedPacket* ConstructEncryptedPacket(
 // |versions| == nullptr.
 QuicEncryptedPacket* ConstructEncryptedPacket(QuicConnectionId connection_id,
                                               bool version_flag,
+                                              bool multipath_flag,
                                               bool reset_flag,
+                                              QuicPathId path_id,
                                               QuicPacketNumber packet_number,
                                               const std::string& data);
 
@@ -109,7 +116,9 @@ QuicEncryptedPacket* ConstructEncryptedPacket(QuicConnectionId connection_id,
 QuicEncryptedPacket* ConstructMisFramedEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
+    bool multipath_flag,
     bool reset_flag,
+    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -129,6 +138,7 @@ bool DecodeHexString(const base::StringPiece& hex, std::string* bytes);
 // of bytes of stream data that will fit in such a packet.
 size_t GetPacketLengthForOneStream(QuicVersion version,
                                    bool include_version,
+                                   bool include_path_id,
                                    QuicConnectionIdLength connection_id_length,
                                    QuicPacketNumberLength packet_number_length,
                                    InFecGroup is_in_fec_group,
@@ -230,6 +240,7 @@ class MockFramerVisitor : public QuicFramerVisitorInterface {
   MOCK_METHOD1(OnGoAwayFrame, bool(const QuicGoAwayFrame& frame));
   MOCK_METHOD1(OnWindowUpdateFrame, bool(const QuicWindowUpdateFrame& frame));
   MOCK_METHOD1(OnBlockedFrame, bool(const QuicBlockedFrame& frame));
+  MOCK_METHOD1(OnPathCloseFrame, bool(const QuicPathCloseFrame& frame));
   MOCK_METHOD0(OnPacketComplete, void());
 
  private:
@@ -263,6 +274,7 @@ class NoOpFramerVisitor : public QuicFramerVisitorInterface {
   bool OnGoAwayFrame(const QuicGoAwayFrame& frame) override;
   bool OnWindowUpdateFrame(const QuicWindowUpdateFrame& frame) override;
   bool OnBlockedFrame(const QuicBlockedFrame& frame) override;
+  bool OnPathCloseFrame(const QuicPathCloseFrame& frame) override;
   void OnPacketComplete() override {}
 
  private:
@@ -302,13 +314,17 @@ class MockConnectionHelper : public QuicConnectionHelperInterface {
   const QuicClock* GetClock() const override;
   QuicRandom* GetRandomGenerator() override;
   QuicAlarm* CreateAlarm(QuicAlarm::Delegate* delegate) override;
+  QuicArenaScopedPtr<QuicAlarm> CreateAlarm(
+      QuicArenaScopedPtr<QuicAlarm::Delegate> delegate,
+      QuicConnectionArena* arena) override;
   QuicBufferAllocator* GetBufferAllocator() override;
   void AdvanceTime(QuicTime::Delta delta);
 
   // No-op alarm implementation
   class TestAlarm : public QuicAlarm {
    public:
-    explicit TestAlarm(QuicAlarm::Delegate* delegate) : QuicAlarm(delegate) {}
+    explicit TestAlarm(QuicArenaScopedPtr<QuicAlarm::Delegate> delegate)
+        : QuicAlarm(std::move(delegate)) {}
 
     void SetImpl() override {}
     void CancelImpl() override {}
@@ -491,7 +507,7 @@ class MockQuicSpdySession : public QuicSpdySession {
   DISALLOW_COPY_AND_ASSIGN(MockQuicSpdySession);
 };
 
-class TestQuicSpdyServerSession : public tools::QuicServerSessionBase {
+class TestQuicSpdyServerSession : public net::tools::QuicServerSessionBase {
  public:
   TestQuicSpdyServerSession(QuicConnection* connection,
                             const QuicConfig& config,
@@ -507,7 +523,7 @@ class TestQuicSpdyServerSession : public tools::QuicServerSessionBase {
   QuicCryptoServerStream* GetCryptoStream() override;
 
  private:
-  tools::test::MockQuicServerSessionVisitor visitor_;
+  net::tools::test::MockQuicServerSessionVisitor visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(TestQuicSpdyServerSession);
 };
@@ -535,6 +551,7 @@ class TestQuicSpdyClientSession : public QuicClientSessionBase {
 
  private:
   scoped_ptr<QuicCryptoClientStream> crypto_stream_;
+  QuicPromisedByUrlMap promised_by_url_;
 
   DISALLOW_COPY_AND_ASSIGN(TestQuicSpdyClientSession);
 };
@@ -656,7 +673,7 @@ class MockAckListener : public QuicAckListenerInterface {
   MockAckListener();
 
   MOCK_METHOD2(OnPacketAcked,
-               void(int acked_bytes, QuicTime::Delta delta_largest_observed));
+               void(int acked_bytes, QuicTime::Delta ack_delay_time));
 
   MOCK_METHOD1(OnPacketRetransmitted, void(int retransmitted_bytes));
 

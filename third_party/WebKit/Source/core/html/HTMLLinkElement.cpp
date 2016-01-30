@@ -51,6 +51,8 @@
 #include "core/loader/FrameLoaderClient.h"
 #include "core/loader/NetworkHintsInterface.h"
 #include "core/style/StyleInheritedData.h"
+#include "platform/ContentType.h"
+#include "platform/MIMETypeRegistry.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "public/platform/Platform.h"
 #include "wtf/StdLibExtras.h"
@@ -124,6 +126,12 @@ static LinkEventSender& linkLoadEventSender()
 {
     DEFINE_STATIC_LOCAL(OwnPtrWillBePersistent<LinkEventSender>, sharedLoadEventSender, (LinkEventSender::create(EventTypeNames::load)));
     return *sharedLoadEventSender;
+}
+
+static bool styleSheetTypeIsSupported(const String& type)
+{
+    String trimmedType = ContentType(type).type();
+    return trimmedType.isEmpty() || MIMETypeRegistry::isSupportedStyleSheetMIMEType(trimmedType);
 }
 
 void HTMLLinkElement::parseSizesAttribute(const AtomicString& value, Vector<IntSize>& iconSizes)
@@ -457,6 +465,7 @@ DEFINE_TRACE(HTMLLinkElement)
     visitor->trace(m_linkLoader);
     visitor->trace(m_relList);
     HTMLElement::trace(visitor);
+    LinkLoaderClient::trace(visitor);
     DOMSettableTokenListObserver::trace(visitor);
 }
 
@@ -488,6 +497,13 @@ Document& LinkStyle::document()
 {
     return m_owner->document();
 }
+
+enum StyleSheetCacheStatus {
+    StyleSheetNewEntry,
+    StyleSheetInDiskCache,
+    StyleSheetInMemoryCache,
+    StyleSheetCacheStatusCount,
+};
 
 void LinkStyle::setCSSStyleSheet(const String& href, const KURL& baseURL, const String& charset, const CSSStyleSheetResource* cachedStyleSheet)
 {
@@ -531,10 +547,14 @@ void LinkStyle::setCSSStyleSheet(const String& href, const KURL& baseURL, const 
 
         m_loading = false;
         restoredSheet->checkLoaded();
+
         Platform::current()->histogramEnumeration("Blink.RestoredCachedStyleSheet", true, 2);
+        Platform::current()->histogramEnumeration("Blink.RestoredCachedStyleSheet2", StyleSheetInMemoryCache, StyleSheetCacheStatusCount);
         return;
     }
     Platform::current()->histogramEnumeration("Blink.RestoredCachedStyleSheet", false, 2);
+    StyleSheetCacheStatus cacheStatus = cachedStyleSheet->response().wasCached() ? StyleSheetInDiskCache : StyleSheetNewEntry;
+    Platform::current()->histogramEnumeration("Blink.RestoredCachedStyleSheet2", cacheStatus, StyleSheetCacheStatusCount);
 
     RefPtrWillBeRawPtr<StyleSheetContents> styleSheet = StyleSheetContents::create(href, parserContext);
 
@@ -701,8 +721,7 @@ void LinkStyle::process()
     if (!m_owner->loadLink(type, as, builder.url()))
         return;
 
-    if (m_disabledState != Disabled && m_owner->relAttribute().isStyleSheet() && shouldLoadResource() && builder.url().isValid()) {
-
+    if (m_disabledState != Disabled && m_owner->relAttribute().isStyleSheet() && styleSheetTypeIsSupported(type) && shouldLoadResource() && builder.url().isValid()) {
         if (resource()) {
             removePendingSheet();
             clearResource();
@@ -725,7 +744,7 @@ void LinkStyle::process()
 
         // Don't hold up layout tree construction and script execution on stylesheets
         // that are not needed for the layout at the moment.
-        bool blocking = mediaQueryMatches && !m_owner->isAlternate();
+        bool blocking = mediaQueryMatches && !m_owner->isAlternate() && m_owner->isCreatedByParser();
         addPendingSheet(blocking ? Blocking : NonBlocking);
 
         // Load stylesheets that are not needed for the layout immediately with low priority.

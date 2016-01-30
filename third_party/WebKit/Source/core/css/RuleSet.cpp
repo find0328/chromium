@@ -260,8 +260,10 @@ void RuleSet::addChildRules(const WillBeHeapVector<RefPtrWillBeMember<StyleRuleB
             for (size_t selectorIndex = 0; selectorIndex != kNotFound; selectorIndex = selectorList.indexOfNextSelectorAfter(selectorIndex)) {
                 if (selectorList.selectorUsesDeepCombinatorOrShadowPseudo(selectorIndex)) {
                     m_deepCombinatorOrShadowPseudoRules.append(MinimalRuleData(styleRule, selectorIndex, addRuleFlags));
-                } else if (selectorList.selectorHasShadowDistributed(selectorIndex)) {
-                    m_shadowDistributedRules.append(MinimalRuleData(styleRule, selectorIndex, addRuleFlags));
+                } else if (selectorList.selectorHasContentPseudo(selectorIndex)) {
+                    m_contentPseudoElementRules.append(MinimalRuleData(styleRule, selectorIndex, addRuleFlags));
+                } else if (selectorList.selectorHasSlottedPseudo(selectorIndex)) {
+                    m_slottedPseudoElementRules.append(MinimalRuleData(styleRule, selectorIndex, addRuleFlags));
                 } else {
                     addRule(styleRule, selectorIndex, addRuleFlags);
                 }
@@ -341,7 +343,8 @@ void RuleSet::compactRules()
     m_fontFaceRules.shrinkToFit();
     m_keyframesRules.shrinkToFit();
     m_deepCombinatorOrShadowPseudoRules.shrinkToFit();
-    m_shadowDistributedRules.shrinkToFit();
+    m_contentPseudoElementRules.shrinkToFit();
+    m_slottedPseudoElementRules.shrinkToFit();
 }
 
 DEFINE_TRACE(MinimalRuleData)
@@ -382,7 +385,8 @@ DEFINE_TRACE(RuleSet)
     visitor->trace(m_fontFaceRules);
     visitor->trace(m_keyframesRules);
     visitor->trace(m_deepCombinatorOrShadowPseudoRules);
-    visitor->trace(m_shadowDistributedRules);
+    visitor->trace(m_contentPseudoElementRules);
+    visitor->trace(m_slottedPseudoElementRules);
     visitor->trace(m_viewportDependentMediaQueryResults);
     visitor->trace(m_deviceDependentMediaQueryResults);
     visitor->trace(m_pendingRules);

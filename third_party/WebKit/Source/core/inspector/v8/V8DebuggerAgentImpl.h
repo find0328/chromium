@@ -5,8 +5,6 @@
 #ifndef V8DebuggerAgentImpl_h
 #define V8DebuggerAgentImpl_h
 
-#include "bindings/core/v8/ScriptState.h"
-#include "bindings/core/v8/ScriptValue.h"
 #include "core/CoreExport.h"
 #include "core/InspectorFrontend.h"
 #include "core/inspector/InspectorBaseAgent.h"
@@ -59,7 +57,7 @@ public:
     ~V8DebuggerAgentImpl() override;
     DECLARE_TRACE();
 
-    void setInspectorState(InspectorState*) override;
+    void setInspectorState(PassRefPtr<JSONObject>) override;
     void setFrontend(InspectorFrontend::Debugger* frontend) override { m_frontend = frontend; }
     void clearFrontend() override;
     void restore() override;
@@ -120,6 +118,7 @@ public:
     void cancelPauseOnNextStatement() override;
     bool canBreakProgram() override;
     void breakProgram(InspectorFrontend::Debugger::Reason::Enum breakReason, PassRefPtr<JSONObject> data) override;
+    void breakProgramOnException(InspectorFrontend::Debugger::Reason::Enum breakReason, PassRefPtr<JSONObject> data) override;
     void willExecuteScript(int scriptId) override;
     void didExecuteScript() override;
 
@@ -130,7 +129,7 @@ public:
     void removeBreakpoint(const String& scriptId, int lineNumber, int columnNumber, BreakpointSource) override;
 
     // Async call stacks implementation
-    PassRefPtrWillBeRawPtr<ScriptAsyncCallStack> currentAsyncStackTraceForConsole() override;
+    PassRefPtr<ScriptAsyncCallStack> currentAsyncStackTraceForConsole() override;
     int traceAsyncOperationStarting(const String& description) override;
     void traceAsyncCallbackStarting(int operationId) override;
     void traceAsyncCallbackCompleted() override;
@@ -150,6 +149,8 @@ public:
     void didReceiveV8AsyncTaskEvent(v8::Local<v8::Context>, const String& eventType, const String& eventName, int id);
     bool v8PromiseEventsEnabled() const;
     void didReceiveV8PromiseEvent(v8::Local<v8::Context>, v8::Local<v8::Object> promise, v8::Local<v8::Value> parentPromise, int status);
+
+    v8::Isolate* isolate() { return m_isolate; }
 
 private:
     bool checkEnabled(ErrorString*);
@@ -200,14 +201,14 @@ private:
         StepOut
     };
 
-    RawPtrWillBeWeakPersistent<InjectedScriptManager> m_injectedScriptManager;
+    InjectedScriptManager* m_injectedScriptManager;
     V8DebuggerImpl* m_debugger;
     int m_contextGroupId;
     bool m_enabled;
-    RawPtrWillBeWeakPersistent<InspectorState> m_state;
+    RefPtr<JSONObject> m_state;
     InspectorFrontend::Debugger* m_frontend;
     v8::Isolate* m_isolate;
-    RefPtr<ScriptState> m_pausedScriptState;
+    v8::Global<v8::Context> m_pausedContext;
     v8::Global<v8::Object> m_currentCallStack;
     ScriptsMap m_scripts;
     BreakpointIdToDebuggerBreakpointIdsMap m_breakpointIdToDebuggerBreakpointIds;
@@ -231,7 +232,7 @@ private:
     OwnPtr<ScriptRegexp> m_cachedSkipStackRegExp;
     unsigned m_cachedSkipStackGeneration;
     // This field must be destroyed before the listeners set above.
-    OwnPtrWillBePersistent<V8AsyncCallTracker> m_v8AsyncCallTracker;
+    OwnPtr<V8AsyncCallTracker> m_v8AsyncCallTracker;
     OwnPtr<PromiseTracker> m_promiseTracker;
 
     using AsyncOperationIdToAsyncCallChain = HashMap<int, RefPtr<AsyncCallChain>>;

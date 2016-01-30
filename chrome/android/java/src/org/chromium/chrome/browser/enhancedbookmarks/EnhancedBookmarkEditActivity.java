@@ -16,6 +16,7 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import org.chromium.base.Log;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
@@ -25,12 +26,12 @@ import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.DeletePageCall
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.OfflinePageModelObserver;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.SavePageCallback;
 import org.chromium.chrome.browser.offlinepages.OfflinePageItem;
+import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.util.UrlUtilities;
 import org.chromium.chrome.browser.widget.EmptyAlertEditText;
 import org.chromium.chrome.browser.widget.TintedDrawable;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.ui.base.DeviceFormFactor;
 
 /**
  * The activity that enables the user to modify the title, url and parent folder of a bookmark.
@@ -49,7 +50,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
         VISIT,
     }
 
-    private EnhancedBookmarksModel mEnhancedBookmarksModel;
+    private EnhancedBookmarksModel mModel;
     private BookmarkId mBookmarkId;
     private EmptyAlertEditText mTitleEditText;
     private EmptyAlertEditText mUrlEditText;
@@ -74,7 +75,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
         @Override
         public void bookmarkNodeMoved(BookmarkItem oldParent, int oldIndex, BookmarkItem newParent,
                 int newIndex) {
-            BookmarkId movedBookmark = mEnhancedBookmarksModel.getChildAt(newParent.getId(),
+            BookmarkId movedBookmark = mModel.getChildAt(newParent.getId(),
                     newIndex);
             if (movedBookmark.equals(mBookmarkId)) {
                 mFolderTextView.setText(newParent.getTitle());
@@ -84,14 +85,14 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
         @Override
         public void bookmarkNodeChanged(BookmarkItem node) {
             if (mBookmarkId.equals(node.getId()) || node.getId().equals(
-                    mEnhancedBookmarksModel.getBookmarkById(mBookmarkId).getParentId())) {
+                    mModel.getBookmarkById(mBookmarkId).getParentId())) {
                 updateViewContent();
             }
         }
 
         @Override
         public void bookmarkModelChanged() {
-            if (mEnhancedBookmarksModel.doesBookmarkExist(mBookmarkId)) {
+            if (mModel.doesBookmarkExist(mBookmarkId)) {
                 updateViewContent();
             } else {
                 Log.wtf(TAG, "The bookmark was deleted somehow during bookmarkModelChange!",
@@ -105,16 +106,18 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        int title = OfflinePageBridge.isEnabled()
-                ? R.string.offline_pages_edit_item
-                : R.string.edit_bookmark;
+        int title = OfflinePageUtils.getStringId(R.string.edit_bookmark);
         setTitle(title);
         EnhancedBookmarkUtils.setTaskDescriptionInDocumentMode(this, getString(title));
-        mEnhancedBookmarksModel = new EnhancedBookmarksModel();
+        mModel = new EnhancedBookmarksModel();
         mBookmarkId = BookmarkId.getBookmarkIdFromString(
                 getIntent().getStringExtra(INTENT_BOOKMARK_ID));
-        mEnhancedBookmarksModel.addObserver(mBookmarkModelObserver);
-        assert mEnhancedBookmarksModel.getBookmarkById(mBookmarkId).isEditable();
+        mModel.addObserver(mBookmarkModelObserver);
+        BookmarkItem item = mModel.getBookmarkById(mBookmarkId);
+        if (!mModel.doesBookmarkExist(mBookmarkId) || item == null) {
+            finish();
+            return;
+        }
 
         setContentView(R.layout.eb_edit);
         mTitleEditText = (EmptyAlertEditText) findViewById(R.id.title_text);
@@ -130,7 +133,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
         });
 
         if (OfflinePageBridge.isEnabled() && OfflinePageBridge.canSavePage(
-                mEnhancedBookmarksModel.getBookmarkById(mBookmarkId).getUrl())) {
+                mModel.getBookmarkById(mBookmarkId).getUrl())) {
             mOfflinePageModelObserver = new OfflinePageModelObserver() {
                 @Override
                 public void offlinePageDeleted(BookmarkId bookmarkId) {
@@ -140,7 +143,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
                 }
             };
 
-            mEnhancedBookmarksModel.getOfflinePageBridge().addObserver(mOfflinePageModelObserver);
+            mModel.getOfflinePageBridge().addObserver(mOfflinePageModelObserver);
             // Make offline page section visible and find controls.
             findViewById(R.id.offline_page_group).setVisibility(View.VISIBLE);
             getIntent().setExtrasClassLoader(WebContents.class.getClassLoader());
@@ -156,18 +159,19 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
     }
 
     private void updateViewContent() {
-        BookmarkItem bookmarkItem = mEnhancedBookmarksModel.getBookmarkById(mBookmarkId);
+        BookmarkItem bookmarkItem = mModel.getBookmarkById(mBookmarkId);
 
         if (!TextUtils.equals(mTitleEditText.getTrimmedText(), bookmarkItem.getTitle())) {
             mTitleEditText.setText(bookmarkItem.getTitle());
         }
-        String folderTitle = mEnhancedBookmarksModel.getBookmarkTitle(bookmarkItem.getParentId());
+        String folderTitle = mModel.getBookmarkTitle(bookmarkItem.getParentId());
         if (!TextUtils.equals(mFolderTextView.getText(), folderTitle)) {
             mFolderTextView.setText(folderTitle);
         }
         if (!TextUtils.equals(mUrlEditText.getTrimmedText(), bookmarkItem.getUrl())) {
             mUrlEditText.setText(bookmarkItem.getUrl());
         }
+        mTitleEditText.setEnabled(bookmarkItem.isEditable());
         mUrlEditText.setEnabled(bookmarkItem.isUrlEditable());
         mFolderTextView.setEnabled(bookmarkItem.isMovable());
     }
@@ -188,7 +192,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
             // Log added for detecting delete button double clicking.
             Log.i(TAG, "Delete button pressed by user! isFinishing() == " + isFinishing());
 
-            mEnhancedBookmarksModel.deleteBookmark(mBookmarkId);
+            mModel.deleteBookmark(mBookmarkId);
             finish();
             return true;
         } else if (item.getItemId() == android.R.id.home) {
@@ -200,18 +204,27 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
 
     @Override
     protected void onStop() {
-        if (mEnhancedBookmarksModel.doesBookmarkExist(mBookmarkId)) {
+        if (mModel.doesBookmarkExist(mBookmarkId)) {
+            final String originalUrl =
+                    mModel.getBookmarkById(mBookmarkId).getUrl();
             final String title = mTitleEditText.getTrimmedText();
             final String url = mUrlEditText.getTrimmedText();
 
             if (!mTitleEditText.isEmpty()) {
-                mEnhancedBookmarksModel.setBookmarkTitle(mBookmarkId, title);
+                mModel.setBookmarkTitle(mBookmarkId, title);
             }
 
             if (!mUrlEditText.isEmpty()
-                    && mEnhancedBookmarksModel.getBookmarkById(mBookmarkId).isUrlEditable()) {
+                    && mModel.getBookmarkById(mBookmarkId).isUrlEditable()) {
                 String fixedUrl = UrlUtilities.fixupUrl(url);
-                if (fixedUrl != null) mEnhancedBookmarksModel.setBookmarkUrl(mBookmarkId, fixedUrl);
+                if (fixedUrl != null && !fixedUrl.equals(originalUrl)) {
+                    boolean hasOfflinePage = OfflinePageBridge.isEnabled()
+                            && mModel.getOfflinePageBridge()
+                                    .getPageByBookmarkId(mBookmarkId) != null;
+                    RecordHistogram.recordBooleanHistogram(
+                            "OfflinePages.Edit.BookmarkUrlChangedForOfflinePage", hasOfflinePage);
+                    mModel.setBookmarkUrl(mBookmarkId, fixedUrl);
+                }
             }
         }
 
@@ -222,12 +235,12 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
     protected void onDestroy() {
         recordOfflineButtonAction(false);
         if (OfflinePageBridge.isEnabled()) {
-            mEnhancedBookmarksModel.getOfflinePageBridge().removeObserver(
+            mModel.getOfflinePageBridge().removeObserver(
                     mOfflinePageModelObserver);
         }
-        mEnhancedBookmarksModel.removeObserver(mBookmarkModelObserver);
-        mEnhancedBookmarksModel.destroy();
-        mEnhancedBookmarksModel = null;
+        mModel.removeObserver(mBookmarkModelObserver);
+        mModel.destroy();
+        mModel = null;
         super.onDestroy();
     }
 
@@ -236,28 +249,32 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
 
         // It is possible that callback arrives after the activity was dismissed.
         // See http://crbug.com/566939
-        if (mEnhancedBookmarksModel == null) return;
+        if (mModel == null) return;
 
-        mEnhancedBookmarksModel.getOfflinePageBridge().checkOfflinePageMetadata();
+        mModel.getOfflinePageBridge().checkOfflinePageMetadata();
 
         Button saveRemoveVisitButton = (Button) findViewById(R.id.offline_page_save_remove_button);
         TextView offlinePageInfoTextView = (TextView) findViewById(R.id.offline_page_info_text);
 
-        OfflinePageItem offlinePage = mEnhancedBookmarksModel.getOfflinePageBridge()
+        OfflinePageItem offlinePage = mModel.getOfflinePageBridge()
                 .getPageByBookmarkId(mBookmarkId);
         if (offlinePage != null) {
             // Offline page exists. Show information and button to remove.
-            offlinePageInfoTextView.setText(getString(R.string.bookmark_offline_page_size,
-                    Formatter.formatFileSize(this, offlinePage.getFileSize())));
+            offlinePageInfoTextView.setText(
+                    getString(OfflinePageUtils.getStringId(
+                                      R.string.offline_pages_as_bookmarks_offline_page_size),
+                            Formatter.formatFileSize(this, offlinePage.getFileSize())));
             updateButtonToDeleteOfflinePage(saveRemoveVisitButton);
         } else if (mWebContents != null) {
             // Offline page is not saved, but a bookmarked page is opened. Show save button.
-            offlinePageInfoTextView.setText(getString(R.string.bookmark_offline_page_none));
+            offlinePageInfoTextView.setText(
+                    getString(OfflinePageUtils.getStringId(R.string.bookmark_offline_page_none)));
             updateButtonToSaveOfflinePage(saveRemoveVisitButton);
         } else {
             // Offline page is not saved, and edit page was opened from the bookmarks UI, which
             // means there is no action the user can take any action - hide button.
-            offlinePageInfoTextView.setText(getString(R.string.bookmark_offline_page_visit));
+            offlinePageInfoTextView.setText(getString(OfflinePageUtils.getStringId(
+                    R.string.offline_pages_as_bookmarks_offline_page_visit)));
             updateButtonToVisitOfflinePage(saveRemoveVisitButton);
         }
     }
@@ -269,7 +286,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
             @Override
             public void onClick(View v) {
                 recordOfflineButtonAction(true);
-                mEnhancedBookmarksModel.getOfflinePageBridge().deletePage(
+                mModel.getOfflinePageBridge().deletePage(
                         mBookmarkId, new DeletePageCallback() {
                             @Override
                             public void onDeletePageDone(int deletePageResult) {
@@ -290,7 +307,7 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
             @Override
             public void onClick(View v) {
                 recordOfflineButtonAction(true);
-                mEnhancedBookmarksModel.getOfflinePageBridge().savePage(
+                mModel.getOfflinePageBridge().savePage(
                         mWebContents, mBookmarkId, new SavePageCallback() {
                             @Override
                             public void onSavePageDone(int savePageResult, String url) {
@@ -318,14 +335,16 @@ public class EnhancedBookmarkEditActivity extends EnhancedBookmarkActivityBase {
 
     private void openBookmark() {
         // TODO(kkimlabs): Refactor this out to handle the intent in ChromeActivity.
-        if (DeviceFormFactor.isTablet(this)) {
-            EnhancedBookmarkUtils.openBookmark(
-                    mEnhancedBookmarksModel, this, mBookmarkId, LaunchLocation.BOOKMARK_EDITOR);
-        } else {
+        // If this activity was started via startActivityForResult(), set the result. Otherwise,
+        // launch the bookmark directly.
+        if (getCallingActivity() != null) {
             Intent intent = new Intent();
             intent.putExtra(
                     EnhancedBookmarkActivity.INTENT_VISIT_BOOKMARK_ID, mBookmarkId.toString());
             setResult(RESULT_OK, intent);
+        } else {
+            EnhancedBookmarkUtils.openBookmark(
+                    mModel, this, mBookmarkId, LaunchLocation.BOOKMARK_EDITOR);
         }
         finish();
     }

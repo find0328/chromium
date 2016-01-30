@@ -30,8 +30,8 @@
 #include "core/layout/LayoutObject.h"
 #include "platform/PlatformWheelEvent.h"
 #include "platform/geometry/IntRect.h"
+#include "platform/scroll/MainThreadScrollingReason.h"
 #include "platform/scroll/ScrollTypes.h"
-#include "public/platform/WebMainThreadScrollingReason.h"
 #include "wtf/Noncopyable.h"
 #include "wtf/text/WTFString.h"
 
@@ -41,7 +41,7 @@ class WebScrollbarLayer;
 
 namespace blink {
 
-typedef unsigned MainThreadScrollingReasons;
+using MainThreadScrollingReasons = uint32_t;
 
 class LocalFrame;
 class FrameView;
@@ -76,7 +76,6 @@ public:
 
     void updateAfterCompositingChangeIfNeeded();
 
-    void updateHaveWheelEventHandlers();
     void updateHaveScrollEventHandlers();
 
     // Should be called whenever a scrollable area is added or removed, or gains/loses a composited layer.
@@ -110,8 +109,8 @@ public:
     void touchEventTargetRectsDidChange();
     void willDestroyLayer(PaintLayer*);
 
-    void updateScrollParentForGraphicsLayer(GraphicsLayer* child, PaintLayer* parent);
-    void updateClipParentForGraphicsLayer(GraphicsLayer* child, PaintLayer* parent);
+    void updateScrollParentForGraphicsLayer(GraphicsLayer* child, const PaintLayer* parent);
+    void updateClipParentForGraphicsLayer(GraphicsLayer* child, const PaintLayer* parent);
 
     static String mainThreadScrollingReasonsAsText(MainThreadScrollingReasons);
     String mainThreadScrollingReasonsAsText() const;

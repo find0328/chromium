@@ -179,15 +179,6 @@ class CONTENT_EXPORT RenderFrameHostManager
     virtual ~Delegate() {}
   };
 
-  // Used with FrameTree::ForEach to delete RenderFrameHosts pending shutdown
-  // from a FrameTreeNode's RenderFrameHostManager. Used during destruction of
-  // WebContentsImpl.
-  static bool ClearRFHsPendingShutdown(FrameTreeNode* node);
-
-  // Used with FrameTree::ForEach to destroy all WebUI instances associated with
-  // RenderFrameHosts.
-  static bool ClearWebUIInstances(FrameTreeNode* node);
-
   // All three delegate pointers must be non-NULL and are not owned by this
   // class. They must outlive this class. The RenderViewHostDelegate and
   // RenderWidgetHostDelegate are what will be installed into all
@@ -405,6 +396,9 @@ class CONTENT_EXPORT RenderFrameHostManager
   // Deletes any proxy hosts associated with this node. Used during destruction
   // of WebContentsImpl.
   void ResetProxyHosts();
+
+  void ClearRFHsPendingShutdown();
+  void ClearWebUIInstances();
 
   // Returns the routing id for a RenderFrameHost or RenderFrameProxyHost
   // that has the given SiteInstance and is associated with this
@@ -760,10 +754,8 @@ class CONTENT_EXPORT RenderFrameHostManager
   base::ScopedPtrHashMap<int32_t, scoped_ptr<RenderFrameProxyHost>>
       proxy_hosts_;
 
-  // A list of RenderFrameHosts waiting to shut down after swapping out.  We use
-  // a linked list since we expect frequent deletes and no indexed access, and
-  // because sets don't appear to support linked_ptrs.
-  typedef std::list<linked_ptr<RenderFrameHostImpl> > RFHPendingDeleteList;
+  // A list of RenderFrameHosts waiting to shut down after swapping out.
+  using RFHPendingDeleteList = std::list<scoped_ptr<RenderFrameHostImpl>>;
   RFHPendingDeleteList pending_delete_hosts_;
 
   // The intersitial page currently shown if any, not own by this class

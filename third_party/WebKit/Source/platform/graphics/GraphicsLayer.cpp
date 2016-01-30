@@ -96,7 +96,6 @@ GraphicsLayer::GraphicsLayer(GraphicsLayerClient* client)
     , m_backgroundColor(Color::transparent)
     , m_opacity(1)
     , m_blendMode(WebBlendModeNormal)
-    , m_scrollBlocksOn(WebScrollBlocksOnNone)
     , m_hasTransformOrigin(false)
     , m_contentsOpaque(false)
     , m_shouldFlattenTransform(true)
@@ -131,9 +130,6 @@ GraphicsLayer::GraphicsLayer(GraphicsLayerClient* client)
     m_layer = adoptPtr(Platform::current()->compositorSupport()->createContentLayer(m_contentLayerDelegate.get()));
     m_layer->layer()->setDrawsContent(m_drawsContent && m_contentsVisible);
     m_layer->layer()->setLayerClient(this);
-
-    // TODO(rbyers): Expose control over this to the web - crbug.com/489802:
-    setScrollBlocksOn(WebScrollBlocksOnStartTouch | WebScrollBlocksOnWheelEvent);
 }
 
 GraphicsLayer::~GraphicsLayer()
@@ -359,8 +355,15 @@ bool GraphicsLayer::paintWithoutCommit(const IntRect* interestRect, GraphicsCont
 void GraphicsLayer::notifyFirstPaintToClient()
 {
     if (!m_painted) {
-        m_painted = true;
-        m_client->notifyFirstPaint();
+        DisplayItemList& itemList = m_paintController->newDisplayItemList();
+        for (DisplayItem& item : itemList) {
+            DisplayItem::Type type = item.type();
+            if (DisplayItem::isDrawingType(type) && type != DisplayItem::DocumentBackground && type != DisplayItem::DebugRedFill && static_cast<const DrawingDisplayItem&>(item).picture()) {
+                m_painted = true;
+                m_client->notifyFirstPaint();
+                break;
+            }
+        }
     }
     if (!m_textPainted && m_paintController->textPainted()) {
         m_textPainted = true;
@@ -1003,14 +1006,6 @@ void GraphicsLayer::setBlendMode(WebBlendMode blendMode)
     platformLayer()->setBlendMode(blendMode);
 }
 
-void GraphicsLayer::setScrollBlocksOn(WebScrollBlocksOn scrollBlocksOn)
-{
-    if (m_scrollBlocksOn == scrollBlocksOn)
-        return;
-    m_scrollBlocksOn = scrollBlocksOn;
-    platformLayer()->setScrollBlocksOn(scrollBlocksOn);
-}
-
 void GraphicsLayer::setIsRootForIsolatedGroup(bool isolated)
 {
     if (m_isRootForIsolatedGroup == isolated)
@@ -1112,9 +1107,6 @@ bool GraphicsLayer::addAnimation(PassOwnPtr<WebCompositorAnimation> popAnimation
     OwnPtr<WebCompositorAnimation> animation(std::move(popAnimation));
     ASSERT(animation);
     platformLayer()->setAnimationDelegate(this);
-
-    // Remove any existing animations with the same animation id and target property.
-    platformLayer()->removeAnimation(animation->id(), animation->targetProperty());
     return platformLayer()->addAnimation(animation.leakPtr());
 }
 
@@ -1142,8 +1134,6 @@ void GraphicsLayer::setFilters(const FilterOperations& filters)
 {
     SkiaImageFilterBuilder builder;
     OwnPtr<WebFilterOperations> webFilters = adoptPtr(Platform::current()->compositorSupport()->createFilterOperations());
-    FilterOutsets outsets = filters.outsets();
-    builder.setCropOffset(FloatSize(outsets.left(), outsets.top()));
     builder.buildFilterOperations(filters, webFilters.get());
     m_layer->layer()->setFilters(*webFilters);
 }
@@ -1152,8 +1142,6 @@ void GraphicsLayer::setBackdropFilters(const FilterOperations& filters)
 {
     SkiaImageFilterBuilder builder;
     OwnPtr<WebFilterOperations> webFilters = adoptPtr(Platform::current()->compositorSupport()->createFilterOperations());
-    FilterOutsets outsets = filters.outsets();
-    builder.setCropOffset(FloatSize(outsets.left(), outsets.top()));
     builder.buildFilterOperations(filters, webFilters.get());
     m_layer->layer()->setBackgroundFilters(*webFilters);
 }

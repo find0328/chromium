@@ -461,14 +461,9 @@ IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTestWithGCExposed, DISABLED_BlobDidAck) {
   EXPECT_EQ(0UL, blob_context->context()->blob_count());
 }
 
-// Very flaky on Linux. See crbug.com/459835.
-#if defined(OS_LINUX)
-#define MAYBE_BlobDidAckPrefetch DISABLED_BlobDidAckPrefetch
-#else
-#define MAYBE_BlobDidAckPrefetch BlobDidAckPrefetch
-#endif
+// Flaky. See crbug.com/459835.
 IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTestWithGCExposed,
-                       MAYBE_BlobDidAckPrefetch) {
+                       DISABLED_BlobDidAckPrefetch) {
   SimpleTest(GetTestUrl("indexeddb", "blob_did_ack_prefetch.html"));
   // Wait for idle so that the blob ack has time to be received/processed by
   // the browser process.
@@ -848,8 +843,14 @@ class IndexedDBBrowserTestSingleProcess : public IndexedDBBrowserTest {
   }
 };
 
+// Flaky on linux_chromium_asan_rel_ng: crbug.com/581448
+#if defined(ADDRESS_SANITIZER)
+#define MAYBE_RenderThreadShutdownTest DISABLED_RenderThreadShutdownTest
+#else
+#define MAYBE_RenderThreadShutdownTest RenderThreadShutdownTest
+#endif
 IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTestSingleProcess,
-                       RenderThreadShutdownTest) {
+                       MAYBE_RenderThreadShutdownTest) {
   SimpleTest(GetTestUrl("indexeddb", "shutdown_with_requests.html"));
 }
 

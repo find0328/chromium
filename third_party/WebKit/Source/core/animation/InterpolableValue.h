@@ -122,7 +122,7 @@ public:
     void set(size_t position, PassOwnPtr<InterpolableValue> value)
     {
         ASSERT(position < m_size);
-        m_values[position] = value;
+        m_values[position] = std::move(value);
     }
     const InterpolableValue* get(size_t position) const
     {
@@ -192,6 +192,6 @@ DEFINE_TYPE_CASTS(InterpolableBool, InterpolableValue, value, value->isBool(), v
 DEFINE_TYPE_CASTS(InterpolableList, InterpolableValue, value, value->isList(), value.isList());
 DEFINE_TYPE_CASTS(InterpolableAnimatableValue, InterpolableValue, value, value->isAnimatableValue(), value.isAnimatableValue());
 
-}
+} // namespace blink
 
 #endif

@@ -17,10 +17,11 @@
 #include "content/child/service_worker/web_service_worker_registration_impl.h"
 #include "content/child/thread_safe_sender.h"
 #include "content/common/notification_constants.h"
+#include "content/public/common/notification_resources.h"
 #include "content/public/common/platform_notification_data.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/modules/notifications/WebNotificationDelegate.h"
-#include "third_party/skia/include/core/SkBitmap.h"
 
 using blink::WebNotificationPermission;
 
@@ -42,7 +43,7 @@ NotificationManager::NotificationManager(
     NotificationDispatcher* notification_dispatcher)
     : thread_safe_sender_(thread_safe_sender),
       notification_dispatcher_(notification_dispatcher),
-      pending_notifications_(main_thread_task_runner) {
+      notifications_tracker_(main_thread_task_runner) {
   g_notification_manager_tls.Pointer()->Set(this);
 }
 
@@ -73,14 +74,15 @@ void NotificationManager::show(
     const blink::WebNotificationData& notification_data,
     blink::WebNotificationDelegate* delegate) {
   if (notification_data.icon.isEmpty()) {
-    DisplayPageNotification(origin, notification_data, delegate, SkBitmap());
+    DisplayPageNotification(origin, notification_data, delegate,
+                            NotificationResources());
     return;
   }
 
-  pending_notifications_.FetchPageNotificationResources(
+  notifications_tracker_.FetchPageNotificationResources(
       notification_data, delegate,
       base::Bind(&NotificationManager::DisplayPageNotification,
-                 base::Unretained(this),  // this owns |pending_notifications_|
+                 base::Unretained(this),  // this owns |notifications_tracker_|
                  origin, notification_data, delegate));
 }
 
@@ -115,16 +117,16 @@ void NotificationManager::showPersistent(
   }
 
   if (notification_data.icon.isEmpty()) {
-    DisplayPersistentNotification(origin, notification_data,
-                                  service_worker_registration_id,
-                                  std::move(owned_callbacks), SkBitmap());
+    DisplayPersistentNotification(
+        origin, notification_data, service_worker_registration_id,
+        std::move(owned_callbacks), NotificationResources());
     return;
   }
 
-  pending_notifications_.FetchPersistentNotificationResources(
+  notifications_tracker_.FetchPersistentNotificationResources(
       notification_data,
       base::Bind(&NotificationManager::DisplayPersistentNotification,
-                 base::Unretained(this),  // this owns |pending_notifications_|
+                 base::Unretained(this),  // this owns |notifications_tracker_|
                  origin, notification_data, service_worker_registration_id,
                  base::Passed(&owned_callbacks)));
 }
@@ -157,7 +159,7 @@ void NotificationManager::getNotifications(
 }
 
 void NotificationManager::close(blink::WebNotificationDelegate* delegate) {
-  if (pending_notifications_.CancelPageNotificationFetches(delegate))
+  if (notifications_tracker_.CancelPageNotificationFetches(delegate))
     return;
 
   for (auto& iter : active_page_notifications_) {
@@ -182,12 +184,12 @@ void NotificationManager::closePersistent(
       // TODO(mkwst): This is potentially doing the wrong thing with unique
       // origins. Perhaps also 'file:', 'blob:' and 'filesystem:'. See
       // https://crbug.com/490074 for detail.
-      GURL(origin.toString()), persistent_notification_id));
+      blink::WebStringToGURL(origin.toString()), persistent_notification_id));
 }
 
 void NotificationManager::notifyDelegateDestroyed(
     blink::WebNotificationDelegate* delegate) {
-  if (pending_notifications_.CancelPageNotificationFetches(delegate))
+  if (notifications_tracker_.CancelPageNotificationFetches(delegate))
     return;
 
   for (auto& iter : active_page_notifications_) {
@@ -207,7 +209,7 @@ WebNotificationPermission NotificationManager::checkPermission(
   // origins. Perhaps also 'file:', 'blob:' and 'filesystem:'. See
   // https://crbug.com/490074 for detail.
   thread_safe_sender_->Send(new PlatformNotificationHostMsg_CheckPermission(
-      GURL(origin.toString()), &permission));
+      blink::WebStringToGURL(origin.toString()), &permission));
 
   return permission;
 }
@@ -303,7 +305,7 @@ void NotificationManager::DisplayPageNotification(
     const blink::WebSecurityOrigin& origin,
     const blink::WebNotificationData& notification_data,
     blink::WebNotificationDelegate* delegate,
-    const SkBitmap& icon) {
+    const NotificationResources& notification_resources) {
   int notification_id =
       notification_dispatcher_->GenerateNotificationId(CurrentWorkerId());
 
@@ -312,8 +314,8 @@ void NotificationManager::DisplayPageNotification(
   // origins. Perhaps also 'file:', 'blob:' and 'filesystem:'. See
   // https://crbug.com/490074 for detail.
   thread_safe_sender_->Send(new PlatformNotificationHostMsg_Show(
-      notification_id, GURL(origin.toString()), icon,
-      ToPlatformNotificationData(notification_data)));
+      notification_id, blink::WebStringToGURL(origin.toString()),
+      ToPlatformNotificationData(notification_data), notification_resources));
 }
 
 void NotificationManager::DisplayPersistentNotification(
@@ -321,7 +323,7 @@ void NotificationManager::DisplayPersistentNotification(
     const blink::WebNotificationData& notification_data,
     int64_t service_worker_registration_id,
     scoped_ptr<blink::WebNotificationShowCallbacks> callbacks,
-    const SkBitmap& icon) {
+    const NotificationResources& notification_resources) {
   // TODO(peter): GenerateNotificationId is more of a request id. Consider
   // renaming the method in the NotificationDispatcher if this makes sense.
   int request_id =
@@ -334,8 +336,9 @@ void NotificationManager::DisplayPersistentNotification(
   // origins. Perhaps also 'file:', 'blob:' and 'filesystem:'. See
   // https://crbug.com/490074 for detail.
   thread_safe_sender_->Send(new PlatformNotificationHostMsg_ShowPersistent(
-      request_id, service_worker_registration_id, GURL(origin.toString()), icon,
-      ToPlatformNotificationData(notification_data)));
+      request_id, service_worker_registration_id,
+      blink::WebStringToGURL(origin.toString()),
+      ToPlatformNotificationData(notification_data), notification_resources));
 }
 
 }  // namespace content

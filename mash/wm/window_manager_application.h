@@ -39,6 +39,7 @@ namespace wm {
 
 class AcceleratorRegistrarImpl;
 class BackgroundLayout;
+class ScreenlockLayout;
 class ShadowController;
 class ShelfLayout;
 class UserWindowControllerImpl;
@@ -51,7 +52,6 @@ class WindowManagerApplication
       public mus::mojom::WindowTreeHostClient,
       public mus::WindowTreeDelegate,
       public mojo::InterfaceFactory<mash::wm::mojom::UserWindowController>,
-      public mojo::InterfaceFactory<mus::mojom::WindowManager>,
       public mojo::InterfaceFactory<mus::mojom::AcceleratorRegistrar> {
  public:
   WindowManagerApplication();
@@ -98,11 +98,6 @@ class WindowManagerApplication
               mojo::InterfaceRequest<mus::mojom::AcceleratorRegistrar> request)
       override;
 
-  // InterfaceFactory<mus::mojom::WindowManager>:
-  void Create(
-      mojo::ApplicationConnection* connection,
-      mojo::InterfaceRequest<mus::mojom::WindowManager> request) override;
-
   // mus::WindowObserver:
   void OnWindowDestroyed(mus::Window* window) override;
 
@@ -126,9 +121,6 @@ class WindowManagerApplication
   // |window_manager_| is created once OnEmbed() is called. Until that time
   // |requests_| stores any pending WindowManager interface requests.
   scoped_ptr<WindowManagerImpl> window_manager_;
-  mojo::WeakBindingSet<mus::mojom::WindowManager> window_manager_binding_;
-  std::vector<scoped_ptr<mojo::InterfaceRequest<mus::mojom::WindowManager>>>
-      requests_;
 
   // |user_window_controller_| is created once OnEmbed() is called. Until that
   // time |user_window_controller_requests_| stores pending interface requests.
@@ -140,6 +132,7 @@ class WindowManagerApplication
       user_window_controller_requests_;
 
   scoped_ptr<BackgroundLayout> background_layout_;
+  scoped_ptr<ScreenlockLayout> screenlock_layout_;
   scoped_ptr<ShelfLayout> shelf_layout_;
   scoped_ptr<WindowLayout> window_layout_;
 

@@ -168,6 +168,25 @@ private:
         m_popup->widgetClient()->hasTouchEventHandlers(needsTouchEvents);
     }
 
+    void setHaveWheelEventHandlers(bool haveEventHandlers) override
+    {
+        if (m_popup->m_layerTreeView)
+            return m_popup->m_layerTreeView->setHaveWheelEventHandlers(haveEventHandlers);
+    }
+
+    bool haveWheelEventHandlers() const override
+    {
+        if (m_popup->m_layerTreeView)
+            return m_popup->m_layerTreeView->haveWheelEventHandlers();
+        return false;
+    }
+
+    void setTouchAction(TouchAction touchAction) override
+    {
+        if (WebViewClient* client = m_popup->m_webView->client())
+            client->setTouchAction(static_cast<WebTouchAction>(touchAction));
+    }
+
     GraphicsLayerFactory* graphicsLayerFactory() const override
     {
         return m_popup->m_webView->graphicsLayerFactory();
@@ -259,6 +278,8 @@ bool WebPagePopupImpl::initializePage()
     frame->setPagePopupOwner(m_popupClient->ownerElement());
     frame->setView(FrameView::create(frame.get()));
     frame->init();
+    frame->view()->setParentVisible(true);
+    frame->view()->setSelfVisible(true);
     frame->view()->setTransparent(false);
     if (AXObjectCache* cache = m_popupClient->ownerElement().document().existingAXObjectCache())
         cache->childrenChanged(&m_popupClient->ownerElement());

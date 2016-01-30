@@ -102,6 +102,10 @@ MediaCodecPlayer::~MediaCodecPlayer()
     audio_decoder_->ReleaseDecoderResources();
 
   if (cdm_) {
+    // Cancel previously registered callback (if any).
+    static_cast<MediaDrmBridge*>(cdm_.get())
+        ->SetMediaCryptoReadyCB(MediaDrmBridge::MediaCryptoReadyCB());
+
     DCHECK(cdm_registration_id_);
     static_cast<MediaDrmBridge*>(cdm_.get())
         ->UnregisterPlayer(cdm_registration_id_);
@@ -359,11 +363,11 @@ void MediaCodecPlayer::Release() {
   }
 }
 
-void MediaCodecPlayer::SetVolume(double volume) {
-  RUN_ON_MEDIA_THREAD(SetVolume, volume);
+void MediaCodecPlayer::UpdateEffectiveVolumeInternal(double effective_volume) {
+  RUN_ON_MEDIA_THREAD(UpdateEffectiveVolumeInternal, effective_volume);
 
-  DVLOG(1) << __FUNCTION__ << " " << volume;
-  audio_decoder_->SetVolume(volume);
+  DVLOG(1) << __FUNCTION__ << " " << effective_volume;
+  audio_decoder_->SetVolume(effective_volume);
 }
 
 bool MediaCodecPlayer::HasAudio() const {

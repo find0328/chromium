@@ -14,7 +14,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_iterator.h"
+#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/extensions/extension_constants.h"
@@ -34,10 +34,10 @@ namespace {
 // Find a browser other than |browser|.
 Browser* FindOtherBrowser(Browser* browser) {
   Browser* found = NULL;
-  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
-    if (*it == browser)
+  for (auto* b : *BrowserList::GetInstance()) {
+    if (b == browser)
       continue;
-    found = *it;
+    found = b;
   }
   return found;
 }
@@ -111,6 +111,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionManagementApiTest, Basics) {
                         Manifest::EXTERNAL_PREF);
   InstallNamedExtension(basedir, "admin_extension",
                         Manifest::EXTERNAL_POLICY_DOWNLOAD);
+  InstallNamedExtension(basedir, "version_name", Manifest::INTERNAL);
 
   ASSERT_TRUE(RunExtensionSubtest("management/test", "basics.html"));
 }

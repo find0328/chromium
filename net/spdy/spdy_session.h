@@ -221,13 +221,6 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
   // TODO(akalin): Use base::TickClock when it becomes available.
   typedef base::TimeTicks (*TimeFunc)(void);
 
-  // How we handle flow control (version-dependent).
-  enum FlowControlState {
-    FLOW_CONTROL_NONE,
-    FLOW_CONTROL_STREAM,
-    FLOW_CONTROL_STREAM_AND_SESSION
-  };
-
   // Returns true if |hostname| can be pooled into an existing connection
   // associated with |ssl_info|.
   static bool CanPool(TransportSecurityState* transport_security_state,
@@ -364,6 +357,11 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
                   bool* was_npn_negotiated,
                   NextProto* protocol_negotiated);
 
+  // Signs the EKM value for Token Binding from the TLS layer using |*key| and
+  // puts the result in |*out|. Returns OK or ERR_FAILED.
+  Error GetSignedEKMForTokenBinding(crypto::ECPrivateKey* key,
+                                    std::vector<uint8_t>* out);
+
   // Send a WINDOW_UPDATE frame for a stream. Called by a stream
   // whenever receive window size is increased.
   void SendStreamWindowUpdate(SpdyStreamId stream_id,
@@ -452,11 +450,6 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
     return pending_create_stream_queues_[priority].size();
   }
 
-  // Returns the (version-dependent) flow control state.
-  FlowControlState flow_control_state() const {
-    return flow_control_state_;
-  }
-
   // Returns the current |stream_initial_send_window_size_|.
   int32_t stream_initial_send_window_size() const {
     return stream_initial_send_window_size_;
@@ -464,11 +457,7 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
 
   // Returns true if no stream in the session can send data due to
   // session flow control.
-  bool IsSendStalled() const {
-    return
-        flow_control_state_ == FLOW_CONTROL_STREAM_AND_SESSION &&
-        session_send_window_size_ == 0;
-  }
+  bool IsSendStalled() const { return session_send_window_size_ == 0; }
 
   const BoundNetLog& net_log() const { return net_log_; }
 
@@ -551,6 +540,7 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
   FRIEND_TEST_ALL_PREFIXES(SpdySessionTest, SessionFlowControlNoSendLeaks);
   FRIEND_TEST_ALL_PREFIXES(SpdySessionTest, SessionFlowControlEndToEnd);
   FRIEND_TEST_ALL_PREFIXES(SpdySessionTest, StreamIdSpaceExhausted);
+  FRIEND_TEST_ALL_PREFIXES(SpdySessionTest, MaxConcurrentStreamsZero);
   FRIEND_TEST_ALL_PREFIXES(SpdySessionTest, UnstallRacesWithStreamCreation);
   FRIEND_TEST_ALL_PREFIXES(SpdySessionTest, GoAwayOnSessionFlowControlError);
   FRIEND_TEST_ALL_PREFIXES(SpdySessionTest,
@@ -969,8 +959,6 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
 
   bool check_ping_status_pending() const { return check_ping_status_pending_; }
 
-  size_t max_concurrent_streams() const { return max_concurrent_streams_; }
-
   // Set whether priority->dependency conversion is enabled
   // by default for all future SpdySessions.
   static void SetPriorityDependencyDefaultForTesting(bool enable);
@@ -1085,7 +1073,7 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
   Error error_on_close_;
 
   // Limits
-  size_t max_concurrent_streams_;  // 0 if no limit
+  size_t max_concurrent_streams_;
   size_t max_concurrent_pushed_streams_;
 
   // Some statistics counters for the session.
@@ -1128,9 +1116,6 @@ class NET_EXPORT SpdySession : public BufferedSpdyFramerVisitorInterface,
 
   // Whether to send the (HTTP/2) connection header prefix.
   bool send_connection_header_prefix_;
-
-  // The (version-dependent) flow control state.
-  FlowControlState flow_control_state_;
 
   // Current send window size.  Zero unless session flow control is turned on.
   int32_t session_send_window_size_;

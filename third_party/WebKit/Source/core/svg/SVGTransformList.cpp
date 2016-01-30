@@ -182,7 +182,7 @@ PassRefPtrWillBeRawPtr<SVGTransform> parseTransformOfType(unsigned type, const C
     return transform.release();
 }
 
-}
+} // namespace
 
 template<typename CharType>
 bool SVGTransformList::parseInternal(const CharType*& ptr, const CharType* end)
@@ -270,7 +270,7 @@ SVGParsingError SVGTransformList::setValueAsString(const String& value)
 {
     if (value.isEmpty()) {
         clear();
-        return NoError;
+        return SVGParseStatus::NoError;
     }
 
     bool valid = false;
@@ -286,10 +286,10 @@ SVGParsingError SVGTransformList::setValueAsString(const String& value)
 
     if (!valid) {
         clear();
-        return ParsingAttributeFailedError;
+        return SVGParseStatus::ParsingFailed;
     }
 
-    return NoError;
+    return SVGParseStatus::NoError;
 }
 
 PassRefPtrWillBeRawPtr<SVGPropertyBase> SVGTransformList::cloneForAnimation(const String& value) const
@@ -394,4 +394,4 @@ float SVGTransformList::calculateDistance(PassRefPtrWillBeRawPtr<SVGPropertyBase
     return SVGTransformDistance(at(0), toList->at(0)).distance();
 }
 
-}
+} // namespace blink

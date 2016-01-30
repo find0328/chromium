@@ -13,6 +13,7 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/mus/common/types.h"
+#include "components/mus/public/interfaces/window_manager_constants.mojom.h"
 #include "components/mus/public/interfaces/window_tree_host.mojom.h"
 #include "components/mus/ws/display_manager.h"
 #include "components/mus/ws/event_dispatcher.h"
@@ -49,17 +50,23 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
                      ConnectionManager* connection_manager,
                      mojo::ApplicationImpl* app_impl,
                      const scoped_refptr<GpuState>& gpu_state,
-                     const scoped_refptr<SurfacesState>& surfaces_state,
-                     mojom::WindowManagerPtr window_manater);
+                     const scoped_refptr<SurfacesState>& surfaces_state);
   ~WindowTreeHostImpl() override;
 
   // Initializes state that depends on the existence of a WindowTreeHostImpl.
   void Init(WindowTreeHostDelegate* delegate);
 
+  uint32_t id() const { return id_; }
+
   const WindowTreeImpl* GetWindowTree() const;
   WindowTreeImpl* GetWindowTree();
 
   mojom::WindowTreeHostClient* client() const { return client_.get(); }
+
+  void SetFrameDecorationValues(mojom::FrameDecorationValuesPtr values);
+  const mojom::FrameDecorationValues& frame_decoration_values() const {
+    return *frame_decoration_values_;
+  }
 
   // Returns whether |window| is a descendant of this root but not itself a
   // root window.
@@ -80,9 +87,9 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   // Returns the metrics for this viewport.
   const mojom::ViewportMetrics& GetViewportMetrics() const;
 
-  ConnectionManager* connection_manager() { return connection_manager_; }
+  mojom::Rotation GetRotation() const;
 
-  mojom::WindowManager* window_manager() { return window_manager_.get(); }
+  ConnectionManager* connection_manager() { return connection_manager_; }
 
   // Returns the root ServerWindow of this viewport.
   ServerWindow* root_window() { return root_.get(); }
@@ -147,7 +154,9 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
     scoped_ptr<ProcessedEventTarget> processed_target;
   };
 
-  WindowId MapWindowIdFromClient(Id transport_window_id) const;
+  // Returns the ServerWindow with the specified transport id. Use this *only*
+  // if the call originates WindowTreeImpl associated with GetWindowTree().
+  ServerWindow* GetWindowFromWindowTreeHost(Id transport_window_id);
 
   void OnClientClosed();
 
@@ -200,6 +209,7 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   // ServerWindowObserver:
   void OnWindowDestroyed(ServerWindow* window) override;
 
+  const uint32_t id_;
   WindowTreeHostDelegate* delegate_;
   ConnectionManager* const connection_manager_;
   mojom::WindowTreeHostClientPtr client_;
@@ -207,7 +217,6 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   scoped_ptr<ServerWindow> root_;
   scoped_ptr<DisplayManager> display_manager_;
   scoped_ptr<FocusController> focus_controller_;
-  mojom::WindowManagerPtr window_manager_;
   mojom::WindowTree* tree_awaiting_input_ack_;
 
   // The last cursor set. Used to track whether we need to change the cursor.
@@ -221,6 +230,8 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
 
   std::queue<scoped_ptr<QueuedEvent>> event_queue_;
   base::OneShotTimer event_ack_timer_;
+
+  mojom::FrameDecorationValuesPtr frame_decoration_values_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowTreeHostImpl);
 };

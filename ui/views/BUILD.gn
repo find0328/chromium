@@ -114,7 +114,7 @@ component("views") {
       "//ui/touch_selection",
       "//ui/wm",
     ]
-    if (!is_chromeos && !is_android) {
+    if (!is_chromeos) {
       sources += gypi_values.views_desktop_aura_sources
       if (use_x11) {
         sources += gypi_values.views_desktop_aura_x11_sources
@@ -127,9 +127,6 @@ component("views") {
       if (is_linux) {
         sources += gypi_values.views_desktop_aura_linux_sources
       }
-    }
-    if (is_android) {
-      sources += gypi_values.views_android_sources
     }
   }
 
@@ -212,7 +209,6 @@ test("views_unittests") {
     ":test_support",
     "//base",
     "//base:i18n",
-    "//base/allocator",
     "//base/test:test_support",
     "//cc",
     "//skia",

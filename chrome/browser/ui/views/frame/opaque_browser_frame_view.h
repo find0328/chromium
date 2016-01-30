@@ -20,7 +20,6 @@ class BrowserView;
 class OpaqueBrowserFrameViewLayout;
 class OpaqueBrowserFrameViewPlatformSpecific;
 class TabIconView;
-class NewAvatarButton;
 
 namespace views {
 class ImageButton;
@@ -87,6 +86,7 @@ class OpaqueBrowserFrameView : public BrowserNonClientFrameView,
   int GetTabStripHeight() const override;
   bool IsToolbarVisible() const override;
   gfx::Size GetTabstripPreferredSize() const override;
+  int GetToolbarLeadingCornerClientWidth() const override;
 
  protected:
   views::ImageButton* minimize_button() const { return minimize_button_; }
@@ -120,10 +120,6 @@ class OpaqueBrowserFrameView : public BrowserNonClientFrameView,
   // calculated as if the window was restored, regardless of its current state.
   int FrameBorderThickness(bool restored) const;
 
-  // Returns the height of the top resize area.  This is smaller than the frame
-  // border height in order to increase the window draggable area.
-  int TopResizeHeight() const;
-
   // Returns true if the specified point is within the avatar menu buttons.
   bool IsWithinAvatarMenuButtons(const gfx::Point& point) const;
 
@@ -141,10 +137,16 @@ class OpaqueBrowserFrameView : public BrowserNonClientFrameView,
   // Paint various sub-components of this view.  The *FrameBorder() functions
   // also paint the background of the titlebar area, since the top frame border
   // and titlebar background are a contiguous component.
-  void PaintRestoredFrameBorder(gfx::Canvas* canvas);
-  void PaintMaximizedFrameBorder(gfx::Canvas* canvas);
-  void PaintToolbarBackground(gfx::Canvas* canvas);
-  void PaintClientEdge(gfx::Canvas* canvas);
+  void PaintRestoredFrameBorder(gfx::Canvas* canvas) const;
+  void PaintMaximizedFrameBorder(gfx::Canvas* canvas) const;
+  void PaintToolbarBackground(gfx::Canvas* canvas) const;
+  void PaintClientEdge(gfx::Canvas* canvas) const;
+  void FillClientEdgeRects(int x,
+                           int y,
+                           int right,
+                           int bottom,
+                           SkColor color,
+                           gfx::Canvas* canvas) const;
 
   // Our layout manager also calculates various bounds.
   OpaqueBrowserFrameViewLayout* layout_;

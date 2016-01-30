@@ -42,8 +42,6 @@ source_set("test_support") {
     "base/dialog_test_browser_window.h",
     "base/find_in_page_observer.cc",
     "base/find_in_page_observer.h",
-    "base/history_index_restore_observer.cc",
-    "base/history_index_restore_observer.h",
     "base/scoped_browser_locale.cc",
     "base/scoped_browser_locale.h",
     "base/scoped_bundle_swizzler_mac.h",
@@ -86,7 +84,6 @@ source_set("test_support") {
 
   # New deps should go in the non-iOS section below.
   public_deps = [
-    "//base:prefs_test_support",
     "//base/test:test_support",
     "//chrome:resources",
     "//chrome:strings",
@@ -104,12 +101,14 @@ source_set("test_support") {
     "//components/omnibox/browser:test_support",
     "//components/password_manager/core/browser:test_support",
     "//components/pref_registry:test_support",
+    "//components/prefs:test_support",
     "//components/rappor:test_support",
     "//components/search_engines:test_support",
     "//components/signin/core/browser:test_support",
     "//components/sync_driver:test_support",
     "//components/sync_sessions:test_support",
     "//components/syncable_prefs:test_support",
+    "//components/toolbar:test_support",
     "//components/ui/zoom:test_support",
     "//components/update_client:test_support",
     "//content/public/app:both",
@@ -338,7 +337,6 @@ if (!is_android) {
     deps = [
       ":test_support",
       ":test_support_ui",
-      "//base/allocator",
       "//chrome:packed_extra_resources",
       "//chrome:packed_resources",
       "//chrome:resources",
@@ -538,7 +536,7 @@ if (!is_android) {
       if (is_chromeos) {
         sources -= [
           # Use only the _chromeos version on ChromeOS.
-          "base/view_event_test_platform_part_ash.cc",
+          "base/view_event_test_platform_part_default.cc",
         ]
       }
       deps += [ "//ash:interactive_ui_test_support" ]
@@ -636,6 +634,7 @@ if (!is_android) {
       sources -= [
         "data/webui/certificate_viewer_dialog_test.js",
         "data/webui/settings/bluetooth_page_browsertest_chromeos.js",
+        "data/webui/settings/change_picture_browsertest_chromeos.js",
       ]
     }
     if (!enable_app_list) {
@@ -746,7 +745,7 @@ if (!is_android) {
 
   group("telemetry_gpu_unittests") {
     deps = [
-      "//tools/telemetry:telemetry_test_support",
+      "//third_party/catapult/telemetry:telemetry_test_support",
     ]
     data = [
       # TODO(kbr): refactor the telemetry dependencies more cleanly.
@@ -850,7 +849,6 @@ if (!is_android) {
       ":test_support_ui",
       "//base",
       "//base:i18n",
-      "//base/allocator",
       "//base/test:test_support",
       "//chrome:browser_tests_pak",
       "//chrome:packed_extra_resources",
@@ -942,35 +940,27 @@ if (!is_android) {
       sources += [
         "../browser/extensions/extension_nacl_browsertest.cc",
         "../browser/nacl_host/test/gdb_debug_stub_browsertest.cc",
+        "nacl/nacl_browsertest.cc",
+        "nacl/nacl_browsertest_uma.cc",
+        "nacl/nacl_browsertest_util.cc",
+        "nacl/nacl_browsertest_util.h",
+        "nacl/pnacl_header_test.cc",
+        "nacl/pnacl_header_test.h",
       ]
       deps += [ "//components/nacl/renderer/plugin:nacl_trusted_plugin" ]
 
-      data += [
-        #        "$root_out_dir/nacl_helper",
+      data_deps += [
+        "//chrome/test/data/nacl",
+        "//ppapi/native_client:irt",
+        "//ppapi:ppapi_nacl_tests_all",
+        "//ppapi/tests/extensions",
       ]
-
-      if (enable_nacl_untrusted) {
-        sources += [
-          "nacl/nacl_browsertest.cc",
-          "nacl/nacl_browsertest_uma.cc",
-          "nacl/nacl_browsertest_util.cc",
-          "nacl/nacl_browsertest_util.h",
-          "nacl/pnacl_header_test.cc",
-          "nacl/pnacl_header_test.h",
-        ]
-
-        data_deps += [
-          "//chrome/test/data/nacl",
-          "//ppapi/native_client:irt",
-          "//ppapi:ppapi_nacl_tests_all",
-          "//ppapi/tests/extensions",
-        ]
-        if (is_chromeos) {
-          sources += [ "//third_party/liblouis/nacl_wrapper/liblouis_wrapper_browsertest.cc" ]
-          deps += [ "//chrome/browser/chromeos" ]
-          data_deps += [ "//third_party/liblouis:liblouis_test_data" ]
-        }
+      if (is_chromeos) {
+        sources += [ "//third_party/liblouis/nacl_wrapper/liblouis_wrapper_browsertest.cc" ]
+        deps += [ "//chrome/browser/chromeos" ]
+        data_deps += [ "//third_party/liblouis:liblouis_test_data" ]
       }
+
       if (is_win || is_linux) {
         sources += [ "../browser/nacl_host/test/nacl_gdb_browsertest.cc" ]
         data_deps += [ "//chrome/browser/nacl_host/test:mock_nacl_gdb" ]
@@ -979,9 +969,6 @@ if (!is_android) {
         # TODO(halyavin) NaCl on Windows can't open debug stub socket in
         # browser process as needed by this test. See http://crbug.com/157312.
         sources -= [ "../browser/nacl_host/test/gdb_debug_stub_browsertest.cc" ]
-        deps += [
-          #'chrome.gyp:chrome_nacl_win64',  TODO(GYP) bug 512869
-        ]
         configs -= [ "//build/config/win:default_incremental_linking" ]
         configs +=
             [ "//build/config/win:default_large_module_incremental_linking" ]
@@ -1042,10 +1029,14 @@ if (!is_android) {
         # chromeos does not use cross-platform panels
         "../browser/ui/panels/panel_extension_browsertest.cc",
 
+        # inline login UI is disabled on chromeos
+        "../browser/ui/webui/signin/inline_login_ui_browsertest.cc",
+
         # chromeos does not use the desktop user manager
         "../browser/ui/webui/signin/user_manager_ui_browsertest.cc",
       ]
       deps += [
+        "//chromeos/ime:gencode",
         "//dbus",
         "//dbus:test_support",
         "//ui/login:resources",
@@ -1323,7 +1314,6 @@ if (!is_android) {
       ":sync_integration_test_support",
       ":test_support",
       ":test_support_ui",
-      "//base/allocator",
       "//chrome:packed_extra_resources",
       "//chrome:packed_resources",
       "//chrome:resources",
@@ -1407,7 +1397,6 @@ if (!is_android) {
     deps = [
       ":sync_integration_test_support",
       ":test_support_ui",
-      "//base/allocator",
       "//crypto:platform",
       "//sync",
       "//testing/gmock",
@@ -1544,7 +1533,7 @@ test("unit_tests") {
   defines = []
 
   deps = [
-    # NOTE: New depndencies should generally be added in the OS!="ios"
+    # NOTE: New dependencies should generally be added in the OS!="ios"
     # dependencies block below, rather than here.
     # Unit tests should only depend on:
     # 1) everything that the chrome binaries depend on:
@@ -1555,6 +1544,7 @@ test("unit_tests") {
     ":test_support_unit",
     "//base/test:test_support",
     "//chrome/test:test_support",
+    "//components/browser_sync/browser:test_support",
     "//components/content_settings/core/test:test_support",
     "//components/resources",
     "//content/public/app:both",
@@ -1570,7 +1560,6 @@ test("unit_tests") {
     "//testing/gtest",
 
     # 3) anything tests directly depend on
-    "//base/allocator",
     "//chrome:resources",
     "//chrome:strings",
     "//components/safe_browsing_db:test_database_manager",
@@ -1883,7 +1872,10 @@ test("unit_tests") {
             "//chrome")
   }
   if (is_chromeos) {
-    deps += [ "//chrome/browser/chromeos:unit_tests" ]
+    deps += [
+      "//chrome/browser/chromeos:unit_tests",
+      "//chromeos/ime:gencode",
+    ]
     sources -= [ "../browser/signin/signin_manager_unittest.cc" ]
   }
   if (use_x11) {
@@ -2135,7 +2127,6 @@ if (is_win || (is_linux && !is_chromeos)) {
     ]
     deps = [
       ":test_support",
-      "//base/allocator",
       "//base/test:run_all_unittests",
       "//base/test:test_support",
       "//breakpad:client",
@@ -2165,7 +2156,6 @@ if (is_win || (is_linux && !is_chromeos)) {
       ":test_support_ui",
       "//base",
       "//base:i18n",
-      "//base/allocator",
       "//base/test:test_support",
       "//chrome/browser",
       "//chrome/renderer",

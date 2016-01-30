@@ -28,6 +28,8 @@ source_set("battor_agent_lib") {
     "battor_connection_impl.cc",
     "battor_connection_impl.h",
     "battor_error.h",
+    "battor_finder.cc",
+    "battor_finder.h",
     "battor_sample_converter.cc",
     "battor_sample_converter.h",
   ]
@@ -55,5 +57,14 @@ test("battor_agent_unittests") {
     "//mojo/public/c/system:for_shared_library",
     "//testing/gmock",
     "//testing/gtest",
+  ]
+}
+
+# TODO(GYP): Delete this after we've converted everything to GN.
+# The _run targets exist only for compatibility w/ GYP.
+group("battor_agent_unittests_run") {
+  testonly = true
+  deps = [
+    ":battor_agent_unittests",
   ]
 }

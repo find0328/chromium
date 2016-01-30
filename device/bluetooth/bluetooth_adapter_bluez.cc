@@ -74,6 +74,8 @@ UMABluetoothDiscoverySessionOutcome TranslateDiscoveryErrorToUMA(
     return UMABluetoothDiscoverySessionOutcome::BLUEZ_DBUS_IN_PROGRESS;
   } else if (error_name == bluetooth_device::kErrorNotReady) {
     return UMABluetoothDiscoverySessionOutcome::BLUEZ_DBUS_NOT_READY;
+  } else if (error_name == bluetooth_device::kErrorNotSupported) {
+    return UMABluetoothDiscoverySessionOutcome::BLUEZ_DBUS_UNSUPPORTED_DEVICE;
   } else if (error_name == bluetooth_device::kErrorFailed) {
     return UMABluetoothDiscoverySessionOutcome::FAILED;
   } else {
@@ -493,9 +495,12 @@ void BluetoothAdapterBlueZ::DevicePropertyChanged(
     // PlayStation joystick tries to reconnect after disconnection from USB.
     // If it is still not trusted, set it, so it becomes available on the
     // list of known devices.
-    if (properties->connected.value() && device_bluez->IsTrustable() &&
-        !properties->trusted.value())
-      device_bluez->SetTrusted();
+    if (properties->connected.value()) {
+      if (device_bluez->IsTrustable() && !properties->trusted.value())
+        device_bluez->SetTrusted();
+    } else {
+      device_bluez->SetGattServicesDiscoveryComplete(false);
+    }
 
     int count = 0;
 

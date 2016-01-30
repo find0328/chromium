@@ -24,6 +24,7 @@
 #include "base/trace_event/memory_allocator_dump.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/process_memory_dump.h"
+#include "base/trace_event/trace_event.h"
 #include "gpu/command_buffer/client/buffer_tracker.h"
 #include "gpu/command_buffer/client/gles2_cmd_helper.h"
 #include "gpu/command_buffer/client/gpu_control.h"
@@ -34,7 +35,6 @@
 #include "gpu/command_buffer/common/gles2_cmd_utils.h"
 #include "gpu/command_buffer/common/id_allocator.h"
 #include "gpu/command_buffer/common/sync_token.h"
-#include "gpu/command_buffer/common/trace_event.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 
@@ -311,15 +311,6 @@ void GLES2Implementation::FreeEverything() {
 void GLES2Implementation::RunIfContextNotLost(const base::Closure& callback) {
   if (!helper_->IsContextLost())
     callback.Run();
-}
-
-void GLES2Implementation::SignalSyncPoint(uint32_t sync_point,
-                                          const base::Closure& callback) {
-  gpu_control_->SignalSyncPoint(
-      sync_point,
-      base::Bind(&GLES2Implementation::RunIfContextNotLost,
-                 weak_ptr_factory_.GetWeakPtr(),
-                 callback));
 }
 
 void GLES2Implementation::SignalSyncToken(const gpu::SyncToken& sync_token,
@@ -5547,34 +5538,6 @@ GLboolean GLES2Implementation::UnmapBufferCHROMIUM(GLuint target) {
   return true;
 }
 
-GLuint GLES2Implementation::InsertSyncPointCHROMIUM() {
-  GPU_CLIENT_SINGLE_THREAD_CHECK();
-  GPU_CLIENT_LOG("[" << GetLogPrefix() << "] glInsertSyncPointCHROMIUM");
-  helper_->CommandBufferHelper::Flush();
-  return gpu_control_->InsertSyncPoint();
-}
-
-void GLES2Implementation::WaitSyncPointCHROMIUM(GLuint sync_point) {
-  // This should no longer be called.
-  NOTREACHED();
-}
-
-GLuint GLES2Implementation::InsertFutureSyncPointCHROMIUM() {
-  GPU_CLIENT_SINGLE_THREAD_CHECK();
-  GPU_CLIENT_LOG("[" << GetLogPrefix() << "] glInsertFutureSyncPointCHROMIUM");
-  DCHECK(capabilities_.future_sync_points);
-  return gpu_control_->InsertFutureSyncPoint();
-}
-
-void GLES2Implementation::RetireSyncPointCHROMIUM(GLuint sync_point) {
-  GPU_CLIENT_SINGLE_THREAD_CHECK();
-  GPU_CLIENT_LOG("[" << GetLogPrefix() << "] glRetireSyncPointCHROMIUM("
-                     << sync_point << ")");
-  DCHECK(capabilities_.future_sync_points);
-  helper_->CommandBufferHelper::Flush();
-  gpu_control_->RetireSyncPoint(sync_point);
-}
-
 uint64_t GLES2Implementation::ShareGroupTracingGUID() const {
   return share_group_->TracingGUID();
 }
@@ -5684,17 +5647,6 @@ void GLES2Implementation::WaitSyncTokenCHROMIUM(const GLbyte* sync_token) {
           !gpu_control_->CanWaitUnverifiedSyncToken(&sync_token_data)) {
         SetGLError(GL_INVALID_VALUE, "glWaitSyncTokenCHROMIUM",
                    "Cannot wait on sync_token which has not been verified");
-        return;
-      }
-
-      // TODO(dyen): Temporarily support old sync points, remove once all old
-      // sync points have been removed.
-      const gpu::CommandBufferNamespace namespace_id =
-          sync_token_data.namespace_id();
-      if (namespace_id == gpu::CommandBufferNamespace::OLD_SYNC_POINTS) {
-        const uint32_t sync_point =
-            static_cast<uint32_t>(sync_token_data.release_count());
-        helper_->WaitSyncPointCHROMIUM(sync_point);
         return;
       }
 

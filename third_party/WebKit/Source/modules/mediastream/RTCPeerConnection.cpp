@@ -331,7 +331,7 @@ RTCPeerConnection* RTCPeerConnection::create(ExecutionContext* context, const Di
         return 0;
 
     MediaErrorState mediaErrorState;
-    WebMediaConstraints constraints = MediaConstraintsImpl::create(mediaConstraints, mediaErrorState);
+    WebMediaConstraints constraints = MediaConstraintsImpl::create(context, mediaConstraints, mediaErrorState);
     if (mediaErrorState.hadException()) {
         mediaErrorState.raiseException(exceptionState);
         return 0;
@@ -417,7 +417,7 @@ void RTCPeerConnection::createOffer(ExecutionContext* context, RTCSessionDescrip
         m_peerHandler->createOffer(request, offerOptions);
     } else {
         MediaErrorState mediaErrorState;
-        WebMediaConstraints constraints = MediaConstraintsImpl::create(rtcOfferOptions, mediaErrorState);
+        WebMediaConstraints constraints = MediaConstraintsImpl::create(context, rtcOfferOptions, mediaErrorState);
         if (mediaErrorState.hadException()) {
             mediaErrorState.raiseException(exceptionState);
             return;
@@ -450,7 +450,7 @@ void RTCPeerConnection::createAnswer(ExecutionContext* context, RTCSessionDescri
     ASSERT(successCallback);
 
     MediaErrorState mediaErrorState;
-    WebMediaConstraints constraints = MediaConstraintsImpl::create(mediaConstraints, mediaErrorState);
+    WebMediaConstraints constraints = MediaConstraintsImpl::create(context, mediaConstraints, mediaErrorState);
     if (mediaErrorState.hadException()) {
         mediaErrorState.raiseException(exceptionState);
         return;
@@ -518,7 +518,7 @@ RTCSessionDescription* RTCPeerConnection::remoteDescription()
     return RTCSessionDescription::create(webSessionDescription);
 }
 
-void RTCPeerConnection::updateIce(const Dictionary& rtcConfiguration, const Dictionary& mediaConstraints, ExceptionState& exceptionState)
+void RTCPeerConnection::updateIce(ExecutionContext* context, const Dictionary& rtcConfiguration, const Dictionary& mediaConstraints, ExceptionState& exceptionState)
 {
     if (throwExceptionIfSignalingStateClosed(m_signalingState, exceptionState))
         return;
@@ -528,7 +528,7 @@ void RTCPeerConnection::updateIce(const Dictionary& rtcConfiguration, const Dict
         return;
 
     MediaErrorState mediaErrorState;
-    WebMediaConstraints constraints = MediaConstraintsImpl::create(mediaConstraints, mediaErrorState);
+    WebMediaConstraints constraints = MediaConstraintsImpl::create(context, mediaConstraints, mediaErrorState);
     if (mediaErrorState.hadException()) {
         mediaErrorState.raiseException(exceptionState);
         return;
@@ -696,7 +696,7 @@ String RTCPeerConnection::iceConnectionState() const
     return String();
 }
 
-void RTCPeerConnection::addStream(MediaStream* stream, const Dictionary& mediaConstraints, ExceptionState& exceptionState)
+void RTCPeerConnection::addStream(ExecutionContext* context, MediaStream* stream, const Dictionary& mediaConstraints, ExceptionState& exceptionState)
 {
     if (throwExceptionIfSignalingStateClosed(m_signalingState, exceptionState))
         return;
@@ -710,7 +710,7 @@ void RTCPeerConnection::addStream(MediaStream* stream, const Dictionary& mediaCo
         return;
 
     MediaErrorState mediaErrorState;
-    WebMediaConstraints constraints = MediaConstraintsImpl::create(mediaConstraints, mediaErrorState);
+    WebMediaConstraints constraints = MediaConstraintsImpl::create(context, mediaConstraints, mediaErrorState);
     if (mediaErrorState.hadException()) {
         mediaErrorState.raiseException(exceptionState);
         return;
@@ -796,10 +796,9 @@ RTCDataChannel* RTCPeerConnection::createDataChannel(String label, const Diction
     DictionaryHelper::get(options, "protocol", protocolString);
     init.protocol = protocolString;
 
-    RTCDataChannel* channel = RTCDataChannel::create(executionContext(), this, m_peerHandler.get(), label, init, exceptionState);
+    RTCDataChannel* channel = RTCDataChannel::create(executionContext(), m_peerHandler.get(), label, init, exceptionState);
     if (exceptionState.hadException())
         return nullptr;
-    m_dataChannels.append(channel);
     RTCDataChannel::ReadyState handlerState = channel->getHandlerState();
     if (handlerState != RTCDataChannel::ReadyStateConnecting) {
         // There was an early state transition.  Don't miss it!
@@ -925,9 +924,7 @@ void RTCPeerConnection::didAddRemoteDataChannel(WebRTCDataChannelHandler* handle
     if (m_signalingState == SignalingStateClosed)
         return;
 
-    RTCDataChannel* channel = RTCDataChannel::create(executionContext(), this, adoptPtr(handler));
-    m_dataChannels.append(channel);
-
+    RTCDataChannel* channel = RTCDataChannel::create(executionContext(), adoptPtr(handler));
     scheduleDispatchEvent(RTCDataChannelEvent::create(EventTypeNames::datachannel, false, false, channel));
 }
 
@@ -970,11 +967,6 @@ void RTCPeerConnection::stop()
     m_stopped = true;
     m_iceConnectionState = ICEConnectionStateClosed;
     m_signalingState = SignalingStateClosed;
-
-    HeapVector<Member<RTCDataChannel>>::iterator i = m_dataChannels.begin();
-    for (; i != m_dataChannels.end(); ++i)
-        (*i)->stop();
-    m_dataChannels.clear();
 
     m_dispatchScheduledEventRunner->stop();
 
@@ -1057,7 +1049,6 @@ DEFINE_TRACE(RTCPeerConnection)
 {
     visitor->trace(m_localStreams);
     visitor->trace(m_remoteStreams);
-    visitor->trace(m_dataChannels);
     visitor->trace(m_dispatchScheduledEventRunner);
     visitor->trace(m_scheduledEvents);
     RefCountedGarbageCollectedEventTargetWithInlineData<RTCPeerConnection>::trace(visitor);

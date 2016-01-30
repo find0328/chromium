@@ -231,7 +231,7 @@ class TestExpectationParser(object):
     # FIXME: Update the original specifiers and remove this once the old syntax is gone.
     _configuration_tokens_list = [
         'Mac', 'Mac10.6', 'Mac10.7', 'Mac10.8', 'Mac10.9', 'Mac10.10', 'Retina',
-        'Win', 'XP', 'Win7', 'Win10',
+        'Win', 'Win7', 'Win10',
         'Linux', 'Linux32', 'Precise', 'Trusty',
         'Android',
         'Release',
@@ -368,6 +368,12 @@ class TestExpectationParser(object):
         if ('SKIP' in expectations or 'WONTFIX' in expectations) and len(set(expectations) - set(['SKIP', 'WONTFIX'])):
             warnings.append('A test marked Skip or WontFix must not have other expectations.')
 
+        if 'SLOW' in expectations and 'SlowTests' not in filename:
+            warnings.append('SLOW tests should ony be added to SlowTests and not to TestExpectations.')
+
+        if 'WONTFIX' in expectations and ('NeverFixTests' not in filename and 'StaleTestExpectations' not in filename):
+            warnings.append('WONTFIX tests should ony be added to NeverFixTests or StaleTestExpectations and not to TestExpectations.')
+
         if not expectations and not has_unrecognized_expectation:
             warnings.append('Missing expectations.')
 
@@ -404,6 +410,9 @@ class TestExpectationLine(object):
         self.matching_tests = []
         self.warnings = []
         self.is_skipped_outside_expectations_file = False
+
+    def __str__(self):
+        return "TestExpectationLine{name=%s, matching_configurations=%s, original_string=%s}" % (self.name, self.matching_configurations, self.original_string)
 
     def __eq__(self, other):
         return (self.original_string == other.original_string

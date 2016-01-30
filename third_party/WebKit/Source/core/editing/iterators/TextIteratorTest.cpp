@@ -386,6 +386,14 @@ TEST_F(TextIteratorTest, RangeLengthWithReplacedElements)
     EXPECT_EQ(3, TextIterator::rangeLength(range->startPosition(), range->endPosition()));
 }
 
+TEST_F(TextIteratorTest, WhitespaceCollapseForReplacedElements)
+{
+    static const char* bodyContent = "<span>Some text </span> <input type='button' value='Button text'/><span>Some more text</span>";
+    setBodyContent(bodyContent);
+    EXPECT_EQ("[Some text ][][Some more text]", iterate<DOMTree>(TextIteratorCollapseTrailingSpace));
+    EXPECT_EQ("[Some text ][][Button text][Some more text]", iterate<ComposedTree>(TextIteratorCollapseTrailingSpace));
+}
+
 TEST_F(TextIteratorTest, copyTextTo)
 {
     const char* bodyContent = "<a id=host><b id=one>one</b> not appeared <b id=two>two</b></a>";
@@ -435,6 +443,74 @@ TEST_F(TextIteratorTest, copyTextTo)
     EXPECT_EQ("three two one z", String(output2)) << String::format(message, 2, "three two one z").utf8().data();
     iter2.copyTextTo(output2, 2, 3);
     EXPECT_EQ("three two one zero", String(output2)) << String::format(message, 2, "three two one zero").utf8().data();
+}
+
+TEST_F(TextIteratorTest, characterAt)
+{
+    const char* bodyContent = "<a id=host><b id=one>one</b> not appeared <b id=two>two</b></a>";
+    const char* shadowContent = "three <content select=#two></content> <content select=#one></content> zero";
+    setBodyContent(bodyContent);
+    setShadowContent(shadowContent, "host");
+    updateLayoutAndStyleForPainting();
+
+    Element* host = document().getElementById("host");
+
+    EphemeralRangeTemplate<EditingStrategy> range1(EphemeralRangeTemplate<EditingStrategy>::rangeOfContents(*host));
+    TextIteratorAlgorithm<EditingStrategy> iter1(range1.startPosition(), range1.endPosition());
+    const char* message1 = "|iter1| should emit 'one' and 'two'.";
+    EXPECT_EQ('o', iter1.characterAt(0)) << message1;
+    EXPECT_EQ('n', iter1.characterAt(1)) << message1;
+    EXPECT_EQ('e', iter1.characterAt(2)) << message1;
+    iter1.advance();
+    EXPECT_EQ('t', iter1.characterAt(0)) << message1;
+    EXPECT_EQ('w', iter1.characterAt(1)) << message1;
+    EXPECT_EQ('o', iter1.characterAt(2)) << message1;
+
+    EphemeralRangeTemplate<EditingInComposedTreeStrategy> range2(EphemeralRangeTemplate<EditingInComposedTreeStrategy>::rangeOfContents(*host));
+    TextIteratorAlgorithm<EditingInComposedTreeStrategy> iter2(range2.startPosition(), range2.endPosition());
+    const char* message2 = "|iter2| should emit 'three ', 'two', ' ', 'one' and ' zero'.";
+    EXPECT_EQ('t', iter2.characterAt(0)) << message2;
+    EXPECT_EQ('h', iter2.characterAt(1)) << message2;
+    EXPECT_EQ('r', iter2.characterAt(2)) << message2;
+    EXPECT_EQ('e', iter2.characterAt(3)) << message2;
+    EXPECT_EQ('e', iter2.characterAt(4)) << message2;
+    EXPECT_EQ(' ', iter2.characterAt(5)) << message2;
+    iter2.advance();
+    EXPECT_EQ('t', iter2.characterAt(0)) << message2;
+    EXPECT_EQ('w', iter2.characterAt(1)) << message2;
+    EXPECT_EQ('o', iter2.characterAt(2)) << message2;
+    iter2.advance();
+    EXPECT_EQ(' ', iter2.characterAt(0)) << message2;
+    iter2.advance();
+    EXPECT_EQ('o', iter2.characterAt(0)) << message2;
+    EXPECT_EQ('n', iter2.characterAt(1)) << message2;
+    EXPECT_EQ('e', iter2.characterAt(2)) << message2;
+    iter2.advance();
+    EXPECT_EQ(' ', iter2.characterAt(0)) << message2;
+    EXPECT_EQ('z', iter2.characterAt(1)) << message2;
+    EXPECT_EQ('e', iter2.characterAt(2)) << message2;
+    EXPECT_EQ('r', iter2.characterAt(3)) << message2;
+    EXPECT_EQ('o', iter2.characterAt(4)) << message2;
+}
+
+TEST_F(TextIteratorTest, CopyWholeCodePoints)
+{
+    const char* bodyContent = "&#x13000;&#x13001;&#x13002; &#x13140;&#x13141;.";
+    setBodyContent(bodyContent);
+    updateLayoutAndStyleForPainting();
+
+    const UChar expected[] = {0xD80C, 0xDC00, 0xD80C, 0xDC01, 0xD80C, 0xDC02, ' ', 0xD80C, 0xDD40, 0xD80C, 0xDD41, '.'};
+
+    EphemeralRange range(EphemeralRange::rangeOfContents(document()));
+    TextIterator iter(range.startPosition(), range.endPosition());
+    Vector<UChar> buffer;
+    EXPECT_EQ(2, iter.copyTextTo(buffer, 0, 1)) << "Should emit 2 UChars for 'U+13000'.";
+    EXPECT_EQ(4, iter.copyTextTo(buffer, 2, 3)) << "Should emit 4 UChars for 'U+13001U+13002'.";
+    EXPECT_EQ(3, iter.copyTextTo(buffer, 6, 2)) << "Should emit 3 UChars for ' U+13140'.";
+    EXPECT_EQ(2, iter.copyTextTo(buffer, 9, 2)) << "Should emit 2 UChars for 'U+13141'.";
+    EXPECT_EQ(1, iter.copyTextTo(buffer, 11, 1)) << "Should emit 1 UChar for '.'.";
+    for (int i = 0; i < 12; i++)
+        EXPECT_EQ(expected[i], buffer[i]);
 }
 
 } // namespace blink

@@ -35,6 +35,8 @@
         'battor_connection_impl.cc',
         'battor_connection_impl.h',
         'battor_error.h',
+        'battor_finder.cc',
+        'battor_finder.h',
         'battor_sample_converter.cc',
         'battor_sample_converter.h',
       ],
@@ -66,5 +68,24 @@
         'battor_sample_converter_unittest.cc',
       ],
     },
+  ],
+  'conditions': [
+    ['test_isolation_mode != "noop"', {
+      'targets': [
+        {
+          'target_name': 'battor_agent_unittests_run',
+          'type': 'none',
+          'dependencies': [
+            'battor_agent_unittests',
+          ],
+          'includes': [
+            '../../build/isolate.gypi',
+          ],
+          'sources': [
+            'battor_agent_unittests.isolate',
+          ],
+        },
+      ],
+    }],
   ],
 }

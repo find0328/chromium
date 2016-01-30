@@ -28,6 +28,7 @@ NET_EXPORT_PRIVATE extern bool FLAGS_quic_measure_headers_hol_blocking_time;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_disable_pacing;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_general_loss_algorithm;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_disable_non_nat_address_migration;
+NET_EXPORT_PRIVATE extern bool FLAGS_quic_enable_arena_allocation;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_use_new_idle_timeout;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_use_stream_sequencer_buffer;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_respect_send_alarm2;
@@ -40,7 +41,6 @@ NET_EXPORT_PRIVATE extern bool FLAGS_quic_no_unencrypted_fec;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_require_fix;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_supports_trailers;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_supports_push_promise;
-NET_EXPORT_PRIVATE extern bool FLAGS_quic_use_primary_config_for_proof;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_distinguish_incoming_outgoing_streams;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_validate_stk_without_scid;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_new_blocked_list;
@@ -48,4 +48,11 @@ NET_EXPORT_PRIVATE extern bool FLAGS_quic_use_rfc7539;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_drop_non_awaited_packets;
 NET_EXPORT_PRIVATE extern bool FLAGS_quic_utils_use_fast_incremental_hash;
 NET_EXPORT_PRIVATE extern bool FLAGS_require_strike_register_or_server_nonce;
+NET_EXPORT_PRIVATE extern bool
+    FLAGS_quic_time_wait_list_manager_use_shared_writer;
+NET_EXPORT_PRIVATE extern bool FLAGS_quic_log_loss_event;
+NET_EXPORT_PRIVATE extern bool FLAGS_use_stream_frame_freelist;
+NET_EXPORT_PRIVATE extern bool FLAGS_quic_retransmit_via_onserializedpacket;
+NET_EXPORT_PRIVATE extern bool FLAGS_quic_include_path_id_in_iv;
+NET_EXPORT_PRIVATE extern bool FLAGS_quic_cede_correctly;
 #endif  // NET_QUIC_QUIC_FLAGS_H_

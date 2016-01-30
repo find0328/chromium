@@ -25,15 +25,15 @@
 
 #include "core/inspector/InspectorConsoleAgent.h"
 
+#include "bindings/core/v8/ScriptValue.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/inspector/ConsoleMessageStorage.h"
 #include "core/inspector/IdentifiersFactory.h"
-#include "core/inspector/InjectedScript.h"
-#include "core/inspector/InjectedScriptManager.h"
-#include "core/inspector/InspectorState.h"
 #include "core/inspector/InstrumentingAgents.h"
 #include "core/inspector/ScriptArguments.h"
 #include "core/inspector/ScriptAsyncCallStack.h"
+#include "core/inspector/v8/InjectedScript.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/inspector/v8/V8Debugger.h"
 #include "core/inspector/v8/V8DebuggerAgent.h"
 #include "wtf/text/WTFString.h"
@@ -57,12 +57,6 @@ InspectorConsoleAgent::~InspectorConsoleAgent()
 #if !ENABLE(OILPAN)
     m_instrumentingAgents->setInspectorConsoleAgent(0);
 #endif
-}
-
-DEFINE_TRACE(InspectorConsoleAgent)
-{
-    visitor->trace(m_injectedScriptManager);
-    InspectorBaseAgent::trace(visitor);
 }
 
 void InspectorConsoleAgent::enable(ErrorString*)
@@ -100,7 +94,7 @@ void InspectorConsoleAgent::disable(ErrorString*)
 
 void InspectorConsoleAgent::restore()
 {
-    if (m_state->getBoolean(ConsoleAgentState::consoleMessagesEnabled)) {
+    if (m_state->booleanProperty(ConsoleAgentState::consoleMessagesEnabled, false)) {
         frontend()->messagesCleared();
         ErrorString error;
         enable(&error);
@@ -114,8 +108,13 @@ void InspectorConsoleAgent::addMessageToConsole(ConsoleMessage* consoleMessage)
         return;
     if (!m_debuggerAgent || !m_debuggerAgent->enabled())
         return;
-    if (m_debuggerAgent->debugger().pauseOnExceptionsState() != V8Debugger::DontPauseOnExceptions)
-        m_debuggerAgent->breakProgram(InspectorFrontend::Debugger::Reason::Assert, nullptr);
+    m_debuggerAgent->breakProgramOnException(InspectorFrontend::Debugger::Reason::Assert, nullptr);
+}
+
+void InspectorConsoleAgent::clearAllMessages()
+{
+    ErrorString error;
+    clearMessages(&error);
 }
 
 void InspectorConsoleAgent::consoleMessagesCleared()
@@ -193,18 +192,19 @@ void InspectorConsoleAgent::sendConsoleMessageToFrontend(ConsoleMessage* console
     jsonObj->setUrl(consoleMessage->url());
     ScriptState* scriptState = consoleMessage->scriptState();
     if (scriptState)
-        jsonObj->setExecutionContextId(m_injectedScriptManager->injectedScriptFor(scriptState).contextId());
+        jsonObj->setExecutionContextId(scriptState->contextIdInDebugger());
     if (consoleMessage->source() == NetworkMessageSource && consoleMessage->requestIdentifier())
         jsonObj->setNetworkRequestId(IdentifiersFactory::requestId(consoleMessage->requestIdentifier()));
     RefPtrWillBeRawPtr<ScriptArguments> arguments = consoleMessage->scriptArguments();
     if (arguments && arguments->argumentCount()) {
-        InjectedScript injectedScript = m_injectedScriptManager->injectedScriptFor(arguments->scriptState());
-        if (!injectedScript.isEmpty()) {
+        ScriptState::Scope scope(arguments->scriptState());
+        InjectedScript* injectedScript = m_injectedScriptManager->injectedScriptFor(arguments->scriptState()->context());
+        if (injectedScript) {
             RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::RemoteObject> > jsonArgs = TypeBuilder::Array<TypeBuilder::Runtime::RemoteObject>::create();
             if (consoleMessage->type() == TableMessageType && generatePreview && arguments->argumentCount()) {
-                ScriptValue table = arguments->argumentAt(0);
-                ScriptValue columns = arguments->argumentCount() > 1 ? arguments->argumentAt(1) : ScriptValue();
-                RefPtr<TypeBuilder::Runtime::RemoteObject> inspectorValue = injectedScript.wrapTable(table, columns);
+                v8::Local<v8::Value> table = arguments->argumentAt(0).v8Value();
+                v8::Local<v8::Value> columns = arguments->argumentCount() > 1 ? arguments->argumentAt(1).v8Value() : v8::Local<v8::Value>();
+                RefPtr<TypeBuilder::Runtime::RemoteObject> inspectorValue = injectedScript->wrapTable(table, columns);
                 if (!inspectorValue) {
                     ASSERT_NOT_REACHED();
                     return;
@@ -212,7 +212,7 @@ void InspectorConsoleAgent::sendConsoleMessageToFrontend(ConsoleMessage* console
                 jsonArgs->addItem(inspectorValue);
             } else {
                 for (unsigned i = 0; i < arguments->argumentCount(); ++i) {
-                    RefPtr<TypeBuilder::Runtime::RemoteObject> inspectorValue = injectedScript.wrapObject(arguments->argumentAt(i), "console", generatePreview);
+                    RefPtr<TypeBuilder::Runtime::RemoteObject> inspectorValue = injectedScript->wrapObject(arguments->argumentAt(i).v8Value(), "console", generatePreview);
                     if (!inspectorValue) {
                         ASSERT_NOT_REACHED();
                         return;
@@ -226,7 +226,7 @@ void InspectorConsoleAgent::sendConsoleMessageToFrontend(ConsoleMessage* console
     if (consoleMessage->callStack()) {
         if (consoleMessage->callStack()->size())
             jsonObj->setStackTrace(consoleMessage->callStack()->buildInspectorArray());
-        RefPtrWillBeRawPtr<ScriptAsyncCallStack> asyncCallStack = consoleMessage->callStack()->asyncCallStack();
+        RefPtr<ScriptAsyncCallStack> asyncCallStack = consoleMessage->callStack()->asyncCallStack();
         if (asyncCallStack)
             jsonObj->setAsyncStackTrace(asyncCallStack->buildInspectorObject());
     }

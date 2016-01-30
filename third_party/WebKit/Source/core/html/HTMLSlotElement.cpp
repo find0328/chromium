@@ -34,6 +34,7 @@
 #include "core/dom/NodeTraversal.h"
 #include "core/dom/shadow/ElementShadow.h"
 #include "core/dom/shadow/InsertionPoint.h"
+#include "core/html/AssignedNodesOptions.h"
 
 namespace blink {
 
@@ -45,6 +46,35 @@ inline HTMLSlotElement::HTMLSlotElement(Document& document)
 }
 
 DEFINE_NODE_FACTORY(HTMLSlotElement);
+
+const WillBeHeapVector<RefPtrWillBeMember<Node>> HTMLSlotElement::getAssignedNodesForBinding(const AssignedNodesOptions& options)
+{
+    updateDistribution();
+    if (options.hasFlatten() && options.flatten())
+        return getDistributedNodes();
+    return m_assignedNodes;
+}
+
+const WillBeHeapVector<RefPtrWillBeMember<Node>>& HTMLSlotElement::getDistributedNodes()
+{
+    ASSERT(!needsDistributionRecalc());
+    if (isInShadowTree())
+        return m_distributedNodes;
+
+    // A slot is unlikely to be used outside of a shadow tree.
+    // We do not need to optimize this case in most cases.
+    // TODO(hayato): If this path causes a performance issue, we should move
+    // ShadowRootRaraDate::m_descendantSlots into TreeScopreRareData-ish and
+    // update the distribution code so it considers a document tree too.
+    clearDistribution();
+    for (Node& child : NodeTraversal::childrenOf(*this)) {
+        if (isHTMLSlotElement(child))
+            m_distributedNodes.appendVector(toHTMLSlotElement(child).getDistributedNodes());
+        else
+            m_distributedNodes.append(&child);
+    }
+    return m_distributedNodes;
+}
 
 void HTMLSlotElement::appendAssignedNode(Node& node)
 {
@@ -177,4 +207,4 @@ DEFINE_TRACE(HTMLSlotElement)
     HTMLElement::trace(visitor);
 }
 
-}
+} // namespace blink

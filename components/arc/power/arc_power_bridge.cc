@@ -13,15 +13,13 @@
 
 namespace arc {
 
-ArcPowerBridge::ArcPowerBridge(ArcBridgeService* arc_bridge_service)
-    : arc_bridge_service_(arc_bridge_service), binding_(this) {
-  arc_bridge_service->AddObserver(this);
-  if (arc_bridge_service->power_instance())
-    OnPowerInstanceReady();
+ArcPowerBridge::ArcPowerBridge(ArcBridgeService* bridge_service)
+    : ArcService(bridge_service), binding_(this) {
+  arc_bridge_service()->AddObserver(this);
 }
 
 ArcPowerBridge::~ArcPowerBridge() {
-  arc_bridge_service_->RemoveObserver(this);
+  arc_bridge_service()->RemoveObserver(this);
   ReleaseAllDisplayWakeLocks();
 }
 
@@ -31,15 +29,13 @@ void ArcPowerBridge::OnStateChanged(ArcBridgeService::State state) {
 }
 
 void ArcPowerBridge::OnPowerInstanceReady() {
-  PowerInstance* power_instance = arc_bridge_service_->power_instance();
+  PowerInstance* power_instance = arc_bridge_service()->power_instance();
   if (!power_instance) {
     LOG(ERROR) << "OnPowerInstanceReady called, but no power instance found";
     return;
   }
 
-  PowerHostPtr host;
-  binding_.Bind(mojo::GetProxy(&host));
-  power_instance->Init(std::move(host));
+  power_instance->Init(binding_.CreateInterfacePtrAndBind());
 }
 
 void ArcPowerBridge::OnAcquireDisplayWakeLock(
@@ -53,11 +49,11 @@ void ArcPowerBridge::OnAcquireDisplayWakeLock(
 
   int wake_lock_id = -1;
   switch (type) {
-    case DISPLAY_WAKE_LOCK_TYPE_BRIGHT:
+    case DisplayWakeLockType::BRIGHT:
       wake_lock_id = controller->AddScreenWakeLock(
           chromeos::PowerPolicyController::REASON_OTHER, "ARC");
       break;
-    case DISPLAY_WAKE_LOCK_TYPE_DIM:
+    case DisplayWakeLockType::DIM:
       wake_lock_id = controller->AddDimWakeLock(
           chromeos::PowerPolicyController::REASON_OTHER, "ARC");
       break;

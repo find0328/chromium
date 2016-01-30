@@ -25,6 +25,7 @@
 #include "ash/root_window_controller.h"
 #include "ash/rotator/screen_rotation_animator.h"
 #include "ash/rotator/window_rotation.h"
+#include "ash/screen_util.h"
 #include "ash/screenshot_delegate.h"
 #include "ash/session/session_state_delegate.h"
 #include "ash/shelf/shelf.h"
@@ -75,6 +76,7 @@
 #include "ui/views/controls/webview/webview.h"
 
 #if defined(OS_CHROMEOS)
+#include "ash/display/display_configuration_controller.h"
 #include "ash/system/chromeos/keyboard_brightness_controller.h"
 #include "base/sys_info.h"
 #include "ui/base/ime/chromeos/ime_keyboard.h"
@@ -377,8 +379,9 @@ void HandleRotateScreen() {
     return;
 
   base::RecordAction(UserMetricsAction("Accel_Rotate_Window"));
-  gfx::Point point = Shell::GetScreen()->GetCursorScreenPoint();
-  gfx::Display display = Shell::GetScreen()->GetDisplayNearestPoint(point);
+  gfx::Point point = gfx::Screen::GetScreen()->GetCursorScreenPoint();
+  gfx::Display display =
+      gfx::Screen::GetScreen()->GetDisplayNearestPoint(point);
   const DisplayInfo& display_info =
       Shell::GetInstance()->display_manager()->GetDisplayInfo(display.id());
   ash::ScreenRotationAnimator(display.id())
@@ -635,7 +638,8 @@ void HandleSilenceSpokenFeedback() {
 
 void HandleSwapPrimaryDisplay() {
   base::RecordAction(UserMetricsAction("Accel_Swap_Primary_Display"));
-  Shell::GetInstance()->window_tree_host_manager()->SwapPrimaryDisplay();
+  Shell::GetInstance()->display_configuration_controller()->SetPrimaryDisplayId(
+      ScreenUtil::GetSecondaryDisplay().id(), true /* user_action */);
 }
 
 bool CanHandleCycleUser() {
@@ -684,7 +688,9 @@ void HandleToggleCapsLock() {
 
 void HandleToggleMirrorMode() {
   base::RecordAction(UserMetricsAction("Accel_Toggle_Mirror_Mode"));
-  Shell::GetInstance()->window_tree_host_manager()->ToggleMirrorMode();
+  bool mirror = !Shell::GetInstance()->display_manager()->IsInMirrorMode();
+  Shell::GetInstance()->display_configuration_controller()->SetMirrorMode(
+      mirror, true /* user_action */);
 }
 
 void HandleToggleSpokenFeedback() {
@@ -775,10 +781,8 @@ void AcceleratorController::UnregisterAll(ui::AcceleratorTarget* target) {
 }
 
 bool AcceleratorController::Process(const ui::Accelerator& accelerator) {
-  if (ime_control_delegate_) {
-    return accelerator_manager_->Process(
-        ime_control_delegate_->RemapAccelerator(accelerator));
-  }
+  if (ime_control_delegate_)
+    return accelerator_manager_->Process(accelerator);
   return accelerator_manager_->Process(accelerator);
 }
 
@@ -789,11 +793,8 @@ bool AcceleratorController::IsRegistered(
 
 bool AcceleratorController::IsPreferred(
     const ui::Accelerator& accelerator) const {
-  const ui::Accelerator remapped_accelerator = ime_control_delegate_.get() ?
-      ime_control_delegate_->RemapAccelerator(accelerator) : accelerator;
-
   std::map<ui::Accelerator, AcceleratorAction>::const_iterator iter =
-      accelerators_.find(remapped_accelerator);
+      accelerators_.find(accelerator);
   if (iter == accelerators_.end())
     return false;  // not an accelerator.
 
@@ -802,11 +803,8 @@ bool AcceleratorController::IsPreferred(
 
 bool AcceleratorController::IsReserved(
     const ui::Accelerator& accelerator) const {
-  const ui::Accelerator remapped_accelerator = ime_control_delegate_.get() ?
-      ime_control_delegate_->RemapAccelerator(accelerator) : accelerator;
-
   std::map<ui::Accelerator, AcceleratorAction>::const_iterator iter =
-      accelerators_.find(remapped_accelerator);
+      accelerators_.find(accelerator);
   if (iter == accelerators_.end())
     return false;  // not an accelerator.
 

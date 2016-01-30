@@ -93,6 +93,7 @@ class VIEWS_EXPORT CustomButton : public Button,
   bool OnKeyReleased(const ui::KeyEvent& event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
+  bool SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) override;
   void ShowContextMenu(const gfx::Point& p,
                        ui::MenuSourceType source_type) override;
   void OnDragDone() override;
@@ -106,6 +107,7 @@ class VIEWS_EXPORT CustomButton : public Button,
   void AddInkDropLayer(ui::Layer* ink_drop_layer) override;
   void RemoveInkDropLayer(ui::Layer* ink_drop_layer) override;
   gfx::Point CalculateInkDropCenter() const override;
+  bool ShouldShowInkDropHover() const override;
 
  protected:
   // Construct the Button with a Listener. See comment for Button's ctor.
@@ -135,6 +137,9 @@ class VIEWS_EXPORT CustomButton : public Button,
   // prevent the button from receiving MouseExited events and updating its
   // state). This does not take into account enabled state.
   bool ShouldEnterHoveredState();
+
+  // Updates the |ink_drop_delegate_|'s hover state.
+  void UpdateInkDropHoverState();
 
   InkDropDelegate* ink_drop_delegate() const { return ink_drop_delegate_; }
   void set_ink_drop_delegate(InkDropDelegate* ink_drop_delegate) {

@@ -496,8 +496,8 @@ Output.RULES = {
       speak: '@describe_tab($name)'
     },
     textField: {
-      speak: '$name $value $if(' +
-          '$inputType, $inputType, $role) $description',
+      speak: '$name $value $if($multiline, @tag_textarea, $if(' +
+          '$inputType, $inputType, $role)) $description',
       braille: ''
     },
     toolbar: {
@@ -575,22 +575,24 @@ Output.EarconAction.prototype = {
 };
 
 /**
- * Annotation for selection.
+ * Annotation for text with a selection inside it.
  * @param {number} startIndex
  * @param {number} endIndex
+ * @param {number=} opt_offset
  * @constructor
  */
-Output.SelectionSpan = function(startIndex, endIndex) {
+Output.SelectionSpan = function(startIndex, endIndex, opt_offset) {
   // TODO(dtseng): Direction lost below; should preserve for braille panning.
   this.startIndex = startIndex < endIndex ? startIndex : endIndex;
   this.endIndex = endIndex > startIndex ? endIndex : startIndex;
+  this.offset = opt_offset || 0;
 };
 
 /**
  * Wrapper for automation nodes as annotations.  Since the
  * {@code AutomationNode} constructor isn't exposed in the API, this class is
  * used to allow instanceof checks on these annotations.
- @ @param {!AutomationNode} node
+ * @param {!AutomationNode} node
  * @constructor
  */
 Output.NodeSpan = function(node) {
@@ -731,15 +733,43 @@ Output.prototype = {
    * Apply a format string directly to the output buffer. This lets you
    * output a message directly to the buffer using the format syntax.
    * @param {string} formatStr
-   * @param {!AutomationNode=} opt_node An optional
-   *     node to apply the formatting to.
-   * @return {!Output}
+   * @param {!AutomationNode=} opt_node An optional node to apply the
+   *     formatting to.
+   * @return {!Output} |this| for chaining
    */
   format: function(formatStr, opt_node) {
+    return this
+        .formatForSpeech(formatStr, opt_node)
+        .formatForBraille(formatStr, opt_node);
+  },
+
+  /**
+   * Apply a format string directly to the speech output buffer. This lets you
+   * output a message directly to the buffer using the format syntax.
+   * @param {string} formatStr
+   * @param {!AutomationNode=} opt_node An optional node to apply the
+   *     formatting to.
+   * @return {!Output} |this| for chaining
+   */
+  formatForSpeech: function(formatStr, opt_node) {
     var node = opt_node || null;
 
     this.formatOptions_ = {speech: true, braille: false};
     this.format_(node, formatStr, this.speechBuffer_);
+
+    return this;
+  },
+
+  /**
+   * Apply a format string directly to the braille output buffer. This lets you
+   * output a message directly to the buffer using the format syntax.
+   * @param {string} formatStr
+   * @param {!AutomationNode=} opt_node An optional node to apply the
+   *     formatting to.
+   * @return {!Output} |this| for chaining
+   */
+  formatForBraille: function(formatStr, opt_node) {
+    var node = opt_node || null;
 
     this.formatOptions_ = {speech: false, braille: true};
     this.format_(node, formatStr, this.brailleBuffer_);
@@ -805,7 +835,7 @@ Output.prototype = {
         var valueEnd = buff.getSpanEnd(selSpan);
         startIndex = valueStart + selSpan.startIndex;
         endIndex = valueStart + selSpan.endIndex;
-        buff.setSpan(new cvox.ValueSpan(0), valueStart, valueEnd);
+        buff.setSpan(new cvox.ValueSpan(selSpan.offset), valueStart, valueEnd);
         buff.setSpan(new cvox.ValueSelectionSpan(), startIndex, endIndex);
       }
 
@@ -887,7 +917,7 @@ Output.prototype = {
 
       // Annotate braille output with the corresponding automation nodes
       // to support acting on nodes based on location in the output.
-      if (this.formatOptions_.braille)
+      if (node && this.formatOptions_.braille)
         options.annotation.push(new Output.NodeSpan(node));
 
       // Process token based on prefix.
@@ -977,6 +1007,9 @@ Output.prototype = {
             prev = cursors.Range.fromNode(node);
           this.range_(subrange, prev, Output.EventType.NAVIGATE, buff);
         } else if (token == 'role') {
+          if (localStorage['useVerboseMode'] == 'false')
+            return;
+
           options.annotation.push(token);
           var msg = node.role;
           var info = Output.ROLE_INFO_[node.role];
@@ -1185,11 +1218,23 @@ Output.prototype = {
       return mergedRoleBlock;
     };
 
+    // Hash the roles we've entered.
+    var enteredRoleSet = {};
+    for (var j = uniqueAncestors.length - 2, hashNode;
+         (hashNode = uniqueAncestors[j]);
+         j--)
+      enteredRoleSet[hashNode.role] = true;
+
     for (var i = 0, formatPrevNode;
          (formatPrevNode = prevUniqueAncestors[i]);
          i++) {
+      // This prevents very repetitive announcements.
+      if (enteredRoleSet[formatPrevNode.role] ||
+          localStorage['useVerboseMode'] == 'false')
+        continue;
+
       var roleBlock = getMergedRoleBlock(formatPrevNode.role);
-      if (roleBlock.leave)
+      if (roleBlock.leave && localStorage['useVerboseMode'] == 'true')
         this.format_(formatPrevNode, roleBlock.leave, buff, opt_exclude);
     }
 
@@ -1252,16 +1297,30 @@ Output.prototype = {
     if (!prevRange)
       prevRange = range;
     var dir = cursors.Range.getDirection(prevRange, range);
+    var node = range.start.node;
     var prevNode = prevRange.getBound(dir).node;
     this.ancestry_(
-        range.start.node, prevNode, type, buff,
+        node, prevNode, type, buff,
         {stay: true, name: true, value: true});
+    var options = {annotation: []};
     var startIndex = range.start.index;
     var endIndex = range.end.index;
+    if (this.formatOptions_.braille) {
+      options.annotation.push(new Output.NodeSpan(node));
+      var selStart = node.textSelStart;
+      var selEnd = node.textSelEnd;
+      if (selStart !== undefined &&
+          (selEnd >= startIndex && selStart <= endIndex)) {
+        options.annotation.push(new Output.SelectionSpan(
+            selStart - startIndex,
+            selEnd - startIndex,
+            startIndex));
+      }
+    }
     this.append_(
-        buff, range.start.getText().substring(startIndex, endIndex));
-    this.locations_.push(
-        range.start.node.boundsForRange(startIndex, endIndex));
+        buff, range.start.getText().substring(startIndex, endIndex),
+        options);
+    this.locations_.push(node.boundsForRange(startIndex, endIndex));
   },
 
   /**

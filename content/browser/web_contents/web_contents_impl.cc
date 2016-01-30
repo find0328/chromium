@@ -114,6 +114,7 @@
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "skia/public/type_converters.h"
+#include "third_party/WebKit/public/web/WebSandboxFlags.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/layout.h"
 #include "ui/gfx/display.h"
@@ -122,14 +123,11 @@
 
 #if defined(OS_ANDROID)
 #include "content/browser/android/content_video_view.h"
+#include "content/browser/android/date_time_chooser_android.h"
 #include "content/browser/media/android/media_session.h"
 #include "content/browser/media/android/media_web_contents_observer_android.h"
-#endif  // OS_ANDROID
-
-#if defined(OS_ANDROID) && !defined(USE_AURA)
-#include "content/browser/android/date_time_chooser_android.h"
 #include "content/browser/web_contents/web_contents_android.h"
-#endif  // OS_ANDROID && !USE_AURA
+#endif  // OS_ANDROID
 
 #if defined(OS_MACOSX)
 #include "base/mac/foundation_util.h"
@@ -179,31 +177,12 @@ void NotifyCacheOnIO(
     cache->OnExternalCacheHit(url, http_method);
 }
 
-bool FindMatchingProcess(int render_process_id,
-                         bool* did_match_process,
-                         FrameTreeNode* node) {
-  if (node->current_frame_host()->GetProcess()->GetID() == render_process_id) {
-    *did_match_process = true;
-    return false;
+bool HasMatchingProcess(FrameTree* tree, int render_process_id) {
+  for (FrameTreeNode* node : tree->Nodes()) {
+    if (node->current_frame_host()->GetProcess()->GetID() == render_process_id)
+      return true;
   }
-  return true;
-}
-
-bool ForEachFrameInternal(
-    const base::Callback<void(RenderFrameHost*)>& on_frame,
-    FrameTreeNode* node) {
-  on_frame.Run(node->current_frame_host());
-  return true;
-}
-
-bool ForEachPendingFrameInternal(
-    const base::Callback<void(RenderFrameHost*)>& on_frame,
-    FrameTreeNode* node) {
-  RenderFrameHost* pending_frame_host =
-      node->render_manager()->pending_frame_host();
-  if (pending_frame_host)
-    on_frame.Run(pending_frame_host);
-  return true;
+  return false;
 }
 
 void SendToAllFramesInternal(int* number_of_messages,
@@ -432,18 +411,15 @@ WebContentsImpl::~WebContentsImpl() {
 
   rwh_input_event_router_.reset();
 
-  // Delete all RFH pending shutdown, which will lead the corresponding RVH to
-  // shutdown and be deleted as well.
-  frame_tree_.ForEach(
-      base::Bind(&RenderFrameHostManager::ClearRFHsPendingShutdown));
-
-  // Destroy all WebUI instances.
-  frame_tree_.ForEach(base::Bind(&RenderFrameHostManager::ClearWebUIInstances));
-
-  for (std::set<RenderWidgetHostImpl*>::iterator iter =
-           created_widgets_.begin(); iter != created_widgets_.end(); ++iter) {
-    (*iter)->DetachDelegate();
+  for (FrameTreeNode* node : frame_tree_.Nodes()) {
+    // Delete all RFHs pending shutdown, which will lead the corresponding RVHs
+    // to be shutdown and be deleted as well.
+    node->render_manager()->ClearRFHsPendingShutdown();
+    node->render_manager()->ClearWebUIInstances();
   }
+
+  for (RenderWidgetHostImpl* widget : created_widgets_)
+    widget->DetachDelegate();
   created_widgets_.clear();
 
   // Clear out any JavaScript state.
@@ -524,9 +500,26 @@ WebContentsImpl* WebContentsImpl::CreateWithOpener(
   TRACE_EVENT0("browser", "WebContentsImpl::CreateWithOpener");
   WebContentsImpl* new_contents = new WebContentsImpl(params.browser_context);
 
+  FrameTreeNode* new_root = new_contents->GetFrameTree()->root();
+
   if (!params.opener_suppressed && opener) {
-    new_contents->GetFrameTree()->root()->SetOpener(opener);
+    new_root->SetOpener(opener);
     new_contents->created_with_opener_ = true;
+  }
+
+  // If the opener is sandboxed, a new popup must inherit the opener's sandbox
+  // flags, and these flags take effect immediately.  An exception is if the
+  // opener's sandbox flags lack the PropagatesToAuxiliaryBrowsingContexts
+  // bit (which is controlled by the "allow-popups-to-escape-sandbox" token).
+  // See https://html.spec.whatwg.org/#attr-iframe-sandbox.
+  if (opener) {
+    blink::WebSandboxFlags opener_flags = opener->effective_sandbox_flags();
+    const blink::WebSandboxFlags inherit_flag =
+        blink::WebSandboxFlags::PropagatesToAuxiliaryBrowsingContexts;
+    if ((opener_flags & inherit_flag) == inherit_flag) {
+      new_root->SetPendingSandboxFlags(opener_flags);
+      new_root->CommitPendingSandboxFlags();
+    }
   }
 
   // This may be true even when opener is null, such as when opening blocked
@@ -661,7 +654,7 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
                         OnUnregisterProtocolHandler)
     IPC_MESSAGE_HANDLER(FrameHostMsg_UpdatePageImportanceSignals,
                         OnUpdatePageImportanceSignals)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_Find_Reply, OnFindReply)
+    IPC_MESSAGE_HANDLER(FrameHostMsg_Find_Reply, OnFindReply)
     IPC_MESSAGE_HANDLER(ViewHostMsg_AppCacheAccessed, OnAppCacheAccessed)
     IPC_MESSAGE_HANDLER(ViewHostMsg_WebUISend, OnWebUISend)
 #if defined(ENABLE_PLUGINS)
@@ -684,8 +677,8 @@ bool WebContentsImpl::OnMessageReceived(RenderViewHost* render_view_host,
                         OnHideValidationMessage)
     IPC_MESSAGE_HANDLER(ViewHostMsg_MoveValidationMessage,
                         OnMoveValidationMessage)
-#if defined(OS_ANDROID) && !defined(USE_AURA)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_FindMatchRects_Reply,
+#if defined(OS_ANDROID)
+    IPC_MESSAGE_HANDLER(FrameHostMsg_FindMatchRects_Reply,
                         OnFindMatchRectsReply)
     IPC_MESSAGE_HANDLER(ViewHostMsg_OpenDateTimeDialog,
                         OnOpenDateTimeDialog)
@@ -789,7 +782,9 @@ RenderFrameHostImpl* WebContentsImpl::FindFrameByFrameTreeNodeId(
 
 void WebContentsImpl::ForEachFrame(
     const base::Callback<void(RenderFrameHost*)>& on_frame) {
-  frame_tree_.ForEach(base::Bind(&ForEachFrameInternal, on_frame));
+  for (FrameTreeNode* node : frame_tree_.Nodes()) {
+    on_frame.Run(node->current_frame_host());
+  }
 }
 
 int WebContentsImpl::SendToAllFrames(IPC::Message* message) {
@@ -851,12 +846,14 @@ void WebContentsImpl::SetAccessibilityMode(AccessibilityMode mode) {
     return;
 
   accessibility_mode_ = mode;
-  frame_tree_.ForEach(
-      base::Bind(&ForEachFrameInternal,
-                 base::Bind(&SetAccessibilityModeOnFrame, mode)));
-  frame_tree_.ForEach(
-      base::Bind(&ForEachPendingFrameInternal,
-                 base::Bind(&SetAccessibilityModeOnFrame, mode)));
+
+  for (FrameTreeNode* node : frame_tree_.Nodes()) {
+    SetAccessibilityModeOnFrame(mode, node->current_frame_host());
+    RenderFrameHost* pending_frame_host =
+        node->render_manager()->pending_frame_host();
+    if (pending_frame_host)
+      SetAccessibilityModeOnFrame(mode, pending_frame_host);
+  }
 }
 
 void WebContentsImpl::AddAccessibilityMode(AccessibilityMode mode) {
@@ -1185,8 +1182,7 @@ void WebContentsImpl::NotifyNavigationStateChanged(
           "466285 WebContentsImpl::NotifyNavigationStateChanged"));
   // Notify the media observer of potential audibility changes.
   if (changed_flags & INVALIDATE_TYPE_TAB) {
-    media_web_contents_observer_->MaybeUpdateAudibleState(
-        AudioStreamMonitor::monitoring_available() && WasRecentlyAudible());
+    media_web_contents_observer_->MaybeUpdateAudibleState();
   }
 
   if (delegate_)
@@ -1300,7 +1296,8 @@ void WebContentsImpl::AttachToOuterWebContentsFrame(
 }
 
 void WebContentsImpl::Stop() {
-  frame_tree_.ForEach(base::Bind(&FrameTreeNode::StopLoading));
+  for (FrameTreeNode* node : frame_tree_.Nodes())
+    node->StopLoading();
   FOR_EACH_OBSERVER(WebContentsObserver, observers_, NavigationStopped());
 }
 
@@ -1434,7 +1431,7 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
 
   manifest_manager_host_.reset(new ManifestManagerHost(this));
 
-#if defined(OS_ANDROID) && !defined(USE_AURA)
+#if defined(OS_ANDROID)
   date_time_chooser_.reset(new DateTimeChooserAndroid());
 #endif
 
@@ -1685,11 +1682,13 @@ void WebContentsImpl::EnterFullscreenMode(const GURL& origin) {
     delegate_->EnterFullscreenModeForTab(this, origin);
 
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
-                    DidToggleFullscreenModeForTab(IsFullscreenForCurrentTab(
-                        GetRenderViewHost()->GetWidget())));
+                    DidToggleFullscreenModeForTab(
+                        IsFullscreenForCurrentTab(
+                            GetRenderViewHost()->GetWidget()),
+                        false));
 }
 
-void WebContentsImpl::ExitFullscreenMode() {
+void WebContentsImpl::ExitFullscreenMode(bool will_cause_resize) {
   // This method is being called to leave renderer-initiated fullscreen mode.
   // Make sure any existing fullscreen widget is shut down first.
   RenderWidgetHostView* const widget_view = GetFullscreenRenderWidgetHostView();
@@ -1707,20 +1706,26 @@ void WebContentsImpl::ExitFullscreenMode() {
   if (delegate_)
     delegate_->ExitFullscreenModeForTab(this);
 
-  // Ensure web contents exit fullscreen state by sending a resize message,
-  // which includes the fullscreen state. This is required for the situation
-  // of the browser moving the view into a fullscreen state "browser fullscreen"
-  // and then the contents entering "tab fullscreen". Exiting the contents
-  // "tab fullscreen" then won't have the side effect of the view resizing,
-  // hence the explicit call here is required.
-  if (RenderWidgetHostView* rwh_view = GetRenderWidgetHostView()) {
-    if (RenderWidgetHost* render_widget_host = rwh_view->GetRenderWidgetHost())
-      render_widget_host->WasResized();
+  // The fullscreen state is communicated to the renderer through a resize
+  // message. If the change in fullscreen state doesn't cause a view resize
+  // then we must ensure web contents exit the fullscreen state by explicitly
+  // sending a resize message. This is required for the situation of the browser
+  // moving the view into a "browser fullscreen" state and then the contents
+  // entering "tab fullscreen". Exiting the contents "tab fullscreen" then won't
+  // have the side effect of the view resizing, hence the explicit call here is
+  // required.
+  if (!will_cause_resize) {
+    if (RenderWidgetHostView* rwhv = GetRenderWidgetHostView()) {
+        if (RenderWidgetHost* render_widget_host = rwhv->GetRenderWidgetHost())
+          render_widget_host->WasResized();
+    }
   }
 
   FOR_EACH_OBSERVER(WebContentsObserver, observers_,
-                    DidToggleFullscreenModeForTab(IsFullscreenForCurrentTab(
-                        GetRenderViewHost()->GetWidget())));
+                    DidToggleFullscreenModeForTab(
+                        IsFullscreenForCurrentTab(
+                            GetRenderViewHost()->GetWidget()),
+                        will_cause_resize));
 }
 
 bool WebContentsImpl::IsFullscreenForCurrentTab(
@@ -1806,10 +1811,7 @@ void WebContentsImpl::CreateNewWindow(
   // in this WebContents' FrameTree. If any other process sends the request, it
   // is invalid and the process must be terminated.
   int render_process_id = source_site_instance->GetProcess()->GetID();
-  bool did_match_process = false;
-  frame_tree_.ForEach(
-      base::Bind(&FindMatchingProcess, render_process_id, &did_match_process));
-  if (!did_match_process) {
+  if (!HasMatchingProcess(&frame_tree_, render_process_id)) {
     RenderProcessHost* rph = source_site_instance->GetProcess();
     base::ProcessHandle process_handle = rph->GetHandle();
     if (process_handle != base::kNullProcessHandle) {
@@ -1958,10 +1960,7 @@ void WebContentsImpl::CreateNewWidget(int32_t render_process_id,
   // A message to create a new widget can only come from an active process for
   // this WebContentsImpl instance. If any other process sends the request,
   // it is invalid and the process must be terminated.
-  bool did_match_process = false;
-  frame_tree_.ForEach(
-      base::Bind(&FindMatchingProcess, render_process_id, &did_match_process));
-  if (!did_match_process) {
+  if (!HasMatchingProcess(&frame_tree_, render_process_id)) {
     RenderProcessHost* rph = RenderProcessHost::FromID(render_process_id);
     base::ProcessHandle process_handle = rph->GetHandle();
     if (process_handle != base::kNullProcessHandle) {
@@ -2860,7 +2859,8 @@ void WebContentsImpl::Find(int request_id,
       browser_plugin_embedder_->Find(request_id, search_text, options)) {
     return;
   }
-  Send(new ViewMsg_Find(GetRoutingID(), request_id, search_text, options));
+  GetMainFrame()->Send(new FrameMsg_Find(GetMainFrame()->GetRoutingID(),
+                                         request_id, search_text, options));
 }
 
 void WebContentsImpl::StopFinding(StopFindAction action) {
@@ -2869,7 +2869,8 @@ void WebContentsImpl::StopFinding(StopFindAction action) {
       browser_plugin_embedder_->StopFinding(action)) {
     return;
   }
-  Send(new ViewMsg_StopFinding(GetRoutingID(), action));
+  GetMainFrame()->Send(
+      new FrameMsg_StopFinding(GetMainFrame()->GetRoutingID(), action));
 }
 
 void WebContentsImpl::InsertCSS(const std::string& css) {
@@ -2889,10 +2890,10 @@ void WebContentsImpl::HasManifest(const HasManifestCallback& callback) {
   manifest_manager_host_->HasManifest(GetMainFrame(), callback);
 }
 
-void WebContentsImpl::ExitFullscreen() {
+void WebContentsImpl::ExitFullscreen(bool will_cause_resize) {
   // Clean up related state and initiate the fullscreen exit.
   GetRenderViewHost()->GetWidget()->RejectMouseLockOrUnlockIfNecessary();
-  ExitFullscreenMode();
+  ExitFullscreenMode(will_cause_resize);
 }
 
 void WebContentsImpl::ResumeLoadingCreatedWebContents() {
@@ -3075,7 +3076,7 @@ void WebContentsImpl::DidNavigateMainFramePreCommit(
     return;
   }
   if (IsFullscreenForCurrentTab(GetRenderViewHost()->GetWidget()))
-    ExitFullscreen();
+    ExitFullscreen(false);
   DCHECK(!IsFullscreenForCurrentTab(GetRenderViewHost()->GetWidget()));
 }
 
@@ -3369,7 +3370,7 @@ void WebContentsImpl::OnFindReply(int request_id,
   }
 }
 
-#if defined(OS_ANDROID) && !defined(USE_AURA)
+#if defined(OS_ANDROID)
 void WebContentsImpl::OnFindMatchRectsReply(
     int version,
     const std::vector<gfx::RectF>& rects,
@@ -3947,7 +3948,7 @@ void WebContentsImpl::RenderViewTerminated(RenderViewHost* rvh,
   // Ensure fullscreen mode is exited in the |delegate_| since a crashed
   // renderer may not have made a clean exit.
   if (IsFullscreenForCurrentTab(GetRenderViewHost()->GetWidget()))
-    ExitFullscreenMode();
+    ExitFullscreenMode(false);
 
   // Cancel any visible dialogs so they are not left dangling over the sad tab.
   CancelActiveAndPendingDialogs();
@@ -4581,7 +4582,7 @@ bool WebContentsImpl::CreateRenderFrameForRenderManager(
   return true;
 }
 
-#if defined(OS_ANDROID) && !defined(USE_AURA)
+#if defined(OS_ANDROID)
 
 base::android::ScopedJavaLocalRef<jobject>
 WebContentsImpl::GetJavaWebContents() {

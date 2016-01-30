@@ -407,7 +407,8 @@ class CONTENT_EXPORT WebContentsObserver : public IPC::Listener,
 
   // Invoked when the renderer process has toggled the tab into/out of
   // fullscreen mode.
-  virtual void DidToggleFullscreenModeForTab(bool entered_fullscreen) {}
+  virtual void DidToggleFullscreenModeForTab(bool entered_fullscreen,
+                                             bool will_cause_resize) {}
 
   // Invoked when an interstitial page is attached or detached.
   virtual void DidAttachInterstitialPage() {}
@@ -435,7 +436,7 @@ class CONTENT_EXPORT WebContentsObserver : public IPC::Listener,
   // and subsequently within a WebContents.  MediaStartedPlaying() will always
   // be followed by MediaStoppedPlaying() after player teardown.  Observers must
   // release all stored copies of |id| when MediaStoppedPlaying() is received.
-  using MediaPlayerId = std::pair<RenderFrameHost*, int64_t>;
+  using MediaPlayerId = std::pair<RenderFrameHost*, int>;
   virtual void MediaStartedPlaying(const MediaPlayerId& id) {}
   virtual void MediaStoppedPlaying(const MediaPlayerId& id) {}
 

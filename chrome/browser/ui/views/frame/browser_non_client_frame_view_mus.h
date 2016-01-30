@@ -10,7 +10,6 @@
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view.h"
 #include "chrome/browser/ui/views/tab_icon_view_model.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_observer.h"
-#include "ui/views/controls/button/button.h"
 
 class TabIconView;
 class WebAppLeftHeaderView;
@@ -26,7 +25,6 @@ class ToggleImageButton;
 
 class BrowserNonClientFrameViewMus : public BrowserNonClientFrameView,
                                      public TabIconViewModel,
-                                     public views::ButtonListener,
                                      public TabStripObserver {
  public:
   static const char kViewClassName[];
@@ -67,9 +65,6 @@ class BrowserNonClientFrameViewMus : public BrowserNonClientFrameView,
   // TabIconViewModel:
   bool ShouldTabIconViewAnimate() const override;
   gfx::ImageSkia GetFaviconForTabIconView() override;
-
-  // views::ButtonListener:
-  void ButtonPressed(views::Button* sender, const ui::Event& event) override;
 
  protected:
   // BrowserNonClientFrameView:
@@ -131,9 +126,7 @@ class BrowserNonClientFrameViewMus : public BrowserNonClientFrameView,
   // the packaged app header style.
   void PaintContentEdge(gfx::Canvas* canvas);
 
-  // The holder for the buttons on the left side of the header. This is included
-  // for web app style frames, and includes a back button and location icon.
-  WebAppLeftHeaderView* web_app_left_header_view_;
+  // TODO(sky): Figure out how to support WebAppLeftHeaderView.
 
   // For popups, the window icon.
   TabIconView* window_icon_;

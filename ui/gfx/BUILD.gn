@@ -72,6 +72,8 @@ component("gfx") {
     "display.h",
     "display_change_notifier.cc",
     "display_change_notifier.h",
+    "display_finder.cc",
+    "display_finder.h",
     "display_observer.cc",
     "display_observer.h",
     "favicon_size.cc",
@@ -494,6 +496,8 @@ action("aggregate_vector_icons") {
     "vector_icons/location_on.icon",
     "vector_icons/menu_check.1x.icon",
     "vector_icons/menu_check.icon",
+    "vector_icons/menu_radio_empty.icon",
+    "vector_icons/menu_radio_selected.icon",
     "vector_icons/midi.icon",
     "vector_icons/mixed_content.icon",
     "vector_icons/mode_edit.icon",
@@ -569,6 +573,11 @@ action("aggregate_vector_icons") {
   ]
 
   args = [
+    # TODO(brettw) bug 535386: This should not take a directory as an input,
+    # but rather a response file listing the inputs or sometimes the build will
+    # be incorrect. In this case, Ninja won't be able to do proper dependency
+    # tracking since if a file is deleted, the command line will be the same
+    # and the action will not be re-run.
     "--working_directory=" + rebase_path("vector_icons/"),
     "--output_cc=" + rebase_path(vector_icons_cc_file, root_build_dir),
     "--output_h=" + rebase_path(vector_icons_h_file, root_build_dir),

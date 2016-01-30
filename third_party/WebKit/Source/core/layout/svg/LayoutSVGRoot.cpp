@@ -48,29 +48,30 @@ LayoutSVGRoot::LayoutSVGRoot(SVGElement* node)
     , m_hasNonIsolatedBlendingDescendants(false)
     , m_hasNonIsolatedBlendingDescendantsDirty(false)
 {
+    LayoutSize intrinsicSize(calculateIntrinsicSize());
+    if (!intrinsicSize.width())
+        intrinsicSize.setWidth(LayoutUnit(defaultWidth));
+    if (!intrinsicSize.height())
+        intrinsicSize.setHeight(LayoutUnit(defaultHeight));
+    setIntrinsicSize(intrinsicSize);
 }
 
 LayoutSVGRoot::~LayoutSVGRoot()
 {
 }
 
-void LayoutSVGRoot::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, double& intrinsicRatio) const
+FloatSize LayoutSVGRoot::calculateIntrinsicSize() const
 {
-    // Spec: http://www.w3.org/TR/SVG/coords.html#IntrinsicSizing
-    // SVG needs to specify how to calculate some intrinsic sizing properties to enable inclusion within other languages.
-    // The intrinsic width and height of the viewport of SVG content must be determined from the 'width' and 'height' attributes.
     SVGSVGElement* svg = toSVGSVGElement(node());
     ASSERT(svg);
 
-    // The intrinsic aspect ratio of the viewport of SVG content is necessary for example, when including SVG from an 'object'
-    // element in HTML styled with CSS. It is possible (indeed, common) for an SVG graphic to have an intrinsic aspect ratio but
-    // not to have an intrinsic width or height. The intrinsic aspect ratio must be calculated based upon the following rules:
-    // - The aspect ratio is calculated by dividing a width by a height.
-    // - If the 'width' and 'height' of the rootmost 'svg' element are both specified with unit identifiers (in, mm, cm, pt, pc,
-    //   px, em, ex) or in user units, then the aspect ratio is calculated from the 'width' and 'height' attributes after
-    //   resolving both values to user units.
-    intrinsicSize.setWidth(floatValueForLength(svg->intrinsicWidth(), 0));
-    intrinsicSize.setHeight(floatValueForLength(svg->intrinsicHeight(), 0));
+    return FloatSize(floatValueForLength(svg->intrinsicWidth(), 0), floatValueForLength(svg->intrinsicHeight(), 0));
+}
+
+void LayoutSVGRoot::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, double& intrinsicRatio) const
+{
+    // https://www.w3.org/TR/SVG/coords.html#IntrinsicSizing
+    intrinsicSize = calculateIntrinsicSize();
 
     if (!isHorizontalWritingMode())
         intrinsicSize = intrinsicSize.transposedSize();
@@ -78,10 +79,9 @@ void LayoutSVGRoot::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, d
     if (!intrinsicSize.isEmpty()) {
         intrinsicRatio = intrinsicSize.width() / static_cast<double>(intrinsicSize.height());
     } else {
-        // - If either/both of the 'width' and 'height' of the rootmost 'svg' element are in percentage units (or omitted), the
-        //   aspect ratio is calculated from the width and height values of the 'viewBox' specified for the current SVG document
-        //   fragment. If the 'viewBox' is not correctly specified, or set to 'none', the intrinsic aspect ratio cannot be
-        //   calculated and is considered unspecified.
+        SVGSVGElement* svg = toSVGSVGElement(node());
+        ASSERT(svg);
+
         FloatSize viewBoxSize = svg->viewBox()->currentValue()->value().size();
         if (!viewBoxSize.isEmpty()) {
             // The viewBox can only yield an intrinsic ratio, not an intrinsic size.
@@ -117,15 +117,11 @@ LayoutUnit LayoutSVGRoot::computeReplacedLogicalWidth(ShouldComputePreferred sho
 {
     // When we're embedded through SVGImage (border-image/background-image/<html:img>/...) we're forced to resize to a specific size.
     if (!m_containerSize.isEmpty())
-        return m_containerSize.width();
+        return LayoutUnit(m_containerSize.width());
 
     if (isEmbeddedThroughFrameContainingSVGDocument())
         return containingBlock()->availableLogicalWidth();
 
-    if (style()->logicalWidth().isSpecified() || style()->logicalMaxWidth().isSpecified())
-        return LayoutReplaced::computeReplacedLogicalWidth(shouldComputePreferred);
-
-    // SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
     return LayoutReplaced::computeReplacedLogicalWidth(shouldComputePreferred);
 }
 
@@ -133,15 +129,11 @@ LayoutUnit LayoutSVGRoot::computeReplacedLogicalHeight() const
 {
     // When we're embedded through SVGImage (border-image/background-image/<html:img>/...) we're forced to resize to a specific size.
     if (!m_containerSize.isEmpty())
-        return m_containerSize.height();
+        return LayoutUnit(m_containerSize.height());
 
     if (isEmbeddedThroughFrameContainingSVGDocument())
         return containingBlock()->availableLogicalHeight(IncludeMarginBorderPadding);
 
-    if (style()->logicalHeight().isSpecified() || style()->logicalMaxHeight().isSpecified())
-        return LayoutReplaced::computeReplacedLogicalHeight();
-
-    // SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
     return LayoutReplaced::computeReplacedLogicalHeight();
 }
 
@@ -203,8 +195,6 @@ void LayoutSVGRoot::paintReplaced(const PaintInfo& paintInfo, const LayoutPoint&
 
 void LayoutSVGRoot::willBeDestroyed()
 {
-    LayoutBlock::removePercentHeightDescendant(const_cast<LayoutSVGRoot*>(this));
-
     SVGResourcesCache::clientDestroyed(this);
     LayoutReplaced::willBeDestroyed();
 }
@@ -391,7 +381,7 @@ bool LayoutSVGRoot::nodeAtPoint(HitTestResult& result, const HitTestLocation& lo
                 // FIXME: nodeAtFloatPoint() doesn't handle rect-based hit tests yet.
                 if (child->nodeAtFloatPoint(result, localPoint, hitTestAction)) {
                     updateHitTestResult(result, pointInBorderBox);
-                    if (!result.addNodeToListBasedTestResult(child->node(), locationInContainer))
+                    if (result.addNodeToListBasedTestResult(child->node(), locationInContainer) == StopHitTesting)
                         return true;
                 }
             }
@@ -407,7 +397,7 @@ bool LayoutSVGRoot::nodeAtPoint(HitTestResult& result, const HitTestLocation& lo
         LayoutRect boundsRect(accumulatedOffset + location(), size());
         if (locationInContainer.intersects(boundsRect)) {
             updateHitTestResult(result, pointInBorderBox);
-            if (!result.addNodeToListBasedTestResult(node(), locationInContainer, boundsRect))
+            if (result.addNodeToListBasedTestResult(node(), locationInContainer, boundsRect) == StopHitTesting)
                 return true;
         }
     }
@@ -415,4 +405,4 @@ bool LayoutSVGRoot::nodeAtPoint(HitTestResult& result, const HitTestLocation& lo
     return false;
 }
 
-}
+} // namespace blink

@@ -31,6 +31,7 @@ class Message;
 
 namespace content {
 class GeolocationServiceContext;
+class InterstitialPage;
 class PageState;
 class RenderFrameHost;
 class WakeLockServiceContext;
@@ -116,6 +117,10 @@ class CONTENT_EXPORT RenderFrameHostDelegate {
   // not a WebContents, returns NULL.
   virtual WebContents* GetAsWebContents();
 
+  // Returns this object cast to an InterstitialPage if it is one. Returns
+  // nullptr otherwise.
+  virtual InterstitialPage* GetAsInterstitialPage();
+
   // The render frame has requested access to media devices listed in
   // |request|, and the client should grant or deny that permission by
   // calling |callback|.
@@ -153,7 +158,10 @@ class CONTENT_EXPORT RenderFrameHostDelegate {
   virtual void EnterFullscreenMode(const GURL& origin) {}
 
   // Notification that the frame wants to go out of fullscreen mode.
-  virtual void ExitFullscreenMode() {}
+  // |will_cause_resize| indicates whether the fullscreen change causes a
+  // view resize. e.g. This will be false when going from tab fullscreen to
+  // browser fullscreen.
+  virtual void ExitFullscreenMode(bool will_cause_resize) {}
 
   // Let the delegate decide whether postMessage should be delivered to
   // |target_rfh| from a source frame in the given SiteInstance.  This defaults

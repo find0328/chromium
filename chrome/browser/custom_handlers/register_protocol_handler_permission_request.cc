@@ -37,7 +37,7 @@ RegisterProtocolHandlerPermissionRequest
       bool user_gesture)
     : registry_(registry),
       handler_(handler),
-      url_(url),
+      origin_(url.GetOrigin()),
       user_gesture_(user_gesture) {}
 
 RegisterProtocolHandlerPermissionRequest::
@@ -66,13 +66,13 @@ RegisterProtocolHandlerPermissionRequest::GetMessageText() const {
   return old_handler.IsEmpty() ?
       l10n_util::GetStringFUTF16(
           IDS_REGISTER_PROTOCOL_HANDLER_CONFIRM,
-          base::UTF8ToUTF16(handler_.url().host()),
+          base::UTF8ToUTF16(handler_.url().host_piece()),
           GetProtocolName(handler_)) :
       l10n_util::GetStringFUTF16(
           IDS_REGISTER_PROTOCOL_HANDLER_CONFIRM_REPLACE,
-          base::UTF8ToUTF16(handler_.url().host()),
+          base::UTF8ToUTF16(handler_.url().host_piece()),
           GetProtocolName(handler_),
-          base::UTF8ToUTF16(old_handler.url().host()));
+          base::UTF8ToUTF16(old_handler.url().host_piece()));
 }
 
 base::string16
@@ -85,15 +85,15 @@ RegisterProtocolHandlerPermissionRequest::GetMessageTextFragment() const {
       l10n_util::GetStringFUTF16(
           IDS_REGISTER_PROTOCOL_HANDLER_CONFIRM_REPLACE_FRAGMENT,
           GetProtocolName(handler_),
-          base::UTF8ToUTF16(old_handler.url().host()));
+          base::UTF8ToUTF16(old_handler.url().host_piece()));
 }
 
 bool RegisterProtocolHandlerPermissionRequest::HasUserGesture() const {
   return user_gesture_;
 }
 
-GURL RegisterProtocolHandlerPermissionRequest::GetRequestingHostname() const {
-  return url_;
+GURL RegisterProtocolHandlerPermissionRequest::GetOrigin() const {
+  return origin_;
 }
 
 void RegisterProtocolHandlerPermissionRequest::PermissionGranted() {

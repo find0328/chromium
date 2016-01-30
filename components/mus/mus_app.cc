@@ -8,10 +8,9 @@
 #include "build/build_config.h"
 #include "components/mus/common/args.h"
 #include "components/mus/gles2/gpu_impl.h"
-#include "components/mus/surfaces/surfaces_scheduler.h"
 #include "components/mus/ws/client_connection.h"
 #include "components/mus/ws/connection_manager.h"
-#include "components/mus/ws/forwarding_window_manager.h"
+#include "components/mus/ws/window_tree_factory.h"
 #include "components/mus/ws/window_tree_host_connection.h"
 #include "components/mus/ws/window_tree_host_impl.h"
 #include "components/mus/ws/window_tree_impl.h"
@@ -39,6 +38,12 @@ using mus::mojom::WindowTreeHostFactory;
 using mus::mojom::Gpu;
 
 namespace mus {
+
+// TODO(sky): this is a pretty typical pattern, make it easier to do.
+struct MandolineUIServicesApp::PendingRequest {
+  scoped_ptr<mojo::InterfaceRequest<mojom::DisplayManager>> dm_request;
+  scoped_ptr<mojo::InterfaceRequest<mojom::WindowTreeFactory>> wtf_request;
+};
 
 MandolineUIServicesApp::MandolineUIServicesApp()
     : app_impl_(nullptr) {}
@@ -88,16 +93,21 @@ void MandolineUIServicesApp::Initialize(ApplicationImpl* app) {
 bool MandolineUIServicesApp::ConfigureIncomingConnection(
     ApplicationConnection* connection) {
   connection->AddService<Gpu>(this);
-  connection->AddService<mojom::WindowManager>(this);
+  connection->AddService<mojom::DisplayManager>(this);
+  connection->AddService<mojom::WindowTreeFactory>(this);
   connection->AddService<WindowTreeHostFactory>(this);
   return true;
 }
 
 void MandolineUIServicesApp::OnFirstRootConnectionCreated() {
-  WindowManagerRequests requests;
-  requests.swap(pending_window_manager_requests_);
-  for (auto& request : requests)
-    Create(nullptr, std::move(*request));
+  PendingRequests requests;
+  requests.swap(pending_requests_);
+  for (auto& request : requests) {
+    if (request->dm_request)
+      Create(nullptr, std::move(*request->dm_request));
+    else
+      Create(nullptr, std::move(*request->wtf_request));
+  }
 }
 
 void MandolineUIServicesApp::OnNoMoreRootConnections() {
@@ -120,18 +130,33 @@ MandolineUIServicesApp::CreateClientConnectionForEmbedAtWindow(
 
 void MandolineUIServicesApp::Create(
     mojo::ApplicationConnection* connection,
-    mojo::InterfaceRequest<mojom::WindowManager> request) {
+    mojo::InterfaceRequest<mojom::DisplayManager> request) {
   if (!connection_manager_->has_tree_host_connections()) {
-    pending_window_manager_requests_.push_back(make_scoped_ptr(
-        new mojo::InterfaceRequest<mojom::WindowManager>(std::move(request))));
+    scoped_ptr<PendingRequest> pending_request(new PendingRequest);
+    pending_request->dm_request.reset(
+        new mojo::InterfaceRequest<mojom::DisplayManager>(std::move(request)));
+    pending_requests_.push_back(std::move(pending_request));
     return;
   }
-  if (!window_manager_impl_) {
-    window_manager_impl_.reset(
-        new ws::ForwardingWindowManager(connection_manager_.get()));
+  connection_manager_->AddDisplayManagerBinding(std::move(request));
+}
+
+void MandolineUIServicesApp::Create(
+    ApplicationConnection* connection,
+    InterfaceRequest<mojom::WindowTreeFactory> request) {
+  if (!connection_manager_->has_tree_host_connections()) {
+    scoped_ptr<PendingRequest> pending_request(new PendingRequest);
+    pending_request->wtf_request.reset(
+        new mojo::InterfaceRequest<mojom::WindowTreeFactory>(
+            std::move(request)));
+    pending_requests_.push_back(std::move(pending_request));
+    return;
   }
-  window_manager_bindings_.AddBinding(window_manager_impl_.get(),
-                                      std::move(request));
+  if (!window_tree_factory_) {
+    window_tree_factory_.reset(
+        new ws::WindowTreeFactory(connection_manager_.get()));
+  }
+  window_tree_factory_->AddBinding(std::move(request));
 }
 
 void MandolineUIServicesApp::Create(
@@ -149,15 +174,14 @@ void MandolineUIServicesApp::Create(mojo::ApplicationConnection* connection,
 void MandolineUIServicesApp::CreateWindowTreeHost(
     mojo::InterfaceRequest<mojom::WindowTreeHost> host,
     mojom::WindowTreeHostClientPtr host_client,
-    mojom::WindowTreeClientPtr tree_client,
-    mojom::WindowManagerPtr window_manager) {
+    mojom::WindowTreeClientPtr tree_client) {
   DCHECK(connection_manager_);
 
   // TODO(fsamuel): We need to make sure that only the window manager can create
   // new roots.
   ws::WindowTreeHostImpl* host_impl = new ws::WindowTreeHostImpl(
       std::move(host_client), connection_manager_.get(), app_impl_, gpu_state_,
-      surfaces_state_, std::move(window_manager));
+      surfaces_state_);
 
   // WindowTreeHostConnection manages its own lifetime.
   host_impl->Init(new ws::WindowTreeHostConnectionImpl(

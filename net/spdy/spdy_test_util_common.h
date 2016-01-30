@@ -188,6 +188,7 @@ struct SpdySessionDependencies {
   // NOTE: host_resolver must be ordered before http_auth_handler_factory.
   scoped_ptr<MockHostResolverBase> host_resolver;
   scoped_ptr<CertVerifier> cert_verifier;
+  scoped_ptr<ChannelIDService> channel_id_service;
   scoped_ptr<TransportSecurityState> transport_security_state;
   scoped_ptr<ProxyService> proxy_service;
   scoped_refptr<SSLConfigService> ssl_config_service;
@@ -205,7 +206,8 @@ struct SpdySessionDependencies {
   SpdySession::TimeFunc time_func;
   NextProtoVector next_protos;
   std::string trusted_spdy_proxy;
-  bool use_alternative_services;
+  bool parse_alternative_services;
+  bool enable_alternative_service_with_different_host;
   NetLog* net_log;
 };
 

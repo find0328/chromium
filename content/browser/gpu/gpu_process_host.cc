@@ -604,10 +604,6 @@ bool GpuProcessHost::OnMessageReceived(const IPC::Message& message) {
                         OnGpuMemoryBufferCreated)
     IPC_MESSAGE_HANDLER(GpuHostMsg_DidCreateOffscreenContext,
                         OnDidCreateOffscreenContext)
-#if defined(OS_CHROMEOS)
-    IPC_MESSAGE_HANDLER(GpuHostMsg_ArcVideoAcceleratorChannelCreated,
-                        OnArcVideoAcceleratorChannelCreated)
-#endif
     IPC_MESSAGE_HANDLER(GpuHostMsg_DidLoseContext, OnDidLoseContext)
     IPC_MESSAGE_HANDLER(GpuHostMsg_DidDestroyOffscreenContext,
                         OnDidDestroyOffscreenContext)
@@ -636,25 +632,28 @@ bool GpuProcessHost::OnMessageReceived(const IPC::Message& message) {
 void GpuProcessHost::OnAcceleratedSurfaceCreatedChildWindow(
     const gfx::PluginWindowHandle& parent_handle,
     const gfx::PluginWindowHandle& window_handle) {
-  DCHECK(process_);
-  {
-    DWORD process_id = 0;
-    DWORD thread_id = GetWindowThreadProcessId(parent_handle, &process_id);
+  if (!in_process_) {
+    DCHECK(process_);
+    {
+      DWORD process_id = 0;
+      DWORD thread_id = GetWindowThreadProcessId(parent_handle, &process_id);
 
-    if (!thread_id || process_id != ::GetCurrentProcessId()) {
-      process_->TerminateOnBadMessageReceived(
-          GpuHostMsg_AcceleratedSurfaceCreatedChildWindow::ID);
-      return;
+      if (!thread_id || process_id != ::GetCurrentProcessId()) {
+        process_->TerminateOnBadMessageReceived(
+            GpuHostMsg_AcceleratedSurfaceCreatedChildWindow::ID);
+        return;
+      }
     }
-  }
-  {
-    DWORD process_id = 0;
-    DWORD thread_id = GetWindowThreadProcessId(window_handle, &process_id);
 
-    if (!thread_id || process_id != process_->GetProcess().Pid()) {
-      process_->TerminateOnBadMessageReceived(
-          GpuHostMsg_AcceleratedSurfaceCreatedChildWindow::ID);
-      return;
+    {
+      DWORD process_id = 0;
+      DWORD thread_id = GetWindowThreadProcessId(window_handle, &process_id);
+
+      if (!thread_id || process_id != process_->GetProcess().Pid()) {
+        process_->TerminateOnBadMessageReceived(
+            GpuHostMsg_AcceleratedSurfaceCreatedChildWindow::ID);
+        return;
+      }
     }
   }
 
@@ -676,7 +675,6 @@ void GpuProcessHost::EstablishGpuChannel(
     uint64_t client_tracing_id,
     bool preempts,
     bool preempted,
-    bool allow_future_sync_points,
     bool allow_real_time_streams,
     const EstablishChannelCallback& callback) {
   DCHECK(CalledOnValidThread());
@@ -694,7 +692,6 @@ void GpuProcessHost::EstablishGpuChannel(
   params.client_tracing_id = client_tracing_id;
   params.preempts = preempts;
   params.preempted = preempted;
-  params.allow_future_sync_points = allow_future_sync_points;
   params.allow_real_time_streams = allow_real_time_streams;
   if (Send(new GpuMsg_EstablishChannel(params))) {
     channel_requests_.push(callback);
@@ -791,19 +788,6 @@ void GpuProcessHost::DestroyGpuMemoryBuffer(gfx::GpuMemoryBufferId id,
   Send(new GpuMsg_DestroyGpuMemoryBuffer(id, client_id, sync_token));
 }
 
-#if defined(OS_CHROMEOS)
-void GpuProcessHost::CreateArcVideoAcceleratorChannel(
-    const CreateArcVideoAcceleratorChannelCallback& callback) {
-  DCHECK(CalledOnValidThread());
-
-  if (Send(new GpuMsg_CreateArcVideoAcceleratorChannel())) {
-    create_arc_video_accelerator_channel_requests_.push(callback);
-  } else {
-    callback.Run(IPC::ChannelHandle());
-  }
-}
-#endif
-
 void GpuProcessHost::OnInitialized(bool result, const gpu::GPUInfo& gpu_info) {
   UMA_HISTOGRAM_BOOLEAN("GPU.GPUProcessInitialized", result);
   initialized_ = result;
@@ -870,24 +854,6 @@ void GpuProcessHost::OnGpuMemoryBufferCreated(
   create_gpu_memory_buffer_requests_.pop();
   callback.Run(handle);
 }
-
-#if defined(OS_CHROMEOS)
-void GpuProcessHost::OnArcVideoAcceleratorChannelCreated(
-    const IPC::ChannelHandle& handle) {
-  if (create_arc_video_accelerator_channel_requests_.empty()) {
-    RouteOnUIThread(
-        GpuHostMsg_OnLogMessage(logging::LOG_WARNING, "WARNING",
-                                "Received a ArcVideoAcceleratorChannelCreated "
-                                "message but no requests in queue."));
-    return;
-  }
-
-  CreateArcVideoAcceleratorChannelCallback callback =
-      create_arc_video_accelerator_channel_requests_.front();
-  create_arc_video_accelerator_channel_requests_.pop();
-  callback.Run(handle);
-}
-#endif
 
 void GpuProcessHost::OnDidCreateOffscreenContext(const GURL& url) {
   urls_with_live_offscreen_contexts_.insert(url);
@@ -1094,15 +1060,6 @@ void GpuProcessHost::SendOutstandingReplies() {
     create_gpu_memory_buffer_requests_.pop();
     callback.Run(gfx::GpuMemoryBufferHandle());
   }
-
-#if defined(OS_CHROMEOS)
-  while (!create_arc_video_accelerator_channel_requests_.empty()) {
-    CreateArcVideoAcceleratorChannelCallback callback =
-        create_arc_video_accelerator_channel_requests_.front();
-    create_arc_video_accelerator_channel_requests_.pop();
-    callback.Run(IPC::ChannelHandle());
-  }
-#endif
 }
 
 void GpuProcessHost::BlockLiveOffscreenContexts() {

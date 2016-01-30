@@ -14,6 +14,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.StrictMode;
+import android.os.SystemClock;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
@@ -38,6 +39,7 @@ import org.chromium.chrome.browser.widget.RoundedIconGenerator;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
@@ -452,7 +454,7 @@ public class NotificationUIManager {
                 NotificationConstants.ACTION_CLOSE_NOTIFICATION, persistentNotificationId, origin,
                 profileId, incognito, tag, -1 /* actionIndex */);
 
-        NotificationBuilder notificationBuilder =
+        NotificationBuilderBase notificationBuilder =
                 createNotificationBuilder()
                         .setTitle(title)
                         .setBody(body)
@@ -494,13 +496,16 @@ public class NotificationUIManager {
         StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
         StrictMode.allowThreadDiskWrites();
         try {
+            long time = SystemClock.elapsedRealtime();
             mNotificationManager.notify(platformTag, PLATFORM_ID, notificationBuilder.build());
+            RecordHistogram.recordTimesHistogram("Android.StrictMode.NotificationUIBuildTime",
+                    SystemClock.elapsedRealtime() - time, TimeUnit.MILLISECONDS);
         } finally {
             StrictMode.setThreadPolicy(oldPolicy);
         }
     }
 
-    private NotificationBuilder createNotificationBuilder() {
+    private NotificationBuilderBase createNotificationBuilder() {
         if (useCustomLayouts()) {
             return new CustomNotificationBuilder(mAppContext);
         }

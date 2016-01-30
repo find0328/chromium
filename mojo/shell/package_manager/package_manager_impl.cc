@@ -72,7 +72,7 @@ void PackageManagerImpl::SetApplicationManager(ApplicationManager* manager) {
 void PackageManagerImpl::FetchRequest(
     URLRequestPtr request,
     const Fetcher::FetchCallback& loader_callback) {
-  GURL url(request->url);
+  GURL url(request->url.get());
   if (url.SchemeIs(AboutFetcher::kAboutScheme)) {
     AboutFetcher::Start(url, loader_callback);
     return;
@@ -129,7 +129,7 @@ uint32_t PackageManagerImpl::HandleWithContentHandler(
                                  std::move(response));
     return connection->id();
   }
-  return Shell::kInvalidContentHandlerID;
+  return Shell::kInvalidApplicationID;
 }
 
 GURL PackageManagerImpl::ResolveURL(const GURL& url) {

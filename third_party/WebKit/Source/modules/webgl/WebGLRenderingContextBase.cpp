@@ -444,7 +444,7 @@ void StripComments::process(UChar c)
 }
 
 static bool shouldFailContextCreationForTesting = false;
-} // namespace anonymous
+} // namespace
 
 class ScopedTexture2DRestorer {
     STACK_ALLOCATED();
@@ -939,7 +939,7 @@ bool isSRGBFormat(GLenum internalformat)
     }
 }
 
-} // namespace anonymous
+} // namespace
 
 WebGLRenderingContextBase::WebGLRenderingContextBase(HTMLCanvasElement* passedCanvas, PassOwnPtr<WebGraphicsContext3D> context, const WebGLContextAttributes& requestedAttributes)
     : CanvasRenderingContext(passedCanvas)
@@ -962,6 +962,9 @@ WebGLRenderingContextBase::WebGLRenderingContextBase(HTMLCanvasElement* passedCa
     , m_isOESTextureHalfFloatFormatsTypesAdded(false)
     , m_isWebGLDepthTextureFormatsTypesAdded(false)
     , m_isEXTsRGBFormatsTypesAdded(false)
+#if !ENABLE(OILPAN)
+    , m_weakPtrFactory(this)
+#endif
 {
     ASSERT(context);
 
@@ -978,7 +981,7 @@ WebGLRenderingContextBase::WebGLRenderingContextBase(HTMLCanvasElement* passedCa
     }
 
     m_drawingBuffer = buffer.release();
-
+    m_drawingBuffer->addNewMailboxCallback(WTF::bind(&WebGLRenderingContextBase::notifyCanvasContextChanged, createWeakThisPointer()));
     drawingBuffer()->bind(GL_FRAMEBUFFER);
     setupFlags();
 
@@ -1238,6 +1241,14 @@ void WebGLRenderingContextBase::markContextChanged(ContentChangeType changeType)
             canvas()->didDraw(FloatRect(FloatPoint(0, 0), FloatSize(clampedCanvasSize())));
         }
     }
+}
+
+void WebGLRenderingContextBase::notifyCanvasContextChanged()
+{
+    if (!canvas())
+        return;
+
+    canvas()->notifyListenersCanvasChanged();
 }
 
 WebGLRenderingContextBase::HowToClear WebGLRenderingContextBase::clearIfComposited(GLbitfield mask)
@@ -1761,16 +1772,15 @@ GLenum WebGLRenderingContextBase::checkFramebufferStatus(GLenum target)
         return 0;
     }
     WebGLFramebuffer* framebufferBinding = getFramebufferBinding(target);
-    if (!framebufferBinding || !framebufferBinding->object())
-        return GL_FRAMEBUFFER_COMPLETE;
-    const char* reason = "framebuffer incomplete";
-    GLenum result = framebufferBinding->checkStatus(&reason);
-    if (result != GL_FRAMEBUFFER_COMPLETE) {
-        emitGLWarning("checkFramebufferStatus", reason);
-        return result;
+    if (framebufferBinding) {
+        const char* reason = "framebuffer incomplete";
+        GLenum status = framebufferBinding->checkDepthStencilStatus(&reason);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            emitGLWarning("checkFramebufferStatus", reason);
+            return status;
+        }
     }
-    result = webContext()->checkFramebufferStatus(target);
-    return result;
+    return webContext()->checkFramebufferStatus(target);
 }
 
 void WebGLRenderingContextBase::clear(GLbitfield mask)
@@ -1782,7 +1792,7 @@ void WebGLRenderingContextBase::clear(GLbitfield mask)
         return;
     }
     const char* reason = "framebuffer incomplete";
-    if (m_framebufferBinding && !m_framebufferBinding->onAccess(webContext(), &reason)) {
+    if (m_framebufferBinding && m_framebufferBinding->checkDepthStencilStatus(&reason) != GL_FRAMEBUFFER_COMPLETE) {
         synthesizeGLError(GL_INVALID_FRAMEBUFFER_OPERATION, "clear", reason);
         return;
     }
@@ -3722,7 +3732,7 @@ bool WebGLRenderingContextBase::validateReadBufferAndGetInfo(const char* functio
     readFramebufferBinding = getFramebufferBinding(target);
     if (readFramebufferBinding) {
         const char* reason = "framebuffer incomplete";
-        if (!readFramebufferBinding->onAccess(webContext(), &reason)) {
+        if (readFramebufferBinding->checkStatus(&reason) != GL_FRAMEBUFFER_COMPLETE) {
             synthesizeGLError(GL_INVALID_FRAMEBUFFER_OPERATION, functionName, reason);
             return false;
         }
@@ -5513,14 +5523,16 @@ ScriptValue WebGLRenderingContextBase::getWebGLIntArrayParameter(ScriptState* sc
 void WebGLRenderingContextBase::handleTextureCompleteness(const char* functionName, bool prepareToDraw)
 {
     // All calling functions check isContextLost, so a duplicate check is not needed here.
+    // We only handle the situation with float/half_float textures here. Other situations are handled in command buffer.
     bool resetActiveUnit = false;
     WebGLTexture::TextureExtensionFlag flag = static_cast<WebGLTexture::TextureExtensionFlag>((extensionEnabled(OESTextureFloatLinearName) ? WebGLTexture::TextureFloatLinearExtensionEnabled : 0)
         | ((extensionEnabled(OESTextureHalfFloatLinearName) || isWebGL2OrHigher()) ? WebGLTexture::TextureHalfFloatLinearExtensionEnabled : 0));
     for (unsigned ii = 0; ii < m_onePlusMaxNonDefaultTextureUnit; ++ii) {
         const WebGLSamplerState* samplerState2D = getTextureUnitSamplerState(GL_TEXTURE_2D, ii);
         const WebGLSamplerState* samplerStateCubeMap = getTextureUnitSamplerState(GL_TEXTURE_CUBE_MAP, ii);
-        if ((m_textureUnits[ii].m_texture2DBinding.get() && m_textureUnits[ii].m_texture2DBinding->needToUseBlackTexture(flag, samplerState2D))
-            || (m_textureUnits[ii].m_textureCubeMapBinding.get() && m_textureUnits[ii].m_textureCubeMapBinding->needToUseBlackTexture(flag, samplerStateCubeMap))) {
+        bool needToUseBlackTex2D = (m_textureUnits[ii].m_texture2DBinding.get() && m_textureUnits[ii].m_texture2DBinding->needToUseBlackTexture(flag, samplerState2D));
+        bool needToUseBlackTexCubeMap = (m_textureUnits[ii].m_textureCubeMapBinding.get() && m_textureUnits[ii].m_textureCubeMapBinding->needToUseBlackTexture(flag, samplerStateCubeMap));
+        if (needToUseBlackTex2D || needToUseBlackTexCubeMap) {
             if (ii != m_activeTextureUnit) {
                 webContext()->activeTexture(GL_TEXTURE0 + ii);
                 resetActiveUnit = true;
@@ -5532,8 +5544,7 @@ void WebGLRenderingContextBase::handleTextureCompleteness(const char* functionNa
             WebGLTexture* texCubeMap;
             if (prepareToDraw) {
                 String msg(String("texture bound to texture unit ") + String::number(ii)
-                    + " is not renderable. It maybe non-power-of-2 and have incompatible texture filtering or is not 'texture complete'."
-                    + " Or the texture is Float or Half Float type with linear filtering while OES_float_linear or OES_half_float_linear extension is not enabled.");
+                    + " is not renderable. Texture is Float or Half Float type with linear filtering while OES_float_linear or OES_half_float_linear extension is not enabled.");
                 emitGLWarning(functionName, msg.utf8().data());
                 tex2D = m_blackTexture2D.get();
                 texCubeMap = m_blackTextureCubeMap.get();
@@ -5541,9 +5552,9 @@ void WebGLRenderingContextBase::handleTextureCompleteness(const char* functionNa
                 tex2D = m_textureUnits[ii].m_texture2DBinding.get();
                 texCubeMap = m_textureUnits[ii].m_textureCubeMapBinding.get();
             }
-            if (m_textureUnits[ii].m_texture2DBinding && m_textureUnits[ii].m_texture2DBinding->needToUseBlackTexture(flag, samplerState2D))
+            if (needToUseBlackTex2D)
                 webContext()->bindTexture(GL_TEXTURE_2D, objectOrZero(tex2D));
-            if (m_textureUnits[ii].m_textureCubeMapBinding && m_textureUnits[ii].m_textureCubeMapBinding->needToUseBlackTexture(flag, samplerStateCubeMap))
+            if (needToUseBlackTexCubeMap)
                 webContext()->bindTexture(GL_TEXTURE_CUBE_MAP, objectOrZero(texCubeMap));
         }
     }
@@ -6007,11 +6018,11 @@ bool WebGLRenderingContextBase::validateCompressedTexFuncData(const char* functi
                 (int)format - GL_COMPRESSED_RGBA_ASTC_4x4_KHR : (int)format - GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR;
 
             const int kBlockSize = 16;
-            const int kBlockWidth = WebGLCompressedTextureASTC::kBlockSizeCompressASTC[index].blockWidth;
-            const int kBlockHeight = WebGLCompressedTextureASTC::kBlockSizeCompressASTC[index].blockHeight;
+            const int blockWidth = WebGLCompressedTextureASTC::kBlockSizeCompressASTC[index].blockWidth;
+            const int blockHeight = WebGLCompressedTextureASTC::kBlockSizeCompressASTC[index].blockHeight;
 
-            CheckedInt<unsigned> numBlocksAcross = (CheckedInt<unsigned>(width) + kBlockWidth - 1) / kBlockWidth;
-            CheckedInt<unsigned> numBlocksDown = (CheckedInt<unsigned>(height) + kBlockHeight - 1) / kBlockHeight;
+            CheckedInt<unsigned> numBlocksAcross = (CheckedInt<unsigned>(width) + blockWidth - 1) / blockWidth;
+            CheckedInt<unsigned> numBlocksDown = (CheckedInt<unsigned>(height) + blockHeight - 1) / blockHeight;
             CheckedInt<unsigned> numBlocks = numBlocksAcross * numBlocksDown;
             bytesRequired = numBlocks * kBlockSize;
         }
@@ -6545,7 +6556,7 @@ bool WebGLRenderingContextBase::validateHTMLVideoElement(const char* functionNam
 bool WebGLRenderingContextBase::validateImageBitmap(const char* functionName, ImageBitmap* bitmap, ExceptionState& exceptionState)
 {
     if (bitmap->isNeutered()) {
-        synthesizeGLError(GL_INVALID_VALUE, "texImage2D", "The source data has been neutered.");
+        synthesizeGLError(GL_INVALID_VALUE, functionName, "The source data has been neutered.");
         return false;
     }
     if (!bitmap->originClean()) {
@@ -6568,7 +6579,7 @@ bool WebGLRenderingContextBase::validateDrawArrays(const char* functionName, GLe
     }
 
     const char* reason = "framebuffer incomplete";
-    if (m_framebufferBinding && !m_framebufferBinding->onAccess(webContext(), &reason)) {
+    if (m_framebufferBinding && m_framebufferBinding->checkStatus(&reason) != GL_FRAMEBUFFER_COMPLETE) {
         synthesizeGLError(GL_INVALID_FRAMEBUFFER_OPERATION, functionName, reason);
         return false;
     }
@@ -6597,7 +6608,7 @@ bool WebGLRenderingContextBase::validateDrawElements(const char* functionName, G
     }
 
     const char* reason = "framebuffer incomplete";
-    if (m_framebufferBinding && !m_framebufferBinding->onAccess(webContext(), &reason)) {
+    if (m_framebufferBinding && m_framebufferBinding->checkStatus(&reason) != GL_FRAMEBUFFER_COMPLETE) {
         synthesizeGLError(GL_INVALID_FRAMEBUFFER_OPERATION, functionName, reason);
         return false;
     }
@@ -6663,6 +6674,7 @@ void WebGLRenderingContextBase::maybeRestoreContext(Timer<WebGLRenderingContextB
     }
 
     m_drawingBuffer = buffer.release();
+    m_drawingBuffer->addNewMailboxCallback(WTF::bind(&WebGLRenderingContextBase::notifyCanvasContextChanged, createWeakThisPointer()));
 
     drawingBuffer()->bind(GL_FRAMEBUFFER);
     m_lostContextErrors.clear();
@@ -6742,7 +6754,7 @@ String GetErrorString(GLenum error)
     }
 }
 
-} // namespace anonymous
+} // namespace
 
 void WebGLRenderingContextBase::synthesizeGLError(GLenum error, const char* functionName, const char* description, ConsoleDisplayPreference display)
 {

@@ -22,19 +22,13 @@ const SkColor kWarmWelcomeColor = SkColorSetRGB(0x64, 0x64, 0x64);
 
 @implementation PendingPasswordViewController
 
-- (id)initWithModel:(ManagePasswordsBubbleModel*)model
-           delegate:(id<ManagePasswordsBubbleContentViewDelegate>)delegate {
-  if (([super initWithDelegate:delegate])) {
-    model_ = model;
-  }
-  return self;
-}
-
 - (BOOL)textView:(NSTextView*)textView
     clickedOnLink:(id)link
           atIndex:(NSUInteger)charIndex {
-  model_->OnBrandLinkClicked();
-  [delegate_ viewShouldDismiss];
+  ManagePasswordsBubbleModel* model = [self model];
+  if (model)
+    model->OnBrandLinkClicked();
+  [self.delegate viewShouldDismiss];
   return YES;
 }
 
@@ -44,7 +38,7 @@ const SkColor kWarmWelcomeColor = SkColorSetRGB(0x64, 0x64, 0x64);
   base::scoped_nsobject<NSButton> button(
       [[WebUIHoverCloseButton alloc] initWithFrame:frame]);
   [button setAction:@selector(viewShouldDismiss)];
-  [button setTarget:delegate_];
+  [button setTarget:self.delegate];
   return button;
 }
 
@@ -90,35 +84,9 @@ const SkColor kWarmWelcomeColor = SkColorSetRGB(0x64, 0x64, 0x64);
   [view addSubview:closeButton_];
 
   // Title.
-  base::scoped_nsobject<HyperlinkTextView> titleView(
-      [[HyperlinkTextView alloc] initWithFrame:NSZeroRect]);
-  NSColor* textColor = [NSColor blackColor];
-  NSFont* font = ResourceBundle::GetSharedInstance()
-                     .GetFontList(ResourceBundle::SmallFont)
-                     .GetPrimaryFont()
-                     .GetNativeFont();
-  [titleView setMessage:base::SysUTF16ToNSString(model_->title())
-               withFont:font
-           messageColor:textColor];
-  NSRange titleBrandLinkRange = model_->title_brand_link_range().ToNSRange();
-  if (titleBrandLinkRange.length) {
-    NSColor* linkColor =
-        skia::SkColorToCalibratedNSColor(chrome_style::GetLinkColor());
-    [titleView addLinkRange:titleBrandLinkRange
-                    withURL:nil
-                  linkColor:linkColor];
-    [titleView.get() setDelegate:self];
-
-    // Create the link with no underlining.
-    [titleView setLinkTextAttributes:nil];
-    NSTextStorage* text = [titleView textStorage];
-    [text addAttribute:NSUnderlineStyleAttributeName
-                 value:@(NSUnderlineStyleNone)
-                 range:titleBrandLinkRange];
-  } else {
-    // TODO(vasilii): remove if crbug.com/515189 is fixed.
-    [titleView setRefusesFirstResponder:YES];
-  }
+  ManagePasswordsBubbleModel* model = [self model];
+  HyperlinkTextView* titleView = TitleLabelWithLink(
+      model->title(), model->title_brand_link_range(), self);
 
   // Force the text to wrap to fit in the bubble size.
   int titleRightPadding =
@@ -204,7 +172,7 @@ const SkColor kWarmWelcomeColor = SkColorSetRGB(0x64, 0x64, 0x64);
 }
 
 - (ManagePasswordsBubbleModel*)model {
-  return model_;
+  return [self.delegate model];
 }
 
 @end

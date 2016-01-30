@@ -14,6 +14,7 @@
 #include "components/scheduler/base/task_queue_selector.h"
 #include "components/scheduler/base/virtual_time_domain.h"
 #include "components/scheduler/child/scheduler_tqm_delegate.h"
+#include "components/scheduler/renderer/web_view_scheduler_impl.h"
 #include "components/scheduler/renderer/webthread_impl_for_renderer_scheduler.h"
 
 namespace scheduler {
@@ -23,9 +24,9 @@ namespace {
 // second on a mobile device) so we take a very pesimistic view when estimating
 // the cost of loading tasks.
 const int kLoadingTaskEstimationSampleCount = 1000;
-const double kLoadingTaskEstimationPercentile = 98;
-const int kTimerTaskEstimationSampleCount = 200;
-const double kTimerTaskEstimationPercentile = 90;
+const double kLoadingTaskEstimationPercentile = 99;
+const int kTimerTaskEstimationSampleCount = 1000;
+const double kTimerTaskEstimationPercentile = 99;
 const int kShortIdlePeriodDurationSampleCount = 10;
 const double kShortIdlePeriodDurationPercentile = 50;
 }
@@ -120,6 +121,8 @@ RendererSchedulerImpl::MainThreadOnly::MainThreadOnly(
       timer_tasks_seem_expensive(false),
       touchstart_expected_soon(false),
       have_seen_a_begin_main_frame(false),
+      have_reported_blocking_intervention_in_current_policy(false),
+      have_reported_blocking_intervention_since_navigation(false),
       has_visible_render_widget_with_touch_handler(false),
       begin_frame_not_expected_soon(false),
       expensive_task_blocking_allowed(true) {}
@@ -188,6 +191,8 @@ scoped_refptr<TaskQueue> RendererSchedulerImpl::NewLoadingTaskRunner(
   scoped_refptr<TaskQueue> loading_task_queue(helper_.NewTaskQueue(
       TaskQueue::Spec(name).SetShouldMonitorQuiescence(true)));
   loading_task_runners_.insert(loading_task_queue);
+  loading_task_queue->SetQueueEnabled(
+      MainThreadOnly().current_policy.loading_queue_policy.is_enabled);
   loading_task_queue->SetQueuePriority(
       MainThreadOnly().current_policy.loading_queue_policy.priority);
   loading_task_queue->AddTaskObserver(
@@ -198,9 +203,13 @@ scoped_refptr<TaskQueue> RendererSchedulerImpl::NewLoadingTaskRunner(
 scoped_refptr<TaskQueue> RendererSchedulerImpl::NewTimerTaskRunner(
     const char* name) {
   helper_.CheckOnValidThread();
-  scoped_refptr<TaskQueue> timer_task_queue(helper_.NewTaskQueue(
-      TaskQueue::Spec(name).SetShouldMonitorQuiescence(true)));
+  scoped_refptr<TaskQueue> timer_task_queue(
+      helper_.NewTaskQueue(TaskQueue::Spec(name)
+                               .SetShouldMonitorQuiescence(true)
+                               .SetShouldReportWhenExecutionBlocked(true)));
   timer_task_runners_.insert(timer_task_queue);
+  timer_task_queue->SetQueueEnabled(
+      MainThreadOnly().current_policy.timer_queue_policy.is_enabled);
   timer_task_queue->SetQueuePriority(
       MainThreadOnly().current_policy.timer_queue_policy.priority);
   timer_task_queue->AddTaskObserver(
@@ -215,6 +224,9 @@ RendererSchedulerImpl::NewRenderWidgetSchedulingState() {
 
 void RendererSchedulerImpl::OnUnregisterTaskQueue(
     const scoped_refptr<TaskQueue>& task_queue) {
+  if (throttling_helper_.get())
+    throttling_helper_->UnregisterTaskQueue(task_queue.get());
+
   if (loading_task_runners_.find(task_queue) != loading_task_runners_.end()) {
     task_queue->RemoveTaskObserver(
         &MainThreadOnly().loading_task_cost_estimator);
@@ -620,16 +632,12 @@ void RendererSchedulerImpl::UpdatePolicyLocked(UpdateType update_type) {
 
   bool loading_tasks_seem_expensive = false;
   bool timer_tasks_seem_expensive = false;
-  // Only deem tasks to be exensive (which may cause them to be preemptively
-  // blocked) if we are expecting frames.
-  if (!MainThreadOnly().begin_frame_not_expected_soon) {
-    loading_tasks_seem_expensive =
-        MainThreadOnly().loading_task_cost_estimator.expected_task_duration() >
-        longest_jank_free_task_duration;
-    timer_tasks_seem_expensive =
-        MainThreadOnly().timer_task_cost_estimator.expected_task_duration() >
-        longest_jank_free_task_duration;
-  }
+  loading_tasks_seem_expensive =
+      MainThreadOnly().loading_task_cost_estimator.expected_task_duration() >
+      longest_jank_free_task_duration;
+  timer_tasks_seem_expensive =
+      MainThreadOnly().timer_task_cost_estimator.expected_task_duration() >
+      longest_jank_free_task_duration;
   MainThreadOnly().timer_tasks_seem_expensive = timer_tasks_seem_expensive;
   MainThreadOnly().loading_tasks_seem_expensive = loading_tasks_seem_expensive;
 
@@ -688,8 +696,8 @@ void RendererSchedulerImpl::UpdatePolicyLocked(UpdateType update_type) {
 
     case UseCase::TOUCHSTART:
       new_policy.compositor_queue_policy.priority = TaskQueue::HIGH_PRIORITY;
-      new_policy.loading_queue_policy.priority = TaskQueue::DISABLED_PRIORITY;
-      new_policy.timer_queue_policy.priority = TaskQueue::DISABLED_PRIORITY;
+      new_policy.loading_queue_policy.is_enabled = false;
+      new_policy.timer_queue_policy.is_enabled = false;
       // NOTE this is a nop due to the above.
       expensive_task_policy = ExpensiveTaskPolicy::BLOCK;
       break;
@@ -725,9 +733,9 @@ void RendererSchedulerImpl::UpdatePolicyLocked(UpdateType update_type) {
 
     case ExpensiveTaskPolicy::BLOCK:
       if (loading_tasks_seem_expensive)
-        new_policy.loading_queue_policy.priority = TaskQueue::DISABLED_PRIORITY;
+        new_policy.loading_queue_policy.is_enabled = false;
       if (timer_tasks_seem_expensive)
-        new_policy.timer_queue_policy.priority = TaskQueue::DISABLED_PRIORITY;
+        new_policy.timer_queue_policy.is_enabled = false;
       break;
 
     case ExpensiveTaskPolicy::THROTTLE:
@@ -744,7 +752,7 @@ void RendererSchedulerImpl::UpdatePolicyLocked(UpdateType update_type) {
 
   if (MainThreadOnly().timer_queue_suspend_count != 0 ||
       MainThreadOnly().timer_queue_suspended_when_backgrounded) {
-    new_policy.timer_queue_policy.priority = TaskQueue::DISABLED_PRIORITY;
+    new_policy.timer_queue_policy.is_enabled = false;
   }
 
   // Tracing is done before the early out check, because it's quite possible we
@@ -782,6 +790,8 @@ void RendererSchedulerImpl::UpdatePolicyLocked(UpdateType update_type) {
                          MainThreadOnly().current_policy.timer_queue_policy,
                          new_policy.timer_queue_policy);
   }
+  MainThreadOnly().have_reported_blocking_intervention_in_current_policy =
+      false;
 
   // TODO(alexclarke): We shouldn't have to prioritize the default queue, but it
   // appears to be necessary since the order of loading tasks and IPCs (which
@@ -798,6 +808,7 @@ void RendererSchedulerImpl::ApplyTaskQueuePolicy(
     TaskQueue* task_queue,
     const TaskQueuePolicy& old_task_queue_policy,
     const TaskQueuePolicy& new_task_queue_policy) const {
+  task_queue->SetQueueEnabled(new_task_queue_policy.is_enabled);
   if (old_task_queue_policy.priority != new_task_queue_policy.priority)
     task_queue->SetQueuePriority(new_task_queue_policy.priority);
 
@@ -985,6 +996,12 @@ RendererSchedulerImpl::AsValueLocked(base::TimeTicks optional_now) const {
   state->SetBoolean("renderer_hidden", MainThreadOnly().renderer_hidden);
   state->SetBoolean("have_seen_a_begin_main_frame",
                     MainThreadOnly().have_seen_a_begin_main_frame);
+  state->SetBoolean(
+      "have_reported_blocking_intervention_in_current_policy",
+      MainThreadOnly().have_reported_blocking_intervention_in_current_policy);
+  state->SetBoolean(
+      "have_reported_blocking_intervention_since_navigation",
+      MainThreadOnly().have_reported_blocking_intervention_since_navigation);
   state->SetBoolean("renderer_backgrounded",
                     MainThreadOnly().renderer_backgrounded);
   state->SetBoolean("timer_queue_suspended_when_backgrounded",
@@ -1103,11 +1120,13 @@ void RendererSchedulerImpl::ResumeTimerQueueWhenForegrounded() {
 void RendererSchedulerImpl::ResetForNavigationLocked() {
   helper_.CheckOnValidThread();
   any_thread_lock_.AssertAcquired();
+  AnyThread().user_model.Reset(helper_.scheduler_tqm_delegate()->NowTicks());
+  AnyThread().have_seen_touchstart = false;
   MainThreadOnly().loading_task_cost_estimator.Clear();
   MainThreadOnly().timer_task_cost_estimator.Clear();
   MainThreadOnly().idle_time_estimator.Clear();
-  AnyThread().user_model.Reset(helper_.scheduler_tqm_delegate()->NowTicks());
   MainThreadOnly().have_seen_a_begin_main_frame = false;
+  MainThreadOnly().have_reported_blocking_intervention_since_navigation = false;
   UpdatePolicyLocked(UpdateType::MAY_EARLY_OUT_IF_POLICY_UNCHANGED);
 }
 
@@ -1134,6 +1153,48 @@ void RendererSchedulerImpl::SetExpensiveTaskBlockingAllowed(bool allowed) {
 
 base::TickClock* RendererSchedulerImpl::tick_clock() const {
   return helper_.scheduler_tqm_delegate().get();
+}
+
+void RendererSchedulerImpl::AddWebViewScheduler(
+    WebViewSchedulerImpl* web_view_scheduler) {
+  MainThreadOnly().web_view_schedulers_.insert(web_view_scheduler);
+}
+
+void RendererSchedulerImpl::RemoveWebViewScheduler(
+    WebViewSchedulerImpl* web_view_scheduler) {
+  DCHECK(MainThreadOnly().web_view_schedulers_.find(web_view_scheduler) !=
+         MainThreadOnly().web_view_schedulers_.end());
+  MainThreadOnly().web_view_schedulers_.erase(web_view_scheduler);
+}
+
+void RendererSchedulerImpl::BroadcastConsoleWarning(
+    const std::string& message) {
+  helper_.CheckOnValidThread();
+  for (auto& web_view_scheduler : MainThreadOnly().web_view_schedulers_)
+    web_view_scheduler->AddConsoleWarning(message);
+}
+
+void RendererSchedulerImpl::OnTriedToExecuteBlockedTask(
+    const TaskQueue& queue,
+    const base::PendingTask& task) {
+  if (!MainThreadOnly().have_reported_blocking_intervention_in_current_policy) {
+    MainThreadOnly().have_reported_blocking_intervention_in_current_policy =
+        true;
+    TRACE_TASK_EXECUTION("RendererSchedulerImpl::TaskBlocked", task);
+  }
+
+  if (!MainThreadOnly().have_reported_blocking_intervention_since_navigation) {
+    {
+      base::AutoLock lock(any_thread_lock_);
+      if (!AnyThread().have_seen_touchstart)
+        return;
+    }
+    MainThreadOnly().have_reported_blocking_intervention_since_navigation =
+        true;
+    BroadcastConsoleWarning(
+        "Deferred long-running timer task(s) to improve scrolling smoothness. "
+        "See crbug.com/574343.");
+  }
 }
 
 }  // namespace scheduler

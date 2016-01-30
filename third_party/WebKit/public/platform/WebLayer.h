@@ -29,13 +29,10 @@
 #include "WebBlendMode.h"
 #include "WebColor.h"
 #include "WebCommon.h"
-#include "WebCompositorAnimation.h"
 #include "WebDoublePoint.h"
 #include "WebFloatPoint3D.h"
-#include "WebMainThreadScrollingReason.h"
 #include "WebPoint.h"
 #include "WebRect.h"
-#include "WebScrollBlocksOn.h"
 #include "WebSize.h"
 #include "WebString.h"
 #include "WebVector.h"
@@ -49,6 +46,7 @@ class LayerClient;
 }
 
 namespace blink {
+class WebCompositorAnimation;
 class WebCompositorAnimationDelegate;
 class WebFilterOperations;
 class WebLayerScrollClient;
@@ -155,9 +153,6 @@ public:
     // Removes all animations with the given id.
     virtual void removeAnimation(int animationId) = 0;
 
-    // Removes all animations with the given id targeting the given property.
-    virtual void removeAnimation(int animationId, WebCompositorAnimation::TargetProperty) = 0;
-
     // Pauses all animations with the given id.
     virtual void pauseAnimation(int animationId, double timeOffset) = 0;
 
@@ -202,14 +197,11 @@ public:
     virtual bool userScrollableHorizontal() const = 0;
     virtual bool userScrollableVertical() const = 0;
 
-    virtual void setHaveWheelEventHandlers(bool) = 0;
-    virtual bool haveWheelEventHandlers() const = 0;
-
     virtual void setHaveScrollEventHandlers(bool) = 0;
     virtual bool haveScrollEventHandlers() const = 0;
 
     // Indicates that this layer will always scroll on the main thread for the provided reason.
-    virtual void addMainThreadScrollingReasons(WebMainThreadScrollingReason::WebMainThreadScrollingReason) = 0;
+    virtual void addMainThreadScrollingReasons(uint32_t) = 0;
     // Indicates that the layer could scroll on the compositor thread.
     virtual void clearMainThreadScrollingReasons() = 0;
     virtual bool shouldScrollOnMainThread() const = 0;
@@ -224,10 +216,6 @@ public:
     // See http://w3c.github.io/frame-timing/ for definition of terms.
     virtual void setFrameTimingRequests(const WebVector<std::pair<int64_t, WebRect>>&) = 0;
     virtual WebVector<std::pair<int64_t, WebRect>> frameTimingRequests() const = 0;
-
-    // FIXME: Make pure once cc is updated.  crbug.com/347272
-    virtual void setScrollBlocksOn(WebScrollBlocksOn) { }
-    virtual WebScrollBlocksOn scrollBlocksOn() const { return WebScrollBlocksOnNone; }
 
     virtual void setIsContainerForFixedPositionLayers(bool) = 0;
     virtual bool isContainerForFixedPositionLayers() const = 0;

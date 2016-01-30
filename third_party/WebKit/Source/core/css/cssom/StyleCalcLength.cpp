@@ -150,7 +150,7 @@ String StyleCalcLength::cssString() const
 PassRefPtrWillBeRawPtr<CSSValue> StyleCalcLength::toCSSValue() const
 {
     // Create a CSS Calc Value, then put it into a CSSPrimitiveValue
-    RefPtrWillBeRawPtr<CSSCalcExpressionNode> node;
+    RefPtrWillBeRawPtr<CSSCalcExpressionNode> node = nullptr;
     for (unsigned i = 0; i < LengthUnit::Count; ++i) {
         LengthUnit lengthUnit = static_cast<LengthUnit>(i);
         if (!has(lengthUnit))

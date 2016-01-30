@@ -34,7 +34,7 @@ namespace content {
 RenderWidgetHostViewChildFrame::RenderWidgetHostViewChildFrame(
     RenderWidgetHost* widget_host)
     : host_(RenderWidgetHostImpl::From(widget_host)),
-      use_surfaces_(UseSurfacesEnabled()),
+      use_surfaces_(true),
       next_surface_sequence_(1u),
       last_output_surface_id_(0),
       current_surface_scale_factor_(1.f),
@@ -367,29 +367,35 @@ uint32_t RenderWidgetHostViewChildFrame::GetSurfaceIdNamespace() {
 
 void RenderWidgetHostViewChildFrame::ProcessKeyboardEvent(
     const NativeWebKeyboardEvent& event) {
+  if (!host_)
+    return;
+
   host_->ForwardKeyboardEvent(event);
 }
 
 void RenderWidgetHostViewChildFrame::ProcessMouseEvent(
     const blink::WebMouseEvent& event) {
+  if (!host_)
+    return;
+
   host_->ForwardMouseEvent(event);
 }
 
 void RenderWidgetHostViewChildFrame::ProcessMouseWheelEvent(
     const blink::WebMouseWheelEvent& event) {
+  if (!host_)
+    return;
+
   if (event.deltaX != 0 || event.deltaY != 0)
     host_->ForwardWheelEvent(event);
 }
 
-void RenderWidgetHostViewChildFrame::TransformPointToRootCoordSpace(
-    const gfx::Point& point,
-    gfx::Point* transformed_point) {
-  *transformed_point = point;
+gfx::Point RenderWidgetHostViewChildFrame::TransformPointToRootCoordSpace(
+    const gfx::Point& point) {
   if (!frame_connector_ || !use_surfaces_)
-    return;
+    return point;
 
-  frame_connector_->TransformPointToRootCoordSpace(point, surface_id_,
-                                                   transformed_point);
+  return frame_connector_->TransformPointToRootCoordSpace(point, surface_id_);
 }
 
 #if defined(OS_MACOSX)
@@ -489,12 +495,8 @@ void RenderWidgetHostViewChildFrame::SetBeginFrameSource(
 BrowserAccessibilityManager*
 RenderWidgetHostViewChildFrame::CreateBrowserAccessibilityManager(
     BrowserAccessibilityDelegate* delegate) {
-#if defined(OS_ANDROID) && defined(USE_AURA)
-  return nullptr;
-#else
   return BrowserAccessibilityManager::Create(
       BrowserAccessibilityManager::GetEmptyDocument(), delegate);
-#endif
 }
 
 void RenderWidgetHostViewChildFrame::ClearCompositorSurfaceIfNecessary() {

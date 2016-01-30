@@ -331,7 +331,8 @@ void FrameSelection::setSelectionAlgorithm(const VisibleSelectionTemplate<Strate
     if (!(options & DoNotUpdateAppearance)) {
         // Hits in compositing/overflow/do-not-paint-outline-into-composited-scrolling-contents.html
         DisableCompositingQueryAsserts disabler;
-        updateAppearance(ResetCaretBlink);
+        stopCaretBlinkTimer();
+        updateAppearance();
     }
 
     // Always clear the x position used for vertical arrow navigation.
@@ -841,7 +842,7 @@ void FrameSelection::selectAll()
             selectStartTarget = document->body();
         }
     }
-    if (!root)
+    if (!root || editingIgnoresContent(root.get()))
         return;
 
     if (selectStartTarget && !selectStartTarget->dispatchEvent(Event::createCancelableBubble(EventTypeNames::selectstart)))
@@ -980,7 +981,7 @@ void FrameSelection::commitAppearanceIfNeeded(LayoutView& layoutView)
     return m_pendingSelection->commit(layoutView);
 }
 
-void FrameSelection::updateAppearance(ResetCaretBlinkOption option)
+void FrameSelection::updateAppearance()
 {
     // Paint a block cursor instead of a caret in overtype mode unless the caret is at the end of a line (in this case
     // the FrameSelection will paint a blinking caret as usual).
@@ -988,16 +989,10 @@ void FrameSelection::updateAppearance(ResetCaretBlinkOption option)
 
     bool shouldBlink = !paintBlockCursor && shouldBlinkCaret();
 
-    bool willNeedCaretRectUpdate = false;
-
     // If the caret moved, stop the blink timer so we can restart with a
     // black caret in the new location.
-    if (option == ResetCaretBlink || !shouldBlink || shouldStopBlinkingDueToTypingCommand(m_frame)) {
-        m_caretBlinkTimer.stop();
-
-        m_shouldPaintCaret = false;
-        willNeedCaretRectUpdate = true;
-    }
+    if (!shouldBlink || shouldStopBlinkingDueToTypingCommand(m_frame))
+        stopCaretBlinkTimer();
 
     // Start blinking with a black caret. Be sure not to restart if we're
     // already blinking in the right location.
@@ -1006,11 +1001,8 @@ void FrameSelection::updateAppearance(ResetCaretBlinkOption option)
             m_caretBlinkTimer.startRepeating(blinkInterval, BLINK_FROM_HERE);
 
         m_shouldPaintCaret = true;
-        willNeedCaretRectUpdate = true;
-    }
-
-    if (willNeedCaretRectUpdate)
         setCaretRectNeedsUpdate();
+    }
 
     LayoutView* view = m_frame->contentLayoutObject();
     if (!view)
@@ -1054,6 +1046,13 @@ void FrameSelection::caretBlinkTimerFired(Timer<FrameSelection>*)
     if (isCaretBlinkingSuspended() && m_shouldPaintCaret)
         return;
     m_shouldPaintCaret = !m_shouldPaintCaret;
+    setCaretRectNeedsUpdate();
+}
+
+void FrameSelection::stopCaretBlinkTimer()
+{
+    m_caretBlinkTimer.stop();
+    m_shouldPaintCaret = false;
     setCaretRectNeedsUpdate();
 }
 
@@ -1321,6 +1320,8 @@ DEFINE_TRACE(FrameSelection)
 
 void FrameSelection::setCaretRectNeedsUpdate()
 {
+    if (m_caretRectDirty)
+        return;
     m_caretRectDirty = true;
 
     scheduleVisualUpdate();
@@ -1392,6 +1393,11 @@ void FrameSelection::moveRangeSelection(const VisiblePosition& basePosition, con
         return;
 
     setSelection(newSelection, granularity);
+}
+
+void FrameSelection::updateIfNeeded()
+{
+    m_selectionEditor->updateIfNeeded();
 }
 
 } // namespace blink

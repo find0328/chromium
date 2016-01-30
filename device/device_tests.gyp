@@ -57,6 +57,8 @@
         'bluetooth/test/bluetooth_test_android.h',
         'bluetooth/test/bluetooth_test_mac.h',
         'bluetooth/test/bluetooth_test_mac.mm',
+        'bluetooth/test/bluetooth_test_win.h',
+        'bluetooth/test/bluetooth_test_win.cc',
         'bluetooth/test/test_bluetooth_adapter_observer.cc',
         'bluetooth/test/test_bluetooth_adapter_observer.h',
         'devices_app/usb/device_impl_unittest.cc',
@@ -146,15 +148,6 @@
               '-ObjC',
             ],
           },
-        }],
-        ['os_posix == 1 and OS != "mac" and OS != "android" and OS != "ios"', {
-          'conditions': [
-            ['use_allocator!="none"', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
-          ],
         }],
         ['use_udev==1', {
           'dependencies': [

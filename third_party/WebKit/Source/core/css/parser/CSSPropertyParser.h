@@ -35,11 +35,6 @@ namespace blink {
 
 class BorderImageParseContext;
 class CSSBorderImageSliceValue;
-class CSSBasicShapeValue;
-class CSSBasicShapeEllipseValue;
-class CSSBasicShapeCircleValue;
-class CSSBasicShapeInsetValue;
-class CSSBasicShapePolygonValue;
 class CSSCustomIdentValue;
 class CSSFunctionValue;
 class CSSGradientValue;
@@ -168,6 +163,7 @@ private:
 
     bool consumeColumns(bool important);
 
+    enum TrackSizeRestriction { FixedSizeOnly, AllowAll };
     PassRefPtrWillBeRawPtr<CSSValue> parseGridPosition();
     bool parseIntegerOrCustomIdentFromGridPosition(RefPtrWillBeRawPtr<CSSPrimitiveValue>& numericValue, RefPtrWillBeRawPtr<CSSCustomIdentValue>& gridLineName);
     bool parseGridItemPositionShorthand(CSSPropertyID, bool important);
@@ -178,9 +174,9 @@ private:
     bool parseGridGapShorthand(bool important);
     bool parseSingleGridAreaLonghand(RefPtrWillBeRawPtr<CSSValue>&);
     PassRefPtrWillBeRawPtr<CSSValue> parseGridTrackList();
-    bool parseGridTrackRepeatFunction(CSSValueList&);
-    PassRefPtrWillBeRawPtr<CSSValue> parseGridTrackSize(CSSParserValueList& inputList);
-    PassRefPtrWillBeRawPtr<CSSPrimitiveValue> parseGridBreadth(CSSParserValue*);
+    bool parseGridTrackRepeatFunction(CSSValueList&, bool& isAutoRepeat);
+    PassRefPtrWillBeRawPtr<CSSValue> parseGridTrackSize(CSSParserValueList& inputList, TrackSizeRestriction = AllowAll);
+    PassRefPtrWillBeRawPtr<CSSPrimitiveValue> parseGridBreadth(CSSParserValue*, TrackSizeRestriction = AllowAll);
     bool parseGridTemplateAreasRow(NamedGridAreaMap&, const size_t, size_t&);
     PassRefPtrWillBeRawPtr<CSSValue> parseGridTemplateAreas();
     bool parseGridLineNames(CSSParserValueList&, CSSValueList&, CSSGridLineNamesValue* = nullptr);
@@ -189,16 +185,6 @@ private:
     PassRefPtrWillBeRawPtr<CSSValue> parseLegacyPosition();
     PassRefPtrWillBeRawPtr<CSSValue> parseItemPositionOverflowPosition();
     PassRefPtrWillBeRawPtr<CSSValue> parseContentDistributionOverflowPosition();
-
-    PassRefPtrWillBeRawPtr<CSSValue> parseShapeProperty(CSSPropertyID propId);
-    PassRefPtrWillBeRawPtr<CSSValue> parseBasicShapeAndOrBox();
-    PassRefPtrWillBeRawPtr<CSSValue> parseBasicShape();
-    PassRefPtrWillBeRawPtr<CSSPrimitiveValue> parseShapeRadius(CSSParserValue*);
-
-    PassRefPtrWillBeRawPtr<CSSBasicShapeCircleValue> parseBasicShapeCircle(CSSParserValueList* args);
-    PassRefPtrWillBeRawPtr<CSSBasicShapeEllipseValue> parseBasicShapeEllipse(CSSParserValueList* args);
-    PassRefPtrWillBeRawPtr<CSSBasicShapePolygonValue> parseBasicShapePolygon(CSSParserValueList* args);
-    PassRefPtrWillBeRawPtr<CSSBasicShapeInsetValue> parseBasicShapeInset(CSSParserValueList* args);
 
     bool consumeFont(bool important);
     bool consumeSystemFont(bool important);
@@ -328,9 +314,6 @@ private:
 
 CSSPropertyID unresolvedCSSPropertyID(const CSSParserString&);
 CSSValueID cssValueKeywordID(const CSSParserString&);
-
-// TODO(rwlbuis): move to CSSPropertyParser.cpp once CSSParserToken conversion is done.
-void completeBorderRadii(RefPtrWillBeRawPtr<CSSPrimitiveValue> radii[4]);
 
 } // namespace blink
 

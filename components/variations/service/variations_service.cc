@@ -48,8 +48,6 @@ namespace variations {
 
 namespace {
 
-const int kMaxRetrySeedFetch = 5;
-
 // TODO(mad): To be removed when we stop updating the NetworkTimeTracker.
 // For the HTTP date headers, the resolution of the server time is 1 second.
 const int64_t kServerTimeResolutionMs = 1000;
@@ -216,7 +214,7 @@ base::Time GetReferenceDateForExpiryChecks(PrefService* local_state) {
 std::string GetHeaderValue(const net::HttpResponseHeaders* headers,
                            const base::StringPiece& name) {
   std::string value;
-  headers->EnumerateHeader(NULL, name, &value);
+  headers->EnumerateHeader(nullptr, name, &value);
   return value;
 }
 
@@ -226,7 +224,7 @@ std::vector<std::string> GetHeaderValuesList(
     const net::HttpResponseHeaders* headers,
     const base::StringPiece& name) {
   std::vector<std::string> values;
-  void* iter = NULL;
+  size_t iter = 0;
   std::string value;
   while (headers->EnumerateHeader(&iter, name, &value)) {
     values.push_back(value);
@@ -300,6 +298,7 @@ VariationsService::~VariationsService() {
 
 bool VariationsService::CreateTrialsFromSeed(base::FeatureList* feature_list) {
   DCHECK(thread_checker_.CalledOnValidThread());
+  CHECK(!create_trials_from_seed_called_);
 
   create_trials_from_seed_called_ = true;
 
@@ -528,7 +527,6 @@ void VariationsService::DoActualFetch() {
   pending_seed_request_->SetLoadFlags(net::LOAD_DO_NOT_SEND_COOKIES |
                                       net::LOAD_DO_NOT_SAVE_COOKIES);
   pending_seed_request_->SetRequestContext(client_->GetURLRequestContext());
-  pending_seed_request_->SetMaxRetriesOn5xx(kMaxRetrySeedFetch);
   bool enable_deltas = false;
   if (!seed_store_.variations_serial_number().empty() &&
       !disable_deltas_for_next_request_) {
@@ -799,7 +797,7 @@ std::string VariationsService::LoadPermanentConsistencyCountry(
 
   // Determine if the version from the saved pref matches |version|.
   const bool does_version_match =
-      is_pref_valid && version.Equals(base::Version(stored_version_string));
+      is_pref_valid && version == base::Version(stored_version_string);
 
   // Determine if the country in the saved pref matches the country in
   // |latest_country|.

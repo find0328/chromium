@@ -55,13 +55,13 @@
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/ScriptForbiddenScope.h"
 #include "platform/TraceEvent.h"
+#include "platform/graphics/CompositorMutableProperties.h"
 #include "platform/graphics/GraphicsLayer.h"
 #include "platform/graphics/paint/CullRect.h"
 #include "platform/graphics/paint/DrawingRecorder.h"
 #include "platform/graphics/paint/PaintController.h"
 #include "platform/graphics/paint/TransformDisplayItem.h"
 #include "public/platform/Platform.h"
-#include "public/platform/WebCompositorMutableProperties.h"
 
 namespace blink {
 
@@ -205,7 +205,7 @@ void PaintLayerCompositor::updateIfNeededRecursive()
         // It's possible for trusted Pepper plugins to force hit testing in situations where
         // the frame tree is in an inconsistent state, such as in the middle of frame detach.
         // TODO(bbudge) Remove this check when trusted Pepper plugins are gone.
-        if (localFrame->document()->isActive())
+        if (localFrame->document()->isActive() && localFrame->contentLayoutObject())
             localFrame->contentLayoutObject()->compositor()->updateIfNeededRecursive();
     }
 
@@ -245,7 +245,7 @@ void PaintLayerCompositor::updateIfNeededRecursive()
         if (!child->isLocalFrame())
             continue;
         LocalFrame* localFrame = toLocalFrame(child);
-        if (localFrame->shouldThrottleRendering())
+        if (localFrame->shouldThrottleRendering() || !localFrame->contentLayoutObject())
             continue;
         localFrame->contentLayoutObject()->compositor()->assertNoUnresolvedDirtyBits();
     }
@@ -344,7 +344,6 @@ static void forceRecomputePaintInvalidationRectsIncludingNonCompositingDescendan
     }
 }
 
-
 void PaintLayerCompositor::updateIfNeeded()
 {
     CompositingUpdateType updateType = m_pendingUpdateType;
@@ -396,10 +395,10 @@ void PaintLayerCompositor::updateIfNeeded()
         if (RuntimeEnabledFeatures::compositorWorkerEnabled() && m_scrollLayer) {
             if (Element* scrollingElement = m_layoutView.document().scrollingElement()) {
                 uint64_t elementId = 0;
-                uint32_t mutableProperties = WebCompositorMutablePropertyNone;
+                uint32_t mutableProperties = CompositorMutableProperty::kNone;
                 if (scrollingElement->hasCompositorProxy()) {
                     elementId = DOMNodeIds::idForNode(scrollingElement);
-                    mutableProperties = (WebCompositorMutablePropertyScrollLeft | WebCompositorMutablePropertyScrollTop) & scrollingElement->compositorMutableProperties();
+                    mutableProperties = (CompositorMutableProperty::kScrollLeft | CompositorMutableProperty::kScrollTop) & scrollingElement->compositorMutableProperties();
                 }
                 m_scrollLayer->setElementId(elementId);
                 m_scrollLayer->setCompositorMutableProperties(mutableProperties);
@@ -767,6 +766,11 @@ void PaintLayerCompositor::updateDirectCompositingReasons(PaintLayer* layer)
 
 bool PaintLayerCompositor::canBeComposited(const PaintLayer* layer) const
 {
+    FrameView* frameView = layer->layoutObject()->frameView();
+    // Elements within an invisible frame must not be composited because they are not drawn.
+    if (frameView && !frameView->isVisible())
+        return false;
+
     const bool hasCompositorAnimation = m_compositingReasonFinder.requiresCompositingForAnimation(*layer->layoutObject()->style());
     return m_hasAcceleratedCompositing && (hasCompositorAnimation || !layer->subtreeIsInvisible()) && layer->isSelfPaintingLayer() && !layer->layoutObject()->isLayoutFlowThread();
 }

@@ -17,9 +17,9 @@ bool IsFromGoogle(const GURL& url) {
   std::string domain = net::registry_controlled_domains::GetDomainAndRegistry(
       url, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
   if (!base::StartsWith(domain, "google.", base::CompareCase::SENSITIVE) ||
-      !base::StartsWith(url.host(), kGoogleSearchHostnamePrefix,
+      !base::StartsWith(url.host_piece(), kGoogleSearchHostnamePrefix,
                         base::CompareCase::SENSITIVE) ||
-      url.host().length() !=
+      url.host_piece().length() !=
           domain.length() + strlen(kGoogleSearchHostnamePrefix)) {
     return false;
   }
@@ -100,11 +100,10 @@ void FromGWSPageLoadMetricsObserver::OnComplete(
         "PageLoad.Clients.FromGWS.Timing2.NavigationToFirstPaint",
         timing.first_paint);
   }
-  base::TimeDelta first_contentful_paint = GetFirstContentfulPaint(timing);
-  if (EventOccurredInForeground(first_contentful_paint, extra_info)) {
+  if (EventOccurredInForeground(timing.first_contentful_paint, extra_info)) {
     PAGE_LOAD_HISTOGRAM(
         "PageLoad.Clients.FromGWS.Timing2.NavigationToFirstContentfulPaint",
-        first_contentful_paint);
+        timing.first_contentful_paint);
   }
 }
 

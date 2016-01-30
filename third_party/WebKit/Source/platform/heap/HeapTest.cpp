@@ -193,7 +193,7 @@ template<typename T> struct WeakHandlingHashTraits : WTF::SimpleClassHashTraits<
     }
 };
 
-}
+} // namespace blink
 
 namespace WTF {
 
@@ -231,7 +231,7 @@ template<> struct HashTraits<blink::PairWithWeakHandling> : blink::WeakHandlingH
     static bool isDeletedValue(const blink::PairWithWeakHandling& value) { return value.isHashTableDeletedValue(); }
 };
 
-}
+} // namespace WTF
 
 namespace blink {
 
@@ -4343,6 +4343,7 @@ TEST(HeapTest, HeapTerminatedArray)
     {
         HeapTerminatedArrayBuilder<TerminatedArrayItem> builder(arr);
         builder.grow(prefixSize);
+        conservativelyCollectGarbage();
         for (size_t i = 0; i < prefixSize; i++)
             builder.append(TerminatedArrayItem(IntWrapper::create(i)));
         arr = builder.release();

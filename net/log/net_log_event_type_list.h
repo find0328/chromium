@@ -1029,6 +1029,12 @@ EVENT_TYPE(HTTP_STREAM_REQUEST_PROTO)
 // Job. The orphaned Job will continue to run to completion.
 EVENT_TYPE(HTTP_STREAM_JOB_ORPHANED)
 
+// Emitted when a job is asked to resume after non-zero microseconds.
+//   {
+//     "resume_after_ms": <Number of milliseconds until job will be unblocked>
+//   }
+EVENT_TYPE(HTTP_STREAM_JOB_DELAYED)
+
 // ------------------------------------------------------------------------
 // HttpNetworkTransaction
 // ------------------------------------------------------------------------
@@ -1108,6 +1114,9 @@ EVENT_TYPE(HTTP_TRANSACTION_READ_BODY)
 // Measures the time taken to read the response out of the socket before
 // restarting for authentication, on keep alive connections.
 EVENT_TYPE(HTTP_TRANSACTION_DRAIN_BODY_FOR_AUTH_RESTART)
+
+// Measures the time taken to look up the key used for Token Binding.
+EVENT_TYPE(HTTP_TRANSACTION_GET_TOKEN_BINDING_KEY)
 
 // This event is sent when we try to restart a transaction after an error.
 // The following parameters are attached:
@@ -1326,10 +1335,6 @@ EVENT_TYPE(HTTP2_SESSION_CLOSE)
 // Event when the creation of a stream is stalled because we're at
 // the maximum number of concurrent streams.
 EVENT_TYPE(HTTP2_SESSION_STALLED_MAX_STREAMS)
-
-// Received a value for initial window size in SETTINGS frame with
-// flow control turned off.
-EVENT_TYPE(HTTP2_SESSION_INITIAL_WINDOW_SIZE_NO_FLOW_CONTROL)
 
 // Received an out-of-range value for initial window size in SETTINGS
 // frame.

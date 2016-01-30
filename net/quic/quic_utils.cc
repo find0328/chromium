@@ -191,6 +191,9 @@ const char* QuicUtils::StreamErrorToString(QuicRstStreamErrorCode error) {
     RETURN_STRING_LITERAL(QUIC_RST_ACKNOWLEDGEMENT);
     RETURN_STRING_LITERAL(QUIC_REFUSED_STREAM);
     RETURN_STRING_LITERAL(QUIC_STREAM_LAST_ERROR);
+    RETURN_STRING_LITERAL(QUIC_INVALID_PROMISE_URL);
+    RETURN_STRING_LITERAL(QUIC_UNAUTHORIZED_PROMISE_URL);
+    RETURN_STRING_LITERAL(QUIC_DUPLICATE_PROMISE_URL);
   }
   // Return a default value so that we return this when |error| doesn't match
   // any of the QuicRstStreamErrorCodes. This can happen when the RstStream
@@ -216,6 +219,7 @@ const char* QuicUtils::ErrorToString(QuicErrorCode error) {
     RETURN_STRING_LITERAL(QUIC_INVALID_WINDOW_UPDATE_DATA);
     RETURN_STRING_LITERAL(QUIC_INVALID_BLOCKED_DATA);
     RETURN_STRING_LITERAL(QUIC_INVALID_STOP_WAITING_DATA);
+    RETURN_STRING_LITERAL(QUIC_INVALID_PATH_CLOSE_DATA);
     RETURN_STRING_LITERAL(QUIC_INVALID_ACK_DATA);
     RETURN_STRING_LITERAL(QUIC_INVALID_VERSION_NEGOTIATION_PACKET);
     RETURN_STRING_LITERAL(QUIC_INVALID_PUBLIC_RST_PACKET);
@@ -275,6 +279,7 @@ const char* QuicUtils::ErrorToString(QuicErrorCode error) {
     RETURN_STRING_LITERAL(QUIC_FAILED_TO_SERIALIZE_PACKET);
     RETURN_STRING_LITERAL(QUIC_TOO_MANY_AVAILABLE_STREAMS);
     RETURN_STRING_LITERAL(QUIC_UNENCRYPTED_FEC_DATA);
+    RETURN_STRING_LITERAL(QUIC_BAD_MULTIPATH_FLAG);
     RETURN_STRING_LITERAL(QUIC_IP_ADDRESS_CHANGED);
     RETURN_STRING_LITERAL(QUIC_CONNECTION_MIGRATION_NO_MIGRATABLE_STREAMS);
     RETURN_STRING_LITERAL(QUIC_CONNECTION_MIGRATION_TOO_MANY_CHANGES);
@@ -389,6 +394,74 @@ string QuicUtils::StringToHexASCIIDump(StringPiece in_buffer) {
     s += '\n';
   }
   return s;
+}
+
+// static
+void QuicUtils::DeleteFrames(QuicFrames* frames) {
+  for (QuicFrame& frame : *frames) {
+    switch (frame.type) {
+      // Frames smaller than a pointer are inlined, so don't need to be deleted.
+      case PADDING_FRAME:
+      case MTU_DISCOVERY_FRAME:
+      case PING_FRAME:
+        break;
+      case STREAM_FRAME:
+        delete frame.stream_frame;
+        break;
+      case ACK_FRAME:
+        delete frame.ack_frame;
+        break;
+      case STOP_WAITING_FRAME:
+        delete frame.stop_waiting_frame;
+        break;
+      case RST_STREAM_FRAME:
+        delete frame.rst_stream_frame;
+        break;
+      case CONNECTION_CLOSE_FRAME:
+        delete frame.connection_close_frame;
+        break;
+      case GOAWAY_FRAME:
+        delete frame.goaway_frame;
+        break;
+      case BLOCKED_FRAME:
+        delete frame.blocked_frame;
+        break;
+      case WINDOW_UPDATE_FRAME:
+        delete frame.window_update_frame;
+        break;
+      case PATH_CLOSE_FRAME:
+        delete frame.path_close_frame;
+        break;
+      case NUM_FRAME_TYPES:
+        DCHECK(false) << "Cannot delete type: " << frame.type;
+    }
+  }
+  frames->clear();
+}
+
+// static
+void QuicUtils::RemoveFramesForStream(QuicFrames* frames,
+                                      QuicStreamId stream_id) {
+  QuicFrames::iterator it = frames->begin();
+  while (it != frames->end()) {
+    if (it->type != STREAM_FRAME || it->stream_frame->stream_id != stream_id) {
+      ++it;
+      continue;
+    }
+    delete it->stream_frame;
+    it = frames->erase(it);
+  }
+}
+
+// static
+void QuicUtils::ClearSerializedPacket(SerializedPacket* serialized_packet) {
+  if (serialized_packet->retransmittable_frames != nullptr) {
+    DeleteFrames(serialized_packet->retransmittable_frames);
+  }
+  delete serialized_packet->retransmittable_frames;
+  delete serialized_packet->packet;
+  serialized_packet->retransmittable_frames = nullptr;
+  serialized_packet->packet = nullptr;
 }
 
 }  // namespace net

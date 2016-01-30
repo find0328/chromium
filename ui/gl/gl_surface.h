@@ -36,11 +36,19 @@ class GL_EXPORT GLSurface : public base::RefCounted<GLSurface> {
  public:
   GLSurface();
 
+  // Minimum bit depth of surface.
+  enum Format {
+    SURFACE_ARGB8888 = 1, // 32 bits
+    SURFACE_RGB565 = 2,  // 16 bits
+    SURFACE_DEFAULT = SURFACE_ARGB8888
+  };
+
   // (Re)create the surface. TODO(apatrick): This is an ugly hack to allow the
   // EGL surface associated to be recreated without destroying the associated
   // context. The implementation of this function for other GLSurface derived
   // classes is in a pending changelist.
   virtual bool Initialize();
+  virtual bool Initialize(GLSurface::Format format);
 
   // Destroys the surface.
   virtual void Destroy() = 0;
@@ -174,10 +182,11 @@ class GL_EXPORT GLSurface : public base::RefCounted<GLSurface> {
                                float opacity,
                                unsigned background_color,
                                unsigned edge_aa_mask,
-                               const RectF& bounds_rect,
+                               const RectF& rect,
                                bool is_clipped,
                                const RectF& clip_rect,
-                               const Transform& transform);
+                               const Transform& transform,
+                               int sorting_content_id);
 
   virtual bool IsSurfaceless() const;
 
@@ -202,7 +211,12 @@ class GL_EXPORT GLSurface : public base::RefCounted<GLSurface> {
 
   // Create a GL surface used for offscreen rendering.
   static scoped_refptr<GLSurface> CreateOffscreenGLSurface(
-      const gfx::Size& size);
+      const gfx::Size& size) {
+    return CreateOffscreenGLSurface(size, SURFACE_DEFAULT);
+  }
+
+  static scoped_refptr<GLSurface> CreateOffscreenGLSurface(
+      const gfx::Size& size, GLSurface::Format format);
 
   static GLSurface* GetCurrent();
 
@@ -234,7 +248,7 @@ class GL_EXPORT GLSurfaceAdapter : public GLSurface {
  public:
   explicit GLSurfaceAdapter(GLSurface* surface);
 
-  bool Initialize() override;
+  bool Initialize(GLSurface::Format format) override;
   void Destroy() override;
   bool Resize(const gfx::Size& size,
               float scale_factor,

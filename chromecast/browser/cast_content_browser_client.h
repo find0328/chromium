@@ -21,7 +21,6 @@ class CrashHandlerHostLinux;
 }
 
 namespace media {
-class AudioManagerFactory;
 class BrowserCdmFactory;
 }
 
@@ -54,6 +53,9 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
   // Appends extra command line arguments before launching a new process.
   virtual void AppendExtraCommandLineSwitches(base::CommandLine* command_line);
 
+  // Hook for code to run before browser threads created.
+  virtual void PreCreateThreads();
+
   // Creates and returns the CastService instance for the current process.
   // Note: |request_context_getter| might be different than the main request
   // getter accessible via CastBrowserProcess.
@@ -63,8 +65,6 @@ class CastContentBrowserClient : public content::ContentBrowserClient {
       net::URLRequestContextGetter* request_context_getter);
 
 #if !defined(OS_ANDROID)
-  virtual scoped_ptr<::media::AudioManagerFactory> CreateAudioManagerFactory();
-
   // Creates a CmaMediaPipelineClient which is responsible to create (CMA
   // backend)
   // for media playback and watch media pipeline status, called once per media

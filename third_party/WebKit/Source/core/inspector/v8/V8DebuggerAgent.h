@@ -14,7 +14,6 @@ namespace blink {
 
 class InjectedScript;
 class InjectedScriptManager;
-class InspectorState;
 class JSONObject;
 class RemoteCallFrameId;
 class ScriptAsyncCallStack;
@@ -77,7 +76,7 @@ public:
     virtual void removeAsyncOperationBreakpoint(ErrorString*, int in_operationId) = 0;
 
     // State management methods.
-    virtual void setInspectorState(InspectorState*) = 0;
+    virtual void setInspectorState(PassRefPtr<JSONObject>) = 0;
     virtual void setFrontend(InspectorFrontend::Debugger*) = 0;
     virtual void clearFrontend() = 0;
     virtual void restore() = 0;
@@ -87,6 +86,7 @@ public:
     virtual void cancelPauseOnNextStatement() = 0;
     virtual bool canBreakProgram() = 0;
     virtual void breakProgram(InspectorFrontend::Debugger::Reason::Enum breakReason, PassRefPtr<JSONObject> data) = 0;
+    virtual void breakProgramOnException(InspectorFrontend::Debugger::Reason::Enum breakReason, PassRefPtr<JSONObject> data) = 0;
     virtual void willExecuteScript(int scriptId) = 0;
     virtual void didExecuteScript() = 0;
     virtual void reset() = 0;
@@ -99,7 +99,7 @@ public:
     virtual void removeBreakpoint(const String& scriptId, int lineNumber, int columnNumber, BreakpointSource) = 0;
 
     // Async call stacks implementation
-    virtual PassRefPtrWillBeRawPtr<ScriptAsyncCallStack> currentAsyncStackTraceForConsole() = 0;
+    virtual PassRefPtr<ScriptAsyncCallStack> currentAsyncStackTraceForConsole() = 0;
     static const int unknownAsyncOperationId;
     virtual int traceAsyncOperationStarting(const String& description) = 0;
     virtual void traceAsyncCallbackStarting(int operationId) = 0;

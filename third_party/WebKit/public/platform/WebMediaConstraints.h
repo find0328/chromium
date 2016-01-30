@@ -37,23 +37,29 @@
 #include "WebString.h"
 #include "WebVector.h"
 
+#include <vector>
+
 namespace blink {
 
 class WebMediaConstraintsPrivate;
 
-class LongConstraint {
+class BLINK_PLATFORM_EXPORT BaseConstraint {
 public:
-    LongConstraint()
-        : m_min()
-        , m_max()
-        , m_exact()
-        , m_ideal()
-    , m_hasMin(false)
-    , m_hasMax(false)
-    , m_hasExact(false)
-    , m_hasIdeal(false)
+    explicit BaseConstraint(const char* name);
+    virtual ~BaseConstraint();
+    virtual bool isEmpty() const = 0;
+    virtual bool hasMandatory() const = 0;
+    const char* name() const
     {
+        return m_name;
     }
+private:
+    const char* m_name;
+};
+
+class BLINK_PLATFORM_EXPORT LongConstraint : public BaseConstraint {
+public:
+    explicit LongConstraint(const char* name);
 
     void setMin(long value)
     {
@@ -79,8 +85,13 @@ public:
         m_hasIdeal = true;
     }
 
-    BLINK_PLATFORM_EXPORT bool matches(long value) const;
-    BLINK_PLATFORM_EXPORT bool isEmpty() const;
+    bool matches(long value) const;
+    bool isEmpty() const override;
+    bool hasMandatory() const override;
+    bool hasMin() const { return m_hasMin; }
+    long min() const { return m_min; }
+    bool hasMax() const { return m_hasMax; }
+    long max() const { return m_max; }
 
 private:
     long m_min;
@@ -93,24 +104,14 @@ private:
     unsigned m_hasIdeal : 1;
 };
 
-class DoubleConstraint {
+class BLINK_PLATFORM_EXPORT DoubleConstraint : public BaseConstraint {
 public:
-// Permit a certain leeway when comparing floats.
-// The offset of 0.00001 is chosen based on observed behavior of
-// doubles formatted with rtc::ToString.
-    BLINK_PLATFORM_EXPORT static double kConstraintEpsilon;
+    // Permit a certain leeway when comparing floats. The offset of 0.00001
+    // is chosen based on observed behavior of doubles formatted with
+    // rtc::ToString.
+    static const double kConstraintEpsilon;
 
-    DoubleConstraint()
-        : m_min()
-        , m_max()
-        , m_exact()
-        , m_ideal()
-        , m_hasMin(false)
-        , m_hasMax(false)
-        , m_hasExact(false)
-        , m_hasIdeal(false)
-    {
-    }
+    explicit DoubleConstraint(const char* name);
 
     void setMin(double value)
     {
@@ -136,8 +137,13 @@ public:
         m_hasIdeal = true;
     }
 
-    BLINK_PLATFORM_EXPORT bool matches(double value) const;
-    BLINK_PLATFORM_EXPORT bool isEmpty() const;
+    bool matches(double value) const;
+    bool isEmpty() const override;
+    bool hasMandatory() const override;
+    bool hasMin() const { return m_hasMin; }
+    double min() const { return m_min; }
+    bool hasMax() const { return m_hasMax; }
+    double max() const { return m_max; }
 
 private:
     double m_min;
@@ -150,46 +156,42 @@ private:
     unsigned m_hasIdeal : 1;
 };
 
-class StringConstraint {
+class BLINK_PLATFORM_EXPORT StringConstraint : public BaseConstraint {
 public:
     // String-valued options don't have min or max, but can have multiple
     // values for ideal and exact.
-    StringConstraint()
-        : m_exact()
-        , m_ideal()
-    {
-    }
-
-    StringConstraint(const WebVector<WebString>& exact, const WebVector<WebString>& ideal)
-        : m_exact(exact)
-        , m_ideal(ideal)
-    {
-    }
+    explicit StringConstraint(const char* name);
 
     void setExact(const WebString& exact)
     {
         m_exact.assign(&exact, 1);
     }
 
-    BLINK_PLATFORM_EXPORT bool matches(WebString value) const;
-    BLINK_PLATFORM_EXPORT bool isEmpty() const;
-    BLINK_PLATFORM_EXPORT const WebVector<WebString>& exact() const;
-    BLINK_PLATFORM_EXPORT const WebVector<WebString>& ideal() const;
+    void setExact(const WebVector<WebString>& exact)
+    {
+        m_exact.assign(exact);
+    }
+
+    void setIdeal(const WebVector<WebString>& ideal)
+    {
+        m_ideal.assign(ideal);
+    }
+
+
+    bool matches(WebString value) const;
+    bool isEmpty() const override;
+    bool hasMandatory() const override;
+    const WebVector<WebString>& exact() const;
+    const WebVector<WebString>& ideal() const;
 
 private:
     WebVector<WebString> m_exact;
     WebVector<WebString> m_ideal;
 };
 
-class BooleanConstraint {
+class BLINK_PLATFORM_EXPORT BooleanConstraint : public BaseConstraint {
 public:
-    BooleanConstraint()
-        : m_ideal(false)
-        , m_exact(false)
-        , m_hasIdeal(false)
-        , m_hasExact(false)
-    {
-    }
+    explicit BooleanConstraint(const char* name);
 
     void setIdeal(bool value)
     {
@@ -203,8 +205,9 @@ public:
         m_hasExact = true;
     }
 
-    BLINK_PLATFORM_EXPORT bool matches(bool value) const;
-    BLINK_PLATFORM_EXPORT bool isEmpty() const;
+    bool matches(bool value) const;
+    bool isEmpty() const override;
+    bool hasMandatory() const override;
 
 private:
     unsigned m_ideal : 1;
@@ -215,6 +218,8 @@ private:
 
 struct WebMediaTrackConstraintSet {
 public:
+    BLINK_PLATFORM_EXPORT WebMediaTrackConstraintSet();
+
     LongConstraint width;
     LongConstraint height;
     DoubleConstraint aspectRatio;
@@ -270,6 +275,11 @@ public:
     BooleanConstraint googPayloadPadding;
 
     BLINK_PLATFORM_EXPORT bool isEmpty() const;
+    BLINK_PLATFORM_EXPORT bool hasMandatory() const;
+    BLINK_PLATFORM_EXPORT bool hasMandatoryOutsideSet(const std::vector<std::string>&, std::string&) const;
+
+private:
+    std::vector<const BaseConstraint*> allConstraints() const;
 };
 
 // Old type/value form of constraint. Will be deprecated.
@@ -290,7 +300,9 @@ struct WebMediaConstraint {
 
 class WebMediaConstraints {
 public:
-    WebMediaConstraints() { }
+    WebMediaConstraints()
+    {
+    }
     WebMediaConstraints(const WebMediaConstraints& other) { assign(other); }
     ~WebMediaConstraints() { reset(); }
 

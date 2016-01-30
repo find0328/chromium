@@ -56,7 +56,6 @@ class ResourceFetcher;
 class DocumentInit;
 class LocalFrame;
 class FrameLoader;
-class MHTMLArchive;
 class ResourceLoader;
 class ThreadedDataReceiver;
 
@@ -146,7 +145,7 @@ public:
 
     bool loadingMultipartContent() const;
 
-    void startPreload(Resource::Type, FetchRequest&);
+    ResourcePtr<Resource> startPreload(Resource::Type, FetchRequest&);
 
     DECLARE_VIRTUAL_TRACE();
 
@@ -171,9 +170,6 @@ private:
 
     bool maybeCreateArchive();
 
-    void prepareSubframeArchiveLoadIfNeeded();
-
-    void willSendRequest(ResourceRequest&, const ResourceResponse&);
     void finishedLoading(double finishTime);
     void mainReceivedError(const ResourceError&);
     void cancelLoadAfterXFrameOptionsOrCSPDenied(const ResourceResponse&);
@@ -216,8 +212,6 @@ private:
     bool m_replacesCurrentHistoryItem;
 
     NavigationType m_navigationType;
-
-    RefPtrWillBeMember<MHTMLArchive> m_archive;
 
     DocumentLoadTiming m_documentLoadTiming;
 

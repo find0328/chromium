@@ -20,12 +20,11 @@
 #include "core/css/resolver/StyleResolver.h"
 #include "core/dom/DOMNodeIds.h"
 #include "core/dom/NodeComputedStyle.h"
-#include "core/inspector/InjectedScriptManager.h"
 #include "core/inspector/InspectedFrames.h"
 #include "core/inspector/InspectorCSSAgent.h"
 #include "core/inspector/InspectorDOMAgent.h"
-#include "core/inspector/InspectorState.h"
 #include "core/inspector/InspectorStyleSheet.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
 #include "platform/Decimal.h"
 #include "platform/animation/TimingFunction.h"
 #include "wtf/text/Base64.h"
@@ -49,10 +48,11 @@ InspectorAnimationAgent::InspectorAnimationAgent(InspectedFrames* inspectedFrame
 
 void InspectorAnimationAgent::restore()
 {
-    if (m_state->getBoolean(AnimationAgentState::animationAgentEnabled)) {
+    if (m_state->booleanProperty(AnimationAgentState::animationAgentEnabled, false)) {
         ErrorString error;
         enable(&error);
-        double playbackRate = m_state->getDouble(AnimationAgentState::animationAgentPlaybackRate, 1);
+        double playbackRate = 1;
+        m_state->getNumber(AnimationAgentState::animationAgentPlaybackRate, &playbackRate);
         setPlaybackRate(nullptr, playbackRate);
     }
 }
@@ -84,7 +84,8 @@ void InspectorAnimationAgent::didCommitLoadForLocalFrame(LocalFrame* frame)
         m_idToAnimationClone.clear();
         m_clearedAnimations.clear();
     }
-    double playbackRate = m_state->getDouble(AnimationAgentState::animationAgentPlaybackRate, 1);
+    double playbackRate = 1;
+    m_state->getNumber(AnimationAgentState::animationAgentPlaybackRate, &playbackRate);
     setPlaybackRate(nullptr, playbackRate);
 }
 
@@ -204,7 +205,7 @@ void InspectorAnimationAgent::setPlaybackRate(ErrorString*, double playbackRate)
 {
     for (LocalFrame* frame : *m_inspectedFrames)
         frame->document()->timeline().setPlaybackRate(playbackRate);
-    m_state->setDouble(AnimationAgentState::animationAgentPlaybackRate, playbackRate);
+    m_state->setNumber(AnimationAgentState::animationAgentPlaybackRate, playbackRate);
 }
 
 void InspectorAnimationAgent::getCurrentTime(ErrorString* errorString, const String& id, double* currentTime)
@@ -389,15 +390,12 @@ void InspectorAnimationAgent::resolveAnimation(ErrorString* errorString, const S
     ScriptState* scriptState = ScriptState::forMainWorld(frame);
     if (!scriptState)
         return;
-    InjectedScript injectedScript = m_injectedScriptManager->injectedScriptFor(scriptState);
-    if (injectedScript.isEmpty())
-        return;
-
     ScriptState::Scope scope(scriptState);
-    v8::Isolate* isolate = scriptState->isolate();
-    ScriptValue scriptValue = ScriptValue(scriptState, toV8(animation, scriptState->context()->Global(), isolate));
-    injectedScript.releaseObjectGroup("animation");
-    result = injectedScript.wrapObject(scriptValue, "animation");
+    InjectedScript* injectedScript = m_injectedScriptManager->injectedScriptFor(scriptState->context());
+    if (!injectedScript)
+        return;
+    injectedScript->releaseObjectGroup("animation");
+    result = injectedScript->wrapObject(toV8(animation, scriptState->context()->Global(), scriptState->isolate()), "animation");
 }
 
 static CSSPropertyID animationProperties[] = {
@@ -477,7 +475,7 @@ void InspectorAnimationAgent::animationPlayStateChanged(Animation* animation, An
 
 void InspectorAnimationAgent::didClearDocumentOfWindowObject(LocalFrame* frame)
 {
-    if (!m_state->getBoolean(AnimationAgentState::animationAgentEnabled))
+    if (!m_state->booleanProperty(AnimationAgentState::animationAgentEnabled, false))
         return;
     ASSERT(frame->document());
     frame->document()->timeline().setPlaybackRate(referenceTimeline().playbackRate());
@@ -511,7 +509,6 @@ DEFINE_TRACE(InspectorAnimationAgent)
     visitor->trace(m_inspectedFrames);
     visitor->trace(m_domAgent);
     visitor->trace(m_cssAgent);
-    visitor->trace(m_injectedScriptManager);
     visitor->trace(m_idToAnimation);
     visitor->trace(m_idToAnimationType);
     visitor->trace(m_idToAnimationClone);
@@ -519,4 +516,4 @@ DEFINE_TRACE(InspectorAnimationAgent)
     InspectorBaseAgent::trace(visitor);
 }
 
-}
+} // namespace blink

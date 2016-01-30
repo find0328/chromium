@@ -222,6 +222,7 @@ public:
     void notifyCompositorAnimationAborted(int groupId);
 
     virtual bool usesCompositedScrolling() const { return false; }
+    virtual bool shouldScrollOnMainThread() const;
 
     // Returns true if the GraphicsLayer tree needs to be rebuilt.
     virtual bool updateAfterCompositingChange() { return false; }
@@ -278,6 +279,9 @@ public:
 
     // Returns the widget associated with this ScrollableArea.
     virtual Widget* widget() { return nullptr; }
+
+    virtual bool isFrameView() const { return false; }
+    virtual bool isPaintLayerScrollableArea() const { return false; }
 
     // Need to promptly let go of owned animator objects.
     EAGERLY_FINALIZE();

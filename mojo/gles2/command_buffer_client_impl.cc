@@ -271,40 +271,6 @@ int32_t CommandBufferClientImpl::CreateGpuMemoryBufferImage(
   return CreateImage(buffer->AsClientBuffer(), width, height, internalformat);
 }
 
-uint32_t CommandBufferClientImpl::InsertSyncPoint() {
-  uint32_t sync_point = 0;
-  command_buffer_->InsertSyncPoint(true,
-                                   base::Bind(&Copy<uint32_t>, &sync_point));
-
-  base::ThreadRestrictions::ScopedAllowWait wait;
-  if (!command_buffer_.WaitForIncomingResponse()) {
-    VLOG(1) << "Channel encountered error while creating command buffer.";
-  }
-  return sync_point;
-}
-
-uint32_t CommandBufferClientImpl::InsertFutureSyncPoint() {
-  uint32_t sync_point = 0;
-  command_buffer_->InsertSyncPoint(false,
-                                   base::Bind(&Copy<uint32_t>, &sync_point));
-
-  base::ThreadRestrictions::ScopedAllowWait wait;
-  if (!command_buffer_.WaitForIncomingResponse()) {
-    VLOG(1) << "Channel encountered error while creating command buffer.";
-  }
-  return sync_point;
-}
-
-void CommandBufferClientImpl::RetireSyncPoint(uint32_t sync_point) {
-  command_buffer_->RetireSyncPoint(sync_point);
-}
-
-void CommandBufferClientImpl::SignalSyncPoint(uint32_t sync_point,
-                                              const base::Closure& callback) {
-  // TODO(piman)
-  NOTIMPLEMENTED();
-}
-
 void CommandBufferClientImpl::SignalQuery(uint32_t query,
                                           const base::Closure& callback) {
   // TODO(piman)

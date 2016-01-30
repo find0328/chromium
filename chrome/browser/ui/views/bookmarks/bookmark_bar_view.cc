@@ -77,8 +77,8 @@
 #include "ui/base/dragdrop/drag_utils.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/page_transition_types.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
 #include "ui/base/window_open_disposition.h"
@@ -709,8 +709,7 @@ base::string16 BookmarkBarView::CreateToolTipForURLAndTitle(
     const base::string16& title,
     Profile* profile) {
   const views::TooltipManager* tooltip_manager = widget->GetTooltipManager();
-  int max_width = tooltip_manager->GetMaxWidth(screen_loc,
-                                               widget->GetNativeView());
+  int max_width = tooltip_manager->GetMaxWidth(screen_loc);
   const gfx::FontList tt_fonts = tooltip_manager->GetFontList();
   base::string16 result;
 

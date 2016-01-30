@@ -10,6 +10,7 @@ import android.content.DialogInterface;
 import android.content.res.TypedArray;
 import android.util.SparseBooleanArray;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ListView;
@@ -39,11 +40,9 @@ public class SelectPopupDialog implements SelectPopup {
         mContentViewCore = contentViewCore;
 
         final ListView listView = new ListView(windowContext);
-        listView.setCacheColorHint(0);
         AlertDialog.Builder b = new AlertDialog.Builder(windowContext)
                 .setView(listView)
-                .setCancelable(true)
-                .setInverseBackgroundForced(true);
+                .setCancelable(true);
 
         if (multiple) {
             b.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
@@ -128,7 +127,11 @@ public class SelectPopupDialog implements SelectPopup {
 
     @Override
     public void show() {
-        mListBoxPopup.show();
+        try {
+            mListBoxPopup.show();
+        } catch (WindowManager.BadTokenException e) {
+            notifySelection(null);
+        }
     }
 
     @Override

@@ -57,6 +57,7 @@ cr.define('media_router_container', function() {
         'container-header',
         'device-missing',
         'first-run-flow',
+        'first-run-flow-cloud-pref',
         'issue-banner',
         'route-details',
         'sink-list',
@@ -173,9 +174,50 @@ cr.define('media_router_container', function() {
         container.showFirstRunFlow = true;
 
         setTimeout(function() {
-          container.addEventListener('acknowledge-first-run-flow', function() {
+          container.addEventListener('acknowledge-first-run-flow',
+              function(data) {
+            assertFalse(data.detail.optedIntoCloudServices);
             done();
           });
+          MockInteractions.tap(container.shadowRoot.getElementById(
+              'first-run-button'));
+        });
+      });
+
+      // Tests for 'acknowledge-first-run-flow' event firing when the
+      // 'first-run-button' button is clicked and the cloud preference checkbox
+      // is also shown.
+      test('first run button with cloud pref click', function(done) {
+        container.showFirstRunFlow = true;
+        container.showFirstRunFlowCloudPref = true;
+
+        setTimeout(function() {
+          container.addEventListener('acknowledge-first-run-flow',
+              function(data) {
+            assertTrue(data.detail.optedIntoCloudServices);
+            done();
+          });
+          MockInteractions.tap(container.shadowRoot.getElementById(
+              'first-run-button'));
+        });
+      });
+
+      // Tests for 'acknowledge-first-run-flow' event firing when the
+      // 'first-run-button' button is clicked after the cloud preference
+      // checkbox is deselected.
+      test('first run button with cloud pref deselected click',
+          function(done) {
+        container.showFirstRunFlow = true;
+        container.showFirstRunFlowCloudPref = true;
+
+        setTimeout(function() {
+          container.addEventListener('acknowledge-first-run-flow',
+              function(data) {
+            assertFalse(data.detail.optedIntoCloudServices);
+            done();
+          });
+          MockInteractions.tap(container.shadowRoot.getElementById(
+              'first-run-cloud-checkbox'));
           MockInteractions.tap(container.shadowRoot.getElementById(
               'first-run-button'));
         });
@@ -501,6 +543,30 @@ cr.define('media_router_container', function() {
 
           setTimeout(function() {
             checkElementVisibleWithId(false, 'first-run-flow');
+            done();
+          });
+        });
+      });
+
+      // Tests for the expected visible UI when interacting with the first run
+      // flow with cloud services preference.
+      test('first run button visibility', function(done) {
+        container.showFirstRunFlow = true;
+        container.showFirstRunFlowCloudPref = true;
+
+        setTimeout(function() {
+          checkElementsVisibleWithId(['container-header',
+                                      'device-missing',
+                                      'first-run-flow',
+                                      'first-run-flow-cloud-pref',
+                                      'sink-list-view']);
+          MockInteractions.tap(container.shadowRoot.getElementById(
+              'first-run-button'));
+
+          setTimeout(function() {
+            checkElementsVisibleWithId(['container-header',
+                                        'device-missing',
+                                        'sink-list-view']);
             done();
           });
         });

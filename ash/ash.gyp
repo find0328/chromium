@@ -25,8 +25,6 @@
       'accelerators/key_hold_detector.h',
       'accelerators/magnifier_key_scroller.cc',
       'accelerators/magnifier_key_scroller.h',
-      'accelerators/nested_accelerator_delegate.cc',
-      'accelerators/nested_accelerator_delegate.h',
       'accelerators/spoken_feedback_toggler.cc',
       'accelerators/spoken_feedback_toggler.h',
       'accessibility_delegate.h',
@@ -63,8 +61,9 @@
       'desktop_background/user_wallpaper_delegate.h',
       'display/cursor_window_controller.cc',
       'display/cursor_window_controller.h',
-      'display/display_animator.cc',
       'display/display_animator.h',
+      'display/display_animator_chromeos.cc',
+      'display/display_animator_chromeos.h',
       'display/display_change_observer_chromeos.cc',
       'display/display_change_observer_chromeos.h',
       'display/display_color_manager_chromeos.cc',
@@ -81,6 +80,8 @@
       'display/display_layout_store.h',
       'display/display_manager.cc',
       'display/display_manager.h',
+      'display/display_configuration_controller.cc',
+      'display/display_configuration_controller.h',
       'display/display_pref_util.h',
       'display/display_util.cc',
       'display/display_util.h',
@@ -1031,8 +1032,6 @@
             'accelerators/magnifier_key_scroller.h',
             'accelerators/spoken_feedback_toggler.cc',
             'accelerators/spoken_feedback_toggler.h',
-            'display/display_animator.cc',
-            'display/display_animator.h',
             'display/resolution_notification_controller.cc',
             'display/resolution_notification_controller.h',
             'system/tray/media_security/media_capture_observer.h',
@@ -1212,11 +1211,6 @@
           # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
           'msvs_disabled_warnings': [ 4267, ],
         }],
-        ['OS=="win" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '../base/allocator/allocator.gyp:allocator',
-          ],
-        }],
         ['chromeos==1', {
           'dependencies': [
             '../chromeos/chromeos.gyp:chromeos_test_support_without_gmock',
@@ -1238,14 +1232,6 @@
             'touch/touch_transformer_controller_unittest.cc',
             'touch/touchscreen_util_unittest.cc',
           ],
-        }],
-        ['OS=="linux" and component=="shared_library" and use_allocator!="none"', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-          ],
-          'link_settings': {
-            'ldflags': ['-rdynamic'],
-          },
         }],
       ],
     },
@@ -1332,11 +1318,6 @@
         ['chromeos==1', {
           'dependencies': [
             '../device/bluetooth/bluetooth.gyp:device_bluetooth',
-          ],
-        }],
-        ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '<(DEPTH)/base/allocator/allocator.gyp:allocator',
           ],
         }],
       ],

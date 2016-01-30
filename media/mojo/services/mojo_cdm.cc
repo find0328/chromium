@@ -76,9 +76,7 @@ MojoCdm::MojoCdm(interfaces::ContentDecryptionModulePtr remote_cdm,
   DCHECK(!session_keys_change_cb_.is_null());
   DCHECK(!session_expiration_update_cb_.is_null());
 
-  interfaces::ContentDecryptionModuleClientPtr client_ptr;
-  binding_.Bind(GetProxy(&client_ptr));
-  remote_cdm_->SetClient(std::move(client_ptr));
+  remote_cdm_->SetClient(binding_.CreateInterfacePtrAndBind());
 }
 
 MojoCdm::~MojoCdm() {
@@ -184,7 +182,7 @@ void MojoCdm::OnSessionMessage(const mojo::String& session_id,
                                mojo::Array<uint8_t> message,
                                const mojo::String& legacy_destination_url) {
   DVLOG(2) << __FUNCTION__;
-  GURL verified_gurl = GURL(legacy_destination_url);
+  GURL verified_gurl = GURL(legacy_destination_url.get());
   if (!verified_gurl.is_valid() && !verified_gurl.is_empty()) {
     DLOG(WARNING) << "SessionMessage destination_url is invalid : "
                   << verified_gurl.possibly_invalid_spec();

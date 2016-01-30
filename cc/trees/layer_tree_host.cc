@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <stack>
 #include <string>
+#include <unordered_map>
 
 #include "base/atomic_sequence_num.h"
 #include "base/auto_reset.h"
@@ -50,6 +51,7 @@
 #include "cc/trees/layer_tree_host_impl.h"
 #include "cc/trees/layer_tree_impl.h"
 #include "cc/trees/proxy_main.h"
+#include "cc/trees/remote_channel_impl.h"
 #include "cc/trees/single_thread_proxy.h"
 #include "cc/trees/tree_synchronizer.h"
 #include "ui/gfx/geometry/size_conversions.h"
@@ -64,7 +66,7 @@ namespace {
 
 Layer* UpdateAndGetLayer(Layer* current_layer,
                          int layer_id,
-                         const base::hash_map<int, Layer*>& layer_id_map) {
+                         const std::unordered_map<int, Layer*>& layer_id_map) {
   if (layer_id == Layer::INVALID_ID) {
     if (current_layer)
       current_layer->SetLayerTreeHost(nullptr);
@@ -95,7 +97,7 @@ scoped_ptr<LayerTreeHost> LayerTreeHost::CreateThreaded(
   DCHECK(impl_task_runner.get());
   DCHECK(params->settings);
   scoped_ptr<LayerTreeHost> layer_tree_host(
-      new LayerTreeHost(params, CompositorMode::Threaded));
+      new LayerTreeHost(params, CompositorMode::THREADED));
   layer_tree_host->InitializeThreaded(
       params->main_task_runner, impl_task_runner,
       std::move(params->external_begin_frame_source));
@@ -107,10 +109,50 @@ scoped_ptr<LayerTreeHost> LayerTreeHost::CreateSingleThreaded(
     InitParams* params) {
   DCHECK(params->settings);
   scoped_ptr<LayerTreeHost> layer_tree_host(
-      new LayerTreeHost(params, CompositorMode::SingleThreaded));
+      new LayerTreeHost(params, CompositorMode::SINGLE_THREADED));
   layer_tree_host->InitializeSingleThreaded(
       single_thread_client, params->main_task_runner,
       std::move(params->external_begin_frame_source));
+  return layer_tree_host;
+}
+
+scoped_ptr<LayerTreeHost> LayerTreeHost::CreateRemoteServer(
+    RemoteProtoChannel* remote_proto_channel,
+    InitParams* params) {
+  DCHECK(params->main_task_runner.get());
+  DCHECK(params->settings);
+  DCHECK(remote_proto_channel);
+
+  // Using an external begin frame source is not supported on the server in
+  // remote mode.
+  DCHECK(!params->settings->use_external_begin_frame_source);
+  DCHECK(!params->external_begin_frame_source);
+
+  scoped_ptr<LayerTreeHost> layer_tree_host(
+      new LayerTreeHost(params, CompositorMode::REMOTE));
+  layer_tree_host->InitializeRemoteServer(remote_proto_channel,
+                                          params->main_task_runner);
+  return layer_tree_host;
+}
+
+scoped_ptr<LayerTreeHost> LayerTreeHost::CreateRemoteClient(
+    RemoteProtoChannel* remote_proto_channel,
+    scoped_refptr<base::SingleThreadTaskRunner> impl_task_runner,
+    InitParams* params) {
+  DCHECK(params->main_task_runner.get());
+  DCHECK(params->settings);
+  DCHECK(remote_proto_channel);
+
+  // Using an external begin frame source is not supported in remote mode.
+  // TODO(khushalsagar): Add support for providing an external begin frame
+  // source on the client LayerTreeHost. crbug/576962
+  DCHECK(!params->settings->use_external_begin_frame_source);
+  DCHECK(!params->external_begin_frame_source);
+
+  scoped_ptr<LayerTreeHost> layer_tree_host(
+      new LayerTreeHost(params, CompositorMode::REMOTE));
+  layer_tree_host->InitializeRemoteClient(
+      remote_proto_channel, params->main_task_runner, impl_task_runner);
   return layer_tree_host;
 }
 
@@ -141,6 +183,7 @@ LayerTreeHost::LayerTreeHost(InitParams* params, CompositorMode mode)
       gpu_rasterization_histogram_recorded_(false),
       background_color_(SK_ColorWHITE),
       has_transparent_background_(false),
+      have_wheel_event_handlers_(false),
       did_complete_scale_animation_(false),
       in_paint_layer_contents_(false),
       id_(s_layer_tree_host_sequence_number.GetNext() + 1),
@@ -187,6 +230,40 @@ void LayerTreeHost::InitializeSingleThreaded(
                   std::move(external_begin_frame_source));
 }
 
+void LayerTreeHost::InitializeRemoteServer(
+    RemoteProtoChannel* remote_proto_channel,
+    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner) {
+  task_runner_provider_ = TaskRunnerProvider::Create(main_task_runner, nullptr);
+
+  // The LayerTreeHost on the server never requests the output surface since
+  // it is only needed on the client. Since ProxyMain aborts commits if
+  // output_surface_lost() is true, always assume we have the output surface
+  // on the server.
+  output_surface_lost_ = false;
+
+  InitializeProxy(ProxyMain::CreateRemote(remote_proto_channel, this,
+                                          task_runner_provider_.get()),
+                  nullptr);
+}
+
+void LayerTreeHost::InitializeRemoteClient(
+    RemoteProtoChannel* remote_proto_channel,
+    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> impl_task_runner) {
+  task_runner_provider_ =
+      TaskRunnerProvider::Create(main_task_runner, impl_task_runner);
+
+  // For the remote mode, the RemoteChannelImpl implements the Proxy, which is
+  // owned by the LayerTreeHost. The RemoteChannelImpl pipes requests which need
+  // to handled locally, for instance the Output Surface creation to the
+  // LayerTreeHost on the client, while the other requests are sent to the
+  // RemoteChannelMain on the server which directs them to ProxyMain and the
+  // remote server LayerTreeHost.
+  InitializeProxy(RemoteChannelImpl::Create(this, remote_proto_channel,
+                                            task_runner_provider_.get()),
+                  nullptr);
+}
+
 void LayerTreeHost::InitializeForTesting(
     scoped_ptr<TaskRunnerProvider> task_runner_provider,
     scoped_ptr<Proxy> proxy_for_testing,
@@ -206,6 +283,7 @@ void LayerTreeHost::InitializeProxy(
     scoped_ptr<Proxy> proxy,
     scoped_ptr<BeginFrameSource> external_begin_frame_source) {
   TRACE_EVENT0("cc", "LayerTreeHost::InitializeForReal");
+  DCHECK(task_runner_provider_);
 
   proxy_ = std::move(proxy);
   proxy_->Start(std::move(external_begin_frame_source));
@@ -283,6 +361,7 @@ void LayerTreeHost::RequestMainFrameUpdate() {
 // should be delayed until the LayerTreeHost::CommitComplete, which will run
 // after the commit, but on the main thread.
 void LayerTreeHost::FinishCommitOnImplThread(LayerTreeHostImpl* host_impl) {
+  DCHECK(!IsRemoteServer());
   DCHECK(task_runner_provider_->IsImplThread());
 
   bool is_new_trace;
@@ -320,6 +399,7 @@ void LayerTreeHost::FinishCommitOnImplThread(LayerTreeHostImpl* host_impl) {
 
   sync_tree->set_background_color(background_color_);
   sync_tree->set_has_transparent_background(has_transparent_background_);
+  sync_tree->set_have_wheel_event_handlers(have_wheel_event_handlers_);
 
   if (page_scale_layer_.get() && inner_viewport_scroll_layer_.get()) {
     sync_tree->SetViewportLayersFromIds(
@@ -469,6 +549,7 @@ void LayerTreeHost::DidFailToInitializeOutputSurface() {
 
 scoped_ptr<LayerTreeHostImpl> LayerTreeHost::CreateLayerTreeHostImpl(
     LayerTreeHostImplClient* client) {
+  DCHECK(!IsRemoteServer());
   DCHECK(task_runner_provider_->IsImplThread());
   scoped_ptr<LayerTreeHostImpl> host_impl = LayerTreeHostImpl::Create(
       settings_, client, task_runner_provider_.get(),
@@ -819,17 +900,14 @@ bool LayerTreeHost::DoUpdateLayers(Layer* root_layer) {
                                                   device_scale_factor_);
   }
 
-
-  TRACE_EVENT0("cc", "LayerTreeHost::UpdateLayers::CalcDrawProps");
-
-  LayerTreeHostCommon::PreCalculateMetaInformation(root_layer);
-
   gfx::Transform identity_transform;
   LayerList update_layer_list;
 
   {
+    TRACE_EVENT0("cc", "LayerTreeHost::UpdateLayers::BuildPropertyTrees");
     TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("cc.debug.cdp-perf"),
                  "LayerTreeHostCommon::ComputeVisibleRectsWithPropertyTrees");
+    LayerTreeHostCommon::PreCalculateMetaInformation(root_layer);
     bool can_render_to_separate_surface = true;
     BuildPropertyTreesAndComputeVisibleRects(
         root_layer, page_scale_layer, inner_viewport_scroll_layer_.get(),
@@ -937,8 +1015,8 @@ void LayerTreeHost::SetPaintedDeviceScaleFactor(
 void LayerTreeHost::UpdateTopControlsState(TopControlsState constraints,
                                            TopControlsState current,
                                            bool animate) {
-  // Top controls are only used in threaded mode.
-  DCHECK(IsThreaded());
+  // Top controls are only used in threaded or remote mode.
+  DCHECK(IsThreaded() || IsRemoteServer());
   proxy_->UpdateTopControlsState(constraints, current, animate);
 }
 
@@ -1033,6 +1111,14 @@ void LayerTreeHost::RegisterSelection(const LayerSelection& selection) {
     return;
 
   selection_ = selection;
+  SetNeedsCommit();
+}
+
+void LayerTreeHost::SetHaveWheelEventHandlers(bool have_event_handlers) {
+  if (have_wheel_event_handlers_ == have_event_handlers)
+    return;
+
+  have_wheel_event_handlers_ = have_event_handlers;
   SetNeedsCommit();
 }
 
@@ -1292,15 +1378,26 @@ bool LayerTreeHost::HasActiveAnimation(const Layer* layer) const {
 }
 
 bool LayerTreeHost::IsSingleThreaded() const {
-  DCHECK(compositor_mode_ != CompositorMode::SingleThreaded ||
+  DCHECK(compositor_mode_ != CompositorMode::SINGLE_THREADED ||
          !task_runner_provider_->HasImplThread());
-  return compositor_mode_ == CompositorMode::SingleThreaded;
+  return compositor_mode_ == CompositorMode::SINGLE_THREADED;
 }
 
 bool LayerTreeHost::IsThreaded() const {
-  DCHECK(compositor_mode_ != CompositorMode::Threaded ||
+  DCHECK(compositor_mode_ != CompositorMode::THREADED ||
          task_runner_provider_->HasImplThread());
-  return compositor_mode_ == CompositorMode::Threaded;
+  return compositor_mode_ == CompositorMode::THREADED;
+}
+
+bool LayerTreeHost::IsRemoteServer() const {
+  // The LayerTreeHost on the server does not have an impl task runner.
+  return compositor_mode_ == CompositorMode::REMOTE &&
+         !task_runner_provider_->HasImplThread();
+}
+
+bool LayerTreeHost::IsRemoteClient() const {
+  return compositor_mode_ == CompositorMode::REMOTE &&
+         task_runner_provider_->HasImplThread();
 }
 
 void LayerTreeHost::ToProtobufForCommit(proto::LayerTreeHost* proto) const {
@@ -1350,6 +1447,7 @@ void LayerTreeHost::ToProtobufForCommit(proto::LayerTreeHost* proto) const {
       content_is_suitable_for_gpu_rasterization_);
   proto->set_background_color(background_color_);
   proto->set_has_transparent_background(has_transparent_background_);
+  proto->set_have_wheel_event_handlers(have_wheel_event_handlers_);
   proto->set_in_paint_layer_contents(in_paint_layer_contents_);
   proto->set_id(id_);
   proto->set_next_commit_forces_redraw(next_commit_forces_redraw_);
@@ -1414,6 +1512,7 @@ void LayerTreeHost::FromProtobufForCommit(const proto::LayerTreeHost& proto) {
       proto.content_is_suitable_for_gpu_rasterization();
   background_color_ = proto.background_color();
   has_transparent_background_ = proto.has_transparent_background();
+  have_wheel_event_handlers_ = proto.have_wheel_event_handlers();
   in_paint_layer_contents_ = proto.in_paint_layer_contents();
   id_ = proto.id();
   next_commit_forces_redraw_ = proto.next_commit_forces_redraw();
@@ -1437,6 +1536,17 @@ void LayerTreeHost::FromProtobufForCommit(const proto::LayerTreeHost& proto) {
   // It is required to create new PropertyTrees before deserializing it.
   property_trees_ = PropertyTrees();
   property_trees_.FromProtobuf(proto.property_trees());
+
+  // Forcefully override the sequence number of all layers in the tree to have
+  // a valid sequence number. Changing the sequence number for a layer does not
+  // need a commit, so the value will become out of date for layers that are not
+  // updated for other reasons. All layers that at this point are part of the
+  // layer tree are valid, so it is OK that they have a valid sequence number.
+  int seq_num = property_trees_.sequence_number;
+  LayerTreeHostCommon::CallFunctionForSubtree(
+      root_layer(), [seq_num](Layer* layer) {
+        layer->set_property_tree_sequence_number(seq_num);
+      });
 
   surface_id_namespace_ = proto.surface_id_namespace();
   next_surface_sequence_ = proto.next_surface_sequence();

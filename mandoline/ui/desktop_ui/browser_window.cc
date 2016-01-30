@@ -112,10 +112,9 @@ BrowserWindow::BrowserWindow(mojo::ApplicationImpl* app,
       find_active_(0),
       find_count_(0),
       web_view_(this) {
-  mus::mojom::WindowTreeHostClientPtr host_client;
-  host_client_binding_.Bind(GetProxy(&host_client));
-  mus::CreateWindowTreeHost(host_factory, std::move(host_client), this, &host_,
-                            nullptr, nullptr);
+  mus::CreateWindowTreeHost(host_factory,
+                            host_client_binding_.CreateInterfacePtrAndBind(),
+                            this, &host_, nullptr);
 }
 
 void BrowserWindow::LoadURL(const GURL& url) {
@@ -212,31 +211,31 @@ void BrowserWindow::OnEmbed(mus::Window* root) {
 
   host_->AddAccelerator(
       static_cast<uint32_t>(BrowserCommand::CLOSE),
-      mus::CreateKeyMatcher(mus::mojom::KEYBOARD_CODE_W,
-                            mus::mojom::EVENT_FLAGS_CONTROL_DOWN),
+      mus::CreateKeyMatcher(mus::mojom::KeyboardCode::W,
+                            mus::mojom::kEventFlagControlDown),
       mus::mojom::WindowTreeHost::AddAcceleratorCallback());
   host_->AddAccelerator(
       static_cast<uint32_t>(BrowserCommand::FOCUS_OMNIBOX),
-      mus::CreateKeyMatcher(mus::mojom::KEYBOARD_CODE_L,
-                            mus::mojom::EVENT_FLAGS_CONTROL_DOWN),
+      mus::CreateKeyMatcher(mus::mojom::KeyboardCode::L,
+                            mus::mojom::kEventFlagControlDown),
       mus::mojom::WindowTreeHost::AddAcceleratorCallback());
   host_->AddAccelerator(
       static_cast<uint32_t>(BrowserCommand::NEW_WINDOW),
-      mus::CreateKeyMatcher(mus::mojom::KEYBOARD_CODE_N,
-                            mus::mojom::EVENT_FLAGS_CONTROL_DOWN),
+      mus::CreateKeyMatcher(mus::mojom::KeyboardCode::N,
+                            mus::mojom::kEventFlagControlDown),
       mus::mojom::WindowTreeHost::AddAcceleratorCallback());
   host_->AddAccelerator(
       static_cast<uint32_t>(BrowserCommand::SHOW_FIND),
-      mus::CreateKeyMatcher(mus::mojom::KEYBOARD_CODE_F,
-                            mus::mojom::EVENT_FLAGS_CONTROL_DOWN),
+      mus::CreateKeyMatcher(mus::mojom::KeyboardCode::F,
+                            mus::mojom::kEventFlagControlDown),
       mus::mojom::WindowTreeHost::AddAcceleratorCallback());
   host_->AddAccelerator(static_cast<uint32_t>(BrowserCommand::GO_BACK),
-                        mus::CreateKeyMatcher(mus::mojom::KEYBOARD_CODE_LEFT,
-                                              mus::mojom::EVENT_FLAGS_ALT_DOWN),
+                        mus::CreateKeyMatcher(mus::mojom::KeyboardCode::LEFT,
+                                              mus::mojom::kEventFlagAltDown),
                         mus::mojom::WindowTreeHost::AddAcceleratorCallback());
   host_->AddAccelerator(static_cast<uint32_t>(BrowserCommand::GO_FORWARD),
-                        mus::CreateKeyMatcher(mus::mojom::KEYBOARD_CODE_RIGHT,
-                                              mus::mojom::EVENT_FLAGS_ALT_DOWN),
+                        mus::CreateKeyMatcher(mus::mojom::KeyboardCode::RIGHT,
+                                              mus::mojom::kEventFlagAltDown),
                         mus::mojom::WindowTreeHost::AddAcceleratorCallback());
   // Now that we're ready, load the default url.
   LoadURL(default_url_);
@@ -303,7 +302,7 @@ void BrowserWindow::TopLevelNavigateRequest(mojo::URLRequestPtr request) {
 }
 
 void BrowserWindow::TopLevelNavigationStarted(const mojo::String& url) {
-  GURL gurl(url);
+  GURL gurl(url.get());
   bool changed = current_url_ != gurl;
   current_url_ = gurl;
   if (changed)
@@ -319,8 +318,8 @@ void BrowserWindow::BackForwardChanged(
     web_view::mojom::ButtonState back_button,
     web_view::mojom::ButtonState forward_button) {
   toolbar_view_->SetBackForwardEnabled(
-      back_button == web_view::mojom::ButtonState::BUTTON_STATE_ENABLED,
-      forward_button == web_view::mojom::ButtonState::BUTTON_STATE_ENABLED);
+      back_button == web_view::mojom::ButtonState::ENABLED,
+      forward_button == web_view::mojom::ButtonState::ENABLED);
 }
 
 void BrowserWindow::TitleChanged(const mojo::String& title) {
@@ -408,7 +407,7 @@ void BrowserWindow::Init(mus::Window* root) {
   views::Widget::InitParams params(
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.native_widget = new views::NativeWidgetMus(
-      widget, app_->shell(), root, mus::mojom::SURFACE_TYPE_DEFAULT);
+      widget, app_->shell(), root, mus::mojom::SurfaceType::DEFAULT);
   params.delegate = widget_delegate;
   params.bounds = root_->bounds();
   widget->Init(params);

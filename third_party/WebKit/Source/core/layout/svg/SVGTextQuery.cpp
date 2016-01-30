@@ -88,7 +88,7 @@ static void collectTextBoxesInFlowBox(InlineFlowBox* flowBox, Vector<SVGInlineTe
     for (InlineBox* child = flowBox->firstChild(); child; child = child->nextOnLine()) {
         if (child->isInlineFlowBox()) {
             // Skip generated content.
-            if (!child->layoutObject().node())
+            if (!child->lineLayoutItem().node())
                 continue;
 
             collectTextBoxesInFlowBox(toInlineFlowBox(child), textBoxes);
@@ -608,4 +608,4 @@ int SVGTextQuery::characterNumberAtPosition(const FloatPoint& position) const
     return data.characterNumberWithin(m_queryRootLayoutObject);
 }
 
-}
+} // namespace blink

@@ -236,8 +236,7 @@ void MultiWindowResizeController::OnWindowDestroying(
 MultiWindowResizeController::ResizeWindows
 MultiWindowResizeController::DetermineWindowsFromScreenPoint(
     aura::Window* window) const {
-  gfx::Point mouse_location(
-      gfx::Screen::GetScreenFor(window)->GetCursorScreenPoint());
+  gfx::Point mouse_location(gfx::Screen::GetScreen()->GetCursorScreenPoint());
   ::wm::ConvertPointFromScreen(window, &mouse_location);
   const int component =
       window->delegate()->GetNonClientComponent(mouse_location);
@@ -474,7 +473,7 @@ void MultiWindowResizeController::CompleteResize() {
   window_resizer_.reset();
 
   // Mouse may still be over resizer, if not hide.
-  gfx::Point screen_loc = Shell::GetScreen()->GetCursorScreenPoint();
+  gfx::Point screen_loc = gfx::Screen::GetScreen()->GetCursorScreenPoint();
   if (!resize_widget_->GetWindowBoundsInScreen().Contains(screen_loc)) {
     Hide();
   } else {

@@ -13,6 +13,7 @@
 #include "base/command_line.h"
 #include "base/debug/alias.h"
 #include "base/debug/asan_invalid_access.h"
+#include "base/debug/crash_logging.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/files/file.h"
 #include "base/i18n/char_iterator.h"
@@ -104,7 +105,6 @@
 #include "content/renderer/media/renderer_webmediaplayer_delegate.h"
 #include "content/renderer/media/user_media_client_impl.h"
 #include "content/renderer/media/webmediaplayer_ms.h"
-#include "content/renderer/memory_benchmarking_extension.h"
 #include "content/renderer/mojo/service_registry_js_wrapper.h"
 #include "content/renderer/mojo_bindings_controller.h"
 #include "content/renderer/navigation_state_impl.h"
@@ -145,7 +145,9 @@
 #include "net/base/net_errors.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_util.h"
+#include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebData.h"
+#include "third_party/WebKit/public/platform/WebMediaPlayer.h"
 #include "third_party/WebKit/public/platform/WebStorageQuotaCallbacks.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
@@ -155,6 +157,7 @@
 #include "third_party/WebKit/public/platform/modules/webusb/WebUSBClient.h"
 #include "third_party/WebKit/public/web/WebColorSuggestion.h"
 #include "third_party/WebKit/public/web/WebDocument.h"
+#include "third_party/WebKit/public/web/WebFindOptions.h"
 #include "third_party/WebKit/public/web/WebFrameSerializer.h"
 #include "third_party/WebKit/public/web/WebFrameWidget.h"
 #include "third_party/WebKit/public/web/WebKit.h"
@@ -162,6 +165,8 @@
 #include "third_party/WebKit/public/web/WebMediaStreamRegistry.h"
 #include "third_party/WebKit/public/web/WebNavigationPolicy.h"
 #include "third_party/WebKit/public/web/WebPlugin.h"
+#include "third_party/WebKit/public/web/WebPluginContainer.h"
+#include "third_party/WebKit/public/web/WebPluginDocument.h"
 #include "third_party/WebKit/public/web/WebPluginParams.h"
 #include "third_party/WebKit/public/web/WebRange.h"
 #include "third_party/WebKit/public/web/WebScopedUserGesture.h"
@@ -202,6 +207,7 @@
 #include "content/renderer/media/android/webmediaplayer_android.h"
 #include "content/renderer/media/android/webmediasession_android.h"
 #include "media/base/android/media_codec_util.h"
+#include "third_party/WebKit/public/platform/WebFloatPoint.h"
 #else
 #include "cc/blink/context_provider_web_context.h"
 #include "device/devices_app/public/cpp/constants.h"
@@ -241,6 +247,7 @@ using blink::WebDOMMessageEvent;
 using blink::WebElement;
 using blink::WebExternalPopupMenu;
 using blink::WebExternalPopupMenuClient;
+using blink::WebFindOptions;
 using blink::WebFrame;
 using blink::WebFrameSerializer;
 using blink::WebFrameSerializerClient;
@@ -254,9 +261,11 @@ using blink::WebMediaSession;
 using blink::WebNavigationPolicy;
 using blink::WebNavigationType;
 using blink::WebNode;
+using blink::WebPluginDocument;
 using blink::WebPluginParams;
 using blink::WebPopupMenuInfo;
 using blink::WebRange;
+using blink::WebRect;
 using blink::WebReferrerPolicy;
 using blink::WebScriptSource;
 using blink::WebSearchableFormData;
@@ -276,6 +285,11 @@ using blink::WebVector;
 using blink::WebView;
 using base::Time;
 using base::TimeDelta;
+
+#if defined(OS_ANDROID)
+using blink::WebFloatPoint;
+using blink::WebFloatRect;
+#endif
 
 namespace content {
 
@@ -576,7 +590,7 @@ bool IsReload(FrameMsg_Navigate_Type::Value navigation_type) {
 RenderFrameImpl::CreateRenderFrameImplFunction g_create_render_frame_impl =
     nullptr;
 
-void OnGotContentHandlerID(uint32_t content_handler_id) {}
+void OnGotRemoteIDs(uint32_t remote_id, uint32_t content_handler_id) {}
 
 WebString ConvertRelativePathToHtmlAttribute(const base::FilePath& path) {
   DCHECK(!path.IsAbsolute());
@@ -584,6 +598,42 @@ WebString ConvertRelativePathToHtmlAttribute(const base::FilePath& path) {
       std::string("./") +
       path.NormalizePathSeparatorsTo(FILE_PATH_LITERAL('/')).AsUTF8Unsafe());
 }
+
+// Implementation of WebFrameSerializer::LinkRewritingDelegate that responds
+// based on the payload of FrameMsg_GetSerializedHtmlWithLocalLinks.
+class LinkRewritingDelegate : public WebFrameSerializer::LinkRewritingDelegate {
+ public:
+  LinkRewritingDelegate(
+      const std::map<GURL, base::FilePath>& url_to_local_path,
+      const std::map<int, base::FilePath>& frame_routing_id_to_local_path)
+      : url_to_local_path_(url_to_local_path),
+        frame_routing_id_to_local_path_(frame_routing_id_to_local_path) {}
+
+  bool rewriteFrameSource(WebFrame* frame, WebString* rewritten_link) override {
+    int routing_id = GetRoutingIdForFrameOrProxy(frame);
+    auto it = frame_routing_id_to_local_path_.find(routing_id);
+    if (it == frame_routing_id_to_local_path_.end())
+      return false;  // This can happen because of https://crbug.com/541354.
+
+    const base::FilePath& local_path = it->second;
+    *rewritten_link = ConvertRelativePathToHtmlAttribute(local_path);
+    return true;
+  }
+
+  bool rewriteLink(const WebURL& url, WebString* rewritten_link) override {
+    auto it = url_to_local_path_.find(url);
+    if (it == url_to_local_path_.end())
+      return false;
+
+    const base::FilePath& local_path = it->second;
+    *rewritten_link = ConvertRelativePathToHtmlAttribute(local_path);
+    return true;
+  }
+
+ private:
+  const std::map<GURL, base::FilePath>& url_to_local_path_;
+  const std::map<int, base::FilePath>& frame_routing_id_to_local_path_;
+};
 
 // Implementation of WebFrameSerializer::MHTMLPartsGenerationDelegate that
 // 1. Bases shouldSkipResource and getContentID responses on contents of
@@ -619,8 +669,8 @@ class MHTMLPartsGenerationDelegate
     return false;
   }
 
-  WebString getContentID(const WebFrame& frame) override {
-    int routing_id = GetRoutingIdForFrameOrProxy(const_cast<WebFrame*>(&frame));
+  WebString getContentID(WebFrame* frame) override {
+    int routing_id = GetRoutingIdForFrameOrProxy(frame);
 
     auto it = params_.frame_routing_id_to_content_id.find(routing_id);
     if (it == params_.frame_routing_id_to_content_id.end())
@@ -670,36 +720,42 @@ bool IsContentWithCertificateErrorsRelevantToUI(
 }
 
 #if defined(OS_ANDROID)
-// Returns true if WMPI is enabled and is expected to be able to play the URL,
-// false if WMPA should be used instead.
+// Returns true if WMPI must be used for playback because WMPA will not work.
+bool MustUseWebMediaPlayerImpl(blink::WebMediaPlayer::LoadType load_type,
+                               const GURL& url) {
+  // WMPA can't play MSE if MediaCodec is unavailable. In this case WMPI may
+  // still work (via libvpx).
+  return (load_type == blink::WebMediaPlayer::LoadTypeMediaSource &&
+          !media::MediaCodecUtil::IsMediaCodecAvailable());
+}
+
+// Returns true if WMPI can be used for playback, false if it may not work.
 //
 // Note that HLS and WebM detection are pre-redirect and path-based. It is
-// possible to load such a URL and find different content, in which case
-// playback may fail.
-bool CanUseWebMediaPlayerImpl(const GURL& url) {
+// possible to load such a URL and find different content.
+bool CanUseWebMediaPlayerImpl(blink::WebMediaPlayer::LoadType load_type,
+                              const GURL& url) {
+  if (MustUseWebMediaPlayerImpl(load_type, url))
+    return true;
+
   // WMPI does not support HLS.
   if (media::MediaCodecUtil::IsHLSPath(url))
     return false;
 
-  // If --enable-unified-media-pipeline was passed, always use WMPI. (This
-  // allows for testing the new path.)
+  // Otherwise --enable-unified-media-pipeline always enables WMPI.
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableUnifiedMediaPipeline)) {
     return true;
   }
 
-  // Don't use WMPI for blob URLs (MSE in particular) yet.
-  if (url.SchemeIsBlob())
-    return false;
-
-  // WMPI can play VPX even without AVDA.
+  // WMPI can always play WebM (via libvpx).
   if (base::EndsWith(url.path(), ".webm", base::CompareCase::INSENSITIVE_ASCII))
     return true;
 
-  // Only use WMPI if AVDA is available.
-  return (media::MediaCodecUtil::IsMediaCodecAvailable() &&
-          !base::CommandLine::ForCurrentProcess()->HasSwitch(
-              switches::kDisableAcceleratedVideoDecode));
+  // Otherwise, WMPI can only be used if AVDA is working.
+  return (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+              switches::kDisableAcceleratedVideoDecode) &&
+          media::MediaCodecUtil::IsMediaCodecAvailable());
 }
 #endif  // defined(OS_ANDROID)
 
@@ -912,6 +968,7 @@ RenderFrameImpl::RenderFrameImpl(const CreateParams& params)
       proxy_routing_id_(MSG_ROUTING_NONE),
 #if defined(ENABLE_PLUGINS)
       plugin_power_saver_helper_(nullptr),
+      plugin_find_handler_(nullptr),
 #endif
       cookie_jar_(this),
       selection_text_offset_(0),
@@ -1030,7 +1087,7 @@ void RenderFrameImpl::Initialize() {
 
   if (IsMainFrame() &&
       RenderProcess::current()->GetEnabledBindings() & BINDINGS_POLICY_WEB_UI) {
-    EnableMojoBindings();
+    EnableMojoBindings(false /* for_layout_tests */);
   }
 
 #if defined(ENABLE_PLUGINS)
@@ -1151,7 +1208,8 @@ void RenderFrameImpl::SimulateImeSetComposition(
     int selection_start,
     int selection_end) {
   render_view_->OnImeSetComposition(
-      text, underlines, selection_start, selection_end);
+      text, underlines, gfx::Range::InvalidRange(),
+      selection_start, selection_end);
 }
 
 void RenderFrameImpl::SimulateImeConfirmComposition(
@@ -1358,7 +1416,12 @@ bool RenderFrameImpl::OnMessageReceived(const IPC::Message& msg) {
     IPC_MESSAGE_HANDLER(FrameMsg_GetSerializedHtmlWithLocalLinks,
                         OnGetSerializedHtmlWithLocalLinks)
     IPC_MESSAGE_HANDLER(FrameMsg_SerializeAsMHTML, OnSerializeAsMHTML)
+    IPC_MESSAGE_HANDLER(FrameMsg_Find, OnFind)
+    IPC_MESSAGE_HANDLER(FrameMsg_StopFinding, OnStopFinding)
 #if defined(OS_ANDROID)
+    IPC_MESSAGE_HANDLER(InputMsg_ActivateNearestFindResult,
+                        OnActivateNearestFindResult)
+    IPC_MESSAGE_HANDLER(FrameMsg_FindMatchRects, OnFindMatchRects)
     IPC_MESSAGE_HANDLER(FrameMsg_SelectPopupMenuItems, OnSelectPopupMenuItems)
 #elif defined(OS_MACOSX)
     IPC_MESSAGE_HANDLER(FrameMsg_SelectPopupMenuItem, OnSelectPopupMenuItem)
@@ -1530,6 +1593,7 @@ void RenderFrameImpl::OnSwapOut(
 
   RenderViewImpl* render_view = render_view_.get();
   bool is_main_frame = is_main_frame_;
+  int routing_id = GetRoutingID();
 
   // Now that all of the cleanup is complete and the browser side is notified,
   // start using the RenderFrameProxy, if one is created.
@@ -1545,8 +1609,15 @@ void RenderFrameImpl::OnSwapOut(
 
     // For main frames, the swap should have cleared the RenderView's pointer to
     // this frame.
-    if (is_main_frame)
+    if (is_main_frame) {
+      base::debug::SetCrashKeyValue("swapout_frame_id",
+                                    base::IntToString(routing_id));
+      base::debug::SetCrashKeyValue("swapout_proxy_id",
+                                    base::IntToString(proxy->routing_id()));
+      base::debug::SetCrashKeyValue(
+          "swapout_view_id", base::IntToString(render_view->GetRoutingID()));
       CHECK(!render_view->main_render_frame_);
+    }
 
     if (is_loading)
       proxy->OnDidStartLoading();
@@ -2056,31 +2127,6 @@ void RenderFrameImpl::OnPostMessageEvent(
   frame_->dispatchMessageEventWithOriginCheck(target_origin, msg_event);
 }
 
-#if defined(OS_ANDROID)
-void RenderFrameImpl::OnSelectPopupMenuItems(
-    bool canceled,
-    const std::vector<int>& selected_indices) {
-  // It is possible to receive more than one of these calls if the user presses
-  // a select faster than it takes for the show-select-popup IPC message to make
-  // it to the browser UI thread. Ignore the extra-messages.
-  // TODO(jcivelli): http:/b/5793321 Implement a better fix, as detailed in bug.
-  if (!external_popup_menu_)
-    return;
-
-  external_popup_menu_->DidSelectItems(canceled, selected_indices);
-  external_popup_menu_.reset();
-}
-#endif
-
-#if defined(OS_MACOSX)
-void RenderFrameImpl::OnSelectPopupMenuItem(int selected_index) {
-  if (external_popup_menu_ == NULL)
-    return;
-  external_popup_menu_->DidSelectItem(selected_index);
-  external_popup_menu_.reset();
-}
-#endif
-
 void RenderFrameImpl::OnReload(bool ignore_cache) {
   frame_->reload(ignore_cache);
 }
@@ -2183,6 +2229,12 @@ int RenderFrameImpl::ShowContextMenu(ContextMenuClient* client,
                                      const ContextMenuParams& params) {
   DCHECK(client);  // A null client means "internal" when we issue callbacks.
   ContextMenuParams our_params(params);
+
+  blink::WebRect position_in_window(params.x, params.y, 0, 0);
+  GetRenderWidget()->convertViewportToWindow(&position_in_window);
+  our_params.x = position_in_window.x;
+  our_params.y = position_in_window.y;
+
   our_params.custom_context.request_id = pending_context_menus_.Add(client);
   Send(new FrameHostMsg_ContextMenu(routing_id_, our_params));
   return our_params.custom_context.request_id;
@@ -2356,7 +2408,8 @@ blink::WebPlugin* RenderFrameImpl::createPlugin(
   std::string mime_type;
   bool found = false;
   WebString top_origin = frame->top()->securityOrigin().toString();
-  Send(new FrameHostMsg_GetPluginInfo(routing_id_, params.url, GURL(top_origin),
+  Send(new FrameHostMsg_GetPluginInfo(routing_id_, params.url,
+                                      blink::WebStringToGURL(top_origin),
                                       params.mimeType.utf8(), &found, &info,
                                       &mime_type));
   if (!found)
@@ -2372,11 +2425,13 @@ blink::WebPlugin* RenderFrameImpl::createPlugin(
 
 blink::WebMediaPlayer* RenderFrameImpl::createMediaPlayer(
     blink::WebLocalFrame* frame,
+    blink::WebMediaPlayer::LoadType load_type,
     const blink::WebURL& url,
     WebMediaPlayerClient* client,
     WebMediaPlayerEncryptedMediaClient* encrypted_client,
     WebContentDecryptionModule* initial_cdm,
-    const blink::WebString& sink_id) {
+    const blink::WebString& sink_id,
+    WebMediaSession* media_session) {
 #if defined(VIDEO_HOLE)
   if (!contains_media_player_) {
     render_view_->RegisterVideoHoleFrame(this);
@@ -2412,9 +2467,9 @@ blink::WebMediaPlayer* RenderFrameImpl::createMediaPlayer(
       GetMediaPermission(), initial_cdm);
 
 #if defined(OS_ANDROID)
-  if (!CanUseWebMediaPlayerImpl(url)) {
+  if (!CanUseWebMediaPlayerImpl(load_type, url)) {
     return CreateAndroidWebMediaPlayer(client, encrypted_client, params);
-  } else {
+  } else if (!MustUseWebMediaPlayerImpl(load_type, url)) {
     // TODO(dalecurtis): This experiment is temporary and should be removed once
     // we have enough data to support the primacy of the unified media pipeline;
     // see http://crbug.com/533190 for details.
@@ -2884,8 +2939,8 @@ void RenderFrameImpl::didCreateDataSource(blink::WebLocalFrame* frame,
   if (webview) {
     if (WebFrame* old_frame = webview->mainFrame()) {
       const WebURLRequest& original_request = datasource->originalRequest();
-      const GURL referrer(
-          original_request.httpHeaderField(WebString::fromUTF8("Referer")));
+      const GURL referrer(blink::WebStringToGURL(
+          original_request.httpHeaderField(WebString::fromUTF8("Referer"))));
       if (!referrer.is_empty() && old_frame->isWebLocalFrame() &&
           DocumentState::FromDataSource(old_frame->dataSource())
               ->was_prefetcher()) {
@@ -3096,6 +3151,7 @@ void RenderFrameImpl::didCommitProvisionalLoad(
     if (!proxy)
       return;
 
+    int proxy_routing_id = proxy_routing_id_;
     proxy->web_frame()->swap(frame_);
     proxy_routing_id_ = MSG_ROUTING_NONE;
     in_frame_tree_ = true;
@@ -3104,6 +3160,19 @@ void RenderFrameImpl::didCommitProvisionalLoad(
     // it needs to set RenderViewImpl's pointer for the main frame to itself
     // and ensure RenderWidget is no longer in swapped out mode.
     if (is_main_frame_) {
+      // Debug cases of https://crbug.com/575245.
+      base::debug::SetCrashKeyValue("commit_frame_id",
+                                    base::IntToString(GetRoutingID()));
+      base::debug::SetCrashKeyValue("commit_proxy_id",
+                                    base::IntToString(proxy_routing_id));
+      base::debug::SetCrashKeyValue(
+          "commit_view_id", base::IntToString(render_view_->GetRoutingID()));
+      if (render_view_->main_render_frame_) {
+        base::debug::SetCrashKeyValue(
+            "commit_main_render_frame_id",
+            base::IntToString(
+                render_view_->main_render_frame_->GetRoutingID()));
+      }
       CHECK(!render_view_->main_render_frame_);
       render_view_->main_render_frame_ = this;
       if (render_view_->is_swapped_out())
@@ -3246,9 +3315,6 @@ void RenderFrameImpl::didClearWindowObject(blink::WebLocalFrame* frame) {
 
   if (command_line.HasSwitch(cc::switches::kEnableGpuBenchmarking))
     GpuBenchmarking::Install(frame);
-
-  if (command_line.HasSwitch(switches::kEnableMemoryBenchmarking))
-    MemoryBenchmarkingExtension::Install(frame);
 
   if (command_line.HasSwitch(switches::kEnableSkiaBenchmarking))
     SkiaBenchmarking::Install(frame);
@@ -3758,7 +3824,7 @@ void RenderFrameImpl::willSendRequest(
   extra_data->set_render_frame_id(routing_id_);
   extra_data->set_is_main_frame(!parent);
   extra_data->set_frame_origin(
-      GURL(frame->document().securityOrigin().toString()));
+      blink::WebStringToGURL(frame->document().securityOrigin().toString()));
   extra_data->set_parent_is_main_frame(parent && !parent->parent());
   extra_data->set_parent_render_frame_id(parent_routing_id);
   extra_data->set_allow_download(
@@ -3973,18 +4039,16 @@ void RenderFrameImpl::reportFindInPageMatchCount(int request_id,
   if (!count)
     active_match_ordinal = 0;
 
-  render_view_->Send(new ViewHostMsg_Find_Reply(
-      render_view_->GetRoutingID(), request_id, count,
-      gfx::Rect(), active_match_ordinal, final_update));
+  Send(new FrameHostMsg_Find_Reply(routing_id_, request_id, count, gfx::Rect(),
+                                   active_match_ordinal, final_update));
 }
 
 void RenderFrameImpl::reportFindInPageSelection(
     int request_id,
     int active_match_ordinal,
     const blink::WebRect& selection_rect) {
-  render_view_->Send(new ViewHostMsg_Find_Reply(
-      render_view_->GetRoutingID(), request_id, -1, selection_rect,
-      active_match_ordinal, false));
+  Send(new FrameHostMsg_Find_Reply(routing_id_, request_id, -1, selection_rect,
+                                   active_match_ordinal, false));
 }
 
 void RenderFrameImpl::requestStorageQuota(
@@ -4001,7 +4065,7 @@ void RenderFrameImpl::requestStorageQuota(
   }
   ChildThreadImpl::current()->quota_dispatcher()->RequestStorageQuota(
       render_view_->GetRoutingID(),
-      GURL(origin.toString()),
+      blink::WebStringToGURL(origin.toString()),
       static_cast<storage::StorageType>(type),
       requested_size,
       QuotaDispatcher::CreateWebStorageQuotaCallbacksWrapper(callbacks));
@@ -4155,7 +4219,7 @@ bool RenderFrameImpl::allowWebGL(blink::WebLocalFrame* frame,
   bool blocked = true;
   Send(new FrameHostMsg_Are3DAPIsBlocked(
       routing_id_,
-      GURL(frame->top()->securityOrigin().toString()),
+      blink::WebStringToGURL(frame->top()->securityOrigin().toString()),
       THREE_D_API_TYPE_WEBGL,
       &blocked));
   return !blocked;
@@ -4165,7 +4229,7 @@ void RenderFrameImpl::didLoseWebGLContext(blink::WebLocalFrame* frame,
                                           int arb_robustness_status_code) {
   DCHECK(!frame_ || frame_ == frame);
   Send(new FrameHostMsg_DidLose3DContext(
-      GURL(frame->top()->securityOrigin().toString()),
+      blink::WebStringToGURL(frame->top()->securityOrigin().toString()),
       THREE_D_API_TYPE_WEBGL,
       arb_robustness_status_code));
 }
@@ -4891,20 +4955,16 @@ void RenderFrameImpl::OnGetSavableResourceLinks() {
 }
 
 void RenderFrameImpl::OnGetSerializedHtmlWithLocalLinks(
-    const std::map<GURL, base::FilePath>& url_to_local_path) {
+    const std::map<GURL, base::FilePath>& url_to_local_path,
+    const std::map<int, base::FilePath>& frame_routing_id_to_local_path) {
   // Convert input to the canonical way of passing a map into a Blink API.
-  std::vector<std::pair<WebURL, WebString>> weburl_to_local_path;
-  for (const auto& it : url_to_local_path) {
-    const GURL& url = it.first;
-    const base::FilePath& local_path = it.second;
-    weburl_to_local_path.push_back(std::make_pair(
-        WebURL(url), ConvertRelativePathToHtmlAttribute(local_path)));
-  }
+  LinkRewritingDelegate delegate(url_to_local_path,
+                                 frame_routing_id_to_local_path);
 
   // Serialize the frame (without recursing into subframes).
   WebFrameSerializer::serialize(GetWebFrame(),
                                 this,  // WebFrameSerializerClient.
-                                weburl_to_local_path);
+                                &delegate);
 }
 
 void RenderFrameImpl::OnSerializeAsMHTML(
@@ -4955,6 +5015,231 @@ void RenderFrameImpl::OnSerializeAsMHTML(
       routing_id_, params.job_id, success,
       digests_of_uris_of_serialized_resources));
 }
+
+void RenderFrameImpl::OnFind(int request_id,
+                             const base::string16& search_text,
+                             const WebFindOptions& options) {
+  // This should only be received on the main frame, since find-in-page is
+  // currently orchestrated by the main frame.
+  if (!is_main_frame_) {
+    NOTREACHED();
+    return;
+  }
+
+  DCHECK(!search_text.empty());
+
+  blink::WebPlugin* plugin = GetWebPluginForFind();
+  // Check if the plugin still exists in the document.
+  if (plugin) {
+    if (options.findNext) {
+      // Just navigate back/forward.
+      plugin->selectFindResult(options.forward);
+    } else {
+      if (!plugin->startFind(search_text, options.matchCase, request_id)) {
+        // Send "no results".
+        SendFindReply(request_id, 0, 0, gfx::Rect(), true);
+      }
+    }
+    return;
+  }
+
+  WebFrame* main_frame = GetWebFrame();
+  WebFrame* frame_after_main = main_frame->traverseNext(true);
+  WebFrame* focused_frame = render_view_->webview()->focusedFrame();
+  WebFrame* search_frame = focused_frame;  // start searching focused frame.
+
+  bool multi_frame = (frame_after_main != main_frame);
+
+  // If we have multiple frames, we don't want to wrap the search within the
+  // frame, so we check here if we only have main_frame in the chain.
+  bool wrap_within_frame = !multi_frame;
+
+  WebRect selection_rect;
+  bool result = false;
+
+  // If something is selected when we start searching it means we cannot just
+  // increment the current match ordinal; we need to re-generate it.
+  WebRange current_selection = focused_frame->selectionRange();
+
+  do {
+    result = search_frame->find(request_id, search_text, options,
+                                wrap_within_frame, &selection_rect);
+
+    if (!result) {
+      // Don't leave text selected as you move to the next frame.
+      search_frame->executeCommand(WebString::fromUTF8("Unselect"),
+                                   GetFocusedElement());
+
+      // Find the next frame, but skip the invisible ones.
+      do {
+        // What is the next frame to search (we might be going backwards)? Note
+        // that we specify wrap=true so that search_frame never becomes NULL.
+        search_frame = options.forward ? search_frame->traverseNext(true)
+                                       : search_frame->traversePrevious(true);
+      } while (!search_frame->hasVisibleContent() &&
+               search_frame != focused_frame);
+
+      // Make sure selection doesn't affect the search operation in new frame.
+      search_frame->executeCommand(WebString::fromUTF8("Unselect"),
+                                   GetFocusedElement());
+
+      // If we have multiple frames and we have wrapped back around to the
+      // focused frame, we need to search it once more allowing wrap within
+      // the frame, otherwise it will report 'no match' if the focused frame has
+      // reported matches, but no frames after the focused_frame contain a
+      // match for the search word(s).
+      if (multi_frame && search_frame == focused_frame) {
+        result = search_frame->find(request_id, search_text, options,
+                                    true,  // Force wrapping.
+                                    &selection_rect);
+      }
+    }
+
+    render_view_->webview()->setFocusedFrame(search_frame);
+  } while (!result && search_frame != focused_frame);
+
+  if (options.findNext && current_selection.isNull()) {
+    // Force the main_frame to report the actual count.
+    main_frame->increaseMatchCount(0, request_id);
+  } else {
+    // If nothing is found, set result to "0 of 0", otherwise, set it to
+    // "-1 of 1" to indicate that we found at least one item, but we don't know
+    // yet what is active.
+    int ordinal = result ? -1 : 0;  // -1 here means we might know more later.
+    int match_count = result ? 1 : 0;  // 1 here means possibly more coming.
+
+    // If we find no matches then this will be our last status update.
+    // Otherwise the scoping effort will send more results.
+    bool final_status_update = !result;
+
+    SendFindReply(request_id, match_count, ordinal, selection_rect,
+                  final_status_update);
+
+    // Scoping effort begins, starting with the main frame.
+    search_frame = main_frame;
+
+    main_frame->resetMatchCount();
+
+    do {
+      // Cancel all old scoping requests before starting a new one.
+      search_frame->cancelPendingScopingEffort();
+
+      // We don't start another scoping effort unless at least one match has
+      // been found.
+      if (result) {
+        // Start new scoping request. If the scoping function determines that it
+        // needs to scope, it will defer until later.
+        search_frame->scopeStringMatches(request_id, search_text, options,
+                                         true);  // reset the tickmarks
+      }
+
+      // Iterate to the next frame. The frame will not necessarily scope, for
+      // example if it is not visible.
+      search_frame = search_frame->traverseNext(true);
+    } while (search_frame != main_frame);
+  }
+}
+
+void RenderFrameImpl::OnStopFinding(StopFindAction action) {
+  // This should only be received on the main frame, since find-in-page is
+  // currently orchestrated by the main frame.
+  if (!is_main_frame_) {
+    NOTREACHED();
+    return;
+  }
+
+  WebView* view = render_view_->webview();
+  if (!view)
+    return;
+
+  blink::WebPlugin* plugin = GetWebPluginForFind();
+  if (plugin) {
+    plugin->stopFind();
+    return;
+  }
+
+  bool clear_selection = action == STOP_FIND_ACTION_CLEAR_SELECTION;
+  if (clear_selection) {
+    view->focusedFrame()->executeCommand(WebString::fromUTF8("Unselect"),
+                                         GetFocusedElement());
+  }
+
+  WebFrame* frame = view->mainFrame();
+  while (frame) {
+    frame->stopFinding(clear_selection);
+    frame = frame->traverseNext(false);
+  }
+
+  if (action == STOP_FIND_ACTION_ACTIVATE_SELECTION) {
+    WebFrame* focused_frame = view->focusedFrame();
+    if (focused_frame) {
+      WebDocument doc = focused_frame->document();
+      if (!doc.isNull()) {
+        WebElement element = doc.focusedElement();
+        if (!element.isNull())
+          element.simulateClick();
+      }
+    }
+  }
+}
+
+#if defined(OS_ANDROID)
+void RenderFrameImpl::OnActivateNearestFindResult(int request_id,
+                                                  float x,
+                                                  float y) {
+  WebRect selection_rect;
+  int ordinal =
+      frame_->selectNearestFindMatch(WebFloatPoint(x, y), &selection_rect);
+  if (ordinal == -1) {
+    // Something went wrong, so send a no-op reply (force the frame to report
+    // the current match count) in case the host is waiting for a response due
+    // to rate-limiting.
+    frame_->increaseMatchCount(0, request_id);
+    return;
+  }
+
+  SendFindReply(request_id, -1 /* number_of_matches */, ordinal, selection_rect,
+                true /* final_update */);
+}
+
+void RenderFrameImpl::OnFindMatchRects(int current_version) {
+  std::vector<gfx::RectF> match_rects;
+
+  int rects_version = frame_->findMatchMarkersVersion();
+  if (current_version != rects_version) {
+    WebVector<WebFloatRect> web_match_rects;
+    frame_->findMatchRects(web_match_rects);
+    match_rects.reserve(web_match_rects.size());
+    for (size_t i = 0; i < web_match_rects.size(); ++i)
+      match_rects.push_back(gfx::RectF(web_match_rects[i]));
+  }
+
+  gfx::RectF active_rect = frame_->activeFindMatchRect();
+  Send(new FrameHostMsg_FindMatchRects_Reply(routing_id_, rects_version,
+                                             match_rects, active_rect));
+}
+
+void RenderFrameImpl::OnSelectPopupMenuItems(
+    bool canceled,
+    const std::vector<int>& selected_indices) {
+  // It is possible to receive more than one of these calls if the user presses
+  // a select faster than it takes for the show-select-popup IPC message to make
+  // it to the browser UI thread. Ignore the extra-messages.
+  // TODO(jcivelli): http:/b/5793321 Implement a better fix, as detailed in bug.
+  if (!external_popup_menu_)
+    return;
+
+  external_popup_menu_->DidSelectItems(canceled, selected_indices);
+  external_popup_menu_.reset();
+}
+#elif defined(OS_MACOSX)
+void RenderFrameImpl::OnSelectPopupMenuItem(int selected_index) {
+  if (external_popup_menu_ == NULL)
+    return;
+  external_popup_menu_->DidSelectItem(selected_index);
+  external_popup_menu_.reset();
+}
+#endif
 
 void RenderFrameImpl::OpenURL(const GURL& url,
                               const Referrer& referrer,
@@ -5477,12 +5762,12 @@ void RenderFrameImpl::SendUpdateState() {
       routing_id_, SingleHistoryItemToPageState(current_history_item_)));
 }
 
-void RenderFrameImpl::EnableMojoBindings() {
+void RenderFrameImpl::EnableMojoBindings(bool for_layout_tests) {
   // If an MojoBindingsController already exists for this RenderFrameImpl, avoid
   // creating another one. It is not kept as a member, as it deletes itself when
   // the frame is destroyed.
   if (!RenderFrameObserverTracker<MojoBindingsController>::Get(this))
-    new MojoBindingsController(this);
+    new MojoBindingsController(this, for_layout_tests);
 }
 
 void RenderFrameImpl::SendFailedProvisionalLoad(
@@ -5626,12 +5911,16 @@ WebMediaPlayer* RenderFrameImpl::CreateAndroidWebMediaPlayer(
     WebMediaPlayerEncryptedMediaClient* encrypted_client,
     const media::WebMediaPlayerParams& params) {
   scoped_refptr<StreamTextureFactory> stream_texture_factory;
+  bool enable_texture_copy = false;
   if (SynchronousCompositorFactory* factory =
           SynchronousCompositorFactory::GetInstance()) {
     stream_texture_factory = factory->CreateStreamTextureFactory(routing_id_);
   } else {
     stream_texture_factory =
         RenderThreadImpl::current()->GetStreamTexureFactory();
+    enable_texture_copy =
+        RenderThreadImpl::current()->sync_compositor_message_filter() !=
+        nullptr;
     if (!stream_texture_factory.get()) {
       LOG(ERROR) << "Failed to get stream texture factory!";
       return NULL;
@@ -5641,7 +5930,8 @@ WebMediaPlayer* RenderFrameImpl::CreateAndroidWebMediaPlayer(
   return new WebMediaPlayerAndroid(frame_, client, encrypted_client,
                                    GetWebMediaPlayerDelegate()->AsWeakPtr(),
                                    GetMediaPlayerManager(), GetCdmFactory(),
-                                   stream_texture_factory, routing_id_, params);
+                                   stream_texture_factory, routing_id_,
+                                   enable_texture_copy, params);
 }
 
 RendererMediaPlayerManager* RenderFrameImpl::GetMediaPlayerManager() {
@@ -5751,7 +6041,7 @@ mojo::ServiceProviderPtr RenderFrameImpl::ConnectToApplication(
   filter->filter.insert("*", std::move(all_interfaces));
   mojo_shell_->ConnectToApplication(
       std::move(request), GetProxy(&service_provider), nullptr,
-      std::move(filter), base::Bind(&OnGotContentHandlerID));
+      std::move(filter), base::Bind(&OnGotRemoteIDs));
   return service_provider;
 }
 
@@ -5774,6 +6064,31 @@ void RenderFrameImpl::checkIfAudioSinkExistsAndIsAuthorized(
   media::OutputDeviceStatus status = device->GetDeviceStatus();
   device->Stop();
   callback.Run(status);
+}
+
+blink::WebPlugin* RenderFrameImpl::GetWebPluginForFind() {
+  if (!is_main_frame_)
+    return nullptr;
+
+  if (frame_->document().isPluginDocument())
+    return frame_->document().to<WebPluginDocument>().plugin();
+
+#if defined(ENABLE_PLUGINS)
+  if (plugin_find_handler_)
+    return plugin_find_handler_->container()->plugin();
+#endif
+
+  return nullptr;
+}
+
+void RenderFrameImpl::SendFindReply(int request_id,
+                                    int match_count,
+                                    int ordinal,
+                                    const WebRect& selection_rect,
+                                    bool final_status_update) {
+  Send(new FrameHostMsg_Find_Reply(routing_id_, request_id, match_count,
+                                   selection_rect, ordinal,
+                                   final_status_update));
 }
 
 }  // namespace content

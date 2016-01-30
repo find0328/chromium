@@ -9,7 +9,6 @@
 #include <map>
 
 #include "base/bind.h"
-#include "base/containers/hash_tables.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
@@ -107,7 +106,7 @@ class SurfaceAggregator::RenderPassIdAllocator {
   }
 
  private:
-  base::hash_map<RenderPassId, int> id_to_index_map_;
+  std::unordered_map<RenderPassId, int, RenderPassIdHash> id_to_index_map_;
   int* next_index_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderPassIdAllocator);
@@ -122,11 +121,10 @@ static void UnrefHelper(base::WeakPtr<SurfaceFactory> surface_factory,
 
 RenderPassId SurfaceAggregator::RemapPassId(RenderPassId surface_local_pass_id,
                                             SurfaceId surface_id) {
-  RenderPassIdAllocator* allocator = render_pass_allocator_map_.get(surface_id);
-  if (!allocator) {
-    allocator = new RenderPassIdAllocator(&next_render_pass_id_);
-    render_pass_allocator_map_.set(surface_id, make_scoped_ptr(allocator));
-  }
+  scoped_ptr<RenderPassIdAllocator>& allocator =
+      render_pass_allocator_map_[surface_id];
+  if (!allocator)
+    allocator.reset(new RenderPassIdAllocator(&next_render_pass_id_));
   allocator->AddKnownPass(surface_local_pass_id);
   return allocator->Remap(surface_local_pass_id);
 }
@@ -526,16 +524,7 @@ gfx::Rect SurfaceAggregator::PrewalkTree(SurfaceId surface_id,
 
   ResourceProvider::ResourceIdSet referenced_resources;
   size_t reserve_size = frame_data->resource_list.size();
-#if defined(COMPILER_MSVC)
   referenced_resources.reserve(reserve_size);
-#elif defined(COMPILER_GCC)
-  // Pre-standard hash-tables only implement resize, which behaves similarly
-  // to reserve for these keys. Resizing to 0 may also be broken (particularly
-  // on stlport).
-  // TODO(jbauman): Replace with reserve when C++11 is supported everywhere.
-  if (reserve_size)
-    referenced_resources.resize(reserve_size);
-#endif
 
   bool invalid_frame = false;
   ResourceProvider::ResourceIdMap empty_map;

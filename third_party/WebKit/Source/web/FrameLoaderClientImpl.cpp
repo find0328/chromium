@@ -58,6 +58,7 @@
 #include "modules/device_orientation/DeviceOrientationController.h"
 #include "modules/encryptedmedia/HTMLMediaElementEncryptedMedia.h"
 #include "modules/gamepad/NavigatorGamepad.h"
+#include "modules/mediasession/HTMLMediaElementMediaSession.h"
 #include "modules/mediasession/MediaSession.h"
 #include "modules/serviceworkers/NavigatorServiceWorker.h"
 #include "modules/storage/DOMWindowStorageController.h"
@@ -72,6 +73,7 @@
 #include "platform/plugins/PluginData.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebApplicationCacheHost.h"
+#include "public/platform/WebMediaPlayer.h"
 #include "public/platform/WebMimeRegistry.h"
 #include "public/platform/WebRTCPeerConnectionHandler.h"
 #include "public/platform/WebSecurityOrigin.h"
@@ -177,8 +179,11 @@ void FrameLoaderClientImpl::documentElementAvailable()
     if (m_webFrame->client())
         m_webFrame->client()->didCreateDocumentElement(m_webFrame);
 
+    if (m_webFrame->parent())
+        return;
+
     if (m_webFrame->viewImpl())
-        m_webFrame->viewImpl()->documentElementAvailable(m_webFrame);
+        m_webFrame->viewImpl()->mainFrameDocumentElementAvailable();
 }
 
 void FrameLoaderClientImpl::didCreateScriptContext(v8::Local<v8::Context> context, int extensionGroup, int worldId)
@@ -207,8 +212,6 @@ void FrameLoaderClientImpl::didChangeScrollOffset()
 {
     if (m_webFrame->client())
         m_webFrame->client()->didChangeScrollOffset(m_webFrame);
-    if (WebViewImpl* webview = m_webFrame->viewImpl())
-        webview->devToolsEmulator()->viewportChanged();
 }
 
 void FrameLoaderClientImpl::didUpdateCurrentHistoryItem()
@@ -217,11 +220,14 @@ void FrameLoaderClientImpl::didUpdateCurrentHistoryItem()
         m_webFrame->client()->didUpdateCurrentHistoryItem(m_webFrame);
 }
 
+// TODO(dglazkov): Can this be plumbing be streamlined out?
 void FrameLoaderClientImpl::didRemoveAllPendingStylesheet()
 {
-    WebViewImpl* webview = m_webFrame->viewImpl();
-    if (webview)
-        webview->didRemoveAllPendingStylesheet(m_webFrame);
+    if (m_webFrame->parent())
+        return;
+
+    if (WebViewImpl* webview = m_webFrame->viewImpl())
+        webview->didRemoveAllPendingStylesheetsInMainFrameDocument();
 }
 
 bool FrameLoaderClientImpl::allowScript(bool enabledPerSettings)
@@ -418,8 +424,10 @@ void FrameLoaderClientImpl::dispatchDidFinishLoading(DocumentLoader* loader,
 
 void FrameLoaderClientImpl::dispatchDidFinishDocumentLoad(bool documentIsEmpty)
 {
-    if (WebViewImpl* webview = m_webFrame->viewImpl())
-        webview->didFinishDocumentLoad(m_webFrame);
+    if (!m_webFrame->parent()) {
+        if (WebViewImpl* webview = m_webFrame->viewImpl())
+            webview->didFinishMainFrameDocumentLoad();
+    }
 
     // TODO(dglazkov): Sadly, workers are WebFrameClients, and they can totally
     // destroy themselves when didFinishDocumentLoad is invoked, and in turn destroy
@@ -450,6 +458,7 @@ void FrameLoaderClientImpl::dispatchDidReceiveServerRedirectForProvisionalLoad()
 void FrameLoaderClientImpl::dispatchDidNavigateWithinPage(HistoryItem* item, HistoryCommitType commitType)
 {
     bool shouldCreateHistoryEntry = commitType == StandardCommit;
+    // TODO(dglazkov): Does this need to be called for subframes?
     m_webFrame->viewImpl()->didCommitLoad(shouldCreateHistoryEntry, true);
     if (m_webFrame->client())
         m_webFrame->client()->didNavigateWithinPage(m_webFrame, WebHistoryItem(item), static_cast<WebHistoryCommitType>(commitType));
@@ -481,7 +490,9 @@ void FrameLoaderClientImpl::dispatchDidChangeIcons(IconType type)
 
 void FrameLoaderClientImpl::dispatchDidCommitLoad(HistoryItem* item, HistoryCommitType commitType)
 {
-    m_webFrame->viewImpl()->didCommitLoad(commitType == StandardCommit, false);
+    if (!m_webFrame->parent()) {
+        m_webFrame->viewImpl()->didCommitLoad(commitType == StandardCommit, false);
+    }
 
     // Save some histogram data so we can compute the average memory used per
     // page load of the glyphs.
@@ -792,6 +803,7 @@ PassRefPtrWillBeRawPtr<Widget> FrameLoaderClientImpl::createPlugin(
 
 PassOwnPtr<WebMediaPlayer> FrameLoaderClientImpl::createWebMediaPlayer(
     HTMLMediaElement& htmlMediaElement,
+    WebMediaPlayer::LoadType loadType,
     const WebURL& url,
     WebMediaPlayerClient* client)
 {
@@ -801,11 +813,15 @@ PassOwnPtr<WebMediaPlayer> FrameLoaderClientImpl::createWebMediaPlayer(
     if (!webFrame || !webFrame->client())
         return nullptr;
 
+    WebMediaSession* webMediaSession = nullptr;
+    if (MediaSession* mediaSession = HTMLMediaElementMediaSession::session(htmlMediaElement))
+        webMediaSession = mediaSession->webMediaSession();
+
     HTMLMediaElementEncryptedMedia& encryptedMedia = HTMLMediaElementEncryptedMedia::from(htmlMediaElement);
     WebString sinkId(HTMLMediaElementAudioOutputDevice::sinkId(htmlMediaElement));
-    return adoptPtr(webFrame->client()->createMediaPlayer(webFrame, url,
+    return adoptPtr(webFrame->client()->createMediaPlayer(webFrame, loadType, url,
         client, &encryptedMedia,
-        encryptedMedia.contentDecryptionModule(), sinkId));
+        encryptedMedia.contentDecryptionModule(), sinkId, webMediaSession));
 }
 
 PassOwnPtr<WebMediaSession> FrameLoaderClientImpl::createWebMediaSession()
@@ -945,8 +961,11 @@ void FrameLoaderClientImpl::dispatchWillInsertBody()
     if (m_webFrame->client())
         m_webFrame->client()->willInsertBody(m_webFrame);
 
+    if (m_webFrame->parent())
+        return;
+
     if (m_webFrame->viewImpl())
-        m_webFrame->viewImpl()->willInsertBody(m_webFrame);
+        m_webFrame->viewImpl()->willInsertMainFrameDocumentBody();
 }
 
 v8::Local<v8::Value> FrameLoaderClientImpl::createTestInterface(const AtomicString& name)

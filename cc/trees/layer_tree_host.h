@@ -11,10 +11,10 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/cancelable_callback.h"
-#include "base/containers/hash_tables.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
@@ -63,6 +63,7 @@ class LayerTreeHostImplClient;
 class LayerTreeHostSingleThreadClient;
 class PropertyTrees;
 class Region;
+class RemoteProtoChannel;
 class RenderingStatsInstrumentation;
 class ResourceProvider;
 class ResourceUpdateQueue;
@@ -103,6 +104,22 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
   static scoped_ptr<LayerTreeHost> CreateSingleThreaded(
       LayerTreeHostSingleThreadClient* single_thread_client,
       InitParams* params);
+
+  static scoped_ptr<LayerTreeHost> CreateRemoteServer(
+      RemoteProtoChannel* remote_proto_channel,
+      InitParams* params);
+
+  // The lifetime of this LayerTreeHost is tied to the lifetime of the remote
+  // server LayerTreeHost. It should be created on receiving
+  // CompositorMessageToImpl::InitializeImpl message and destroyed on receiving
+  // a CompositorMessageToImpl::CloseImpl message from the server. This ensures
+  // that the client will not send any compositor messages once the
+  // LayerTreeHost on the server is destroyed.
+  static scoped_ptr<LayerTreeHost> CreateRemoteClient(
+      RemoteProtoChannel* remote_proto_channel,
+      scoped_refptr<base::SingleThreadTaskRunner> impl_task_runner,
+      InitParams* params);
+
   virtual ~LayerTreeHost();
 
   // LayerTreeHost interface to Proxy.
@@ -206,6 +223,9 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
   }
 
   void RegisterSelection(const LayerSelection& selection);
+
+  bool have_wheel_event_handlers() const { return have_wheel_event_handlers_; }
+  void SetHaveWheelEventHandlers(bool have_event_handlers);
 
   const LayerTreeSettings& settings() const { return settings_; }
 
@@ -382,6 +402,11 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
   // the protobuf, the normal commit-flow should continue.
   void FromProtobufForCommit(const proto::LayerTreeHost& proto);
 
+  bool IsSingleThreaded() const;
+  bool IsThreaded() const;
+  bool IsRemoteServer() const;
+  bool IsRemoteClient() const;
+
  protected:
   LayerTreeHost(InitParams* params, CompositorMode mode);
   void InitializeThreaded(
@@ -392,6 +417,13 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
       LayerTreeHostSingleThreadClient* single_thread_client,
       scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
       scoped_ptr<BeginFrameSource> external_begin_frame_source);
+  void InitializeRemoteServer(
+      RemoteProtoChannel* remote_proto_channel,
+      scoped_refptr<base::SingleThreadTaskRunner> main_task_runner);
+  void InitializeRemoteClient(
+      RemoteProtoChannel* remote_proto_channel,
+      scoped_refptr<base::SingleThreadTaskRunner> main_task_runner,
+      scoped_refptr<base::SingleThreadTaskRunner> impl_task_runner);
   void InitializeForTesting(
       scoped_ptr<TaskRunnerProvider> task_runner_provider,
       scoped_ptr<Proxy> proxy_for_testing,
@@ -431,20 +463,17 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
 
   bool AnimateLayersRecursive(Layer* current, base::TimeTicks time);
 
-  bool IsSingleThreaded() const;
-  bool IsThreaded() const;
-
   struct UIResourceClientData {
     UIResourceClient* client;
     gfx::Size size;
   };
 
-  typedef base::hash_map<UIResourceId, UIResourceClientData>
-      UIResourceClientMap;
+  using UIResourceClientMap =
+      std::unordered_map<UIResourceId, UIResourceClientData>;
   UIResourceClientMap ui_resource_client_map_;
   int next_ui_resource_id_;
 
-  typedef std::vector<UIResourceRequest> UIResourceRequestQueue;
+  using UIResourceRequestQueue = std::vector<UIResourceRequest>;
   UIResourceRequestQueue ui_resource_request_queue_;
 
   void CalculateLCDTextMetricsCallback(Layer* layer);
@@ -503,6 +532,8 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
   SkColor background_color_;
   bool has_transparent_background_;
 
+  bool have_wheel_event_handlers_;
+
   scoped_ptr<AnimationRegistrar> animation_registrar_;
   scoped_ptr<AnimationHost> animation_host_;
 
@@ -533,7 +564,7 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
 
   PropertyTrees property_trees_;
 
-  typedef base::hash_map<int, Layer*> LayerIdMap;
+  using LayerIdMap = std::unordered_map<int, Layer*>;
   LayerIdMap layer_id_map_;
 
   uint32_t surface_id_namespace_;

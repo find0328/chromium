@@ -45,7 +45,7 @@
 
 namespace blink {
 
-class ArchiveResourceCollection;
+class ArchiveResource;
 class CSSStyleSheetResource;
 class DocumentResource;
 class FontResource;
@@ -93,13 +93,15 @@ public:
 
     int requestCount() const;
 
+    enum ClearPreloadsPolicy { ClearAllPreloads, ClearSpeculativeMarkupPreloads };
+
     bool isPreloaded(const KURL&) const;
-    void clearPreloads();
+    void clearPreloads(ClearPreloadsPolicy = ClearAllPreloads);
     void preloadStarted(Resource*);
     void printPreloadStats();
 
-    void addAllArchiveResources(MHTMLArchive*);
-    ArchiveResourceCollection* archiveResourceCollection() const { return m_archiveResourceCollection.get(); }
+    MHTMLArchive* archive() const { return m_archive.get(); }
+    ArchiveResource* createArchive(Resource*);
 
     void setDefersLoading(bool);
     void stopFetching();
@@ -163,6 +165,7 @@ private:
     bool scheduleArchiveLoad(Resource*, const ResourceRequest&);
     ResourcePtr<Resource> preCacheData(const FetchRequest&, const ResourceFactory&, const SubstituteData&);
 
+    // RevalidationPolicy enum values are used in UMAs https://crbug.com/579496.
     enum RevalidationPolicy { Use, Revalidate, Reload, Load };
     RevalidationPolicy determineRevalidationPolicy(Resource::Type, const FetchRequest&, Resource* existingResource, bool isStaticData) const;
 
@@ -191,7 +194,7 @@ private:
     // is revalidated. What we really want to hold here is not the ResourcePtr
     // but the underlying Resource.
     OwnPtrWillBeMember<WillBeHeapListHashSet<RawPtrWillBeMember<Resource>>> m_preloads;
-    OwnPtrWillBeMember<ArchiveResourceCollection> m_archiveResourceCollection;
+    RefPtrWillBeMember<MHTMLArchive> m_archive;
 
     Timer<ResourceFetcher> m_resourceTimingReportTimer;
 

@@ -18,11 +18,9 @@
 #include "cc/layers/layer_client.h"
 #include "third_party/WebKit/public/platform/WebCString.h"
 #include "third_party/WebKit/public/platform/WebColor.h"
-#include "third_party/WebKit/public/platform/WebCompositorAnimation.h"
 #include "third_party/WebKit/public/platform/WebDoublePoint.h"
 #include "third_party/WebKit/public/platform/WebFloatPoint.h"
 #include "third_party/WebKit/public/platform/WebLayer.h"
-#include "third_party/WebKit/public/platform/WebMainThreadScrollingReason.h"
 #include "third_party/WebKit/public/platform/WebPoint.h"
 #include "third_party/WebKit/public/platform/WebRect.h"
 #include "third_party/WebKit/public/platform/WebSize.h"
@@ -111,8 +109,6 @@ class WebLayerImpl : public blink::WebLayer {
       blink::WebCompositorAnimationDelegate* delegate) override;
   bool addAnimation(blink::WebCompositorAnimation* animation) override;
   void removeAnimation(int animation_id) override;
-  void removeAnimation(int animation_id,
-                       blink::WebCompositorAnimation::TargetProperty) override;
   void pauseAnimation(int animation_id, double time_offset) override;
   void abortAnimation(int animation_id) override;
   bool hasActiveAnimation() override;
@@ -125,13 +121,10 @@ class WebLayerImpl : public blink::WebLayer {
   void setUserScrollable(bool horizontal, bool vertical) override;
   bool userScrollableHorizontal() const override;
   bool userScrollableVertical() const override;
-  void setHaveWheelEventHandlers(bool have_wheel_event_handlers) override;
-  bool haveWheelEventHandlers() const override;
   void setHaveScrollEventHandlers(bool have_scroll_event_handlers) override;
   bool haveScrollEventHandlers() const override;
   void addMainThreadScrollingReasons(
-      blink::WebMainThreadScrollingReason::WebMainThreadScrollingReason
-          main_thread_scrolling_reasons) override;
+      uint32_t main_thread_scrolling_reasons) override;
   void clearMainThreadScrollingReasons() override;
   bool shouldScrollOnMainThread() const override;
   void setNonFastScrollableRegion(
@@ -140,8 +133,6 @@ class WebLayerImpl : public blink::WebLayer {
   void setTouchEventHandlerRegion(
       const blink::WebVector<blink::WebRect>& region) override;
   blink::WebVector<blink::WebRect> touchEventHandlerRegion() const override;
-  void setScrollBlocksOn(blink::WebScrollBlocksOn) override;
-  blink::WebScrollBlocksOn scrollBlocksOn() const override;
   void setFrameTimingRequests(
       const blink::WebVector<std::pair<int64_t, blink::WebRect>>& requests)
       override;

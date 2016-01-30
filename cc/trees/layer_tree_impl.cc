@@ -50,9 +50,9 @@ namespace cc {
 namespace {
 
 const uint32_t kMainLayerFlags =
-    kMutablePropertyOpacity | kMutablePropertyTransform;
+    MutableProperty::kOpacity | MutableProperty::kTransform;
 const uint32_t kScrollLayerFlags =
-    kMutablePropertyScrollLeft | kMutablePropertyScrollTop;
+    MutableProperty::kScrollLeft | MutableProperty::kScrollTop;
 
 }  // namespace
 
@@ -85,6 +85,7 @@ LayerTreeImpl::LayerTreeImpl(
       next_activation_forces_redraw_(false),
       has_ever_been_drawn_(false),
       render_surface_layer_list_id_(0),
+      have_wheel_event_handlers_(false),
       top_controls_shrink_blink_size_(false),
       top_controls_height_(0),
       top_controls_shown_ratio_(top_controls_shown_ratio) {}
@@ -354,6 +355,7 @@ void LayerTreeImpl::PushPropertiesTo(LayerTreeImpl* target_tree) {
   target_tree->set_source_frame_number(source_frame_number());
   target_tree->set_background_color(background_color());
   target_tree->set_has_transparent_background(has_transparent_background());
+  target_tree->set_have_wheel_event_handlers(have_wheel_event_handlers());
 
   if (ViewportSizeInvalid())
     target_tree->SetViewportSizeInvalid();
@@ -599,6 +601,7 @@ void LayerTreeImpl::SetDeviceScaleFactor(float device_scale_factor) {
     return;
   device_scale_factor_ = device_scale_factor;
 
+  set_needs_update_draw_properties();
   if (IsActiveTree())
     layer_tree_host_impl_->SetFullRootLayerDamage();
 }
@@ -836,20 +839,19 @@ bool LayerTreeImpl::UpdateDrawProperties(bool update_lcd_text) {
       layer->UpdateCanUseLCDTextAfterCommit();
   }
 
-  {
+  // Resourceless draw do not need tiles and should not affect existing tile
+  // priorities.
+  if (layer_tree_host_impl_->GetDrawMode() != DRAW_MODE_RESOURCELESS_SOFTWARE) {
     TRACE_EVENT_BEGIN2("cc", "LayerTreeImpl::UpdateDrawProperties::UpdateTiles",
                        "IsActive", IsActiveTree(), "SourceFrameNumber",
                        source_frame_number_);
-    const bool resourceless_software_draw =
-        (layer_tree_host_impl_->GetDrawMode() ==
-         DRAW_MODE_RESOURCELESS_SOFTWARE);
     size_t layers_updated_count = 0;
     bool tile_priorities_updated = false;
     for (PictureLayerImpl* layer : picture_layers_) {
       if (!layer->IsDrawnRenderSurfaceLayerListMember())
         continue;
       ++layers_updated_count;
-      tile_priorities_updated |= layer->UpdateTiles(resourceless_software_draw);
+      tile_priorities_updated |= layer->UpdateTiles();
     }
 
     if (tile_priorities_updated)
@@ -1699,7 +1701,7 @@ struct HitTestVisibleScrollableOrTouchableFunctor {
     return layer->IsDrawnRenderSurfaceLayerListMember() ||
            ScrollsAnyDrawnRenderSurfaceLayerListMember(layer) ||
            !layer->touch_event_handler_region().IsEmpty() ||
-           layer->have_wheel_event_handlers();
+           layer->layer_tree_impl()->have_wheel_event_handlers();
   }
 };
 
@@ -1743,29 +1745,6 @@ static bool LayerHasTouchEventHandlersAt(const gfx::PointF& screen_space_point,
     return false;
 
   return true;
-}
-
-struct FindWheelEventLayerFunctor {
-  bool operator()(LayerImpl* layer) const {
-    return layer->have_wheel_event_handlers();
-  }
-};
-
-LayerImpl* LayerTreeImpl::FindLayerWithWheelHandlerThatIsHitByPoint(
-    const gfx::PointF& screen_space_point) {
-  if (!root_layer())
-    return NULL;
-  bool update_lcd_text = false;
-  if (!UpdateDrawProperties(update_lcd_text))
-    return NULL;
-  bool use_property_trees =
-      settings().use_property_trees || settings().verify_property_trees;
-  FindWheelEventLayerFunctor func;
-  FindClosestMatchingLayerDataForRecursion data_for_recursion;
-  FindClosestMatchingLayer(
-      screen_space_point, root_layer(), func, property_trees_.transform_tree,
-      property_trees_.clip_tree, use_property_trees, &data_for_recursion);
-  return data_for_recursion.closest_match;
 }
 
 struct FindTouchEventLayerFunctor {

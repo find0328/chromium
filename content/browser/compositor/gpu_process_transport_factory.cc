@@ -102,8 +102,7 @@ GpuProcessTransportFactory::GpuProcessTransportFactory()
   ui::Layer::InitializeUILayerSettings();
   cc::SetClientNameForMetrics("Browser");
 
-  if (UseSurfacesEnabled())
-    surface_manager_ = make_scoped_ptr(new cc::SurfaceManager);
+  surface_manager_ = make_scoped_ptr(new cc::SurfaceManager);
 
   task_graph_runner_->Start("CompositorTileWorker1",
                             base::SimpleThread::Options());
@@ -123,15 +122,11 @@ GpuProcessTransportFactory::~GpuProcessTransportFactory() {
 
 scoped_ptr<WebGraphicsContext3DCommandBufferImpl>
 GpuProcessTransportFactory::CreateOffscreenCommandBufferContext() {
-#if defined(OS_ANDROID)
-  return CreateContextCommon(scoped_refptr<GpuChannelHost>(nullptr), 0);
-#else
   CauseForGpuLaunch cause =
       CAUSE_FOR_GPU_LAUNCH_WEBGRAPHICSCONTEXT3DCOMMANDBUFFERIMPL_INITIALIZE;
   scoped_refptr<GpuChannelHost> gpu_channel_host(
       BrowserGpuChannelHostFactory::instance()->EstablishGpuChannelSync(cause));
   return CreateContextCommon(gpu_channel_host, 0);
-#endif  // OS_ANDROID
 }
 
 scoped_ptr<cc::SoftwareOutputDevice>
@@ -360,11 +355,6 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
   data->surface = surface.get();
   if (data->reflector)
     data->reflector->OnSourceSurfaceReady(data->surface);
-
-  if (!UseSurfacesEnabled()) {
-    compositor->SetOutputSurface(std::move(surface));
-    return;
-  }
 
   // This gets a bit confusing. Here we have a ContextProvider in the |surface|
   // configured to render directly to this widget. We need to make an

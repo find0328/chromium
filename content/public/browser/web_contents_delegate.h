@@ -60,6 +60,10 @@ class Rect;
 class Size;
 }
 
+namespace url {
+class Origin;
+}
+
 namespace blink {
 class WebGestureEvent;
 }
@@ -354,7 +358,7 @@ class CONTENT_EXPORT WebContentsDelegate {
   virtual scoped_ptr<BluetoothChooser> RunBluetoothChooser(
       WebContents* web_contents,
       const BluetoothChooser::EventHandler& event_handler,
-      const GURL& origin);
+      const url::Origin& origin);
 
   // Returns true if the delegate will embed a WebContents-owned fullscreen
   // render widget.  In this case, the delegate may access the widget by calling
@@ -522,6 +526,9 @@ class CONTENT_EXPORT WebContentsDelegate {
   // Called when the active render widget is forwarding a RemoteChannel
   // compositor proto.  This is used in Blimp mode.
   virtual void ForwardCompositorProto(const std::vector<uint8_t>& proto) {}
+
+  // Requests the app banner. This method is called from the DevTools.
+  virtual bool RequestAppBanner(content::WebContents* web_contents);
 
  protected:
   virtual ~WebContentsDelegate();

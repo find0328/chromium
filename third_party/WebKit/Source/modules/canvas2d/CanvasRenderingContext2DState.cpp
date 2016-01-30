@@ -377,6 +377,13 @@ SkImageFilter* CanvasRenderingContext2DState::getFilter(Element* styleResolution
     return m_resolvedFilter.get();
 }
 
+bool CanvasRenderingContext2DState::hasFilter(Element* styleResolutionHost, const Font& font, IntSize canvasSize) const
+{
+    // Checking for a non-null m_filterValue isn't sufficient, since this value
+    // might refer to a non-existent filter.
+    return !!getFilter(styleResolutionHost, font, canvasSize);
+}
+
 SkDrawLooper* CanvasRenderingContext2DState::emptyDrawLooper() const
 {
     if (!m_emptyDrawLooper) {
@@ -596,4 +603,4 @@ const SkPaint* CanvasRenderingContext2DState::getPaint(PaintType paintType, Shad
     return paint;
 }
 
-} // blink
+} // namespace blink

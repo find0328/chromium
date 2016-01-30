@@ -51,6 +51,9 @@ public:
     ~ResourceLoader() override;
     DECLARE_TRACE();
 
+    // Promptly release m_loader.
+    EAGERLY_FINALIZE();
+
     void start();
     void changeToSynchronous();
 
@@ -139,6 +142,6 @@ private:
     ConnectionState m_connectionState;
 };
 
-}
+} // namespace blink
 
 #endif

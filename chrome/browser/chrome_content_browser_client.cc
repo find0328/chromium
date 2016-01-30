@@ -165,6 +165,7 @@
 #include "ui/resources/grit/ui_resources.h"
 
 #if defined(OS_WIN)
+#include "base/strings/string_tokenizer.h"
 #include "base/win/windows_version.h"
 #include "chrome/browser/chrome_browser_main_win.h"
 #include "sandbox/win/src/sandbox_policy.h"
@@ -192,6 +193,7 @@
 #include "chrome/common/descriptors_android.h"
 #include "components/crash/content/browser/crash_dump_manager_android.h"
 #include "components/navigation_interception/intercept_navigation_delegate.h"
+#include "components/offline_pages/offline_page_switches.h"
 #include "ui/base/resource/resource_bundle_android.h"
 #elif defined(OS_POSIX)
 #include "chrome/browser/chrome_browser_main_posix.h"
@@ -293,6 +295,10 @@
 #include "chrome/browser/chrome_browser_main_extra_parts_exo.h"
 #endif
 
+#if defined(ENABLE_MOJO_MEDIA_IN_BROWSER_PROCESS)
+#include "media/mojo/services/mojo_media_application.h"
+#endif
+
 using base::FileDescriptor;
 using blink::WebWindowFeatures;
 using content::AccessTokenStore;
@@ -383,7 +389,9 @@ GURL ReplaceURLHostAndPath(const GURL& url,
 // Maps "foo://bar/baz/" to "foo://chrome/bar/baz/".
 GURL AddUberHost(const GURL& url) {
   const std::string uber_host = chrome::kChromeUIUberHost;
-  const std::string new_path = url.host() + url.path();
+  std::string new_path;
+  url.host_piece().AppendToString(&new_path);
+  url.path_piece().AppendToString(&new_path);
 
   return ReplaceURLHostAndPath(url, uber_host, new_path);
 }
@@ -1117,7 +1125,7 @@ bool ChromeContentBrowserClient::ShouldAllowOpenURL(
   // the signin page may host untrusted web content.
   if (from_url.GetOrigin().spec() == chrome::kChromeUIChromeSigninURL &&
       url.SchemeIs(content::kChromeUIScheme) &&
-      url.host() != chrome::kChromeUIChromeSigninHost) {
+      url.host_piece() != chrome::kChromeUIChromeSigninHost) {
     VLOG(1) << "Blocked navigation to " << url.spec() << " from "
             << chrome::kChromeUIChromeSigninURL;
     return false;
@@ -1396,11 +1404,15 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
   }
 #elif defined(OS_POSIX)
   if (breakpad::IsCrashReporterEnabled()) {
+    std::string switch_value;
     scoped_ptr<metrics::ClientInfo> client_info =
         GoogleUpdateSettings::LoadMetricsClientInfo();
+    if (client_info)
+      switch_value = client_info->client_id;
+    switch_value.push_back(',');
+    switch_value.append(chrome::GetChannelString());
     command_line->AppendSwitchASCII(switches::kEnableCrashReporter,
-                                    client_info ? client_info->client_id
-                                                : std::string());
+                                    switch_value);
   }
 #endif
 
@@ -1604,6 +1616,9 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
 #endif
       switches::kEnableNetBenchmarking,
       switches::kEnableNewBookmarkApps,
+#if defined(OS_ANDROID)
+      switches::kEnableOfflinePagesAsBookmarks,
+#endif
       switches::kJavaScriptHarmony,
       switches::kMessageLoopHistogrammer,
       switches::kPpapiFlashArgs,
@@ -2630,7 +2645,55 @@ bool ChromeContentBrowserClient::PreSpawnRenderer(
                            L"File");
   return result == sandbox::SBOX_ALL_OK;
 }
-#endif
+
+bool ChromeContentBrowserClient::IsWin32kLockdownEnabledForMimeType(
+    const std::string& mime_type) const {
+  // First, check if any variation parameters have enabled or disabled this
+  // mime type either specifically or globally.
+  std::map<std::string, std::string> mime_params;
+  if (variations::GetVariationParams("EnableWin32kLockDownMimeTypes",
+                                     &mime_params)) {
+    bool enabled = false;
+    for (const auto& param : mime_params) {
+      if (param.first == mime_type || param.first == "*") {
+        // Disabled entries take precedence over Enabled entries.
+        if (base::StartsWith(param.second, "Disabled",
+                             base::CompareCase::INSENSITIVE_ASCII)) {
+          return false;
+        }
+        if (base::StartsWith(param.second, "Enabled",
+                             base::CompareCase::INSENSITIVE_ASCII)) {
+          enabled = true;
+        }
+      }
+    }
+    return enabled;
+  }
+
+  // Second, check the command line to see if this mime type is enabled
+  // either specifically or globally.
+  const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
+
+  if (!cmd_line->HasSwitch(switches::kEnableWin32kLockDownMimeTypes))
+    return false;
+
+  std::string mime_types =
+      cmd_line->GetSwitchValueASCII(switches::kEnableWin32kLockDownMimeTypes);
+
+  // Consider the value * to enable all mime types for lockdown.
+  if (mime_types == "*")
+    return true;
+
+  base::StringTokenizer tokenizer(mime_types, ",");
+  tokenizer.set_quote_chars("\"");
+  while (tokenizer.GetNext()) {
+    if (tokenizer.token() == mime_type)
+      return true;
+  }
+
+  return false;
+}
+#endif  // defined(OS_WIN)
 
 void ChromeContentBrowserClient::RegisterFrameMojoShellServices(
     content::ServiceRegistry* registry,
@@ -2650,6 +2713,14 @@ void ChromeContentBrowserClient::RegisterRenderFrameMojoServices(
   registry->AddService(
       base::Bind(&CreateWebUsbPermissionBubble, render_frame_host));
 #endif  // !defined(OS_ANDROID) && !defined(OS_IOS)
+}
+
+void ChromeContentBrowserClient::RegisterInProcessMojoApplications(
+    StaticMojoApplicationMap* apps) {
+#if (ENABLE_MOJO_MEDIA_IN_BROWSER_PROCESS)
+  apps->insert(std::make_pair(
+      GURL("mojo:media"), base::Bind(&media::MojoMediaApplication::CreateApp)));
+#endif
 }
 
 void ChromeContentBrowserClient::RegisterOutOfProcessMojoApplications(

@@ -29,6 +29,7 @@
 #include "platform/HostWindow.h"
 #include "platform/PlatformGestureEvent.h"
 #include "platform/PlatformMouseEvent.h"
+#include "platform/geometry/FloatRect.h"
 #include "platform/graphics/paint/CullRect.h"
 // See windowActiveChangedForSnowLeopardOnly() below.
 // TODO(ellyjones): remove this when Snow Leopard support is gone.
@@ -81,7 +82,7 @@ Scrollbar::Scrollbar(ScrollableArea* scrollableArea, ScrollbarOrientation orient
     // alone when sizing).
     int thickness = m_theme.scrollbarThickness(controlSize);
     if (m_hostWindow)
-        thickness = m_hostWindow->screenToViewport(thickness);
+        thickness = m_hostWindow->windowToViewport(FloatRect(0, 0, thickness, 0)).width();
     Widget::setFrameRect(IntRect(0, 0, thickness, thickness));
 
     m_currentPos = scrollableAreaCurrentPos();
@@ -181,11 +182,11 @@ void Scrollbar::autoscrollTimerFired(Timer<Scrollbar>*)
     autoscrollPressedPart(theme().autoscrollTimerDelay());
 }
 
-static bool thumbUnderMouse(Scrollbar& scrollbar)
+bool Scrollbar::thumbWillBeUnderMouse() const
 {
-    int thumbPos = scrollbar.theme().trackPosition(scrollbar) + scrollbar.theme().thumbPosition(scrollbar);
-    int thumbLength = scrollbar.theme().thumbLength(scrollbar);
-    return scrollbar.pressedPos() >= thumbPos && scrollbar.pressedPos() < thumbPos + thumbLength;
+    int thumbPos = theme().trackPosition(*this) + theme().thumbPosition(*this, scrollableAreaTargetPos());
+    int thumbLength = theme().thumbLength(*this);
+    return pressedPos() >= thumbPos && pressedPos() < thumbPos + thumbLength;
 }
 
 void Scrollbar::autoscrollPressedPart(double delay)
@@ -195,7 +196,7 @@ void Scrollbar::autoscrollPressedPart(double delay)
         return;
 
     // Handle the track.
-    if ((m_pressedPart == BackTrackPart || m_pressedPart == ForwardTrackPart) && thumbUnderMouse(*this)) {
+    if ((m_pressedPart == BackTrackPart || m_pressedPart == ForwardTrackPart) && thumbWillBeUnderMouse()) {
         setHoveredPart(ThumbPart);
         return;
     }
@@ -213,7 +214,7 @@ void Scrollbar::startTimerIfNeeded(double delay)
 
     // Handle the track.  We halt track scrolling once the thumb is level
     // with us.
-    if ((m_pressedPart == BackTrackPart || m_pressedPart == ForwardTrackPart) && thumbUnderMouse(*this)) {
+    if ((m_pressedPart == BackTrackPart || m_pressedPart == ForwardTrackPart) && thumbWillBeUnderMouse()) {
         setHoveredPart(ThumbPart);
         return;
     }
@@ -482,7 +483,7 @@ int Scrollbar::scrollbarThickness() const
     int thickness = orientation() == HorizontalScrollbar ? height() : width();
     if (!thickness || !m_hostWindow)
         return thickness;
-    return m_hostWindow->screenToViewport(m_theme.scrollbarThickness(controlSize()));
+    return m_hostWindow->windowToViewport(FloatRect(0, 0, m_theme.scrollbarThickness(controlSize()), 0)).width();
 }
 
 
@@ -560,6 +561,17 @@ float Scrollbar::scrollableAreaCurrentPos() const
         return m_scrollableArea->scrollPosition().x() - m_scrollableArea->minimumScrollPosition().x();
 
     return m_scrollableArea->scrollPosition().y() - m_scrollableArea->minimumScrollPosition().y();
+}
+
+float Scrollbar::scrollableAreaTargetPos() const
+{
+    if (!m_scrollableArea)
+        return 0;
+
+    if (m_orientation == HorizontalScrollbar)
+        return m_scrollableArea->scrollAnimator().desiredTargetPosition().x() - m_scrollableArea->minimumScrollPosition().x();
+
+    return m_scrollableArea->scrollAnimator().desiredTargetPosition().y() - m_scrollableArea->minimumScrollPosition().y();
 }
 
 void Scrollbar::setNeedsPaintInvalidation(ScrollbarPart invalidParts)

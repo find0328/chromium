@@ -47,7 +47,9 @@ void PrintTo(const PaintChunk& chunk, std::ostream* os)
         << ", end=" << chunk.endIndex
         << ", props=";
     PrintTo(chunk.properties, os);
-    *os << ")";
+    *os << ", bounds=";
+    PrintTo(chunk.bounds, os);
+    *os << ", knownToBeOpaque=" << chunk.knownToBeOpaque << ")";
 }
 
 void PrintTo(const PaintChunkProperties& properties, std::ostream* os)

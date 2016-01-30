@@ -337,6 +337,7 @@ crypto::ECSignatureCreator* MockECSignatureCreatorFactory::Create(
 SpdySessionDependencies::SpdySessionDependencies(NextProto protocol)
     : host_resolver(new MockCachingHostResolver),
       cert_verifier(new MockCertVerifier),
+      channel_id_service(nullptr),
       transport_security_state(new TransportSecurityState),
       proxy_service(ProxyService::CreateDirect()),
       ssl_config_service(new SSLConfigServiceDefaults),
@@ -354,7 +355,8 @@ SpdySessionDependencies::SpdySessionDependencies(NextProto protocol)
       stream_max_recv_window_size(
           SpdySession::GetDefaultInitialWindowSize(protocol)),
       time_func(&base::TimeTicks::Now),
-      use_alternative_services(false),
+      parse_alternative_services(false),
+      enable_alternative_service_with_different_host(false),
       net_log(NULL) {
   DCHECK(next_proto_is_spdy(protocol)) << "Invalid protocol: " << protocol;
 
@@ -372,6 +374,7 @@ SpdySessionDependencies::SpdySessionDependencies(
     scoped_ptr<ProxyService> proxy_service)
     : host_resolver(new MockHostResolver),
       cert_verifier(new MockCertVerifier),
+      channel_id_service(nullptr),
       transport_security_state(new TransportSecurityState),
       proxy_service(std::move(proxy_service)),
       ssl_config_service(new SSLConfigServiceDefaults),
@@ -389,7 +392,8 @@ SpdySessionDependencies::SpdySessionDependencies(
       stream_max_recv_window_size(
           SpdySession::GetDefaultInitialWindowSize(protocol)),
       time_func(&base::TimeTicks::Now),
-      use_alternative_services(true),
+      parse_alternative_services(true),
+      enable_alternative_service_with_different_host(true),
       net_log(NULL) {
   DCHECK(next_proto_is_spdy(protocol)) << "Invalid protocol: " << protocol;
 }
@@ -416,6 +420,7 @@ HttpNetworkSession::Params SpdySessionDependencies::CreateSessionParams(
   HttpNetworkSession::Params params;
   params.host_resolver = session_deps->host_resolver.get();
   params.cert_verifier = session_deps->cert_verifier.get();
+  params.channel_id_service = session_deps->channel_id_service.get();
   params.transport_security_state =
       session_deps->transport_security_state.get();
   params.proxy_service = session_deps->proxy_service.get();
@@ -437,7 +442,9 @@ HttpNetworkSession::Params SpdySessionDependencies::CreateSessionParams(
   params.time_func = session_deps->time_func;
   params.next_protos = session_deps->next_protos;
   params.trusted_spdy_proxy = session_deps->trusted_spdy_proxy;
-  params.use_alternative_services = session_deps->use_alternative_services;
+  params.parse_alternative_services = session_deps->parse_alternative_services;
+  params.enable_alternative_service_with_different_host =
+      session_deps->enable_alternative_service_with_different_host;
   params.net_log = session_deps->net_log;
   return params;
 }
@@ -500,7 +507,7 @@ base::WeakPtr<SpdySession> CreateSpdySessionHelper(
 
   scoped_refptr<TransportSocketParams> transport_params(
       new TransportSocketParams(
-          key.host_port_pair(), false, false, OnHostResolutionCallback(),
+          key.host_port_pair(), false, OnHostResolutionCallback(),
           TransportSocketParams::COMBINE_CONNECT_AND_WRITE_DEFAULT));
 
   scoped_ptr<ClientSocketHandle> connection(new ClientSocketHandle);
@@ -518,17 +525,14 @@ base::WeakPtr<SpdySession> CreateSpdySessionHelper(
                             key.privacy_mode(),
                             0,
                             false));
-    rv = connection->Init(key.host_port_pair().ToString(),
-                          ssl_params,
-                          MEDIUM,
-                          callback.callback(),
-                          http_session->GetSSLSocketPool(
-                              HttpNetworkSession::NORMAL_SOCKET_POOL),
-                          net_log);
+    rv = connection->Init(
+        key.host_port_pair().ToString(), ssl_params, MEDIUM,
+        ClientSocketPool::RespectLimits::ENABLED, callback.callback(),
+        http_session->GetSSLSocketPool(HttpNetworkSession::NORMAL_SOCKET_POOL),
+        net_log);
   } else {
-    rv = connection->Init(key.host_port_pair().ToString(),
-                          transport_params,
-                          MEDIUM,
+    rv = connection->Init(key.host_port_pair().ToString(), transport_params,
+                          MEDIUM, ClientSocketPool::RespectLimits::ENABLED,
                           callback.callback(),
                           http_session->GetTransportSocketPool(
                               HttpNetworkSession::NORMAL_SOCKET_POOL),
@@ -978,7 +982,7 @@ SpdyFrame* SpdyTestUtil::ConstructSpdyPush(const char* const extra_headers[],
     SpdySynStreamIR syn_stream(stream_id);
     syn_stream.set_associated_to_stream_id(associated_stream_id);
     syn_stream.SetHeader("hello", "bye");
-    syn_stream.SetHeader(GetStatusKey(), "200 OK");
+    syn_stream.SetHeader(GetStatusKey(), "200");
     syn_stream.SetHeader(GetVersionKey(), "HTTP/1.1");
     AddUrlToHeaderBlock(url, syn_stream.mutable_header_block());
     AppendToHeaderBlock(extra_headers, extra_header_count,
@@ -991,7 +995,7 @@ SpdyFrame* SpdyTestUtil::ConstructSpdyPush(const char* const extra_headers[],
         CreateFramer(false)->SerializeFrame(push_promise));
 
     SpdyHeadersIR headers(stream_id);
-    headers.SetHeader(GetStatusKey(), "200 OK");
+    headers.SetHeader(GetStatusKey(), "200");
     headers.SetHeader("hello", "bye");
     AppendToHeaderBlock(extra_headers, extra_header_count,
                         headers.mutable_header_block());
@@ -1077,7 +1081,7 @@ SpdyFrame* SpdyTestUtil::ConstructSpdyPushHeaders(
     const char* const extra_headers[],
     int extra_header_count) {
   SpdyHeadersIR headers(stream_id);
-  headers.SetHeader(GetStatusKey(), "200 OK");
+  headers.SetHeader(GetStatusKey(), "200");
   MaybeAddVersionHeader(&headers);
   AppendToHeaderBlock(extra_headers, extra_header_count,
                       headers.mutable_header_block());

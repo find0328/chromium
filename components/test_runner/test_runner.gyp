@@ -56,10 +56,11 @@
         'gamepad_controller.h',
         'gc_controller.cc',
         'gc_controller.h',
+        'layout_dump.cc',
+        'layout_dump.h',
+        'layout_dump_flags.h',
         'mock_color_chooser.cc',
         'mock_color_chooser.h',
-        'mock_constraints.cc',
-        'mock_constraints.h',
         'mock_credential_manager_client.cc',
         'mock_credential_manager_client.h',
         'mock_grammar_check.cc',
@@ -123,11 +124,6 @@
         },
       },
       'conditions': [
-        ['OS=="win" and win_use_allocator_shim==1', {
-          'dependencies': [
-            '../../base/allocator/allocator.gyp:allocator',
-          ],
-        }],
         ['OS=="win"', {
           'configurations': {
             'Debug_Base': {

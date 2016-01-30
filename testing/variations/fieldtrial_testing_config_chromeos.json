@@ -15,6 +15,9 @@
             "params": {
                 "limit": "3"
             }
+        },
+        {
+            "group_name": "Enabled"
         }
     ],
     "CaptivePortalInterstitial": [
@@ -102,10 +105,16 @@
     ],
     "SafeBrowsingUnverifiedDownloads": [
         {
-            "group_name": "DisableByParameterExe",
+            "group_name": "DisableByParameterMostSbTypes",
             "params": {
-                "blacklist": ".exe"
+                "block_sb_types": "true",
+                "whitelist": ".rar,.svg,.url,.xml,.zip"
             }
+        }
+    ],
+    "SchedulerExpensiveTaskBlocking": [
+        {
+            "group_name": "Enabled"
         }
     ],
     "SdchPersistence": [
@@ -134,11 +143,6 @@
     "TabSyncByRecency": [
         {
             "group_name": "Enabled"
-        }
-    ],
-    "UseDelayAgnosticAEC": [
-        {
-            "group_name": "DefaultEnabled"
         }
     ],
     "VarationsServiceControl": [

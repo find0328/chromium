@@ -14,10 +14,9 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.NativePage;
 import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.enhancedbookmarks.EnhancedBookmarkDelegate.EnhancedBookmarkStateChangeListener;
-import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
+import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.content_public.browser.LoadUrlParams;
-import org.chromium.ui.base.DeviceFormFactor;
 
 /**
  * A native page holding a {@link EnhancedBookmarkManager} on _tablet_.
@@ -35,25 +34,17 @@ public class EnhancedBookmarkPage implements NativePage, EnhancedBookmarkStateCh
      * Create a new instance of an enhanced bookmark page.
      * @param activity The activity to get context and manage fragments.
      * @param tab The tab to load urls.
-     * @return Null if this method is called on phone. Otherwise, return a new enhanced bookmark
-     *         native page for tablet.
      */
-    public static EnhancedBookmarkPage buildPage(Activity activity, Tab tab) {
-        if (DeviceFormFactor.isTablet(activity)) return new EnhancedBookmarkPage(activity, tab);
-        else return null;
-    }
-
-    private EnhancedBookmarkPage(Activity activity, Tab tab) {
+    public EnhancedBookmarkPage(Activity activity, Tab tab) {
         mActivity = activity;
         mTab = tab;
-        mTitle = activity.getString(OfflinePageBridge.isEnabled()
-                ? R.string.offline_pages_saved_pages : R.string.bookmarks);
+        mTitle = activity.getString(OfflinePageUtils.getStringId(R.string.bookmarks));
         mBackgroundColor = ApiCompatibilityUtils.getColor(activity.getResources(),
                 R.color.default_primary_color);
         mThemeColor = ApiCompatibilityUtils.getColor(
                 activity.getResources(), R.color.default_primary_color);
 
-        mManager = new EnhancedBookmarkManager(mActivity);
+        mManager = new EnhancedBookmarkManager(mActivity, false);
         Resources res = mActivity.getResources();
 
         MarginLayoutParams layoutParams = new MarginLayoutParams(

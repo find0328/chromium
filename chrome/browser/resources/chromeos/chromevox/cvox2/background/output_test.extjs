@@ -252,7 +252,8 @@ TEST_F('OutputE2ETest', 'Input', function() {
               {value: {earconId: 'EDITABLE_TEXT'}, start: 0, end: 0},
 
               // Selection span.
-              {value: {startIndex: 0, endIndex: 0}, start: 1, end: 1},
+              {value: {startIndex: 0, endIndex: 0, offset: 0},
+               start: 1, end: 1},
 
               {value: 'value', start: 1, end: 1},
               {value: 'inputType', start: 2}
@@ -265,7 +266,7 @@ TEST_F('OutputE2ETest', 'Input', function() {
         '||Edit text numeric only',
         {string_: '||Spin button', spans_: [{value: 'name', start: 0, end: 0},
             {value: {earconId:'LISTBOX'}, start: 0, end: 0},
-            {value: {startIndex: 0, endIndex: 0}, start: 1, end: 1},
+            {value: {startIndex: 0, endIndex: 0, offset: 0}, start: 1, end: 1},
             {value: 'value', start: 1, end: 1},
             {value: 'role', start: 2, end: 13}]},
         {string_: '||Time control', spans_: [{value: 'name', start: 0, end: 0},
@@ -319,7 +320,8 @@ TEST_F('OutputE2ETest', 'Input', function() {
         if (typeof expectedValue === 'string') {
           checkBrailleOutput(
               expectedValue,
-              [{value: {startIndex: 0, endIndex: 0}, start: 0, end: 0},
+              [{value: {startIndex: 0, endIndex: 0, offset: 0},
+                start: 0, end: 0},
                {value: new Output.NodeSpan(el), start: 0,
                 end: expectedValue.length}],
               o);
@@ -539,5 +541,49 @@ TEST_F('OutputE2ETest', 'DivOmitsRole', function() {
         'that has content',
         [{value: new Output.NodeSpan(el), start: 0, end: 16}],
         o);
+  });
+});
+
+TEST_F('OutputE2ETest', 'LessVerboseAncestry', function() {
+  this.runWithLoadedTree(function() {/*!
+    <div role="article"><p>inside</p></div>
+    <div role="article"><p>inside</p></div>
+    <div role="banner"><p>inside</p></div>
+  */},
+  function(root) {
+    var first = root.children[0].firstChild;
+    var second = root.children[1].firstChild;
+    var third = root.children[2].firstChild;
+    var firstRange = cursors.Range.fromNode(first);
+    var secondRange = cursors.Range.fromNode(second);
+    var thirdRange = cursors.Range.fromNode(third);
+
+    var oWithoutPrev = new Output().withSpeech(firstRange, null, 'navigate');
+    var oWithPrev =
+        new Output().withSpeech(secondRange, firstRange, 'navigate');
+    var oWithPrevExit =
+        new Output().withSpeech(thirdRange, secondRange, 'navigate');
+    assertEquals('|Article|inside', oWithoutPrev.speechOutputForTest.string_);
+
+    // Make sure we don't read the exited article ancestry change.
+    assertEquals('|Article|inside', oWithPrev.speechOutputForTest.string_);
+
+    // Different role; do read the exited article ancestry here.
+    assertEquals('Exited Article.||Banner|inside',
+                 oWithPrevExit.speechOutputForTest.string_);
+  });
+});
+
+TEST_F('OutputE2ETest', 'Brief', function() {
+  this.runWithLoadedTree(function() {/*!
+    <div role="article"><p>inside</p></div>
+  */},
+  function(root) {
+    var node = root.children[0].firstChild;
+    var range = cursors.Range.fromNode(node);
+
+    localStorage['useVerboseMode'] = 'false';
+    var oWithoutPrev = new Output().withSpeech(range, null, 'navigate');
+    assertEquals('|inside', oWithoutPrev.speechOutputForTest.string_);
   });
 });

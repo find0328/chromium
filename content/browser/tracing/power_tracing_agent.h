@@ -28,13 +28,13 @@ class PowerTracingAgent : public base::trace_event::TracingAgent {
   std::string GetTracingAgentName() override;
   std::string GetTraceEventLabel() override;
 
-  bool StartAgentTracing(
-      const base::trace_event::TraceConfig& trace_config) override;
+  void StartAgentTracing(const base::trace_event::TraceConfig& trace_config,
+                         const StartAgentTracingCallback& callback) override;
   void StopAgentTracing(const StopAgentTracingCallback& callback) override;
 
   bool SupportsExplicitClockSync() override;
   void RecordClockSyncMarker(
-      int sync_id,
+      const std::string& sync_id,
       const RecordClockSyncMarkerCallback& callback) override;
 
  private:
@@ -52,7 +52,7 @@ class PowerTracingAgent : public base::trace_event::TracingAgent {
   void TraceOnThread();
   void FlushOnThread(const StopAgentTracingCallback& callback);
   void RecordClockSyncMarkerOnThread(
-      int sync_id,
+      const std::string& sync_id,
       const RecordClockSyncMarkerCallback& callback);
 
   base::Thread thread_;

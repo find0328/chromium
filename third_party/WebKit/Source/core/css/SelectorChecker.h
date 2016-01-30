@@ -45,7 +45,7 @@ class SelectorChecker {
     STACK_ALLOCATED();
 public:
     enum VisitedMatchType { VisitedMatchDisabled, VisitedMatchEnabled };
-    enum Mode { ResolvingStyle = 0, CollectingStyleRules, CollectingCSSRules, QueryingRules, SharingRules };
+    enum Mode { ResolvingStyle, CollectingStyleRules, CollectingCSSRules, QueryingRules, SharingRules };
 
     explicit SelectorChecker(Mode);
 
@@ -112,7 +112,7 @@ private:
     Match matchSelector(const SelectorCheckingContext&, MatchResult&) const;
     Match matchForSubSelector(const SelectorCheckingContext&, MatchResult&) const;
     Match matchForRelation(const SelectorCheckingContext&, MatchResult&) const;
-    Match matchForShadowDistributed(const SelectorCheckingContext&, const Element&, MatchResult&) const;
+    Match matchForPseudoContent(const SelectorCheckingContext&, const Element&, MatchResult&) const;
     Match matchForPseudoShadow(const SelectorCheckingContext&, const ContainerNode*, MatchResult&) const;
     bool checkPseudoClass(const SelectorCheckingContext&, MatchResult&) const;
     bool checkPseudoElement(const SelectorCheckingContext&, MatchResult&) const;
@@ -123,6 +123,6 @@ private:
     Mode m_mode;
 };
 
-}
+} // namespace blink
 
 #endif

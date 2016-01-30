@@ -287,7 +287,7 @@ public:
     float minimumPageScaleFactor() const;
     float maximumPageScaleFactor() const;
     float clampPageScaleFactorToLimits(float) const;
-    void resetScrollAndScaleStateImmediately();
+    void resetScaleStateImmediately();
 
     HitTestResult coreHitTestResultAt(const WebPoint&);
     void invalidateRect(const IntRect&);
@@ -386,10 +386,10 @@ public:
     // unless the view did not need a layout.
     void layoutUpdated(WebLocalFrameImpl*);
 
-    void documentElementAvailable(WebLocalFrameImpl*);
-    void willInsertBody(WebLocalFrameImpl*);
-    void didRemoveAllPendingStylesheet(WebLocalFrameImpl*);
-    void didFinishDocumentLoad(WebLocalFrameImpl*);
+    void mainFrameDocumentElementAvailable();
+    void willInsertMainFrameDocumentBody();
+    void didRemoveAllPendingStylesheetsInMainFrameDocument();
+    void didFinishMainFrameDocumentLoad();
     void didChangeContentsSize();
     void pageScaleFactorChanged();
 
@@ -546,7 +546,6 @@ private:
 
     float maximumLegiblePageScale() const;
     void refreshPageScaleFactorAfterLayout();
-    void resetScrollAndScaleState(bool immediately);
     void resumeTreeViewCommitsIfRenderingReady();
     IntSize contentsSize() const;
 

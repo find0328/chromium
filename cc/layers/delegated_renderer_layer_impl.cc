@@ -11,7 +11,6 @@
 #include <utility>
 
 #include "base/bind.h"
-#include "base/containers/hash_tables.h"
 #include "cc/base/math_util.h"
 #include "cc/layers/append_quads_data.h"
 #include "cc/layers/render_pass_sink.h"
@@ -109,16 +108,7 @@ void DelegatedRendererLayerImpl::SetFrameData(
   bool invalid_frame = false;
   ResourceProvider::ResourceIdSet resources_in_frame;
   size_t reserve_size = frame_data->resource_list.size();
-#if defined(COMPILER_MSVC)
   resources_in_frame.reserve(reserve_size);
-#elif defined(COMPILER_GCC)
-  // Pre-standard hash-tables only implement resize, which behaves similarly
-  // to reserve for these keys. Resizing to 0 may also be broken (particularly
-  // on stlport).
-  // TODO(jbauman): Replace with reserve when C++11 is supported everywhere.
-  if (reserve_size)
-    resources_in_frame.resize(reserve_size);
-#endif
   for (const auto& pass : render_pass_list) {
     for (const auto& quad : pass->quad_list) {
       for (ResourceId& resource_id : quad->resources) {

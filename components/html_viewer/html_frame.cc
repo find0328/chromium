@@ -84,14 +84,14 @@ web_view::mojom::NavigationTargetType WebNavigationPolicyToNavigationTarget(
     blink::WebNavigationPolicy policy) {
   switch (policy) {
     case blink::WebNavigationPolicyCurrentTab:
-      return web_view::mojom::NAVIGATION_TARGET_TYPE_EXISTING_FRAME;
+      return web_view::mojom::NavigationTargetType::EXISTING_FRAME;
     case blink::WebNavigationPolicyNewBackgroundTab:
     case blink::WebNavigationPolicyNewForegroundTab:
     case blink::WebNavigationPolicyNewWindow:
     case blink::WebNavigationPolicyNewPopup:
-      return web_view::mojom::NAVIGATION_TARGET_TYPE_NEW_FRAME;
+      return web_view::mojom::NavigationTargetType::NEW_FRAME;
     default:
-      return web_view::mojom::NAVIGATION_TARGET_TYPE_NO_PREFERENCE;
+      return web_view::mojom::NavigationTargetType::NO_PREFERENCE;
   }
 }
 
@@ -311,11 +311,13 @@ HTMLFrame::~HTMLFrame() {
 
 blink::WebMediaPlayer* HTMLFrame::createMediaPlayer(
     blink::WebLocalFrame* frame,
+    blink::WebMediaPlayer::LoadType load_type,
     const blink::WebURL& url,
     blink::WebMediaPlayerClient* client,
     blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
     blink::WebContentDecryptionModule* initial_cdm,
-    const blink::WebString& sink_id) {
+    const blink::WebString& sink_id,
+    blink::WebMediaSession* media_session) {
   return global_state()->media_factory()->CreateMediaPlayer(
       frame, url, client, encrypted_client, initial_cdm, GetApp()->shell());
 }
@@ -788,12 +790,12 @@ void HTMLFrame::OnWindowInputEvent(mus::Window* window,
     touch_handler_.reset(new TouchHandler(web_widget));
 
   if (touch_handler_ &&
-      (event->action == mus::mojom::EVENT_TYPE_POINTER_DOWN ||
-       event->action == mus::mojom::EVENT_TYPE_POINTER_UP ||
-       event->action == mus::mojom::EVENT_TYPE_POINTER_CANCEL ||
-       event->action == mus::mojom::EVENT_TYPE_POINTER_MOVE) &&
+      (event->action == mus::mojom::EventType::POINTER_DOWN ||
+       event->action == mus::mojom::EventType::POINTER_UP ||
+       event->action == mus::mojom::EventType::POINTER_CANCEL ||
+       event->action == mus::mojom::EventType::POINTER_MOVE) &&
       event->pointer_data &&
-      event->pointer_data->kind == mus::mojom::POINTER_KIND_TOUCH) {
+      event->pointer_data->kind == mus::mojom::PointerKind::TOUCH) {
     touch_handler_->OnTouchEvent(*event);
     return;
   }
@@ -1018,7 +1020,7 @@ void HTMLFrame::navigate(const blink::WebURLRequest& request,
   NOTIMPLEMENTED();  // for |should_replace_current_entry
   mojo::URLRequestPtr url_request = mojo::URLRequest::From(request);
   GetServerFrame()->RequestNavigate(
-      web_view::mojom::NAVIGATION_TARGET_TYPE_EXISTING_FRAME, id_,
+      web_view::mojom::NavigationTargetType::EXISTING_FRAME, id_,
       std::move(url_request));
 }
 

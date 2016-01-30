@@ -65,8 +65,10 @@ class MockPasswordManagerClient : public StubPasswordManagerClient {
                     base::Callback<void(const CredentialInfo&)> callback));
 
   explicit MockPasswordManagerClient(PasswordStore* store) : store_(store) {
-    prefs_.registry()->RegisterBooleanPref(prefs::kPasswordManagerAutoSignin,
+    prefs_.registry()->RegisterBooleanPref(prefs::kCredentialsEnableAutosignin,
                                            true);
+    prefs_.registry()->RegisterBooleanPref(
+        prefs::kWasAutoSignInFirstRunExperienceShown, true);
   }
   ~MockPasswordManagerClient() override {}
 
@@ -108,7 +110,12 @@ class MockPasswordManagerClient : public StubPasswordManagerClient {
   PasswordFormManager* pending_manager() const { return manager_.get(); }
 
   void set_zero_click_enabled(bool zero_click_enabled) {
-    prefs_.SetBoolean(prefs::kPasswordManagerAutoSignin, zero_click_enabled);
+    prefs_.SetBoolean(prefs::kCredentialsEnableAutosignin, zero_click_enabled);
+  }
+
+  void set_first_run_seen(bool first_run_seen) {
+    prefs_.SetBoolean(prefs::kWasAutoSignInFirstRunExperienceShown,
+                      first_run_seen);
   }
 
  private:
@@ -290,6 +297,25 @@ class CredentialManagerDispatcherTest
   scoped_ptr<SlightlyLessStubbyPasswordManagerDriver> stub_driver_;
   scoped_ptr<CredentialManagerDispatcher> dispatcher_;
 };
+
+TEST_F(CredentialManagerDispatcherTest, IsZeroClickAllowed) {
+  // IsZeroClickAllowed is uneffected by the first-run status.
+  client_->set_zero_click_enabled(true);
+  client_->set_first_run_seen(true);
+  EXPECT_TRUE(dispatcher()->IsZeroClickAllowed());
+
+  client_->set_zero_click_enabled(true);
+  client_->set_first_run_seen(false);
+  EXPECT_TRUE(dispatcher()->IsZeroClickAllowed());
+
+  client_->set_zero_click_enabled(false);
+  client_->set_first_run_seen(true);
+  EXPECT_FALSE(dispatcher()->IsZeroClickAllowed());
+
+  client_->set_zero_click_enabled(false);
+  client_->set_first_run_seen(false);
+  EXPECT_FALSE(dispatcher()->IsZeroClickAllowed());
+}
 
 TEST_F(CredentialManagerDispatcherTest, CredentialManagerOnStore) {
   CredentialInfo info(form_, CredentialType::CREDENTIAL_TYPE_PASSWORD);
@@ -569,6 +595,17 @@ TEST_F(CredentialManagerDispatcherTest,
   ExpectZeroClickSignInSuccess();
 }
 
+TEST_F(CredentialManagerDispatcherTest, RequestCredentialWithoutFirstRun) {
+  client_->set_first_run_seen(false);
+
+  store_->AddLogin(form_);
+
+  std::vector<GURL> federations;
+  dispatcher()->OnRequestCredential(kRequestId, true, federations);
+
+  ExpectZeroClickSignInFailure();
+}
+
 TEST_F(CredentialManagerDispatcherTest, RequestCredentialWithTLSErrors) {
   // If we encounter TLS errors, we won't return credentials.
   EXPECT_CALL(*client_, DidLastPageLoadEncounterSSLErrors())
@@ -676,7 +713,7 @@ TEST_F(CredentialManagerDispatcherTest,
   EXPECT_CALL(*client_, NotifyUserAutoSigninPtr(_)).Times(testing::Exactly(0));
 
   dispatcher()->OnRequestCredential(kRequestId, false, federations);
-  dispatcher()->OnRequestCredential(kRequestId, false, federations);
+  dispatcher()->OnRequestCredential(kRequestId + 1, false, federations);
 
   // Check that the second request triggered a rejection.
   uint32_t kMsgID = CredentialManagerMsg_RejectCredentialRequest::ID;

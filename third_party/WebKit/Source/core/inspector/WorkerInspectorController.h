@@ -46,7 +46,6 @@ class InjectedScriptManager;
 class InspectorBackendDispatcher;
 class InspectorFrontend;
 class InspectorFrontendChannel;
-class InspectorStateClient;
 class InstrumentingAgents;
 class WorkerDebuggerAgent;
 class WorkerGlobalScope;
@@ -85,11 +84,9 @@ private:
     InspectorFrontendChannel* frontendChannel() const;
 
     RawPtrWillBeMember<WorkerGlobalScope> m_workerGlobalScope;
-    OwnPtr<InspectorStateClient> m_stateClient;
-    OwnPtrWillBeMember<InspectorCompositeState> m_state;
     RefPtrWillBeMember<InstrumentingAgents> m_instrumentingAgents;
-    OwnPtrWillBeMember<InjectedScriptManager> m_injectedScriptManager;
     OwnPtr<WorkerThreadDebugger> m_workerThreadDebugger;
+    OwnPtr<InjectedScriptManager> m_injectedScriptManager;
     InspectorAgentRegistry m_agents;
     OwnPtrWillBeMember<PageInspectorProxy> m_pageInspectorProxy;
     OwnPtr<InspectorFrontend> m_frontend;
@@ -101,6 +98,6 @@ private:
     bool m_paused;
 };
 
-}
+} // namespace blink
 
 #endif // WorkerInspectorController_h

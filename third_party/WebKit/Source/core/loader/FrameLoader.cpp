@@ -441,7 +441,7 @@ void FrameLoader::didBeginDocument(bool dispatch)
     m_frame->document()->initContentSecurityPolicy(m_documentLoader ? m_documentLoader->releaseContentSecurityPolicy() : ContentSecurityPolicy::create());
     if (m_documentLoader) {
         m_frame->document()->clientHintsPreferences().updateFrom(m_documentLoader->clientHintsPreferences());
-        LinkLoader::loadLinkFromHeader(m_documentLoader->response().httpHeaderField(HTTPNames::Link), m_frame->document(), NetworkHintsInterfaceImpl(), LinkLoader::LoadResources);
+        LinkLoader::loadLinkFromHeader(m_documentLoader->response().httpHeaderField(HTTPNames::Link), m_frame->document(), NetworkHintsInterfaceImpl(), LinkLoader::OnlyLoadResources);
     }
 
     Settings* settings = m_frame->document()->settings();
@@ -1210,8 +1210,8 @@ void FrameLoader::receivedMainResourceError(DocumentLoader* loader, const Resour
     ResourceError c(ResourceError::cancelledError(KURL()));
     if ((error.errorCode() != c.errorCode() || error.domain() != c.domain()) && m_frame->owner()) {
         // FIXME: For now, fallback content doesn't work cross process.
-        ASSERT(m_frame->owner()->isLocal());
-        m_frame->deprecatedLocalOwner()->renderFallbackContent();
+        if (m_frame->owner()->isLocal())
+            m_frame->deprecatedLocalOwner()->renderFallbackContent();
     }
 
     HistoryCommitType historyCommitType = loadTypeToCommitType(m_loadType);
@@ -1328,6 +1328,10 @@ bool FrameLoader::shouldContinueForNavigationPolicy(const ResourceRequest& reque
         m_frame->owner()->dispatchLoad();
         return false;
     }
+
+    bool isFormSubmission = type == NavigationTypeFormSubmitted || type == NavigationTypeFormResubmitted;
+    if (isFormSubmission && !m_frame->document()->contentSecurityPolicy()->allowFormAction(request.url()))
+        return false;
 
     policy = client()->decidePolicyForNavigation(request, loader, type, policy, replacesCurrentHistoryItem);
     if (policy == NavigationPolicyCurrentTab)

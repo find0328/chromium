@@ -210,6 +210,15 @@ NSArray* GetCookiesForURL(NSHTTPCookieStorage* system_store,
   return [cookies sortedArrayUsingFunction:CompareCookies context:manager];
 }
 
+// Gets all cookies from the system cookie store.
+NSArray* GetAllCookies(NSHTTPCookieStorage* system_store,
+                       CookieCreationTimeManager* manager) {
+  NSArray* cookies = [system_store cookies];
+
+  // Sort cookies by decreasing path length, then creation time, as per RFC6265.
+  return [cookies sortedArrayUsingFunction:CompareCookies context:manager];
+}
+
 // Builds a cookie line (such as "key1=value1; key2=value2") from an array of
 // cookies.
 std::string BuildCookieLine(NSArray* cookies,
@@ -321,7 +330,7 @@ CookieStoreIOS* CookieStoreIOS::CreateCookieStore(
   // it from the system's cookie jar.
   CookieStoreIOS* cookie_store = new CookieStoreIOS(nullptr, cookie_storage);
   cookie_store->synchronization_state_ = SYNCHRONIZED;
-  cookie_store->Flush(base::Closure());
+  cookie_store->FlushStore(base::Closure());
   return cookie_store;
 }
 
@@ -338,18 +347,6 @@ void CookieStoreIOS::SwitchSynchronizedStore(CookieStoreIOS* old_store,
 // static
 void CookieStoreIOS::NotifySystemCookiesChanged() {
   NotificationTrampoline::GetInstance()->NotifyCookiesChanged();
-}
-
-void CookieStoreIOS::Flush(const base::Closure& closure) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-
-  if (SystemCookiesAllowed()) {
-    // If cookies are disabled, the system store is empty, and the cookies are
-    // stashed on disk. Do not delete the cookies on the disk in this case.
-    WriteToCookieMonster([system_store_ cookies]);
-  }
-  cookie_monster_->FlushStore(closure);
-  flush_closure_.Cancel();
 }
 
 void CookieStoreIOS::UnSynchronize() {
@@ -487,14 +484,40 @@ void CookieStoreIOS::GetAllCookiesForURLAsync(
 
       NSArray* cookies = GetCookiesForURL(system_store_,
                                           url, creation_time_manager_.get());
-      net::CookieList cookie_list;
-      cookie_list.reserve([cookies count]);
-      for (NSHTTPCookie* cookie in cookies) {
-        base::Time created = creation_time_manager_->GetCreationTime(cookie);
-        cookie_list.push_back(CanonicalCookieFromSystemCookie(cookie, created));
-      }
+      net::CookieList cookie_list = CanonicalCookieListFromSystemCookies(
+          cookies);
       if (!callback.is_null())
         callback.Run(cookie_list);
+      break;
+  }
+}
+
+void CookieStoreIOS::GetAllCookiesAsync(const GetCookieListCallback& callback) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  switch (synchronization_state_) {
+    case NOT_SYNCHRONIZED:
+      cookie_monster_->GetAllCookiesAsync(callback);
+      break;
+    case SYNCHRONIZING:
+      tasks_pending_synchronization_.push_back(base::Bind(
+          &CookieStoreIOS::GetAllCookiesAsync, this, callback));
+      break;
+    case SYNCHRONIZED:
+      if (!SystemCookiesAllowed()) {
+        // If cookies are not allowed, the cookies are stashed in the
+        // CookieMonster, so get them from there.
+        cookie_monster_->GetAllCookiesAsync(callback);
+        return;
+      }
+
+      NSArray* cookies = GetAllCookies(system_store_,
+                                       creation_time_manager_.get());
+      net::CookieList cookie_list = CanonicalCookieListFromSystemCookies(
+          cookies);
+      if (!callback.is_null()) {
+        callback.Run(cookie_list);
+      }
       break;
   }
 }
@@ -616,6 +639,18 @@ void CookieStoreIOS::DeleteSessionCookiesAsync(const DeleteCallback& callback) {
   }
 }
 
+void CookieStoreIOS::FlushStore(const base::Closure& closure) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  if (SystemCookiesAllowed()) {
+    // If cookies are disabled, the system store is empty, and the cookies are
+    // stashed on disk. Do not delete the cookies on the disk in this case.
+    WriteToCookieMonster([system_store_ cookies]);
+  }
+  cookie_monster_->FlushStore(closure);
+  flush_closure_.Cancel();
+}
+
 #pragma mark -
 #pragma mark Protected methods
 
@@ -658,10 +693,10 @@ void CookieStoreIOS::OnSystemCookiePolicyChanged() {
         base::Bind(&CookieStoreIOS::AddCookiesToSystemStore, this));
   } else {
     DCHECK_EQ(NSHTTPCookieAcceptPolicyNever, policy);
-    // Flush() does not write the cookies to disk when they are disabled.
+    // FlushStore() does not write the cookies to disk when they are disabled.
     // Explicitly copy them.
     WriteToCookieMonster([system_store_ cookies]);
-    Flush(base::Closure());
+    FlushStore(base::Closure());
     ClearSystemStore();
     if (synchronization_state_ == SYNCHRONIZING) {
       // If synchronization was in progress, abort it and leave the cookie store
@@ -713,7 +748,7 @@ void CookieStoreIOS::SetSynchronizedWithSystemStore(bool synchronized) {
       return;
     } else {
       // Copy the cookies from the global store to |cookie_monster_|.
-      Flush(base::Closure());
+      FlushStore(base::Closure());
     }
   }
   synchronization_state_ = synchronized ? SYNCHRONIZED : NOT_SYNCHRONIZED;
@@ -846,7 +881,7 @@ void CookieStoreIOS::OnSystemCookiesChanged() {
   if (!flush_closure_.IsCancelled())
     return;
 
-  flush_closure_.Reset(base::Bind(&CookieStoreIOS::Flush,
+  flush_closure_.Reset(base::Bind(&CookieStoreIOS::FlushStore,
                                   base::Unretained(this), base::Closure()));
   base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, flush_closure_.callback(), flush_delay_);
@@ -988,6 +1023,17 @@ void CookieStoreIOS::UpdateCachesAfterClosure(const base::Closure& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   UpdateCachesFromCookieMonster();
   callback.Run();
+}
+
+net::CookieList
+CookieStoreIOS::CanonicalCookieListFromSystemCookies(NSArray* cookies) {
+  net::CookieList cookie_list;
+  cookie_list.reserve([cookies count]);
+  for (NSHTTPCookie* cookie in cookies) {
+    base::Time created = creation_time_manager_->GetCreationTime(cookie);
+    cookie_list.push_back(CanonicalCookieFromSystemCookie(cookie, created));
+  }
+  return cookie_list;
 }
 
 CookieStoreIOS::SetCookiesCallback CookieStoreIOS::WrapSetCallback(

@@ -1369,6 +1369,7 @@ interface HTMLCanvasElement : HTMLElement
     getter width
     method constructor
     method getContext
+    method toBlob
     method toDataURL
     setter height
     setter width
@@ -1959,6 +1960,7 @@ interface HTMLLegendElement : HTMLElement
     method constructor
     setter align
 interface HTMLLinkElement : HTMLElement
+    getter as
     getter charset
     getter crossOrigin
     getter disabled
@@ -1968,12 +1970,14 @@ interface HTMLLinkElement : HTMLElement
     getter integrity
     getter media
     getter rel
+    getter relList
     getter rev
     getter sheet
     getter sizes
     getter target
     getter type
     method constructor
+    setter as
     setter charset
     setter crossOrigin
     setter disabled
@@ -5850,6 +5854,7 @@ interface webkitURL
     attribute location
     attribute locationbar
     attribute menubar
+    attribute mojo
     attribute name
     attribute navigator
     attribute offscreenBuffering
@@ -5981,6 +5986,7 @@ interface webkitURL
     method clearTimeout
     method close
     method confirm
+    method createImageBitmap
     method fetch
     method find
     method focus

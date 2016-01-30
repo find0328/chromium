@@ -245,7 +245,7 @@ String CreateMarkupAlgorithm<Strategy>::createMarkup(const PositionTemplate<Stra
     if (startPosition.isNull() || endPosition.isNull())
         return emptyString();
 
-    ASSERT(startPosition.compareTo(endPosition) <= 0);
+    RELEASE_ASSERT(startPosition.compareTo(endPosition) <= 0);
 
     bool collapsed = startPosition == endPosition;
     if (collapsed)
@@ -488,7 +488,7 @@ PassRefPtrWillBeRawPtr<DocumentFragment> createFragmentFromText(const EphemeralR
     bool useClonesOfEnclosingBlock = block
         && !isHTMLBodyElement(*block)
         && !isHTMLHtmlElement(*block)
-        && block != editableRootForPosition(context.startPosition());
+        && block != rootEditableElementOf(context.startPosition());
     bool useLineBreak = enclosingTextFormControl(context.startPosition());
 
     Vector<String> list;
@@ -704,4 +704,4 @@ void mergeWithNextTextNode(Text* textNode, ExceptionState& exceptionState)
 template class CORE_TEMPLATE_EXPORT CreateMarkupAlgorithm<EditingStrategy>;
 template class CORE_TEMPLATE_EXPORT CreateMarkupAlgorithm<EditingInComposedTreeStrategy>;
 
-}
+} // namespace blink

@@ -152,10 +152,15 @@ void ManagePasswordsState::OnAutomaticPasswordSave(
 void ManagePasswordsState::OnPasswordAutofilled(
     const PasswordFormMap& password_form_map,
     const GURL& origin) {
-  // TODO(vabr): Revert back to DCHECK once http://crbug.com/486931 is fixed.
-  CHECK(!password_form_map.empty());
+  DCHECK(!password_form_map.empty());
   ClearData();
-  if (password_form_map.begin()->second->is_public_suffix_match) {
+  bool only_PSL_matches =
+      find_if(password_form_map.begin(), password_form_map.end(),
+              [](const std::pair<const base::string16,
+                                 scoped_ptr<autofill::PasswordForm>>& p) {
+                return !p.second->is_public_suffix_match;
+              }) == password_form_map.end();
+  if (only_PSL_matches) {
     // Don't show the UI for PSL matched passwords. They are not stored for this
     // page and cannot be deleted.
     origin_ = GURL();

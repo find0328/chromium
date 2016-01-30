@@ -166,7 +166,7 @@ _BANNED_CPP_FUNCTIONS = (
       (
         r"^base[\\\/]process[\\\/]process_linux\.cc$",
         r"^base[\\\/]process[\\\/]process_metrics_linux\.cc$",
-        r"^blimp[\\\/]engine[\\\/]browser[\\\/]blimp_browser_main_parts\.cc$",
+        r"^blimp[\\\/]engine[\\\/]app[\\\/]blimp_browser_main_parts\.cc$",
         r"^chrome[\\\/]browser[\\\/]chromeos[\\\/]boot_times_recorder\.cc$",
         r"^chrome[\\\/]browser[\\\/]chromeos[\\\/]"
             "customization_document_browsertest\.cc$",
@@ -982,7 +982,11 @@ def _CheckAddedDepsHaveTargetApprovals(input_api, output_api):
   introduced. This check verifies that this happens.
   """
   changed_lines = set()
-  for f in input_api.AffectedFiles():
+
+  file_filter = lambda f: not input_api.re.match(
+      r"^third_party[\\\/]WebKit[\\\/].*", f.LocalPath())
+  for f in input_api.AffectedFiles(include_deletes=False,
+                                   file_filter=file_filter):
     filename = input_api.os_path.basename(f.LocalPath())
     if filename == 'DEPS':
       changed_lines |= set(line.strip()
@@ -1081,6 +1085,7 @@ def _CheckSpamLogging(input_api, output_api):
                  r"^sandbox[\\\/]linux[\\\/].*",
                  r"^tools[\\\/]",
                  r"^ui[\\\/]aura[\\\/]bench[\\\/]bench_main\.cc$",
+                 r"^ui[\\\/]ozone[\\\/]platform[\\\/]cast[\\\/]",
                  r"^storage[\\\/]browser[\\\/]fileapi[\\\/]" +
                      r"dump_file_system.cc$",))
   source_file_filter = lambda x: input_api.FilterSourceFile(
@@ -1951,30 +1956,3 @@ def CheckChangeOnCommit(input_api, output_api):
   results.extend(input_api.canned_checks.CheckChangeHasDescription(
       input_api, output_api))
   return results
-
-
-def GetPreferredTryMasters(project, change):
-  import json
-  import os.path
-  import platform
-  import subprocess
-
-  cq_config_path = os.path.join(
-      change.RepositoryRoot(), 'infra', 'config', 'cq.cfg')
-  # commit_queue.py below is a script in depot_tools directory, which has a
-  # 'builders' command to retrieve a list of CQ builders from the CQ config.
-  is_win = platform.system() == 'Windows'
-  masters = json.loads(subprocess.check_output(
-      ['commit_queue', 'builders', cq_config_path], shell=is_win))
-
-  try_config = {}
-  for master in masters:
-    try_config.setdefault(master, {})
-    for builder in masters[master]:
-      # Do not trigger presubmit builders, since they're likely to fail
-      # (e.g. OWNERS checks before finished code review), and we're
-      # running local presubmit anyway.
-      if 'presubmit' not in builder:
-        try_config[master][builder] = ['defaulttests']
-
-  return try_config

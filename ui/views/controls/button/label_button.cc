@@ -181,6 +181,7 @@ void LabelButton::SetIsDefault(bool is_default) {
   if (style_ == STYLE_BUTTON) {
     label_->SetFontList(
         is_default ? cached_bold_font_list_ : cached_normal_font_list_);
+    InvalidateLayout();
   }
 }
 

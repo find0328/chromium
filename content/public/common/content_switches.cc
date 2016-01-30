@@ -431,6 +431,9 @@ const char kV8SnapshotPassedByFD[] = "v8-snapshot-passed-by-fd";
 // is denied by the sandbox.
 const char kEnableSandboxLogging[]          = "enable-sandbox-logging";
 
+// Scrolls to compensate for layout movements (bit.ly/scroll-anchoring).
+const char kEnableScrollAnchoring[]         = "enable-scroll-anchoring";
+
 // Enables the Skia benchmarking extension
 const char kEnableSkiaBenchmarking[]        = "enable-skia-benchmarking";
 
@@ -497,6 +500,9 @@ const char kEnableWebGLImageChromium[] = "enable-webgl-image-chromium";
 
 // Enables interaction with virtual reality devices.
 const char kEnableWebVR[] = "enable-webvr";
+
+// Enables gesture generation for wheel events.
+const char kEnableWheelGestures[] = "enable-wheel-gestures";
 
 // Enable rasterizer that writes directly to GPU memory associated with tiles.
 const char kEnableZeroCopy[]                = "enable-zero-copy";
@@ -825,12 +831,6 @@ const char kUseNormalPriorityForTileTaskWorkerThreads[] =
 // Use remote compositor for the renderer.
 const char kUseRemoteCompositing[] = "use-remote-compositing";
 
-// Use the new surfaces system to handle compositor delegation.
-const char kUseSurfaces[] = "use-surfaces";
-
-// Disable the use of the new surfaces system to handle compositor delegation.
-const char kDisableSurfaces[] = "disable-surfaces";
-
 // The contents of this flag are prepended to the utility process command line.
 // Useful values might be "valgrind" or "xterm -e gdb --args".
 const char kUtilityCmdPrefix[]              = "utility-cmd-prefix";
@@ -940,6 +940,10 @@ const char kEnableAggressiveDOMStorageFlushing[] =
 
 // Disable web audio API.
 const char kDisableWebAudio[]               = "disable-webaudio";
+
+// Enable audio for desktop share.
+const char kEnableAudioSupportForDesktopShare[] =
+    "enable-audio-support-for-desktop-share";
 
 #if defined(OS_CHROMEOS)
 // Disables panel fitting (used for mirror mode).

@@ -145,7 +145,27 @@ const WebVector<WebMediaTrackConstraintSet>& WebMediaConstraintsPrivate::advance
 
 // *Constraints
 
-double DoubleConstraint::kConstraintEpsilon = 0.00001;
+BaseConstraint::BaseConstraint(const char* name)
+    : m_name(name)
+{
+}
+
+BaseConstraint::~BaseConstraint()
+{
+}
+
+LongConstraint::LongConstraint(const char* name)
+    : BaseConstraint(name)
+    , m_min()
+    , m_max()
+    , m_exact()
+    , m_ideal()
+    , m_hasMin(false)
+    , m_hasMax(false)
+    , m_hasExact(false)
+    , m_hasIdeal(false)
+{
+}
 
 bool LongConstraint::matches(long value) const
 {
@@ -164,6 +184,26 @@ bool LongConstraint::matches(long value) const
 bool LongConstraint::isEmpty() const
 {
     return !m_hasMin && !m_hasMax && !m_hasExact && !m_hasIdeal;
+}
+
+bool LongConstraint::hasMandatory() const
+{
+    return m_hasMin || m_hasMax || m_hasExact;
+}
+
+const double DoubleConstraint::kConstraintEpsilon = 0.00001;
+
+DoubleConstraint::DoubleConstraint(const char* name)
+    : BaseConstraint(name)
+    , m_min()
+    , m_max()
+    , m_exact()
+    , m_ideal()
+    , m_hasMin(false)
+    , m_hasMax(false)
+    , m_hasExact(false)
+    , m_hasIdeal(false)
+{
 }
 
 bool DoubleConstraint::matches(double value) const
@@ -185,6 +225,18 @@ bool DoubleConstraint::isEmpty() const
     return !m_hasMin && !m_hasMax && !m_hasExact && !m_hasIdeal;
 }
 
+bool DoubleConstraint::hasMandatory() const
+{
+    return m_hasMin || m_hasMax || m_hasExact;
+}
+
+StringConstraint::StringConstraint(const char* name)
+    : BaseConstraint(name)
+    , m_exact()
+    , m_ideal()
+{
+}
+
 bool StringConstraint::matches(WebString value) const
 {
     if (m_exact.isEmpty()) {
@@ -203,6 +255,11 @@ bool StringConstraint::isEmpty() const
     return m_exact.isEmpty() && m_ideal.isEmpty();
 }
 
+bool StringConstraint::hasMandatory() const
+{
+    return !m_exact.isEmpty();
+}
+
 const WebVector<WebString>& StringConstraint::exact() const
 {
     return m_exact;
@@ -211,6 +268,15 @@ const WebVector<WebString>& StringConstraint::exact() const
 const WebVector<WebString>& StringConstraint::ideal() const
 {
     return m_ideal;
+}
+
+BooleanConstraint::BooleanConstraint(const char* name)
+    : BaseConstraint(name)
+    , m_ideal(false)
+    , m_exact(false)
+    , m_hasIdeal(false)
+    , m_hasExact(false)
+{
 }
 
 bool BooleanConstraint::matches(bool value) const
@@ -226,24 +292,119 @@ bool BooleanConstraint::isEmpty() const
     return !m_hasIdeal && !m_hasExact;
 }
 
+bool BooleanConstraint::hasMandatory() const
+{
+    return m_hasExact;
+}
+
+WebMediaTrackConstraintSet::WebMediaTrackConstraintSet()
+    : width("width")
+    , height("height")
+    , aspectRatio("aspectRatio")
+    , frameRate("frameRate")
+    , facingMode("facingMode")
+    , volume("volume")
+    , sampleRate("sampleRate")
+    , sampleSize("sampleSize")
+    , echoCancellation("echoCancellation")
+    , latency("latency")
+    , channelCount("channelCount")
+    , deviceId("deviceId")
+    , groupId("groupId")
+    , mediaStreamSource("mediaStreamSource")
+    , renderToAssociatedSink("renderToAssociatedSink")
+    , hotwordEnabled("hotwordEnabled")
+    , googEchoCancellation("googEchoCancellation")
+    , googExperimentalEchoCancellation("googExperimentalEchoCancellation")
+    , googAutoGainControl("googAutoGainControl")
+    , googExperimentalAutoGainControl("googExperimentalAutoGainControl")
+    , googNoiseSuppression("gogNoiseSuppression")
+    , googHighpassFilter("googHighpassFilter")
+    , googTypingNoiseDetection("googTypingNoiseDetection")
+    , googExperimentalNoiseSuppression("googExperimentalNoiseSuppression")
+    , googBeamforming("googBeamforming")
+    , googArrayGeometry("googArrayGeometry")
+    , googAudioMirroring("googAudioMirroring")
+    , googDAEchoCancellation("googDAEchoCancellation")
+    , googAecDump("googAecDump")
+    , googNoiseReduction("googNoiseReduction")
+    , offerToReceiveAudio("offerToReceiveAudio")
+    , offerToReceiveVideo("offerToReceiveVideo")
+    , voiceActivityDetection("voiceActivityDetection")
+    , iceRestart("iceRestart")
+    , googUseRtpMux("googUseRtpMux")
+    , enableDtlsSrtp("enableDtlsSrtp")
+    , enableRtpDataChannels("enableRtpDataChannels")
+    , enableDscp("enableDscp")
+    , enableIPv6("enableIPv6")
+    , googEnableVideoSuspendBelowMinBitrate("googEnableVideoSuspendBelowMinBitrate")
+    , googNumUnsignalledRecvStreams("googNumUnsignalledRecvStreams")
+    , googCombinedAudioVideoBwe("googCombinedAudioVideoBwe")
+    , googScreencastMinBitrate("googScreencastMinBitrate")
+    , googCpuOveruseDetection("googCpuOveruseDetection")
+    , googCpuUnderuseThreshold("googCpuUnderuseThreshold")
+    , googCpuOveruseThreshold("googCpuOveruseThreshold")
+    , googCpuUnderuseEncodeRsdThreshold("googCpuUnderuseEncodeRsdThreshold")
+    , googCpuOveruseEncodeRsdThreshold("googCpuOveruseEncodeRsdThreshold")
+    , googCpuOveruseEncodeUsage("googCpuOveruseEncodeUsage")
+    , googHighStartBitrate("googHighStartBitrate")
+    , googPayloadPadding("googPayloadPadding")
+{
+}
+
+std::vector<const BaseConstraint*> WebMediaTrackConstraintSet::allConstraints() const
+{
+    const BaseConstraint* temp[] = {
+        &width, &height, &aspectRatio, &frameRate, &facingMode, &volume,
+        &sampleRate, &sampleSize, &echoCancellation, &latency, &channelCount,
+        &deviceId, &groupId, &mediaStreamSource, &renderToAssociatedSink,
+        &hotwordEnabled, &googEchoCancellation,
+        &googExperimentalEchoCancellation, &googAutoGainControl,
+        &googExperimentalAutoGainControl, &googNoiseSuppression,
+        &googHighpassFilter, &googTypingNoiseDetection,
+        &googExperimentalNoiseSuppression, &googBeamforming,
+        &googArrayGeometry, &googAudioMirroring, &googDAEchoCancellation,
+        &googAecDump, &googNoiseReduction, &offerToReceiveAudio,
+        &offerToReceiveVideo, &voiceActivityDetection, &iceRestart,
+        &googUseRtpMux, &enableDtlsSrtp, &enableRtpDataChannels,
+        &enableDscp, &enableIPv6, &googEnableVideoSuspendBelowMinBitrate,
+        &googNumUnsignalledRecvStreams, &googCombinedAudioVideoBwe,
+        &googScreencastMinBitrate, &googCpuOveruseDetection,
+        &googCpuUnderuseThreshold, &googCpuOveruseThreshold,
+        &googCpuUnderuseEncodeRsdThreshold, &googCpuOveruseEncodeRsdThreshold,
+        &googCpuOveruseEncodeUsage, &googHighStartBitrate, &googPayloadPadding
+    };
+    const int elementCount = sizeof(temp) / sizeof(temp[0]);
+    return std::vector<const BaseConstraint*>(&temp[0], &temp[elementCount]);
+}
+
 bool WebMediaTrackConstraintSet::isEmpty() const
 {
-    return width.isEmpty() && height.isEmpty() && aspectRatio.isEmpty()
-        && frameRate.isEmpty() && facingMode.isEmpty() && volume.isEmpty()
-        && sampleRate.isEmpty() && sampleSize.isEmpty()
-        && echoCancellation.isEmpty() && latency.isEmpty()
-        && channelCount.isEmpty() && deviceId.isEmpty() && groupId.isEmpty()
-        && mediaStreamSource.isEmpty() && renderToAssociatedSink.isEmpty()
-        && hotwordEnabled.isEmpty() && googEchoCancellation.isEmpty()
-        && googExperimentalEchoCancellation.isEmpty()
-        && googAutoGainControl.isEmpty()
-        && googExperimentalAutoGainControl.isEmpty()
-        && googNoiseSuppression.isEmpty()
-        && googHighpassFilter.isEmpty()
-        && googTypingNoiseDetection.isEmpty()
-        && googExperimentalNoiseSuppression.isEmpty()
-        && googBeamforming.isEmpty() && googArrayGeometry.isEmpty()
-        && googAudioMirroring.isEmpty();
+    for (const auto& constraint : allConstraints()) {
+        if (!constraint->isEmpty())
+            return false;
+    }
+    return true;
+}
+
+bool WebMediaTrackConstraintSet::hasMandatoryOutsideSet(const std::vector<std::string>& goodNames, std::string& foundName) const
+{
+    for (const auto& constraint : allConstraints()) {
+        if (constraint->hasMandatory()) {
+            if (std::find(goodNames.begin(), goodNames.end(), constraint->name())
+                == goodNames.end()) {
+                foundName = constraint->name();
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool WebMediaTrackConstraintSet::hasMandatory() const
+{
+    std::string dummyString;
+    return hasMandatoryOutsideSet(std::vector<std::string>(), dummyString);
 }
 
 // WebMediaConstraints

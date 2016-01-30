@@ -419,6 +419,9 @@ bool HTMLCanvasElement::paintsIntoCanvasBuffer() const
 
 void HTMLCanvasElement::notifyListenersCanvasChanged()
 {
+    if (m_listeners.size() == 0)
+        return;
+
     if (!originClean()) {
         m_listeners.clear();
         return;
@@ -433,7 +436,7 @@ void HTMLCanvasElement::notifyListenersCanvasChanged()
 
     if (listenerNeedsNewFrameCapture) {
         SourceImageStatus status;
-        RefPtr<Image> sourceImage = getSourceImageForCanvas(&status, PreferNoAcceleration);
+        RefPtr<Image> sourceImage = getSourceImageForCanvas(&status, PreferAcceleration);
         if (status != NormalSourceImageStatus)
             return;
         RefPtr<SkImage> image = sourceImage->imageForCurrentFrame();
@@ -577,7 +580,7 @@ String HTMLCanvasElement::toDataURL(const String& mimeType, const ScriptValue& q
     return toDataURLInternal(mimeType, quality, BackBuffer);
 }
 
-void HTMLCanvasElement::toBlob(ScriptState* scriptState, FileCallback* callback, const String& mimeType, const ScriptValue& qualityArgument, ExceptionState& exceptionState)
+void HTMLCanvasElement::toBlob(ScriptState* scriptState, BlobCallback* callback, const String& mimeType, const ScriptValue& qualityArgument, ExceptionState& exceptionState)
 {
     if (!originClean()) {
         exceptionState.throwSecurityError("Tainted canvases may not be exported.");
@@ -586,7 +589,7 @@ void HTMLCanvasElement::toBlob(ScriptState* scriptState, FileCallback* callback,
 
     if (!isPaintable()) {
         // If the canvas element's bitmap has no pixels
-        Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&FileCallback::handleEvent, callback, nullptr));
+        Platform::current()->mainThread()->taskRunner()->postTask(BLINK_FROM_HERE, bind(&BlobCallback::handleEvent, callback, nullptr));
         return;
     }
 
@@ -608,8 +611,11 @@ void HTMLCanvasElement::toBlob(ScriptState* scriptState, FileCallback* callback,
 
     RefPtr<CanvasAsyncBlobCreator> asyncCreatorRef = CanvasAsyncBlobCreator::create(imageDataRef.release(), encodingMimeType, imageData->size(), callback, scriptState->executionContext());
 
-    // TODO(xlai): Remove idle-periods version of implementation completely, http://crbug.com/564218
-    asyncCreatorRef->scheduleAsyncBlobCreation(false, quality);
+    if (Platform::current()->isThreadedCompositingEnabled() && (encodingMimeType == DefaultMimeType)) {
+        asyncCreatorRef->scheduleAsyncBlobCreation(true);
+    } else {
+        asyncCreatorRef->scheduleAsyncBlobCreation(false, quality);
+    }
 }
 
 void HTMLCanvasElement::addListener(CanvasDrawListener* listener)
@@ -1016,4 +1022,4 @@ bool HTMLCanvasElement::isOpaque() const
     return m_context && !m_context->hasAlpha();
 }
 
-} // blink
+} // namespace blink

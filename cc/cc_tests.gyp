@@ -146,6 +146,7 @@
       'trees/layer_tree_host_unittest_picture.cc',
       'trees/layer_tree_host_unittest_proxy.cc',
       'trees/layer_tree_host_unittest_record_gpu_histogram.cc',
+      'trees/layer_tree_host_unittest_remote_server.cc',
       'trees/layer_tree_host_unittest_scroll.cc',
       'trees/layer_tree_host_unittest_serialization.cc',
       'trees/layer_tree_host_unittest_video.cc',
@@ -156,6 +157,7 @@
       'trees/property_tree_unittest.cc',
       'trees/proxy_common_unittest.cc',
       'trees/proxy_impl_unittest.cc',
+      'trees/remote_channel_unittest.cc',
       'trees/threaded_channel_unittest.cc',
       'trees/tree_synchronizer_unittest.cc',
     ],
@@ -273,6 +275,10 @@
       'test/proxy_impl_for_test.h',
       'test/proxy_main_for_test.cc',
       'test/proxy_main_for_test.h',
+      'test/remote_channel_impl_for_test.cc',
+      'test/remote_channel_impl_for_test.h',
+      'test/remote_proto_channel_bridge.cc',
+      'test/remote_proto_channel_bridge.h',
       'test/render_pass_test_utils.cc',
       'test/render_pass_test_utils.h',
       'test/scheduler_test_common.cc',
@@ -352,19 +358,6 @@
             ],
           }
         ],
-        [ 'os_posix == 1 and OS != "mac" and OS != "android" and OS != "ios"',
-          {
-            'conditions': [
-              [ 'use_allocator!="none"',
-                {
-                  'dependencies': [
-                    '../base/allocator/allocator.gyp:allocator',
-                  ],
-                }
-              ],
-            ],
-          }
-        ],
       ],
     },
     {
@@ -412,14 +405,6 @@
             ],
           }
         ],
-        # See http://crbug.com/162998#c4 for why this is needed.
-        ['OS=="linux" and use_allocator!="none"',
-          {
-            'dependencies': [
-              '../base/allocator/allocator.gyp:allocator',
-            ],
-          }
-        ],
       ],
     },
     {
@@ -444,6 +429,7 @@
         '../ui/gfx/gfx.gyp:gfx_test_support',
         '../ui/gl/gl.gyp:gl',
         '../ui/gl/gl.gyp:gl_test_support',
+        'cc.gyp:cc_proto',
       ],
       'sources': [
         '<@(cc_tests_support_files)',

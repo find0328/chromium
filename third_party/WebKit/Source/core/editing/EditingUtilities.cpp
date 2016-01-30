@@ -221,7 +221,7 @@ ContainerNode* highestEditableRoot(const Position& position, EditableType editab
     if (position.isNull())
         return 0;
 
-    ContainerNode* highestRoot = editableRootForPosition(position, editableType);
+    ContainerNode* highestRoot = rootEditableElementOf(position, editableType);
     if (!highestRoot)
         return 0;
 
@@ -255,9 +255,11 @@ bool isEditablePosition(const Position& p, EditableType editableType, EUpdateSty
     else
         ASSERT(updateStyle == DoNotUpdateStyle);
 
-    if (isRenderedHTMLTableElement(node))
+    if (isDisplayInsideTable(node))
         node = node->parentNode();
 
+    if (node->isDocumentNode())
+        return false;
     return node->hasEditableStyle(editableType);
 }
 
@@ -269,7 +271,7 @@ bool isEditablePosition(const PositionInComposedTree& p, EditableType editableTy
 bool isAtUnsplittableElement(const Position& pos)
 {
     Node* node = pos.anchorNode();
-    return (node == editableRootForPosition(pos) || node == enclosingNodeOfType(pos, &isTableCell));
+    return (node == rootEditableElementOf(pos) || node == enclosingNodeOfType(pos, &isTableCell));
 }
 
 
@@ -279,27 +281,27 @@ bool isRichlyEditablePosition(const Position& p, EditableType editableType)
     if (!node)
         return false;
 
-    if (isRenderedHTMLTableElement(node))
+    if (isDisplayInsideTable(node))
         node = node->parentNode();
 
     return node->layoutObjectIsRichlyEditable(editableType);
 }
 
-Element* editableRootForPosition(const Position& p, EditableType editableType)
+Element* rootEditableElementOf(const Position& p, EditableType editableType)
 {
     Node* node = p.computeContainerNode();
     if (!node)
         return 0;
 
-    if (isRenderedHTMLTableElement(node))
+    if (isDisplayInsideTable(node))
         node = node->parentNode();
 
     return node->rootEditableElement(editableType);
 }
 
-Element* editableRootForPosition(const PositionInComposedTree& p, EditableType editableType)
+Element* rootEditableElementOf(const PositionInComposedTree& p, EditableType editableType)
 {
-    return editableRootForPosition(toPositionInDOMTree(p), editableType);
+    return rootEditableElementOf(toPositionInDOMTree(p), editableType);
 }
 
 // TODO(yosin) This does not handle [table, 0] correctly.
@@ -320,7 +322,7 @@ Element* unsplittableElementForPosition(const Position& p)
     if (enclosingCell)
         return enclosingCell;
 
-    return editableRootForPosition(p);
+    return rootEditableElementOf(p);
 }
 
 template <typename Strategy>
@@ -813,7 +815,7 @@ static HTMLElement* firstInSpecialElement(const Position& pos)
             HTMLElement* specialElement = toHTMLElement(n);
             VisiblePosition vPos = createVisiblePosition(pos);
             VisiblePosition firstInElement = createVisiblePosition(firstPositionInOrBeforeNode(specialElement));
-            if (isRenderedTableElement(specialElement) && vPos.deepEquivalent() == nextPositionOf(firstInElement).deepEquivalent())
+            if (isDisplayInsideTable(specialElement) && vPos.deepEquivalent() == nextPositionOf(firstInElement).deepEquivalent())
                 return specialElement;
             if (vPos.deepEquivalent() == firstInElement.deepEquivalent())
                 return specialElement;
@@ -830,7 +832,7 @@ static HTMLElement* lastInSpecialElement(const Position& pos)
             HTMLElement* specialElement = toHTMLElement(n);
             VisiblePosition vPos = createVisiblePosition(pos);
             VisiblePosition lastInElement = createVisiblePosition(lastPositionInOrAfterNode(specialElement));
-            if (isRenderedTableElement(specialElement) && vPos.deepEquivalent() == previousPositionOf(lastInElement).deepEquivalent())
+            if (isDisplayInsideTable(specialElement) && vPos.deepEquivalent() == previousPositionOf(lastInElement).deepEquivalent())
                 return specialElement;
             if (vPos.deepEquivalent() == lastInElement.deepEquivalent())
                 return specialElement;
@@ -869,7 +871,7 @@ template <typename Strategy>
 static Element* isFirstPositionAfterTableAlgorithm(const VisiblePositionTemplate<Strategy>& visiblePosition)
 {
     const PositionTemplate<Strategy> upstream(mostBackwardCaretPosition(visiblePosition.deepEquivalent()));
-    if (isRenderedTableElement(upstream.anchorNode()) && upstream.atLastEditingPositionForNode())
+    if (isDisplayInsideTable(upstream.anchorNode()) && upstream.atLastEditingPositionForNode())
         return toElement(upstream.anchorNode());
 
     return nullptr;
@@ -888,7 +890,7 @@ Element* isFirstPositionAfterTable(const VisiblePositionInComposedTree& visibleP
 Element* isLastPositionBeforeTable(const VisiblePosition& visiblePosition)
 {
     Position downstream(mostForwardCaretPosition(visiblePosition.deepEquivalent()));
-    if (isRenderedTableElement(downstream.anchorNode()) && downstream.atFirstEditingPositionForNode())
+    if (isDisplayInsideTable(downstream.anchorNode()) && downstream.atFirstEditingPositionForNode())
         return toElement(downstream.anchorNode());
 
     return 0;
@@ -1180,12 +1182,7 @@ bool canMergeLists(Element* firstList, Element* secondList)
     // Make sure there is no visible content between this li and the previous list
 }
 
-bool isRenderedHTMLTableElement(const Node* node)
-{
-    return isHTMLTableElement(*node) && node->layoutObject();
-}
-
-bool isRenderedTableElement(const Node* node)
+bool isDisplayInsideTable(const Node* node)
 {
     if (!node || !node->isElementNode())
         return false;
@@ -1584,17 +1581,20 @@ bool isRenderedAsNonInlineTableImageOrHR(const Node* node)
     return layoutObject && ((layoutObject->isTable() && !layoutObject->isInline()) || (layoutObject->isImage() && !layoutObject->isInline()) || layoutObject->isHR());
 }
 
-bool areIdenticalElements(const Node* first, const Node* second)
+bool areIdenticalElements(const Node& first, const Node& second)
 {
-    if (!first->isElementNode() || !second->isElementNode())
+    if (!first.isElementNode() || !second.isElementNode())
         return false;
 
-    const Element* firstElement = toElement(first);
-    const Element* secondElement = toElement(second);
-    if (!firstElement->hasTagName(secondElement->tagQName()))
+    const Element& firstElement = toElement(first);
+    const Element& secondElement = toElement(second);
+    if (!firstElement.hasTagName(secondElement.tagQName()))
         return false;
 
-    return firstElement->hasEquivalentAttributes(secondElement);
+    if (!firstElement.hasEquivalentAttributes(&secondElement))
+        return false;
+
+    return firstElement.hasEditableStyle() && secondElement.hasEditableStyle();
 }
 
 bool isNonTableCellHTMLBlockElement(const Node* node)

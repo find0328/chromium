@@ -24,11 +24,11 @@
 #include "net/base/host_port_pair.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
-#include "net/base/net_util.h"
 #include "net/base/network_delegate.h"
 #include "net/base/network_quality_estimator.h"
 #include "net/base/sdch_manager.h"
 #include "net/base/sdch_net_log_params.h"
+#include "net/base/url_util.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cookies/cookie_store.h"
 #include "net/http/http_content_disposition.h"
@@ -364,7 +364,7 @@ void URLRequestHttpJob::NotifyHeadersComplete() {
     } else {
       const std::string name = "Get-Dictionary";
       std::string url_text;
-      void* iter = NULL;
+      size_t iter = 0;
       // TODO(jar): We need to not fetch dictionaries the first time they are
       // seen, but rather wait until we can justify their usefulness.
       // For now, we will only fetch the first dictionary, which will at least
@@ -376,7 +376,9 @@ void URLRequestHttpJob::NotifyHeadersComplete() {
       if (GetResponseHeaders()->EnumerateHeader(&iter, name, &url_text)) {
         // Resolve suggested URL relative to request url.
         GURL sdch_dictionary_url = request_->url().Resolve(url_text);
-        if (sdch_dictionary_url.is_valid()) {
+        // Don't try to download Dictionary for cached responses. It's either
+        // useless or too late.
+        if (sdch_dictionary_url.is_valid() && !is_cached_content_) {
           rv = sdch_manager->OnGetDictionary(request_->url(),
                                              sdch_dictionary_url);
           if (rv != SDCH_OK) {
@@ -399,7 +401,7 @@ void URLRequestHttpJob::NotifyHeadersComplete() {
     // as though the content is corrupted (when we discover it is not SDCH
     // encoded).
     std::string sdch_response_status;
-    void* iter = NULL;
+    size_t iter = 0;
     while (GetResponseHeaders()->EnumerateHeader(&iter, "X-Sdch-Encode",
                                                  &sdch_response_status)) {
       if (sdch_response_status == "0") {
@@ -480,7 +482,6 @@ void URLRequestHttpJob::MaybeStartTransactionInternal(int result) {
     std::string source("delegate");
     request_->net_log().AddEvent(NetLog::TYPE_CANCELLED,
                                  NetLog::StringCallback("source", &source));
-    NotifyCanceled();
     NotifyStartError(URLRequestStatus(URLRequestStatus::FAILED, result));
   }
 }
@@ -661,10 +662,6 @@ void URLRequestHttpJob::AddExtraHeaders() {
 }
 
 void URLRequestHttpJob::AddCookieHeaderAndStart() {
-  // No matter what, we want to report our status as IO pending since we will
-  // be notifying our consumer asynchronously via OnStartCompleted.
-  SetStatus(URLRequestStatus(URLRequestStatus::IO_PENDING, 0));
-
   // If the request was destroyed, then there is no more work to do.
   if (!request_)
     return;
@@ -767,10 +764,6 @@ void URLRequestHttpJob::SaveCookiesAndNotifyHeadersComplete(int result) {
 // whether it completed synchronously or asynchronously.
 // See http://crbug.com/131066.
 void URLRequestHttpJob::SaveNextCookie() {
-  // No matter what, we want to report our status as IO pending since we will
-  // be notifying our consumer asynchronously via OnStartCompleted.
-  SetStatus(URLRequestStatus(URLRequestStatus::IO_PENDING, 0));
-
   // Used to communicate with the callback. See the implementation of
   // OnCookieSaved.
   scoped_refptr<SharedBoolean> callback_pending = new SharedBoolean(false);
@@ -812,7 +805,6 @@ void URLRequestHttpJob::SaveNextCookie() {
   if (!callback_pending->data) {
     response_cookies_.clear();
     response_cookies_save_index_ = 0;
-    SetStatus(URLRequestStatus());  // Clear the IO_PENDING status
     NotifyHeadersComplete();
     return;
   }
@@ -850,7 +842,7 @@ void URLRequestHttpJob::FetchResponseCookies(
   const std::string name = "Set-Cookie";
   std::string value;
 
-  void* iter = NULL;
+  size_t iter = 0;
   HttpResponseHeaders* headers = GetResponseHeaders();
   while (headers->EnumerateHeader(&iter, name, &value)) {
     if (!value.empty())
@@ -903,7 +895,7 @@ void URLRequestHttpJob::ProcessStrictTransportSecurityHeader() {
   //   first such header field.
   HttpResponseHeaders* headers = GetResponseHeaders();
   std::string value;
-  if (headers->EnumerateHeader(NULL, "Strict-Transport-Security", &value))
+  if (headers->EnumerateHeader(nullptr, "Strict-Transport-Security", &value))
     security_state->AddHSTSHeader(request_info_.url.host(), value);
 }
 
@@ -953,9 +945,6 @@ void URLRequestHttpJob::OnStartCompleted(int result) {
 
   receive_headers_end_ = base::TimeTicks::Now();
 
-  // Clear the IO_PENDING status
-  SetStatus(URLRequestStatus());
-
   const URLRequestContext* context = request_->context();
 
   if (result == OK) {
@@ -965,7 +954,7 @@ void URLRequestHttpJob::OnStartCompleted(int result) {
     scoped_refptr<HttpResponseHeaders> headers = GetResponseHeaders();
 
     if (headers) {
-      void* iter = NULL;
+      size_t iter = 0;
       std::string name;
       std::string value;
       bool invalid_header_values_in_rfc7230 = false;
@@ -1189,7 +1178,7 @@ Filter* URLRequestHttpJob::SetupFilter() const {
   std::vector<Filter::FilterType> encoding_types;
   std::string encoding_type;
   HttpResponseHeaders* headers = GetResponseHeaders();
-  void* iter = NULL;
+  size_t iter = 0;
   while (headers->EnumerateHeader(&iter, "Content-Encoding", &encoding_type)) {
     encoding_types.push_back(Filter::ConvertEncodingToType(encoding_type));
   }
@@ -1322,10 +1311,6 @@ void URLRequestHttpJob::ContinueWithCertificate(
 
   ResetTimer();
 
-  // No matter what, we want to report our status as IO pending since we will
-  // be notifying our consumer asynchronously via OnStartCompleted.
-  SetStatus(URLRequestStatus(URLRequestStatus::IO_PENDING, 0));
-
   int rv = transaction_->RestartWithCertificate(client_cert, client_private_key,
                                                 start_callback_);
   if (rv == ERR_IO_PENDING)
@@ -1347,10 +1332,6 @@ void URLRequestHttpJob::ContinueDespiteLastError() {
   receive_headers_end_ = base::TimeTicks();
 
   ResetTimer();
-
-  // No matter what, we want to report our status as IO pending since we will
-  // be notifying our consumer asynchronously via OnStartCompleted.
-  SetStatus(URLRequestStatus(URLRequestStatus::IO_PENDING, 0));
 
   int rv = transaction_->RestartIgnoringLastError(start_callback_);
   if (rv == ERR_IO_PENDING)

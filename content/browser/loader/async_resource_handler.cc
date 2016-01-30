@@ -207,6 +207,8 @@ bool AsyncResourceHandler::OnResponseStarted(ResourceResponse* response,
   // request commits, avoiding the possibility of e.g. zooming the old content
   // or of having to layout the new content twice.
 
+  response_started_ticks_ = base::TimeTicks::Now();
+
   progress_timer_.Stop();
   const ResourceRequestInfoImpl* info = GetRequestInfo();
   if (!info->filter())
@@ -289,6 +291,9 @@ bool AsyncResourceHandler::OnWillRead(scoped_refptr<net::IOBuffer>* buf,
                                       int min_size) {
   DCHECK_EQ(-1, min_size);
 
+  if (!CheckForSufficientResource())
+    return false;
+
   if (!EnsureResourceBufferIsInitialized())
     return false;
 
@@ -328,15 +333,14 @@ bool AsyncResourceHandler::OnReadCompleted(int bytes_read, bool* defer) {
   }
 
   int data_offset = buffer_->GetLastAllocationOffset();
-
-  int64_t current_transfer_size = request()->GetTotalReceivedBytes();
-  int encoded_data_length = current_transfer_size - reported_transfer_size_;
-  reported_transfer_size_ = current_transfer_size;
+  int encoded_data_length = CalculateEncodedDataLengthToReport();
 
   // TODO(erikchen): Temporary debugging. http://crbug.com/527588.
   CHECK_LE(data_offset, kBufferSize);
 
   filter->Send(new ResourceMsg_DataReceivedDebug(GetRequestID(), data_offset));
+  filter->Send(new ResourceMsg_DataReceivedDebug2(
+      GetRequestID(), data_offset, bytes_read, encoded_data_length));
   filter->Send(new ResourceMsg_DataReceived(
       GetRequestID(), data_offset, bytes_read, encoded_data_length));
   ++pending_data_count_;
@@ -350,9 +354,7 @@ bool AsyncResourceHandler::OnReadCompleted(int bytes_read, bool* defer) {
 }
 
 void AsyncResourceHandler::OnDataDownloaded(int bytes_downloaded) {
-  int64_t current_transfer_size = request()->GetTotalReceivedBytes();
-  int encoded_data_length = current_transfer_size - reported_transfer_size_;
-  reported_transfer_size_ = current_transfer_size;
+  int encoded_data_length = CalculateEncodedDataLengthToReport();
 
   ResourceMessageFilter* filter = GetFilter();
   if (filter) {
@@ -412,19 +414,15 @@ void AsyncResourceHandler::OnResponseCompleted(
       request()->GetTotalReceivedBytes();
   info->filter()->Send(
       new ResourceMsg_RequestComplete(GetRequestID(), request_complete_data));
+
+  RecordHistogram();
 }
 
 bool AsyncResourceHandler::EnsureResourceBufferIsInitialized() {
+  DCHECK(has_checked_for_sufficient_resources_);
+
   if (buffer_.get() && buffer_->IsInitialized())
     return true;
-
-  if (!has_checked_for_sufficient_resources_) {
-    has_checked_for_sufficient_resources_ = true;
-    if (!rdh_->HasSufficientResourcesForRequest(request())) {
-      controller()->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
-      return false;
-    }
-  }
 
   buffer_ = new ResourceBuffer();
   return buffer_->Initialize(kBufferSize,
@@ -442,6 +440,49 @@ void AsyncResourceHandler::ResumeIfDeferred() {
 
 void AsyncResourceHandler::OnDefer() {
   request()->LogBlockedBy("AsyncResourceHandler");
+}
+
+bool AsyncResourceHandler::CheckForSufficientResource() {
+  if (has_checked_for_sufficient_resources_)
+    return true;
+  has_checked_for_sufficient_resources_ = true;
+
+  if (rdh_->HasSufficientResourcesForRequest(request()))
+    return true;
+
+  controller()->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+  return false;
+}
+
+int AsyncResourceHandler::CalculateEncodedDataLengthToReport() {
+  int64_t current_transfer_size = request()->GetTotalReceivedBytes();
+  int encoded_data_length = current_transfer_size - reported_transfer_size_;
+  reported_transfer_size_ = current_transfer_size;
+  return encoded_data_length;
+}
+
+void AsyncResourceHandler::RecordHistogram() {
+  int64_t elapsed_time =
+      (base::TimeTicks::Now() - response_started_ticks_).InMicroseconds();
+  int64_t encoded_length = request()->GetTotalReceivedBytes();
+  if (encoded_length < 2 * 1024) {
+    // The resource was smaller than the smallest required buffer size.
+    UMA_HISTOGRAM_CUSTOM_COUNTS("Net.ResourceLoader.ResponseStartToEnd.LT_2kB",
+                                elapsed_time, 1, 100000, 100);
+  } else if (encoded_length < 32 * 1024) {
+    // The resource was smaller than single chunk.
+    UMA_HISTOGRAM_CUSTOM_COUNTS("Net.ResourceLoader.ResponseStartToEnd.LT_32kB",
+                                elapsed_time, 1, 100000, 100);
+  } else if (encoded_length < 512 * 1024) {
+    // The resource was smaller than single chunk.
+    UMA_HISTOGRAM_CUSTOM_COUNTS(
+        "Net.ResourceLoader.ResponseStartToEnd.LT_512kB",
+        elapsed_time, 1, 100000, 100);
+  } else {
+    UMA_HISTOGRAM_CUSTOM_COUNTS(
+        "Net.ResourceLoader.ResponseStartToEnd.Over_512kB",
+        elapsed_time, 1, 100000, 100);
+  }
 }
 
 }  // namespace content

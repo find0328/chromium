@@ -63,6 +63,7 @@ test("components_unittests") {
     "//components/network_time:unit_tests",
     "//components/open_from_clipboard:unit_tests",
     "//components/os_crypt:unit_tests",
+    "//components/prefs:unit_tests",
     "//components/proxy_config:unit_tests",
     "//components/security_state:unit_tests",
     "//components/sessions:unit_tests",
@@ -230,7 +231,6 @@ test("components_unittests") {
       "//components/autofill/core/browser:unit_tests",
       "//components/autofill/core/common:unit_tests",
       "//components/browser_sync/browser:unit_tests",
-      "//components/enhanced_bookmarks:unit_tests",
       "//components/favicon/core:unit_tests",
       "//components/favicon_base:unit_tests",
       "//components/gcm_driver:unit_tests",
@@ -419,9 +419,9 @@ test("components_browsertests") {
     # a MANUAL component_browsertest.
     sources += [ "dom_distiller/standalone/content_extractor_browsertest.cc" ]
     deps += [
-      "//base:prefs_test_support",
       "//components/leveldb_proto",
       "//components/pref_registry:test_support",
+      "//components/prefs:test_support",
     ]
   }
 

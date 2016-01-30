@@ -63,7 +63,6 @@ public:
     void setIsolatedWorldContentSecurityPolicy(int worldID, const WebString&) override;
     void addMessageToConsole(const WebConsoleMessage&) override;
     void collectGarbage() override;
-    bool checkIfRunInsecureContent(const WebURL&) const override;
     v8::Local<v8::Value> executeScriptAndReturnValue(
         const WebScriptSource&) override;
     void executeScriptInIsolatedWorld(
@@ -192,6 +191,8 @@ public:
 
     void didStartLoading() override;
     void didStopLoading() override;
+
+    bool isIgnoredForHitTest() const override;
 
 #if ENABLE(OILPAN)
     DECLARE_TRACE();

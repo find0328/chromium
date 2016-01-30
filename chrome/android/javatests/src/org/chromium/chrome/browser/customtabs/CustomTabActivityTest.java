@@ -5,7 +5,6 @@
 package org.chromium.chrome.browser.customtabs;
 
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
-import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_PHONE;
 
 import android.app.Activity;
 import android.app.Application;
@@ -20,6 +19,7 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -51,6 +51,7 @@ import org.chromium.chrome.browser.tabmodel.TabModel.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.CustomTabToolbar;
 import org.chromium.chrome.browser.util.ColorUtils;
+import org.chromium.chrome.test.util.ChromeRestriction;
 import org.chromium.chrome.test.util.TestHttpServerClient;
 import org.chromium.chrome.test.util.browser.contextmenu.ContextMenuUtils;
 import org.chromium.content.browser.BrowserStartupController;
@@ -491,6 +492,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
     public void testBottomBar() throws InterruptedException {
         final int numItems = 3;
         final Bitmap expectedIcon = createTestBitmap(48, 24);
+        final int barColor = Color.GREEN;
 
         Intent intent = createMinimalCustomTabIntent();
         ArrayList<Bundle> bundles = new ArrayList<>();
@@ -499,12 +501,15 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
             bundles.add(bundle);
         }
         intent.putExtra(CustomTabsIntent.EXTRA_ACTION_BAR_ITEMS, bundles);
+        intent.putExtra(CustomTabsIntent.EXTRA_CUSTOM_ACTION_BAR_COLOR, barColor);
         startCustomTabActivityWithIntent(intent);
 
         ViewGroup bottomBar = (ViewGroup) getActivity().findViewById(R.id.bottombar);
         assertNotNull(bottomBar);
         assertEquals("Bottom Bar showing incorrect number of buttons.",
                 numItems, bottomBar.getChildCount());
+        assertEquals("Bottom bar not showing correct color", barColor,
+                ((ColorDrawable) bottomBar.getBackground()).getColor());
         for (int i = 1; i <= numItems; i++) {
             ImageButton button = (ImageButton) bottomBar.getChildAt(i - 1);
             assertTrue("Bottom Bar button does not have the correct bitmap.",
@@ -707,7 +712,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
      * Non-regression test for crbug.com/547121.
      */
     @SmallTest
-    @Restriction(RESTRICTION_TYPE_PHONE)
+    @Restriction(ChromeRestriction.RESTRICTION_TYPE_PHONE)
     @CommandLineFlags.Add({
             ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE, ChromeSwitches.DISABLE_DOCUMENT_MODE})
     public void testWarmupAndLaunchRegularChrome() {
@@ -734,7 +739,7 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
      * Non-regression test for crbug.com/547121.
      */
     @SmallTest
-    @Restriction(RESTRICTION_TYPE_PHONE)
+    @Restriction(ChromeRestriction.RESTRICTION_TYPE_PHONE)
     @CommandLineFlags.Add({
             ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE, ChromeSwitches.DISABLE_DOCUMENT_MODE})
     public void testWarmupAndLaunchRightToolbarLayout() {
@@ -841,8 +846,8 @@ public class CustomTabActivityTest extends CustomTabActivityTestBase {
      */
     private static class OnFinishedForTest implements PendingIntent.OnFinished {
 
-        private PendingIntent mPi;
-        private AtomicBoolean mIsSent = new AtomicBoolean();
+        private final PendingIntent mPi;
+        private final AtomicBoolean mIsSent = new AtomicBoolean();
         private String mUri;
 
         /**

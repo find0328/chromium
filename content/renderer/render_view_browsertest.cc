@@ -395,7 +395,7 @@ class RenderViewImplBlinkSettingsTest : public RenderViewImplTest {
 class RenderViewImplScaleFactorTest : public RenderViewImplBlinkSettingsTest {
  public:
   void SetDeviceScaleFactor(float dsf) {
-    ViewMsg_Resize_Params params;
+    ResizeParams params;
     params.screen_info.deviceScaleFactor = dsf;
     params.new_size = gfx::Size(100, 100);
     params.physical_backing_size = gfx::Size(200, 200);
@@ -501,7 +501,6 @@ TEST_F(RenderViewImplTest, OnNavStateChanged) {
     EXPECT_TRUE(render_thread_->sink().GetUniqueMessageMatching(
         ViewHostMsg_UpdateState::ID));
   }
-  ProcessPendingMessages();
 }
 
 TEST_F(RenderViewImplTest, OnNavigationHttpPost) {
@@ -913,7 +912,7 @@ TEST_F(RenderViewImplTest, NavigateProxyAndDetachBeforeOnNavigate) {
       static_cast<TestRenderFrame*>(RenderFrameImpl::FromRoutingID(routing_id));
   EXPECT_TRUE(provisional_frame);
 
-  // Detach the child frame (current remote) in the main frame.
+  // Detach the child frame (currently remote) in the main frame.
   ExecuteJavaScriptForTests(
       "document.body.removeChild(document.querySelector('iframe'));");
   RenderFrameProxy* child_proxy =
@@ -935,6 +934,10 @@ TEST_F(RenderViewImplTest, NavigateProxyAndDetachBeforeOnNavigate) {
       render_thread_->sink().GetUniqueMessageMatching(
           FrameHostMsg_DidCommitProvisionalLoad::ID);
   EXPECT_FALSE(frame_navigate_msg);
+
+  // Detach the provisional frame to clean it up.  Normally, the browser
+  // process would trigger this via FrameMsg_Delete.
+  provisional_frame->GetWebFrame()->detach();
 }
 
 // Verify that DidFlushPaint doesn't crash if called after a RenderView is
@@ -1314,6 +1317,7 @@ TEST_F(RenderViewImplTest, ImeComposition) {
         view()->OnImeSetComposition(
             base::WideToUTF16(ime_message->ime_string),
             std::vector<blink::WebCompositionUnderline>(),
+            gfx::Range::InvalidRange(),
             ime_message->selection_start,
             ime_message->selection_end);
         break;
@@ -1329,6 +1333,7 @@ TEST_F(RenderViewImplTest, ImeComposition) {
         view()->OnImeSetComposition(
             base::string16(),
             std::vector<blink::WebCompositionUnderline>(),
+            gfx::Range::InvalidRange(),
             0, 0);
         break;
     }
@@ -1936,7 +1941,8 @@ TEST_F(RenderViewImplTest, GetCompositionCharacterBoundsTest) {
 
   // ASCII composition
   const base::string16 ascii_composition = base::UTF8ToUTF16("aiueo");
-  view()->OnImeSetComposition(ascii_composition, empty_underline, 0, 0);
+  view()->OnImeSetComposition(ascii_composition, empty_underline,
+                              gfx::Range::InvalidRange(), 0, 0);
   view()->GetCompositionCharacterBounds(&bounds);
   ASSERT_EQ(ascii_composition.size(), bounds.size());
 
@@ -1948,7 +1954,8 @@ TEST_F(RenderViewImplTest, GetCompositionCharacterBoundsTest) {
   // Non surrogate pair unicode character.
   const base::string16 unicode_composition = base::UTF8ToUTF16(
       "\xE3\x81\x82\xE3\x81\x84\xE3\x81\x86\xE3\x81\x88\xE3\x81\x8A");
-  view()->OnImeSetComposition(unicode_composition, empty_underline, 0, 0);
+  view()->OnImeSetComposition(unicode_composition, empty_underline,
+                              gfx::Range::InvalidRange(), 0, 0);
   view()->GetCompositionCharacterBounds(&bounds);
   ASSERT_EQ(unicode_composition.size(), bounds.size());
   for (size_t i = 0; i < bounds.size(); ++i)
@@ -1961,6 +1968,7 @@ TEST_F(RenderViewImplTest, GetCompositionCharacterBoundsTest) {
       base::UTF8ToUTF16("\xF0\xA0\xAE\x9F");
   view()->OnImeSetComposition(surrogate_pair_char,
                               empty_underline,
+                              gfx::Range::InvalidRange(),
                               0,
                               0);
   view()->GetCompositionCharacterBounds(&bounds);
@@ -1979,6 +1987,7 @@ TEST_F(RenderViewImplTest, GetCompositionCharacterBoundsTest) {
     false, true, false, false, true, false, false, true };
   view()->OnImeSetComposition(surrogate_pair_mixed_composition,
                               empty_underline,
+                              gfx::Range::InvalidRange(),
                               0,
                               0);
   view()->GetCompositionCharacterBounds(&bounds);
@@ -2638,7 +2647,8 @@ TEST_F(RenderViewImplScaleFactorTest, ConverViewportToWindowWithZoomForDSF) {
 }
 
 #if defined(OS_MACOSX) || defined(USE_AURA)
-TEST_F(RenderViewImplScaleFactorTest, GetCompositionCharacterBoundsTest) {
+TEST_F(RenderViewImplScaleFactorTest,
+       DISABLED_GetCompositionCharacterBoundsTest) {  // http://crbug.com/582016
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       switches::kEnableUseZoomForDSF);
   DoSetUp();
@@ -2659,7 +2669,8 @@ TEST_F(RenderViewImplScaleFactorTest, GetCompositionCharacterBoundsTest) {
 
   // ASCII composition
   const base::string16 ascii_composition = base::UTF8ToUTF16("aiueo");
-  view()->OnImeSetComposition(ascii_composition, empty_underline, 0, 0);
+  view()->OnImeSetComposition(ascii_composition, empty_underline,
+                              gfx::Range::InvalidRange(), 0, 0);
   view()->GetCompositionCharacterBounds(&bounds_at_1x);
   ASSERT_EQ(ascii_composition.size(), bounds_at_1x.size());
 

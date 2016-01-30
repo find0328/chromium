@@ -137,8 +137,12 @@ scoped_refptr<VideoFrame> MakeTextFrameForCast(
   gpu::Mailbox texture_mailbox;
   gl->GenMailboxCHROMIUM(texture_mailbox.name);
   gl->ProduceTextureCHROMIUM(texture_target, texture_mailbox.name);
+  const GLuint64 fence_sync = gl->InsertFenceSyncCHROMIUM();
   gl->Flush();
-  gpu::SyncToken texture_mailbox_sync_token(gl->InsertSyncPointCHROMIUM());
+
+  gpu::SyncToken texture_mailbox_sync_token;
+  gl->GenUnverifiedSyncTokenCHROMIUM(fence_sync,
+                                     texture_mailbox_sync_token.GetData());
 
   return VideoFrame::WrapNativeTexture(
       media::PIXEL_FORMAT_ARGB,
@@ -153,12 +157,8 @@ scoped_refptr<VideoFrame> MakeTextFrameForCast(
 WebMediaPlayerCast::WebMediaPlayerCast(
     WebMediaPlayerImpl* impl,
     blink::WebMediaPlayerClient* client,
-    const WebMediaPlayerParams::Context3DCB& context_3d_cb,
-    base::WeakPtr<WebMediaPlayerDelegate> delegate)
-    : webmediaplayer_(impl),
-      client_(client),
-      context_3d_cb_(context_3d_cb),
-      delegate_(delegate) {}
+    const WebMediaPlayerParams::Context3DCB& context_3d_cb)
+    : webmediaplayer_(impl), client_(client), context_3d_cb_(context_3d_cb) {}
 
 WebMediaPlayerCast::~WebMediaPlayerCast() {
   if (player_manager_) {
@@ -170,10 +170,11 @@ WebMediaPlayerCast::~WebMediaPlayerCast() {
 }
 
 void WebMediaPlayerCast::Initialize(const GURL& url,
-                                    blink::WebLocalFrame* frame) {
+                                    blink::WebLocalFrame* frame,
+                                    int delegate_id) {
   player_manager_->Initialize(MEDIA_PLAYER_TYPE_REMOTE_ONLY, player_id_, url,
                               frame->document().firstPartyForCookies(), 0,
-                              frame->document().url(), true);
+                              frame->document().url(), true, delegate_id);
   is_player_initialized_ = true;
 }
 
@@ -196,7 +197,9 @@ void WebMediaPlayerCast::requestRemotePlaybackControl() {
 void WebMediaPlayerCast::OnMediaMetadataChanged(base::TimeDelta duration,
                                                 int width,
                                                 int height,
-                                                bool success) {}
+                                                bool success) {
+  duration_ = duration;
+}
 
 void WebMediaPlayerCast::OnPlaybackComplete() {
   DVLOG(1) << __FUNCTION__;
@@ -245,8 +248,6 @@ void WebMediaPlayerCast::OnConnectedToRemoteDevice(
   is_remote_ = true;
   initializing_ = true;
   paused_ = false;
-  if (delegate_ && is_remote_)
-    delegate_->DidPlay(webmediaplayer_);
   client_->playbackStateChanged();
 
   remote_playback_message_ = remote_playback_message;
@@ -269,13 +270,9 @@ void WebMediaPlayerCast::play() {
   player_manager_->Start(player_id_);
   remote_time_at_ = base::TimeTicks::Now();
   paused_ = false;
-  if (delegate_ && is_remote_)
-    delegate_->DidPlay(webmediaplayer_);
 }
 
 void WebMediaPlayerCast::pause() {
-  if (paused_)
-    return;
   player_manager_->Pause(player_id_, true);
 }
 
@@ -288,8 +285,6 @@ void WebMediaPlayerCast::OnDisconnectedFromRemoteDevice() {
   DVLOG(1) << __FUNCTION__;
   if (!paused_) {
     paused_ = true;
-    if (delegate_ && is_remote_)
-      delegate_->DidPause(webmediaplayer_);
   }
   is_remote_ = false;
   double t = currentTime();
@@ -306,13 +301,8 @@ void WebMediaPlayerCast::OnDidExitFullscreen() {
 void WebMediaPlayerCast::OnMediaPlayerPlay() {
   DVLOG(1) << __FUNCTION__ << " is_remote_ = " << is_remote_;
   initializing_ = false;
-  if (paused_) {
+  if (is_remote_ && paused_) {
     paused_ = false;
-    if (delegate_ && paused_ && is_remote_)
-      delegate_->DidPlay(webmediaplayer_);
-    if (!is_remote_)
-      webmediaplayer_->play();
-
     remote_time_at_ = base::TimeTicks::Now();
     client_->playbackStateChanged();
   }
@@ -323,12 +313,8 @@ void WebMediaPlayerCast::OnMediaPlayerPlay() {
 
 void WebMediaPlayerCast::OnMediaPlayerPause() {
   DVLOG(1) << __FUNCTION__ << " is_remote_ = " << is_remote_;
-  if (!paused_) {
+  if (is_remote_ && !paused_) {
     paused_ = true;
-    if (delegate_ && is_remote_)
-      delegate_->DidPause(webmediaplayer_);
-    if (!is_remote_)
-      webmediaplayer_->pause();
     client_->playbackStateChanged();
   }
 }

@@ -31,11 +31,10 @@
 #include "core/inspector/InspectorRuntimeAgent.h"
 
 #include "bindings/core/v8/ScriptState.h"
-#include "core/inspector/InjectedScript.h"
-#include "core/inspector/InjectedScriptManager.h"
-#include "core/inspector/InspectorState.h"
 #include "core/inspector/MuteConsoleScope.h"
-#include "core/inspector/RemoteObjectId.h"
+#include "core/inspector/v8/InjectedScript.h"
+#include "core/inspector/v8/InjectedScriptManager.h"
+#include "core/inspector/v8/RemoteObjectId.h"
 #include "core/inspector/v8/V8Debugger.h"
 #include "core/inspector/v8/V8RuntimeAgent.h"
 #include "platform/JSONValues.h"
@@ -61,15 +60,10 @@ InspectorRuntimeAgent::~InspectorRuntimeAgent()
 {
 }
 
-DEFINE_TRACE(InspectorRuntimeAgent)
-{
-    visitor->trace(m_injectedScriptManager);
-    InspectorBaseAgent::trace(visitor);
-}
-
 // InspectorBaseAgent overrides.
-void InspectorRuntimeAgent::init()
+void InspectorRuntimeAgent::setState(PassRefPtr<JSONObject> state)
 {
+    InspectorBaseAgent::setState(state);
     m_v8RuntimeAgent->setInspectorState(m_state);
 }
 
@@ -87,7 +81,7 @@ void InspectorRuntimeAgent::clearFrontend()
 
 void InspectorRuntimeAgent::restore()
 {
-    if (!m_state->getBoolean(InspectorRuntimeAgentState::runtimeEnabled))
+    if (!m_state->booleanProperty(InspectorRuntimeAgentState::runtimeEnabled, false))
         return;
     m_v8RuntimeAgent->restore();
     ErrorString errorString;
@@ -96,7 +90,15 @@ void InspectorRuntimeAgent::restore()
 
 void InspectorRuntimeAgent::evaluate(ErrorString* errorString, const String& expression, const String* const objectGroup, const bool* const includeCommandLineAPI, const bool* const doNotPauseOnExceptionsAndMuteConsole, const int* optExecutionContextId, const bool* const returnByValue, const bool* generatePreview, RefPtr<TypeBuilder::Runtime::RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown, RefPtr<TypeBuilder::Debugger::ExceptionDetails>& exceptionDetails)
 {
-    int executionContextId = optExecutionContextId ? *optExecutionContextId : m_injectedScriptManager->injectedScriptFor(defaultScriptState()).contextId();
+    int executionContextId;
+    if (optExecutionContextId) {
+        executionContextId = *optExecutionContextId;
+    } else {
+        v8::HandleScope handles(defaultScriptState()->isolate());
+        InjectedScript* injectedScript = m_injectedScriptManager->injectedScriptFor(defaultScriptState()->context());
+        ASSERT(injectedScript);
+        executionContextId = injectedScript->contextId();
+    }
     MuteConsoleScope<InspectorRuntimeAgent> muteScope;
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         muteScope.enter(this);
@@ -164,12 +166,14 @@ void InspectorRuntimeAgent::disable(ErrorString* errorString)
 
 void InspectorRuntimeAgent::reportExecutionContextCreated(ScriptState* scriptState, const String& type, const String& origin, const String& humanReadableName, const String& frameId)
 {
-    m_v8RuntimeAgent->reportExecutionContextCreated(scriptState, type, origin, humanReadableName, frameId);
+    v8::HandleScope handles(scriptState->isolate());
+    m_v8RuntimeAgent->reportExecutionContextCreated(scriptState->context(), type, origin, humanReadableName, frameId);
 }
 
 void InspectorRuntimeAgent::reportExecutionContextDestroyed(ScriptState* scriptState)
 {
-    m_v8RuntimeAgent->reportExecutionContextDestroyed(scriptState);
+    v8::HandleScope handles(scriptState->isolate());
+    m_v8RuntimeAgent->reportExecutionContextDestroyed(scriptState->context());
 }
 
 } // namespace blink

@@ -18,6 +18,7 @@
 #include "components/scheduler/renderer/task_cost_estimator.h"
 #include "components/scheduler/renderer/throttling_helper.h"
 #include "components/scheduler/renderer/user_model.h"
+#include "components/scheduler/renderer/web_view_scheduler_impl.h"
 #include "components/scheduler/scheduler_export.h"
 
 namespace base {
@@ -28,6 +29,7 @@ class ConvertableToTraceFormat;
 
 namespace scheduler {
 class RenderWidgetSchedulingState;
+class WebViewSchedulerImpl;
 class ThrottlingHelper;
 
 class SCHEDULER_EXPORT RendererSchedulerImpl
@@ -82,8 +84,10 @@ class SCHEDULER_EXPORT RendererSchedulerImpl
   void SetHasVisibleRenderWidgetWithTouchHandler(
       bool has_visible_render_widget_with_touch_handler) override;
 
-  // TaskQueueManager::Observer implementation:
+  // SchedulerHelper::Observer implementation:
   void OnUnregisterTaskQueue(const scoped_refptr<TaskQueue>& queue) override;
+  void OnTriedToExecuteBlockedTask(const TaskQueue& queue,
+                                   const base::PendingTask& task) override;
 
   // Returns a task runner where tasks run at the highest possible priority.
   scoped_refptr<TaskQueue> ControlTaskRunner();
@@ -92,6 +96,9 @@ class SCHEDULER_EXPORT RendererSchedulerImpl
   void UnregisterTimeDomain(TimeDomain* time_domain);
 
   void SetExpensiveTaskBlockingAllowed(bool allowed);
+
+  void AddWebViewScheduler(WebViewSchedulerImpl* web_view_scheduler);
+  void RemoveWebViewScheduler(WebViewSchedulerImpl* web_view_scheduler);
 
   // Test helpers.
   SchedulerHelper* GetSchedulerHelperForTesting();
@@ -120,14 +127,16 @@ class SCHEDULER_EXPORT RendererSchedulerImpl
 
   struct TaskQueuePolicy {
     TaskQueuePolicy()
-        : priority(TaskQueue::NORMAL_PRIORITY),
+        : is_enabled(true),
+          priority(TaskQueue::NORMAL_PRIORITY),
           time_domain_type(TimeDomainType::REAL) {}
 
+    bool is_enabled;
     TaskQueue::QueuePriority priority;
     TimeDomainType time_domain_type;
 
     bool operator==(const TaskQueuePolicy& other) const {
-      return priority == other.priority &&
+      return is_enabled == other.is_enabled && priority == other.priority &&
              time_domain_type == other.time_domain_type;
     }
   };
@@ -271,6 +280,9 @@ class SCHEDULER_EXPORT RendererSchedulerImpl
   // current system state. Must be called from the main thread.
   base::TimeDelta EstimateLongestJankFreeTaskDuration() const;
 
+  // Log a console warning message to all WebViews in this process.
+  void BroadcastConsoleWarning(const std::string& message);
+
   void ApplyTaskQueuePolicy(TaskQueue* task_queue,
                             const TaskQueuePolicy& old_task_queue_policy,
                             const TaskQueuePolicy& new_task_queue_policy) const;
@@ -320,9 +332,12 @@ class SCHEDULER_EXPORT RendererSchedulerImpl
     bool timer_tasks_seem_expensive;
     bool touchstart_expected_soon;
     bool have_seen_a_begin_main_frame;
+    bool have_reported_blocking_intervention_in_current_policy;
+    bool have_reported_blocking_intervention_since_navigation;
     bool has_visible_render_widget_with_touch_handler;
     bool begin_frame_not_expected_soon;
     bool expensive_task_blocking_allowed;
+    std::set<WebViewSchedulerImpl*> web_view_schedulers_;  // Not owned.
   };
 
   struct AnyThread {

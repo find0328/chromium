@@ -113,7 +113,6 @@ public:
     void setIsolatedWorldHumanReadableName(int worldID, const WebString&) override;
     void addMessageToConsole(const WebConsoleMessage&) override;
     void collectGarbage() override;
-    bool checkIfRunInsecureContent(const WebURL&) const override;
     v8::Local<v8::Value> executeScriptAndReturnValue(
         const WebScriptSource&) override;
     void requestExecuteScriptAndReturnValue(
@@ -254,6 +253,7 @@ public:
     void sendOrientationChangeEvent() override;
     void willShowInstallBannerPrompt(int requestId, const WebVector<WebString>& platforms, WebAppBannerPromptReply*) override;
     WebSandboxFlags effectiveSandboxFlags() const override;
+    void forceSandboxFlags(WebSandboxFlags) override;
     void requestRunTask(WebSuspendableTask*) const override;
     void didCallAddSearchProvider() override;
     void didCallIsSearchProviderInstalled() override;

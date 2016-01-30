@@ -5,8 +5,6 @@
 #include "core/inspector/PromiseTracker.h"
 
 #include "bindings/core/v8/ScriptCallStackFactory.h"
-#include "bindings/core/v8/ScriptState.h"
-#include "bindings/core/v8/ScriptValue.h"
 #include "core/inspector/ScriptAsyncCallStack.h"
 #include "wtf/CurrentTime.h"
 #include "wtf/PassOwnPtr.h"
@@ -121,15 +119,14 @@ int PromiseTracker::promiseId(v8::Local<v8::Object> promise, bool* isNewPromise)
     return id;
 }
 
-void PromiseTracker::didReceiveV8PromiseEvent(ScriptState* scriptState, v8::Local<v8::Object> promise, v8::Local<v8::Value> parentPromise, int status)
+void PromiseTracker::didReceiveV8PromiseEvent(v8::Local<v8::Context> context, v8::Local<v8::Object> promise, v8::Local<v8::Value> parentPromise, int status)
 {
     ASSERT(isEnabled());
-    ASSERT(scriptState->contextIsValid());
+    ASSERT(!context.IsEmpty());
 
     bool isNewPromise = false;
     int id = promiseId(promise, &isNewPromise);
 
-    ScriptState::Scope scope(scriptState);
     InspectorFrontend::Debugger::EventType::Enum eventType = isNewPromise ? InspectorFrontend::Debugger::EventType::New : InspectorFrontend::Debugger::EventType::Update;
 
     PromiseDetails::Status::Enum promiseStatus;
@@ -147,7 +144,7 @@ void PromiseTracker::didReceiveV8PromiseEvent(ScriptState* scriptState, v8::Loca
     promiseDetails->setStatus(promiseStatus);
 
     if (!parentPromise.IsEmpty() && parentPromise->IsObject()) {
-        v8::Local<v8::Object> handle = parentPromise->ToObject(scriptState->isolate());
+        v8::Local<v8::Object> handle = parentPromise->ToObject(context->GetIsolate());
         bool parentIsNewPromise = false;
         int parentPromiseId = promiseId(handle, &parentIsNewPromise);
         promiseDetails->setParentId(parentPromiseId);
@@ -155,14 +152,14 @@ void PromiseTracker::didReceiveV8PromiseEvent(ScriptState* scriptState, v8::Loca
         if (!status) {
             if (isNewPromise) {
                 promiseDetails->setCreationTime(currentTimeMS());
-                RefPtrWillBeRawPtr<ScriptCallStack> stack = currentScriptCallStack(m_captureStacks ? ScriptCallStack::maxCallStackSizeToCapture : 1);
+                RefPtr<ScriptCallStack> stack = currentScriptCallStack(m_captureStacks ? ScriptCallStack::maxCallStackSizeToCapture : 1);
                 if (stack) {
                     if (stack->size()) {
                         promiseDetails->setCallFrame(stack->at(0).buildInspectorObject());
                         if (m_captureStacks)
                             promiseDetails->setCreationStack(stack->buildInspectorArray());
                     }
-                    RefPtrWillBeRawPtr<ScriptAsyncCallStack> asyncCallStack = stack->asyncCallStack();
+                    RefPtr<ScriptAsyncCallStack> asyncCallStack = stack->asyncCallStack();
                     if (m_captureStacks && asyncCallStack)
                         promiseDetails->setAsyncCreationStack(asyncCallStack->buildInspectorObject());
                 }
@@ -170,11 +167,11 @@ void PromiseTracker::didReceiveV8PromiseEvent(ScriptState* scriptState, v8::Loca
         } else {
             promiseDetails->setSettlementTime(currentTimeMS());
             if (m_captureStacks) {
-                RefPtrWillBeRawPtr<ScriptCallStack> stack = currentScriptCallStack(ScriptCallStack::maxCallStackSizeToCapture);
+                RefPtr<ScriptCallStack> stack = currentScriptCallStack(ScriptCallStack::maxCallStackSizeToCapture);
                 if (stack) {
                     if (stack->size())
                         promiseDetails->setSettlementStack(stack->buildInspectorArray());
-                    if (RefPtrWillBeRawPtr<ScriptAsyncCallStack> asyncCallStack = stack->asyncCallStack())
+                    if (RefPtr<ScriptAsyncCallStack> asyncCallStack = stack->asyncCallStack())
                         promiseDetails->setAsyncSettlementStack(asyncCallStack->buildInspectorObject());
                 }
             }
@@ -184,14 +181,10 @@ void PromiseTracker::didReceiveV8PromiseEvent(ScriptState* scriptState, v8::Loca
     m_listener->didUpdatePromise(eventType, promiseDetails.release());
 }
 
-ScriptValue PromiseTracker::promiseById(int promiseId)
+v8::Local<v8::Object> PromiseTracker::promiseById(int promiseId)
 {
     ASSERT(isEnabled());
-    v8::HandleScope scope(m_isolate);
-    v8::Local<v8::Object> value = m_idToPromise.Get(promiseId);
-    if (value.IsEmpty())
-        return ScriptValue();
-    return ScriptValue(ScriptState::from(value->CreationContext()) , value);
+    return m_idToPromise.Get(promiseId);
 }
 
 } // namespace blink

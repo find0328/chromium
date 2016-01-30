@@ -151,20 +151,17 @@ static bool forEachSelector(const Functor& functor, const CSSSelectorList* selec
     return false;
 }
 
-bool CSSSelectorList::selectorsNeedNamespaceResolution()
-{
-    return forEachSelector([](const CSSSelector& selector) -> bool {
-        if (selector.match() != CSSSelector::Tag && !selector.isAttributeSelector())
-            return false;
-        const AtomicString& prefix = selector.isAttributeSelector() ? selector.attribute().prefix() : selector.tagQName().prefix();
-        return prefix != nullAtom && prefix != emptyAtom && prefix != starAtom;
-    }, this);
-}
-
-bool CSSSelectorList::selectorHasShadowDistributed(size_t index) const
+bool CSSSelectorList::selectorHasContentPseudo(size_t index) const
 {
     return forEachTagSelector([](const CSSSelector& selector) -> bool {
         return selector.relationIsAffectedByPseudoContent();
+    }, selectorAt(index));
+}
+
+bool CSSSelectorList::selectorHasSlottedPseudo(size_t index) const
+{
+    return forEachTagSelector([](const CSSSelector& selector) ->  bool {
+        return selector.pseudoType() == CSSSelector::PseudoSlotted;
     }, selectorAt(index));
 }
 
@@ -178,7 +175,7 @@ bool CSSSelectorList::selectorUsesDeepCombinatorOrShadowPseudo(size_t index) con
 bool CSSSelectorList::selectorNeedsUpdatedDistribution(size_t index) const
 {
     return forEachTagSelector([](const CSSSelector& selector) -> bool {
-        return selector.relationIsAffectedByPseudoContent() || selector.pseudoType() == CSSSelector::PseudoHostContext;
+        return selector.relationIsAffectedByPseudoContent() || selector.pseudoType() == CSSSelector::PseudoSlotted || selector.pseudoType() == CSSSelector::PseudoHostContext;
     }, selectorAt(index));
 }
 

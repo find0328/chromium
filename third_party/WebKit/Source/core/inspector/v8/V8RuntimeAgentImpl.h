@@ -44,7 +44,6 @@ namespace blink {
 class InjectedScript;
 class InjectedScriptManager;
 class JSONArray;
-class ScriptState;
 class V8DebuggerImpl;
 
 typedef String ErrorString;
@@ -56,7 +55,7 @@ public:
     ~V8RuntimeAgentImpl() override;
 
     // State management methods.
-    void setInspectorState(InspectorState*) override;
+    void setInspectorState(PassRefPtr<JSONObject>) override;
     void setFrontend(InspectorFrontend::Runtime*) override;
     void clearFrontend() override;
     void restore() override;
@@ -93,12 +92,12 @@ public:
 
 private:
     InjectedScriptManager* injectedScriptManager() { return m_injectedScriptManager; }
-    void reportExecutionContextCreated(ScriptState*, const String& type, const String& origin, const String& humanReadableName, const String& frameId) override;
-    void reportExecutionContextDestroyed(ScriptState*) override;
+    void reportExecutionContextCreated(v8::Local<v8::Context>, const String& type, const String& origin, const String& humanReadableName, const String& frameId) override;
+    void reportExecutionContextDestroyed(v8::Local<v8::Context>) override;
 
-    RawPtrWillBeWeakPersistent<InspectorState> m_state;
+    RefPtr<JSONObject> m_state;
     InspectorFrontend::Runtime* m_frontend;
-    RawPtrWillBeWeakPersistent<InjectedScriptManager> m_injectedScriptManager;
+    InjectedScriptManager* m_injectedScriptManager;
     V8DebuggerImpl* m_debugger;
     bool m_enabled;
 };

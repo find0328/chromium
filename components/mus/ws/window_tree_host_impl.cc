@@ -33,7 +33,7 @@ bool EventsCanBeCoalesced(const mojom::Event& one, const mojom::Event& two) {
   if (one.action != two.action || one.flags != two.flags)
     return false;
   // TODO(sad): wheel events can also be merged.
-  if (one.action != mojom::EVENT_TYPE_POINTER_MOVE)
+  if (one.action != mojom::EventType::POINTER_MOVE)
     return false;
   DCHECK(one.pointer_data);
   DCHECK(two.pointer_data);
@@ -45,11 +45,13 @@ bool EventsCanBeCoalesced(const mojom::Event& one, const mojom::Event& two) {
 }
 
 mojom::EventPtr CoalesceEvents(mojom::EventPtr first, mojom::EventPtr second) {
-  DCHECK_EQ(first->action, mojom::EVENT_TYPE_POINTER_MOVE)
+  DCHECK_EQ(first->action, mojom::EventType::POINTER_MOVE)
       << " Non-move events cannot be merged yet.";
   // For mouse moves, the new event just replaces the old event.
   return second;
 }
+
+uint32_t next_id = 1;
 
 }  // namespace
 
@@ -88,17 +90,21 @@ WindowTreeHostImpl::WindowTreeHostImpl(
     ConnectionManager* connection_manager,
     mojo::ApplicationImpl* app_impl,
     const scoped_refptr<GpuState>& gpu_state,
-    const scoped_refptr<SurfacesState>& surfaces_state,
-    mojom::WindowManagerPtr window_manager)
-    : delegate_(nullptr),
+    const scoped_refptr<SurfacesState>& surfaces_state)
+    : id_(next_id++),
+      delegate_(nullptr),
       connection_manager_(connection_manager),
       client_(std::move(client)),
       event_dispatcher_(this),
       display_manager_(
           DisplayManager::Create(app_impl, gpu_state, surfaces_state)),
-      window_manager_(std::move(window_manager)),
       tree_awaiting_input_ack_(nullptr),
       last_cursor_(0) {
+  frame_decoration_values_ = mojom::FrameDecorationValues::New();
+  frame_decoration_values_->normal_client_area_insets = mojo::Insets::New();
+  frame_decoration_values_->maximized_client_area_insets = mojo::Insets::New();
+  frame_decoration_values_->max_title_bar_button_width = 0u;
+
   display_manager_->Init(this);
   if (client_) {
     client_.set_connection_error_handler(base::Bind(
@@ -124,6 +130,12 @@ const WindowTreeImpl* WindowTreeHostImpl::GetWindowTree() const {
 
 WindowTreeImpl* WindowTreeHostImpl::GetWindowTree() {
   return delegate_ ? delegate_->GetWindowTree() : nullptr;
+}
+
+void WindowTreeHostImpl::SetFrameDecorationValues(
+    mojom::FrameDecorationValuesPtr values) {
+  frame_decoration_values_ = values.Clone();
+  connection_manager_->ProcessFrameDecorationValuesChanged(this);
 }
 
 bool WindowTreeHostImpl::IsWindowAttachedToRoot(
@@ -153,6 +165,10 @@ void WindowTreeHostImpl::ScheduleSurfaceDestruction(ServerWindow* window) {
 
 const mojom::ViewportMetrics& WindowTreeHostImpl::GetViewportMetrics() const {
   return display_manager_->GetViewportMetrics();
+}
+
+mojom::Rotation WindowTreeHostImpl::GetRotation() const {
+  return display_manager_->GetRotation();
 }
 
 void WindowTreeHostImpl::SetFocusedWindow(ServerWindow* new_focused_window) {
@@ -231,15 +247,13 @@ void WindowTreeHostImpl::RemoveAccelerator(uint32_t id) {
 }
 
 void WindowTreeHostImpl::AddActivationParent(Id transport_window_id) {
-  ServerWindow* window = connection_manager_->GetWindow(
-      MapWindowIdFromClient(transport_window_id));
+  ServerWindow* window = GetWindowFromWindowTreeHost(transport_window_id);
   if (window)
     activation_parents_.insert(window->id());
 }
 
 void WindowTreeHostImpl::RemoveActivationParent(Id transport_window_id) {
-  ServerWindow* window = connection_manager_->GetWindow(
-      MapWindowIdFromClient(transport_window_id));
+  ServerWindow* window = GetWindowFromWindowTreeHost(transport_window_id);
   if (window)
     activation_parents_.erase(window->id());
 }
@@ -253,8 +267,7 @@ void WindowTreeHostImpl::SetUnderlaySurfaceOffsetAndExtendedHitArea(
     int32_t x_offset,
     int32_t y_offset,
     mojo::InsetsPtr hit_area) {
-  ServerWindow* window =
-      connection_manager_->GetWindow(WindowIdFromTransportId(window_id));
+  ServerWindow* window = GetWindowFromWindowTreeHost(window_id);
   if (!window)
     return;
 
@@ -262,11 +275,12 @@ void WindowTreeHostImpl::SetUnderlaySurfaceOffsetAndExtendedHitArea(
   window->set_extended_hit_test_region(hit_area.To<gfx::Insets>());
 }
 
-WindowId WindowTreeHostImpl::MapWindowIdFromClient(
-    Id transport_window_id) const {
-  const WindowTreeImpl* connection = GetWindowTree();
-  return connection ? connection->MapWindowIdFromClient(transport_window_id)
-                    : WindowIdFromTransportId(transport_window_id);
+ServerWindow* WindowTreeHostImpl::GetWindowFromWindowTreeHost(
+    Id transport_window_id) {
+  WindowTreeImpl* connection = GetWindowTree();
+  if (!connection)
+    return nullptr;
+  return connection->GetWindowByClientId(ClientWindowId(transport_window_id));
 }
 
 void WindowTreeHostImpl::OnClientClosed() {
@@ -328,7 +342,7 @@ void WindowTreeHostImpl::DispatchInputEventToWindowImpl(ServerWindow* target,
                                                         bool in_nonclient_area,
                                                         mojom::EventPtr event) {
   if (event->pointer_data &&
-      event->pointer_data->kind == mojom::PointerKind::POINTER_KIND_MOUSE) {
+      event->pointer_data->kind == mojom::PointerKind::MOUSE) {
     DCHECK(event_dispatcher_.mouse_cursor_source_window());
     UpdateNativeCursor(
         event_dispatcher_.mouse_cursor_source_window()->cursor());

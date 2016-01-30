@@ -20,7 +20,7 @@
 #include "content/public/common/content_client.h"
 #include "content/public/common/resource_response_info.h"
 #include "net/base/load_flags.h"
-#include "net/base/net_util.h"
+#include "net/base/url_util.h"
 #include "net/url_request/url_request.h"
 
 namespace content {
@@ -244,6 +244,25 @@ ServiceWorkerControlleeRequestHandler::DidLookupRegistrationForMainResource(
         job_.get(),
         "Status", status,
         "Info", "Wait until finished SW activation");
+    return;
+  }
+
+  // Ignore a SW that failed too much as a safety measure.
+  // ServiceWorkerVersion::StartWorker would call back with failure
+  // automatically but we want the clear trace event here and avoid setting
+  // .controller just to reset it.
+  if (active_version.get() && active_version->IsDisabled()) {
+    job_->FallbackToNetwork();
+    TRACE_EVENT_ASYNC_END2(
+        "ServiceWorker",
+        "ServiceWorkerControlleeRequestHandler::PrepareForMainResource",
+        job_.get(), "Status", status, "Info",
+        "The SW was skipped because its start failure count is too high");
+
+    // Show a message in DevTools for developers.
+    active_version->ReportError(SERVICE_WORKER_ERROR_DISABLED_WORKER,
+                                "The service worker is disabled because its "
+                                "start failure count is too high.");
     return;
   }
 

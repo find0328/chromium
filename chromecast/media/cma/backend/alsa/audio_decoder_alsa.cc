@@ -34,7 +34,6 @@ namespace {
 const CastAudioDecoder::OutputFormat kDecoderSampleFormat =
     CastAudioDecoder::kOutputPlanarFloat;
 
-const int kInvalidSampleRate = -1;
 const int64_t kInvalidDelayTimestamp = std::numeric_limits<int64_t>::min();
 
 AudioDecoderAlsa::RenderingDelay kInvalidRenderingDelay() {
@@ -93,7 +92,7 @@ bool AudioDecoderAlsa::Initialize() {
 bool AudioDecoderAlsa::Start(int64_t start_pts) {
   TRACE_FUNCTION_ENTRY0();
   current_pts_ = start_pts;
-  DCHECK_NE(config_.samples_per_second, kInvalidSampleRate);
+  DCHECK(IsValidConfig(config_));
   mixer_input_.reset(new StreamMixerAlsaInput(
       this, config_.samples_per_second, backend_->Primary()));
   mixer_input_->SetVolumeMultiplier(volume_multiplier_);
@@ -231,7 +230,8 @@ AudioDecoderAlsa::RenderingDelay AudioDecoderAlsa::GetRenderingDelay() {
 void AudioDecoderAlsa::OnDecoderInitialized(bool success) {
   TRACE_FUNCTION_ENTRY0();
   DCHECK(task_runner_->BelongsToCurrentThread());
-  LOG(INFO) << "Decoder initialization returned with success = " << success;
+  LOG(INFO) << "Decoder initialization was "
+            << (success ? "successful" : "unsuccessful");
   if (!success)
     delegate_->OnDecoderError();
 }
@@ -290,7 +290,8 @@ void AudioDecoderAlsa::OnWritePcmCompletion(BufferStatus status,
 void AudioDecoderAlsa::OnMixerError() {
   TRACE_FUNCTION_ENTRY0();
   DCHECK(task_runner_->BelongsToCurrentThread());
-  LOG(ERROR) << "Mixer error occured.";
+  // TODO(jyw): properly avoid outputting this message when it isn't needed
+  LOG(ERROR) << "Mixer error occurred. Did the sample rate just change?";
   error_ = true;
   delegate_->OnDecoderError();
 }

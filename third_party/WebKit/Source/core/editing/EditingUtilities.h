@@ -63,6 +63,11 @@ class Range;
 
 // Functions returning Node
 
+// highestEditableRoot returns the highest editable node. If the
+// rootEditableElement of the speicified Position is <body>, this returns the
+// <body>. Otherwise, this searches ancestors for the highest editable node in
+// defiance of editing boundaries. This returns a Document if designMode="on"
+// and the specified Position is not in the <body>.
 CORE_EXPORT ContainerNode* highestEditableRoot(const Position&, EditableType = ContentIsEditable);
 ContainerNode* highestEditableRoot(const PositionInComposedTree&, EditableType = ContentIsEditable);
 
@@ -79,6 +84,9 @@ Element* enclosingTableCell(const Position&);
 Element* associatedElementOf(const Position&);
 Node* enclosingEmptyListItem(const VisiblePosition&);
 Element* enclosingAnchorElement(const Position&);
+// Returns the lowest ancestor with the specified QualifiedName. If the
+// specified Position is editable, this function returns an editable
+// Element. Otherwise, editability doesn't matter.
 Element* enclosingElementWithTag(const Position&, const QualifiedName&);
 CORE_EXPORT Node* enclosingNodeOfType(const Position&, bool (*nodeIsOfType)(const Node*), EditingBoundaryCrossingRule = CannotCrossEditingBoundary);
 CORE_EXPORT Node* enclosingNodeOfType(const PositionInComposedTree&, bool (*nodeIsOfType)(const Node*), EditingBoundaryCrossingRule = CannotCrossEditingBoundary);
@@ -131,8 +139,7 @@ CORE_EXPORT bool isEnclosingBlock(const Node*);
 bool isTabHTMLSpanElement(const Node*);
 bool isTabHTMLSpanElementTextNode(const Node*);
 bool isMailHTMLBlockquoteElement(const Node*);
-bool isRenderedTableElement(const Node*);
-bool isRenderedHTMLTableElement(const Node*);
+bool isDisplayInsideTable(const Node*);
 bool isTableCell(const Node*);
 bool isEmptyTableCell(const Node*);
 bool isTableStructureNode(const Node*);
@@ -141,7 +148,9 @@ bool isListItem(const Node*);
 bool isNodeRendered(const Node&);
 bool isNodeVisiblyContainedWithin(Node&, const Range&);
 bool isRenderedAsNonInlineTableImageOrHR(const Node*);
-bool areIdenticalElements(const Node*, const Node*);
+// Returns true if specified nodes are elements, have identical tag names,
+// have identical attributes, and are editable.
+CORE_EXPORT bool areIdenticalElements(const Node&, const Node&);
 bool isNonTableCellHTMLBlockElement(const Node*);
 bool isBlockFlowElement(const Node&);
 bool nodeIsUserSelectAll(const Node*);
@@ -212,7 +221,7 @@ enum EUpdateStyle { UpdateStyle, DoNotUpdateStyle };
 // style to give proper results. They shouldn't update style by default, but
 // should make it clear that that is the contract.
 // FIXME: isRichlyEditablePosition should also take EUpdateStyle.
-bool isEditablePosition(const Position&, EditableType = ContentIsEditable, EUpdateStyle = UpdateStyle);
+CORE_EXPORT bool isEditablePosition(const Position&, EditableType = ContentIsEditable, EUpdateStyle = UpdateStyle);
 bool isEditablePosition(const PositionInComposedTree&, EditableType = ContentIsEditable, EUpdateStyle = UpdateStyle);
 bool isRichlyEditablePosition(const Position&, EditableType = ContentIsEditable);
 bool lineBreakExistsAtPosition(const Position&);
@@ -279,8 +288,8 @@ Node* enclosingListChild(Node*);
 PassRefPtrWillBeRawPtr<HTMLSpanElement> createTabSpanElement(Document&);
 PassRefPtrWillBeRawPtr<HTMLSpanElement> createTabSpanElement(Document&, const String& tabText);
 
-Element* editableRootForPosition(const Position&, EditableType = ContentIsEditable);
-Element* editableRootForPosition(const PositionInComposedTree&, EditableType = ContentIsEditable);
+Element* rootEditableElementOf(const Position&, EditableType = ContentIsEditable);
+Element* rootEditableElementOf(const PositionInComposedTree&, EditableType = ContentIsEditable);
 Element* rootEditableElementOf(const VisiblePosition&);
 Element* unsplittableElementForPosition(const Position&);
 
@@ -321,6 +330,6 @@ inline bool isAmbiguousBoundaryCharacter(UChar character)
 String stringWithRebalancedWhitespace(const String&, bool startIsStartOfParagraph, bool endIsEndOfParagraph);
 const String& nonBreakingSpaceString();
 
-}
+} // namespace blink
 
 #endif

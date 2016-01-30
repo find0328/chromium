@@ -12,6 +12,7 @@
 
 #include "base/allocator/allocator_extension.h"
 #include "base/command_line.h"
+#include "base/debug/crash_logging.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/logging.h"
@@ -139,9 +140,9 @@
 #include "mojo/common/common_type_converters.h"
 #include "mojo/public/cpp/bindings/strong_binding.h"
 #include "net/base/net_errors.h"
-#include "net/base/net_util.h"
 #include "net/base/port_util.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#include "net/base/url_util.h"
 #include "skia/ext/event_tracer_impl.h"
 #include "skia/ext/skia_memory_dump_provider.h"
 #include "third_party/WebKit/public/platform/WebImageGenerator.h"
@@ -964,14 +965,27 @@ void RenderThreadImpl::Shutdown() {
   // Shut down the message loop and the renderer scheduler before shutting down
   // Blink. This prevents a scenario where a pending task in the message loop
   // accesses Blink objects after Blink shuts down.
-  // This must be at the very end of the shutdown sequence. You must not touch
-  // the message loop after this.
   renderer_scheduler_->Shutdown();
-  main_message_loop_.reset();
+  if (main_message_loop_)
+    main_message_loop_->RunUntilIdle();
+
   if (blink_platform_impl_) {
     blink_platform_impl_->Shutdown();
+    // This must be at the very end of the shutdown sequence.
+    // blink::shutdown() must be called after all strong references from
+    // Chromium to Blink are cleared.
     blink::shutdown();
   }
+
+  // Delay shutting down DiscardableSharedMemoryManager until blink::shutdown
+  // is complete, because blink::shutdown destructs Blink Resources and they
+  // may try to unlock their underlying discardable memory.
+  ChildThreadImpl::ShutdownDiscardableSharedMemoryManager();
+
+  // The message loop must be cleared after shutting down
+  // the DiscardableSharedMemoryManager, which needs to send messages
+  // to the browser process.
+  main_message_loop_.reset();
 
   lazy_tls.Pointer()->Set(NULL);
 }
@@ -1447,16 +1461,6 @@ media::GpuVideoAcceleratorFactories* RenderThreadImpl::GetGpuFactories() {
 
   const base::CommandLine* cmd_line = base::CommandLine::ForCurrentProcess();
 
-#if defined(OS_ANDROID)
-  if (SynchronousCompositorFactory::GetInstance()) {
-    if (!cmd_line->HasSwitch(switches::kDisableAcceleratedVideoDecode)) {
-      DLOG(WARNING) << "Accelerated video decoding is not explicitly disabled, "
-                       "but is not supported by in-process rendering";
-    }
-    return NULL;
-  }
-#endif
-
   scoped_refptr<base::SingleThreadTaskRunner> media_task_runner =
       GetMediaThreadTaskRunner();
   scoped_refptr<ContextProviderCommandBuffer> shared_context_provider =
@@ -1471,16 +1475,16 @@ media::GpuVideoAcceleratorFactories* RenderThreadImpl::GetGpuFactories() {
 #else
         cmd_line->HasSwitch(switches::kEnableGpuMemoryBufferVideoFrames);
 #endif
-    std::string image_texture_target_string =
+    std::vector<unsigned> image_texture_targets;
+    std::string video_frame_image_texture_target_string =
         cmd_line->GetSwitchValueASCII(switches::kVideoImageTextureTarget);
-    unsigned image_texture_target = 0;
-    const bool parsed_image_texture_target =
-        base::StringToUint(image_texture_target_string, &image_texture_target);
-    DCHECK(parsed_image_texture_target);
+    StringToUintVector(video_frame_image_texture_target_string,
+                       &image_texture_targets);
+
     gpu_factories_ = RendererGpuVideoAcceleratorFactories::Create(
         gpu_channel_host.get(), base::ThreadTaskRunnerHandle::Get(),
         media_task_runner, shared_context_provider,
-        enable_gpu_memory_buffer_video_frames, image_texture_target,
+        enable_gpu_memory_buffer_video_frames, image_texture_targets,
         enable_video_accelerator);
   }
   return gpu_factories_.get();
@@ -1764,6 +1768,15 @@ void RenderThreadImpl::OnCreateNewFrameProxy(
     int opener_routing_id,
     int parent_routing_id,
     const FrameReplicationState& replicated_state) {
+  // Debug cases of https://crbug.com/575245.
+  base::debug::SetCrashKeyValue("newproxy_proxy_id",
+                                base::IntToString(routing_id));
+  base::debug::SetCrashKeyValue("newproxy_view_id",
+                                base::IntToString(render_view_routing_id));
+  base::debug::SetCrashKeyValue("newproxy_opener_id",
+                                base::IntToString(opener_routing_id));
+  base::debug::SetCrashKeyValue("newproxy_parent_id",
+                                base::IntToString(parent_routing_id));
   RenderFrameProxy::CreateFrameProxy(routing_id, render_view_routing_id,
                                      opener_routing_id, parent_routing_id,
                                      replicated_state);

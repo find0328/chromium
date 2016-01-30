@@ -243,7 +243,7 @@
       'browser/media/media_browsertest.h',
       'browser/media/media_canplaytype_browsertest.cc',
       'browser/media/media_source_browsertest.cc',
-      'browser/memory/memory_pressure_controller_browsertest.cc',
+      'browser/memory/memory_pressure_controller_impl_browsertest.cc',
       'browser/message_port_provider_browsertest.cc',
       'browser/mojo_shell_browsertest.cc',
       'browser/net_info_browsertest.cc',
@@ -364,7 +364,6 @@
       'browser/appcache/mock_appcache_storage_unittest.cc',
       'browser/background_sync/background_sync_manager_unittest.cc',
       'browser/background_sync/background_sync_network_observer_unittest.cc',
-      'browser/background_sync/background_sync_power_observer_unittest.cc',
       'browser/background_sync/background_sync_service_impl_unittest.cc',
       'browser/blob_storage/blob_async_builder_host_unittest.cc',
       'browser/blob_storage/blob_async_transport_strategy_unittest.cc',
@@ -504,6 +503,8 @@
       'browser/loader/upload_data_stream_builder_unittest.cc',
       'browser/mach_broker_mac_unittest.cc',
       'browser/media/android/media_session_uma_helper_unittest.cc',
+      'browser/media/android/media_session_controller_unittest.cc',
+      'browser/media/audible_metrics_unittest.cc',
       'browser/media/audio_stream_monitor_unittest.cc',
       'browser/media/capture/audio_mirroring_manager_unittest.cc',
       'browser/media/capture/cursor_renderer_aura_unittest.cc',
@@ -537,7 +538,6 @@
       'browser/renderer_host/begin_frame_observer_proxy_unittest.cc',
       'browser/renderer_host/clipboard_message_filter_unittest.cc',
       'browser/renderer_host/dwrite_font_proxy_message_filter_win_unittest.cc',
-      'browser/renderer_host/event_with_latency_info_unittest.cc',
       'browser/renderer_host/input/gesture_event_queue_unittest.cc',
       'browser/renderer_host/input/input_router_impl_unittest.cc',
       'browser/renderer_host/input/mock_input_ack_handler.cc',
@@ -545,6 +545,7 @@
       'browser/renderer_host/input/mock_input_router_client.cc',
       'browser/renderer_host/input/mock_input_router_client.h',
       'browser/renderer_host/input/motion_event_web_unittest.cc',
+      'browser/renderer_host/input/mouse_wheel_event_queue_unittest.cc',
       'browser/renderer_host/input/mouse_wheel_rails_filter_unittest_mac.cc',
       'browser/renderer_host/input/render_widget_host_latency_tracker_unittest.cc',
       'browser/renderer_host/input/stylus_text_selector_unittest.cc',
@@ -556,6 +557,7 @@
       'browser/renderer_host/input/web_input_event_builders_mac_unittest.mm',
       'browser/renderer_host/input/web_input_event_unittest.cc',
       'browser/renderer_host/input/web_input_event_util_unittest.cc',
+      'browser/renderer_host/media/audio_input_debug_writer_unittest.cc',
       'browser/renderer_host/media/audio_input_device_manager_unittest.cc',
       'browser/renderer_host/media/audio_input_sync_writer_unittest.cc',
       'browser/renderer_host/media/audio_output_device_enumerator_unittest.cc',
@@ -630,6 +632,7 @@
       'child/blob_storage/blob_transport_controller_unittest.cc',
       'child/dwrite_font_proxy/dwrite_font_proxy_win_unittest.cc',
       'child/fileapi/webfilewriter_base_unittest.cc',
+      'child/font_warmup_win_unittest.cc',
       'child/indexed_db/indexed_db_dispatcher_unittest.cc',
       'child/indexed_db/mock_webidbcallbacks.cc',
       'child/indexed_db/mock_webidbcallbacks.h',
@@ -661,7 +664,6 @@
       'common/dwrite_font_platform_win_unittest.cc',
       'common/experiments/api_key_unittest.cc',
       'common/fileapi/file_system_util_unittest.cc',
-      'common/font_warmup_win_unittest.cc',
       'common/gpu/client/gpu_memory_buffer_impl_shared_memory_unittest.cc',
       'common/gpu/gpu_channel_manager_unittest.cc',
       'common/gpu/gpu_channel_test_common.cc',
@@ -671,6 +673,7 @@
       'common/host_shared_bitmap_manager_unittest.cc',
       'common/id_type_unittest.cc',
       'common/indexed_db/indexed_db_key_unittest.cc',
+      'common/input/event_with_latency_info_unittest.cc',
       'common/input/gesture_event_stream_validator_unittest.cc',
       'common/input/input_param_traits_unittest.cc',
       'common/input/touch_event_stream_validator_unittest.cc',
@@ -777,6 +780,7 @@
       'renderer/media/media_stream_video_renderer_sink_unittest.cc',
       'renderer/media/media_stream_video_source_unittest.cc',
       'renderer/media/media_stream_video_track_unittest.cc',
+      'renderer/media/mock_constraint_factory.cc',
       'renderer/media/mock_media_constraint_factory.cc',
       'renderer/media/mock_media_stream_registry.cc',
       'renderer/media/mock_media_stream_registry.h',
@@ -1058,7 +1062,7 @@
           'target_name': 'telemetry_base',
           'type': 'none',
           'dependencies': [
-            '../tools/telemetry/telemetry.gyp:bitmaptools#host',
+            '../third_party/catapult/telemetry/telemetry.gyp:bitmaptools#host',
           ],
         },
       ],
@@ -1223,11 +1227,6 @@
                 '../dbus/dbus.gyp:dbus_test_support',
               ],
             }],
-            ['OS=="win" and win_use_allocator_shim==1', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
             ['OS=="win"', {
               'dependencies': [
                 '../third_party/iaccessible2/iaccessible2.gyp:iaccessible2',
@@ -1359,11 +1358,6 @@
             ['OS == "android"', {
               'dependencies': [
                 '../testing/android/native_test.gyp:native_test_native_code',
-              ],
-            }],
-            ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(DEPTH)/base/allocator/allocator.gyp:allocator',
               ],
             }],
           ],
@@ -1529,11 +1523,6 @@
               # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
               'msvs_disabled_warnings': [ 4267, ],
             }],
-            ['OS=="win" and win_use_allocator_shim==1', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
             ['OS=="android"', {
               'sources': [ '<@(content_browsertests_android_sources)' ],
               'sources!': [
@@ -1633,11 +1622,6 @@
                 '../third_party/mesa/mesa.gyp:osmesa',
               ],
             }],
-            ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-              ],
-            }],
           ],
         },
         {
@@ -1661,13 +1645,6 @@
           ],
           'sources': [
             'common/gpu/client/gl_helper_benchmark.cc',
-          ],
-          'conditions': [
-            ['OS=="win" and component!="shared_library" and win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(DEPTH)/base/allocator/allocator.gyp:allocator',
-              ],
-            }],
           ],
         },
       ],
@@ -1723,13 +1700,6 @@
                 'dependencies': [
                   '<(angle_path)/src/angle.gyp:libEGL',
                   '<(angle_path)/src/angle.gyp:libGLESv2',
-                ],
-              }],
-              ['(OS=="win" and win_use_allocator_shim==1) or '
-               '(os_posix == 1 and OS != "android" and '
-               ' use_allocator!="none")', {
-                'dependencies': [
-                  '../base/allocator/allocator.gyp:allocator',
                 ],
               }],
               ['target_arch != "arm" and (OS=="linux" or chromeos == 1)', {

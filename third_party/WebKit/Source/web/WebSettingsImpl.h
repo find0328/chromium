@@ -136,6 +136,7 @@ public:
     void setRootLayerScrolls(bool) override;
     void setRubberBandingOnCompositorThread(bool) override;
     void setSansSerifFontFamily(const WebString&, UScriptCode = USCRIPT_COMMON) override;
+    void setScrollAnchoringEnabled(bool) override;
     void setSelectTrailingWhitespaceEnabled(bool override);
     void setSelectionIncludesAltImageText(bool) override;
     void setSelectionStrategy(SelectionStrategyType) override;
@@ -228,7 +229,6 @@ private:
     // the Android SDK prior to and including version 18. Presumably, this
     // can be removed any time after 2015. See http://crbug.com/313754.
     bool m_clobberUserAgentInitialScaleQuirk;
-    bool m_mainFrameResizesAreOrientationChanges;
 };
 
 } // namespace blink

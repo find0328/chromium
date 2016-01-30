@@ -91,9 +91,12 @@ MojoCdmService::MojoCdmService(
 }
 
 MojoCdmService::~MojoCdmService() {
+  if (cdm_id_ == CdmContext::kInvalidCdmId)
+    return;
+
   g_cdm_manager.Get().UnregisterCdm(cdm_id_);
 
-  if (cdm_id_ != CdmContext::kInvalidCdmId && context_)
+  if (context_)
     context_->UnregisterCdm(cdm_id_);
 }
 
@@ -111,7 +114,7 @@ void MojoCdmService::Initialize(const mojo::String& key_system,
 
   auto weak_this = weak_factory_.GetWeakPtr();
   cdm_factory_->Create(
-      key_system, GURL(security_origin), cdm_config.To<CdmConfig>(),
+      key_system, GURL(security_origin.get()), cdm_config.To<CdmConfig>(),
       base::Bind(&MojoCdmService::OnSessionMessage, weak_this),
       base::Bind(&MojoCdmService::OnSessionClosed, weak_this),
       base::Bind(&MojoCdmService::OnLegacySessionError, weak_this),
@@ -194,7 +197,7 @@ void MojoCdmService::OnCdmCreated(const InitializeCallback& callback,
   if (!cdm || !context_) {
     cdm_promise_result->success = false;
     cdm_promise_result->exception =
-        interfaces::CDM_EXCEPTION_NOT_SUPPORTED_ERROR;
+        interfaces::CdmException::NOT_SUPPORTED_ERROR;
     cdm_promise_result->system_code = 0;
     cdm_promise_result->error_message = error_message;
     callback.Run(std::move(cdm_promise_result), 0, nullptr);

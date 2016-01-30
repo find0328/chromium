@@ -11,10 +11,10 @@
 #include <deque>
 #include <map>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "base/bind.h"
-#include "base/containers/hash_tables.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "cc/output/output_surface.h"
@@ -181,9 +181,9 @@ class ContextSharedData {
 
   uint64_t next_fence_sync_;
   unsigned next_mailbox_;
-  typedef base::hash_map<unsigned, scoped_refptr<TestTexture>> TextureMap;
+  using TextureMap = std::unordered_map<unsigned, scoped_refptr<TestTexture>>;
   TextureMap textures_;
-  base::hash_map<unsigned, uint32_t> sync_point_for_mailbox_;
+  std::unordered_map<unsigned, uint32_t> sync_point_for_mailbox_;
 };
 
 class ResourceProviderContext : public TestWebGraphicsContext3D {
@@ -191,22 +191,6 @@ class ResourceProviderContext : public TestWebGraphicsContext3D {
   static scoped_ptr<ResourceProviderContext> Create(
       ContextSharedData* shared_data) {
     return make_scoped_ptr(new ResourceProviderContext(shared_data));
-  }
-
-  GLuint insertSyncPoint() override {
-    const uint32_t sync_point =
-        static_cast<uint32_t>(shared_data_->InsertFenceSync());
-    gpu::SyncToken sync_token_data(sync_point);
-
-    // Commit the produceTextureCHROMIUM calls at this point, so that
-    // they're associated with the sync point.
-    for (const scoped_ptr<PendingProduceTexture>& pending_texture :
-         pending_produce_textures_) {
-      shared_data_->ProduceTexture(pending_texture->mailbox, sync_token_data,
-                                   pending_texture->texture);
-    }
-    pending_produce_textures_.clear();
-    return sync_point;
   }
 
   GLuint64 insertFenceSync() override {

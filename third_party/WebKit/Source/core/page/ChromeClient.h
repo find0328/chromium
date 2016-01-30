@@ -199,6 +199,8 @@ public:
     virtual void updateCompositedSelection(const CompositedSelection&) { }
 
     virtual void needTouchEvents(bool) = 0;
+    virtual void setHaveWheelEventHandlers(bool) = 0;
+    virtual bool haveWheelEventHandlers() const = 0;
 
     virtual void setTouchAction(TouchAction) = 0;
 
@@ -259,8 +261,6 @@ public:
     virtual void didObserveNonGetFetchFromScript() const {}
 
     virtual PassOwnPtr<WebFrameScheduler> createFrameScheduler() = 0;
-
-    float screenToViewport(float) const override;
 
 protected:
     ~ChromeClient() override { }

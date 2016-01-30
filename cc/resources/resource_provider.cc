@@ -9,9 +9,9 @@
 
 #include <algorithm>
 #include <limits>
+#include <unordered_map>
 
 #include "base/atomic_sequence_num.h"
-#include "base/containers/hash_tables.h"
 #include "base/macros.h"
 #include "base/metrics/histogram.h"
 #include "base/numerics/safe_math.h"
@@ -1281,7 +1281,7 @@ void ResourceProvider::ReceiveReturnsFromParent(
   DCHECK(thread_checker_.CalledOnValidThread());
   GLES2Interface* gl = ContextGL();
 
-  base::hash_map<int, ResourceIdArray> resources_for_child;
+  std::unordered_map<int, ResourceIdArray> resources_for_child;
 
   for (const ReturnedResource& returned : resources) {
     ResourceId local_id = returned.id;
@@ -1590,10 +1590,10 @@ void ResourceProvider::LazyCreateImage(Resource* resource) {
     GLES2Interface* gl = ContextGL();
     DCHECK(gl);
 
-#if defined(OS_CHROMEOS)
-    // TODO(reveman): GL_COMMANDS_ISSUED_CHROMIUM is used for synchronization
-    // on ChromeOS to avoid some performance issues. This only works with
-    // shared memory backed buffers. crbug.com/436314
+#if defined(OS_CHROMEOS) && defined(ARCH_CPU_ARM_FAMILY)
+    // TODO(reveman): This avoids a performance problem on ARM ChromeOS
+    // devices. This only works with shared memory backed buffers.
+    // crbug.com/580166
     DCHECK_EQ(resource->gpu_memory_buffer->GetHandle().type,
               gfx::SHARED_MEMORY_BUFFER);
 #endif

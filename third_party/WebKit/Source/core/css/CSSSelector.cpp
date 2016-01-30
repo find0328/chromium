@@ -264,6 +264,7 @@ PseudoId CSSSelector::pseudoId(PseudoType type)
     case PseudoFullScreenAncestor:
     case PseudoSpatialNavigationFocus:
     case PseudoListBox:
+    case PseudoSlotted:
         return NOPSEUDO;
     }
 
@@ -367,6 +368,7 @@ const static NameToPseudoStruct pseudoTypeWithArgumentsMap[] = {
 {"nth-last-child",   CSSSelector::PseudoNthLastChild},
 {"nth-last-of-type", CSSSelector::PseudoNthLastOfType},
 {"nth-of-type",      CSSSelector::PseudoNthOfType},
+{"slotted",          CSSSelector::PseudoSlotted},
 };
 
 class NameToPseudoCompare {
@@ -481,6 +483,7 @@ void CSSSelector::updatePseudoType(const AtomicString& value, bool hasArguments)
     case PseudoWebKitCustomElement:
     case PseudoContent:
     case PseudoShadow:
+    case PseudoSlotted:
         if (m_match != PseudoElement)
             m_pseudoType = PseudoUnknown;
         break;
@@ -725,6 +728,7 @@ String CSSSelector::selectorText(const String& rightSide) const
         case SubSelector:
             ASSERT_NOT_REACHED();
         case ShadowPseudo:
+        case ShadowSlot:
             return tagHistory->selectorText(str.toString() + rightSide);
         }
     }
@@ -875,6 +879,17 @@ bool CSSSelector::matchNth(int count) const
 {
     ASSERT(m_hasRareData);
     return m_data.m_rareData->matchNth(count);
+}
+
+bool CSSSelector::matchesPseudoElement() const
+{
+    for (const CSSSelector* current = this; current; current = current->tagHistory()) {
+        if (current->match() == PseudoElement)
+            return true;
+        if (current->relation() != SubSelector)
+            return false;
+    }
+    return false;
 }
 
 CSSSelector::RareData::RareData(const AtomicString& value)

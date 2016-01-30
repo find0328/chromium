@@ -111,10 +111,14 @@
           'branding%': 'Chromium',
 
           'conditions': [
-            # Windows and Linux (including Chrome OS) use Aura and Ash.
+            # Windows and Linux use Aura, but not Ash.
             ['OS=="win" or OS=="linux"', {
-              'use_ash%': 1,
               'use_aura%': 1,
+            }],
+
+            # ChromeOS uses Ash.
+            ['chromeos', {
+              'use_ash%': 1,
             }],
 
             ['chromecast==1', {
@@ -402,7 +406,9 @@
       # Set NEON compilation flags.
       'arm_neon%': 1,
 
-      # Detect NEON support at run-time.
+      # Detect NEON support at run-time. TODO(pasko): This variable is no longer
+      # set to non-zero, remove it when the last official build with NEON
+      # runtime detection propagates to Stable channel.
       'arm_neon_optional%': 0,
 
       # Use libjpeg-turbo as the JPEG codec used by Chromium.
@@ -487,7 +493,7 @@
       # Enable crash reporting via Kasko.
       'kasko%': 0,
 
-      # Enable hang reports in Kasko.
+      # Enable hang reports in Kasko. Requires Kasko to be enabled.
       'kasko_hang_reports%': 0,
 
       # Enable building with LSan (Clang's -fsanitize=leak option).
@@ -828,8 +834,6 @@
           'cld2_table_size%': 0,
           'enable_themes%': 0,
           'remoting%': 0,
-          'arm_neon%': 0,
-          'arm_neon_optional%': 1,
           'enable_basic_printing%': 1,
           'enable_print_preview%': 0,
           'enable_task_manager%':0,
@@ -2300,7 +2304,6 @@
         'win_release_InlineFunctionExpansion': '0',
         'win_release_OmitFramePointers': '0',
 
-        'use_allocator': 'tcmalloc',
         'release_valgrind_build': 1,
         'werror': '',
         'component': 'static_library',
@@ -2487,7 +2490,6 @@
     'default_apps_list': [
       'browser/resources/default_apps/external_extensions.json',
       'browser/resources/default_apps/gmail.crx',
-      'browser/resources/default_apps/search.crx',
       'browser/resources/default_apps/youtube.crx',
       'browser/resources/default_apps/drive.crx',
       'browser/resources/default_apps/docs.crx',
@@ -2495,7 +2497,6 @@
     'default_apps_list_linux_dest': [
       '<(PRODUCT_DIR)/default_apps/external_extensions.json',
       '<(PRODUCT_DIR)/default_apps/gmail.crx',
-      '<(PRODUCT_DIR)/default_apps/search.crx',
       '<(PRODUCT_DIR)/default_apps/youtube.crx',
       '<(PRODUCT_DIR)/default_apps/drive.crx',
       '<(PRODUCT_DIR)/default_apps/docs.crx',
@@ -3111,6 +3112,11 @@
         # TODO: Enable on Windows too, http://crbug.com/404525
         'variables': { 'clang_warning_flags': ['-Wexit-time-destructors']},
       }],
+      ['"<!(python <(DEPTH)/tools/clang/scripts/update.py --print-revision)"!="257955-1"', {
+        # TODO(thakis): Remove once
+        # https://chromium-review.googlesource.com/#/c/324860/ is in.
+        'variables': { 'clang_warning_flags': ['-Wno-constant-conversion']},
+      }],
       ['chromium_code==0', {
         'variables': {
           'clang_warning_flags': [
@@ -3322,17 +3328,17 @@
             'MinimumRequiredVersion': '5.02',  # Server 2003.
             'TargetMachine': '17', # x86 - 64
             'AdditionalLibraryDirectories!':
-              ['<(windows_sdk_path)/Lib/10.0.10240.0/um/x86'],
+              ['<(windows_sdk_path)/Lib/10.0.10586.0/um/x86'],
             'AdditionalLibraryDirectories':
-              ['<(windows_sdk_path)/Lib/10.0.10240.0/um/x64'],
+              ['<(windows_sdk_path)/Lib/10.0.10586.0/um/x64'],
             # Doesn't exist x64 SDK. Should use oleaut32 in any case.
             'IgnoreDefaultLibraryNames': [ 'olepro32.lib' ],
           },
           'VCLibrarianTool': {
             'AdditionalLibraryDirectories!':
-              ['<(windows_sdk_path)/Lib/10.0.10240.0/um/x86'],
+              ['<(windows_sdk_path)/Lib/10.0.10586.0/um/x86'],
             'AdditionalLibraryDirectories':
-              ['<(windows_sdk_path)/Lib/10.0.10240.0/um/x64'],
+              ['<(windows_sdk_path)/Lib/10.0.10586.0/um/x64'],
             'TargetMachine': '17', # x64
           },
         },
@@ -4387,7 +4393,7 @@
               ['_toolset=="target"', {
                 'cflags': [
                   '-fsanitize=address',
-                  # TODO(earthdok): Re-enable. http://crbug.com/427202
+                  # TODO(eugenis): Re-enable. http://crbug.com/427202
                   #'-fsanitize-blacklist=<(asan_blacklist)',
                 ],
                 'ldflags': [
@@ -4828,6 +4834,8 @@
               '-finline-limit=64',
               '<@(release_extra_cflags)',
               '--sysroot=<(android_ndk_sysroot)',
+            ],
+            'cflags_cc': [
               # NOTE: The libc++ header include paths below are specified in
               # cflags rather than include_dirs because they need to come
               # after include_dirs.
@@ -5520,7 +5528,9 @@
                   'DEPLOYMENT_POSTPROCESSING': 'YES',
                   'STRIP_INSTALLED_PRODUCT': 'YES',
                   'conditions': [
-                    ['buildtype!="Official"', {
+                    ['buildtype=="Official"', {
+                      'DEBUG_INFORMATION_FORMAT': 'dwarf-with-dsym',
+                    }, {
                       # Remove dSYM to reduce build time.
                       'DEBUG_INFORMATION_FORMAT': 'dwarf',
                     }],
@@ -5663,9 +5673,9 @@
           }],
         ],
         'msvs_system_include_dirs': [
-          '<(windows_sdk_path)/Include/10.0.10240.0/shared',
-          '<(windows_sdk_path)/Include/10.0.10240.0/um',
-          '<(windows_sdk_path)/Include/10.0.10240.0/winrt',
+          '<(windows_sdk_path)/Include/10.0.10586.0/shared',
+          '<(windows_sdk_path)/Include/10.0.10586.0/um',
+          '<(windows_sdk_path)/Include/10.0.10586.0/winrt',
           '$(VSInstallDir)/VC/atlmfc/include',
         ],
         'msvs_cygwin_shell': 0,

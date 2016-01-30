@@ -82,6 +82,14 @@ Window* BuildWindowTree(WindowTreeClientImpl* client,
   return root;
 }
 
+WindowTreeConnection* WindowTreeConnection::Create(WindowTreeDelegate* delegate,
+                                                   mojo::ApplicationImpl* app) {
+  WindowTreeClientImpl* client =
+      new WindowTreeClientImpl(delegate, nullptr, nullptr);
+  client->ConnectViaWindowTreeFactory(app);
+  return client;
+}
+
 WindowTreeConnection* WindowTreeConnection::Create(
     WindowTreeDelegate* delegate,
     mojo::InterfaceRequest<mojom::WindowTreeClient> request,
@@ -123,6 +131,8 @@ WindowTreeClientImpl::WindowTreeClientImpl(
   // Allow for a null request in tests.
   if (request.is_pending())
     binding_.Bind(std::move(request));
+  if (window_manager_delegate)
+    window_manager_delegate->SetWindowManagerClient(this);
 }
 
 WindowTreeClientImpl::~WindowTreeClientImpl() {
@@ -148,6 +158,21 @@ WindowTreeClientImpl::~WindowTreeClientImpl() {
     delete tracker.windows().front();
 
   delegate_->OnConnectionLost(this);
+}
+
+void WindowTreeClientImpl::ConnectViaWindowTreeFactory(
+    mojo::ApplicationImpl* app) {
+  // Clients created with no root shouldn't delete automatically.
+  delete_on_no_roots_ = false;
+
+  // The connection id doesn't really matter, we use 101 purely for debugging.
+  connection_id_ = 101;
+
+  mojom::WindowTreeFactoryPtr factory;
+  app->ConnectToService("mojo:mus", &factory);
+  factory->CreateWindowTree(GetProxy(&tree_ptr_),
+                            binding_.CreateInterfacePtrAndBind());
+  tree_ = tree_ptr_.get();
 }
 
 void WindowTreeClientImpl::WaitForEmbed() {
@@ -405,6 +430,8 @@ Window* WindowTreeClientImpl::NewWindowImpl(
   if (properties) {
     transport_properties =
         mojo::Map<mojo::String, mojo::Array<uint8_t>>::From(*properties);
+  } else {
+    transport_properties.mark_non_null();
   }
   if (type == NewWindowType::CHILD) {
     tree_->NewWindow(change_id, window->id(), std::move(transport_properties));
@@ -421,10 +448,12 @@ void WindowTreeClientImpl::OnEmbedImpl(mojom::WindowTree* window_tree,
                                        mojom::WindowDataPtr root_data,
                                        Id focused_window_id,
                                        uint32_t access_policy) {
+  // WARNING: this is only called if WindowTreeClientImpl was created as the
+  // result of an embedding.
   tree_ = window_tree;
   connection_id_ = connection_id;
   is_embed_root_ =
-      (access_policy & mojom::WindowTree::ACCESS_POLICY_EMBED_ROOT) != 0;
+      (access_policy & mojom::WindowTree::kAccessPolicyEmbedRoot) != 0;
 
   DCHECK(roots_.empty());
   Window* root = AddWindowToConnection(this, nullptr, root_data);
@@ -500,8 +529,8 @@ void WindowTreeClientImpl::OnEmbed(ConnectionSpecificId connection_id,
   tree_ptr_.set_connection_error_handler([this]() { delete this; });
 
   if (window_manager_delegate_) {
-    tree_ptr_->GetWindowManagerInternalClient(GetProxy(
-        &window_manager_internal_client_, tree_ptr_.associated_group()));
+    tree_ptr_->GetWindowManagerClient(GetProxy(&window_manager_internal_client_,
+                                               tree_ptr_.associated_group()));
   }
 
   OnEmbedImpl(tree_ptr_.get(), connection_id, std::move(root_data),
@@ -793,11 +822,11 @@ void WindowTreeClientImpl::OnChangeCompleted(uint32_t change_id, bool success) {
   }
 }
 
-void WindowTreeClientImpl::GetWindowManagerInternal(
-    mojo::AssociatedInterfaceRequest<WindowManagerInternal> internal) {
+void WindowTreeClientImpl::GetWindowManager(
+    mojo::AssociatedInterfaceRequest<WindowManager> internal) {
   window_manager_internal_.reset(
-      new mojo::AssociatedBinding<mojom::WindowManagerInternal>(
-          this, std::move(internal)));
+      new mojo::AssociatedBinding<mojom::WindowManager>(this,
+                                                        std::move(internal)));
 }
 
 void WindowTreeClientImpl::RequestClose(uint32_t window_id) {
@@ -860,6 +889,12 @@ void WindowTreeClientImpl::WmCreateTopLevelWindow(
       window_manager_delegate_->OnWmCreateTopLevelWindow(&properties);
   window_manager_internal_client_->OnWmCreatedTopLevelWindow(change_id,
                                                              window->id());
+}
+
+void WindowTreeClientImpl::SetFrameDecorationValues(
+    mojom::FrameDecorationValuesPtr values) {
+  window_manager_internal_client_->WmSetFrameDecorationValues(
+      std::move(values));
 }
 
 }  // namespace mus

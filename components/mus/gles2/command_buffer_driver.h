@@ -87,6 +87,7 @@ class CommandBufferDriver : base::NonThreadSafe {
   }
   uint32_t GetUnprocessedOrderNum() const;
   uint32_t GetProcessedOrderNum() const;
+  void SignalQuery(uint32_t query_id, const base::Closure& callback);
 
  private:
   bool MakeCurrent();
@@ -110,7 +111,6 @@ class CommandBufferDriver : base::NonThreadSafe {
   // Callbacks:
   void OnUpdateVSyncParameters(const base::TimeTicks timebase,
                                const base::TimeDelta interval);
-  bool OnWaitSyncPoint(uint32_t sync_point);
   void OnFenceSyncRelease(uint64_t release);
   bool OnWaitFenceSync(gpu::CommandBufferNamespace namespace_id,
                        uint64_t command_buffer_id,

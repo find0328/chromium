@@ -24,9 +24,6 @@ public:
     static PassOwnPtrWillBeRawPtr<DevToolsEmulator> create(WebViewImpl*);
     DECLARE_TRACE();
 
-    void setEmulationAgent(InspectorEmulationAgent*);
-    void viewportChanged();
-
     // Settings overrides.
     void setTextAutosizingEnabled(bool);
     void setDeviceScaleAdjustment(float);
@@ -40,6 +37,8 @@ public:
     void setPrimaryPointerType(PointerType);
     void setAvailableHoverTypes(int);
     void setPrimaryHoverType(HoverType);
+    void setMainFrameResizesAreOrientationChanges(bool);
+    bool mainFrameResizesAreOrientationChanges() const;
 
     // Emulation.
     void enableDeviceEmulation(const WebDeviceEmulationParams&);
@@ -57,7 +56,6 @@ private:
     void disableMobileEmulation();
 
     WebViewImpl* m_webViewImpl;
-    RawPtrWillBeMember<InspectorEmulationAgent> m_emulationAgent;
 
     bool m_deviceMetricsEnabled;
     bool m_emulateMobileEnabled;
@@ -78,6 +76,7 @@ private:
 
     bool m_touchEventEmulationEnabled;
     bool m_doubleTapToZoomEnabled;
+    bool m_mainFrameResizesAreOrientationChanges;
     bool m_originalTouchEnabled;
     bool m_originalDeviceSupportsMouse;
     bool m_originalDeviceSupportsTouch;

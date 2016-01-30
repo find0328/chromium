@@ -64,7 +64,7 @@ PassRefPtr<SVGPathByteStream> conditionallyAddPathByteStreams(PassRefPtr<SVGPath
     return addPathByteStreams(*fromStream, byStream, repeatCount);
 }
 
-}
+} // namespace
 
 SVGPath::SVGPath()
     : SVGPropertyBase(classType())
@@ -95,10 +95,8 @@ PassRefPtrWillBeRawPtr<SVGPath> SVGPath::clone() const
 
 SVGParsingError SVGPath::setValueAsString(const String& string)
 {
-    SVGParsingError parseStatus = NoError;
     RefPtr<SVGPathByteStream> byteStream = SVGPathByteStream::create();
-    if (!buildByteStreamFromString(string, *byteStream))
-        parseStatus = ParsingAttributeFailedError;
+    SVGParsingError parseStatus = buildByteStreamFromString(string, *byteStream);
     m_pathValue = CSSPathValue::create(byteStream.release());
     return parseStatus;
 }
@@ -178,4 +176,4 @@ DEFINE_TRACE(SVGPath)
     SVGPropertyBase::trace(visitor);
 }
 
-}
+} // namespace blink

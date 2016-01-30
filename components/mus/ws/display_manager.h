@@ -12,8 +12,10 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/string16.h"
 #include "base/timer/timer.h"
 #include "build/build_config.h"
+#include "components/mus/public/interfaces/window_manager_constants.mojom.h"
 #include "components/mus/public/interfaces/window_tree.mojom.h"
 #include "components/mus/ws/display_manager_delegate.h"
 #include "mojo/public/cpp/bindings/callback.h"
@@ -53,6 +55,7 @@ class EventDispatcher;
 class ServerWindow;
 
 // DisplayManager is used to connect the root ServerWindow to a display.
+// TODO(sky): rename this given we have a mojom type with the same name now.
 class DisplayManager {
  public:
   virtual ~DisplayManager() {}
@@ -73,6 +76,8 @@ class DisplayManager {
   virtual void SetTitle(const base::string16& title) = 0;
 
   virtual void SetCursorById(int32_t cursor) = 0;
+
+  virtual mojom::Rotation GetRotation() = 0;
 
   virtual const mojom::ViewportMetrics& GetViewportMetrics() = 0;
 
@@ -111,6 +116,7 @@ class DefaultDisplayManager : public DisplayManager,
   void SetTitle(const base::string16& title) override;
   void SetCursorById(int32_t cursor) override;
   const mojom::ViewportMetrics& GetViewportMetrics() override;
+  mojom::Rotation GetRotation() override;
   void UpdateTextInputState(const ui::TextInputState& state) override;
   void SetImeVisibility(bool visible) override;
   bool IsFramePending() const override;

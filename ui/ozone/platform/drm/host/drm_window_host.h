@@ -13,7 +13,7 @@
 #include "ui/events/platform/platform_event_dispatcher.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/native_widget_types.h"
-#include "ui/ozone/platform/drm/host/channel_observer.h"
+#include "ui/ozone/platform/drm/host/gpu_thread_observer.h"
 #include "ui/platform_window/platform_window.h"
 
 namespace ui {
@@ -21,8 +21,8 @@ namespace ui {
 class DrmDisplayHostManager;
 class DrmCursor;
 class DrmGpuPlatformSupportHost;
-class DrmOverlayCandidatesHost;
 class DrmGpuWindow;
+class DrmOverlayManager;
 class DrmWindowHostManager;
 class EventFactoryEvdev;
 
@@ -38,7 +38,7 @@ class EventFactoryEvdev;
 // associated with the window (the surface is created on the GPU process).
 class DrmWindowHost : public PlatformWindow,
                       public PlatformEventDispatcher,
-                      public ChannelObserver {
+                      public GpuThreadObserver {
  public:
   DrmWindowHost(PlatformWindowDelegate* delegate,
                 const gfx::Rect& bounds,
@@ -46,7 +46,8 @@ class DrmWindowHost : public PlatformWindow,
                 EventFactoryEvdev* event_factory,
                 DrmCursor* cursor,
                 DrmWindowHostManager* window_manager,
-                DrmDisplayHostManager* display_manager);
+                DrmDisplayHostManager* display_manager,
+                DrmOverlayManager* overlay_manager);
   ~DrmWindowHost() override;
 
   void Initialize();
@@ -78,10 +79,8 @@ class DrmWindowHost : public PlatformWindow,
   uint32_t DispatchEvent(const PlatformEvent& event) override;
 
   // ChannelObserver:
-  void OnChannelEstablished() override;
-  void OnChannelDestroyed() override;
-
-  void SetOverlayCandidatesHost(DrmOverlayCandidatesHost* host);
+  void OnGpuThreadReady() override;
+  void OnGpuThreadRetired() override;
 
  private:
   void SendBoundsChange();
@@ -92,7 +91,7 @@ class DrmWindowHost : public PlatformWindow,
   DrmCursor* cursor_;                                  // Not owned.
   DrmWindowHostManager* window_manager_;               // Not owned.
   DrmDisplayHostManager* display_manager_;             // Not owned.
-  DrmOverlayCandidatesHost* overlay_candidates_host_;  // Not owned.
+  DrmOverlayManager* overlay_manager_;                 // Not owned.
 
   gfx::Rect bounds_;
   gfx::AcceleratedWidget widget_;

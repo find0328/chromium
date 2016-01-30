@@ -15,10 +15,10 @@
 #include "build/build_config.h"
 #include "mash/example/window_type_launcher/window_type_launcher.h"
 #include "mojo/message_pump/message_pump_mojo.h"
-#include "mojo/runner/child/runner_connection.h"
-#include "mojo/runner/init.h"
 #include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/interfaces/application.mojom.h"
+#include "mojo/shell/runner/child/runner_connection.h"
+#include "mojo/shell/runner/init.h"
 #include "third_party/mojo/src/mojo/edk/embedder/embedder.h"
 #include "third_party/mojo/src/mojo/edk/embedder/process_delegate.h"
 
@@ -41,8 +41,8 @@ int main(int argc, char** argv) {
   base::AtExitManager at_exit;
   base::CommandLine::Init(argc, argv);
 
-  mojo::runner::InitializeLogging();
-  mojo::runner::WaitForDebuggerIfNecessary();
+  mojo::shell::InitializeLogging();
+  mojo::shell::WaitForDebuggerIfNecessary();
 
 #if !defined(OFFICIAL_BUILD)
   base::debug::EnableInProcessStackDumping();
@@ -66,8 +66,8 @@ int main(int argc, char** argv) {
                                    mojo::embedder::ScopedPlatformHandle());
 
     mojo::InterfaceRequest<mojo::Application> application_request;
-    scoped_ptr<mojo::runner::RunnerConnection> connection(
-        mojo::runner::RunnerConnection::ConnectToRunner(
+    scoped_ptr<mojo::shell::RunnerConnection> connection(
+        mojo::shell::RunnerConnection::ConnectToRunner(
             &application_request, mojo::ScopedMessagePipeHandle()));
     base::MessageLoop loop(mojo::common::MessagePumpMojo::Create());
     WindowTypeLauncher delegate;

@@ -203,13 +203,13 @@ struct PasswordForm {
   // When parsing an HTML form, this is not used.
   bool blacklisted_by_user;
 
-  // Enum to differentiate between manually filled forms and forms with auto
-  // generated passwords.
-  enum Type {
-    TYPE_MANUAL,
-    TYPE_GENERATED,
-    TYPE_LAST = TYPE_GENERATED
-  };
+  // Enum to differentiate between manually filled forms, forms with auto-
+  // generated passwords, and forms generated from the DOM API.
+  //
+  // Always append new types at the end. This enum is converted to int and
+  // stored in password store backends, so it is important to keep each
+  // value assigned to the same integer.
+  enum Type { TYPE_MANUAL, TYPE_GENERATED, TYPE_API, TYPE_LAST = TYPE_API };
 
   // The form type.
   Type type;
@@ -258,9 +258,6 @@ struct PasswordForm {
 
   // If true, this form was parsed using Autofill predictions.
   bool was_parsed_using_autofill_predictions;
-
-  // TODO(vabr): Remove |is_alive| once http://crbug.com/486931 is fixed.
-  bool is_alive;  // Set on construction, reset on destruction.
 
   // If true, this match was found using public suffix matching.
   bool is_public_suffix_match;

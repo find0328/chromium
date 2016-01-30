@@ -207,6 +207,9 @@ PATH_SPECIFIC_WHITELISTED_LICENSES = {
     'third_party/devscripts': [
         'GPL (v2 or later)',
     ],
+    'third_party/catapult/firefighter/default/tracing/third_party/devscripts': [
+        'GPL (v2 or later)',
+    ],
     'third_party/catapult/tracing/third_party/devscripts': [
         'GPL (v2 or later)',
     ],
@@ -220,6 +223,12 @@ PATH_SPECIFIC_WHITELISTED_LICENSES = {
     # https://bugs.launchpad.net/beautifulsoup/+bug/1481316
     # MIT license.
     'third_party/catapult/third_party/beautifulsoup': [
+        'UNKNOWN'
+    ],
+
+    # https://bitbucket.org/ned/coveragepy/issue/313/add-license-file-containing-2-3-or-4
+    # Apache (v2.0) license, not shipped
+    'third_party/catapult/third_party/coverage': [
         'UNKNOWN'
     ],
 
@@ -322,12 +331,6 @@ PATH_SPECIFIC_WHITELISTED_LICENSES = {
     # https://bitbucket.org/ianb/paste/issues/12/add-license-headers-to-source-files
     # MIT license.
     'third_party/catapult/third_party/Paste': [
-        'UNKNOWN',
-    ],
-
-    # https://bitbucket.org/gutworth/six/issues/129/add-license-headers-to-source-files
-    # MIT license.
-    'third_party/catapult/third_party/six': [
         'UNKNOWN',
     ],
 
@@ -580,6 +583,18 @@ PATH_SPECIFIC_WHITELISTED_LICENSES = {
         'UNKNOWN',
     ],
     'tools/telemetry/third_party/pyserial': [
+        # https://sourceforge.net/p/pyserial/feature-requests/35/
+        'UNKNOWN',
+    ],
+    # Not shipped, MIT license but the header files contain no licensing info.
+    'third_party/catapult/telemetry/third_party/altgraph': [
+        'UNKNOWN',
+    ],
+    # Not shipped, MIT license but the header files contain no licensing info.
+    'third_party/catapult/telemetry/third_party/modulegraph': [
+        'UNKNOWN',
+    ],
+    'third_party/catapult/telemetry/third_party/pyserial': [
         # https://sourceforge.net/p/pyserial/feature-requests/35/
         'UNKNOWN',
     ],

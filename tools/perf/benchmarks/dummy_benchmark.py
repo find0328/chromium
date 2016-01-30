@@ -16,7 +16,7 @@ from core import perf_benchmark
 from telemetry.value import scalar
 from telemetry.page import page_test
 
-import page_sets
+from page_sets import dummy_story_set
 
 
 class _DummyTest(page_test.PageTest):
@@ -35,7 +35,7 @@ class _DummyTest(page_test.PageTest):
 
 
 class _DummyBenchmark(perf_benchmark.PerfBenchmark):
-  page_set = page_sets.DummyStorySet
+  page_set = dummy_story_set.DummyStorySet
 
 
 class DummyBenchmarkOne(_DummyBenchmark):

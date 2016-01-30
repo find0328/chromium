@@ -64,6 +64,7 @@ public:
         Caret,
         ColumnRules,
         DebugRedFill,
+        DocumentBackground,
         DragImage,
         SVGImage,
         LinkHighlight,
@@ -93,7 +94,6 @@ public:
         ScrollbarTickmarks,
         ScrollbarTrackBackground,
         ScrollbarVertical, // For ScrollbarThemeMacNonOverlayAPI only.
-        SelectionGap,
         SelectionTint,
         TableCellBackgroundFromColumnGroup,
         TableCellBackgroundFromColumn,

@@ -39,7 +39,7 @@
 #include "ui/aura/window.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/layout.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
 #include "ui/compositor/layer_animator.h"
@@ -52,16 +52,8 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
 
-#if defined(ENABLE_SUPERVISED_USERS)
-#include "chrome/browser/ui/views/profiles/supervised_user_avatar_label.h"
-#endif
-
 namespace {
 
-#if defined(FRAME_AVATAR_BUTTON)
-// Space between the new avatar button and the minimize button.
-const int kNewAvatarButtonOffset = 5;
-#endif
 // Space between right edge of tabstrip and maximize button.
 const int kTabstripRightSpacing = 10;
 // Height of the shadow of the content area, at the top of the toolbar.
@@ -246,26 +238,11 @@ int BrowserNonClientFrameViewAsh::NonClientHitTest(const gfx::Point& point) {
   int hit_test = ash::FrameBorderHitTestController::NonClientHitTest(this,
       caption_button_container_, point);
 
-#if defined(FRAME_AVATAR_BUTTON)
-  if (hit_test == HTCAPTION && new_avatar_button() &&
-      ConvertedHitTest(this, new_avatar_button(), point)) {
-    return HTCLIENT;
-  }
-#endif
-
   // See if the point is actually within the web app back button.
   if (hit_test == HTCAPTION && web_app_left_header_view_ &&
       ConvertedHitTest(this, web_app_left_header_view_, point)) {
     return HTCLIENT;
   }
-
-#if defined(ENABLE_SUPERVISED_USERS)
-  // ...or within the avatar label, if it's a supervised user.
-  if (hit_test == HTCAPTION && supervised_user_avatar_label() &&
-      ConvertedHitTest(this, supervised_user_avatar_label(), point)) {
-    return HTCLIENT;
-  }
-#endif
 
   // When the window is restored we want a large click target above the tabs
   // to drag the window, so redirect clicks in the tab's shadow to caption.
@@ -356,10 +333,6 @@ void BrowserNonClientFrameViewAsh::Layout() {
     LayoutAvatar();
     header_painter_->UpdateLeftViewXInset(avatar_button()->bounds().right());
   }
-#if defined(FRAME_AVATAR_BUTTON)
-  if (new_avatar_button())
-    LayoutNewStyleAvatar();
-#endif
   header_painter_->UpdateLeftViewXInset(
       ash::HeaderPainterUtil::GetDefaultLeftViewXInset());
   BrowserNonClientFrameView::Layout();
@@ -397,11 +370,7 @@ void BrowserNonClientFrameViewAsh::
   // size changes.
   if (!browser_view()->initialized())
     return;
-  bool needs_layout = child == caption_button_container_;
-#if defined(FRAME_AVATAR_BUTTON)
-  needs_layout = needs_layout || child == new_avatar_button();
-#endif
-  if (needs_layout) {
+  if (child == caption_button_container_) {
     InvalidateLayout();
     frame()->GetRootView()->Layout();
   }
@@ -443,31 +412,11 @@ gfx::ImageSkia BrowserNonClientFrameViewAsh::GetFaviconForTabIconView() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// views::ButtonListener:
-
-void BrowserNonClientFrameViewAsh::ButtonPressed(views::Button* sender,
-                                                 const ui::Event& event) {
-#if !defined(FRAME_AVATAR_BUTTON)
-  NOTREACHED();
-#else
-  DCHECK(sender == new_avatar_button());
-  int command = IDC_SHOW_AVATAR_MENU;
-  if (event.IsMouseEvent() &&
-      static_cast<const ui::MouseEvent&>(event).IsRightMouseButton()) {
-    command = IDC_SHOW_FAST_USER_SWITCHER;
-  }
-  chrome::ExecuteCommand(browser_view()->browser(), command);
-#endif
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // BrowserNonClientFrameViewAsh, protected:
 
 // BrowserNonClientFrameView:
 void BrowserNonClientFrameViewAsh::UpdateNewAvatarButtonImpl() {
-#if defined(FRAME_AVATAR_BUTTON)
-  UpdateNewAvatarButton(this, NewAvatarButton::NATIVE_BUTTON);
-#endif
+  NOTREACHED();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -513,13 +462,6 @@ int BrowserNonClientFrameViewAsh::GetTabStripLeftInset() const {
 int BrowserNonClientFrameViewAsh::GetTabStripRightInset() const {
   int tabstrip_width = kTabstripRightSpacing +
       caption_button_container_->GetPreferredSize().width();
-
-#if defined(FRAME_AVATAR_BUTTON)
-  if (new_avatar_button()) {
-    tabstrip_width += kNewAvatarButtonOffset +
-         new_avatar_button()->GetPreferredSize().width();
-  }
-#endif
 
   return tabstrip_width;
 }
@@ -577,23 +519,6 @@ void BrowserNonClientFrameViewAsh::LayoutAvatar() {
   avatar_button()->SetVisible(avatar_visible);
 }
 
-#if defined(FRAME_AVATAR_BUTTON)
-void BrowserNonClientFrameViewAsh::LayoutNewStyleAvatar() {
-  DCHECK(new_avatar_button());
-
-  gfx::Size button_size = new_avatar_button()->GetPreferredSize();
-  int button_x = width() -
-      caption_button_container_->GetPreferredSize().width() -
-      kNewAvatarButtonOffset - button_size.width();
-
-  new_avatar_button()->SetBounds(
-      button_x,
-      0,
-      button_size.width(),
-      caption_button_container_->GetPreferredSize().height());
-}
-#endif
-
 bool BrowserNonClientFrameViewAsh::ShouldPaint() const {
   if (!frame()->IsFullscreen())
     return true;
@@ -631,18 +556,20 @@ void BrowserNonClientFrameViewAsh::PaintToolbarBackground(gfx::Canvas* canvas) {
   const ui::ThemeProvider* tp = GetThemeProvider();
 
   if (ui::MaterialDesignController::IsModeMaterial()) {
-    // Paint the main toolbar image.  Since this image is also used to draw the
-    // tab background, we must use the tab strip offset to compute the image
-    // source y position.  If you have to debug this code use an image editor
-    // to paint a diagonal line through the toolbar image and ensure it lines up
-    // across the tab and toolbar.
-    gfx::ImageSkia* theme_toolbar = tp->GetImageSkiaNamed(IDR_THEME_TOOLBAR);
-    canvas->TileImageInt(
-        *theme_toolbar,
-        x + GetThemeBackgroundXInset(),
-        y - GetTopInset(false),
-        x, y,
-        w, theme_toolbar->height());
+    if (tp->HasCustomImage(IDR_THEME_TOOLBAR)) {
+      // Paint the main toolbar image.  Since this image is also used to draw
+      // the tab background, we must use the tab strip offset to compute the
+      // image source y position.  If you have to debug this code use an image
+      // editor to paint a diagonal line through the toolbar image and ensure it
+      // lines up across the tab and toolbar.
+      gfx::ImageSkia* theme_toolbar = tp->GetImageSkiaNamed(IDR_THEME_TOOLBAR);
+      canvas->TileImageInt(*theme_toolbar, x + GetThemeBackgroundXInset(),
+                           y - GetTopInset(false), x, y, w,
+                           theme_toolbar->height());
+    } else {
+      canvas->FillRect(toolbar_bounds,
+                       tp->GetColor(ThemeProperties::COLOR_TOOLBAR));
+    }
 
     // Draw the separator line atop the toolbar, on the left and right of the
     // tabstrip.

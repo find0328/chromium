@@ -4,6 +4,7 @@
 
 #include "core/editing/EditingUtilities.h"
 
+#include "core/dom/StaticNodeList.h"
 #include "core/editing/EditingTestBase.h"
 
 namespace blink {
@@ -76,6 +77,24 @@ TEST_F(EditingUtilitiesTest, enclosingNodeOfType)
 
     EXPECT_EQ(host, enclosingNodeOfType(Position(one, 0), isEnclosingBlock));
     EXPECT_EQ(three, enclosingNodeOfType(PositionInComposedTree(one, 0), isEnclosingBlock));
+}
+
+TEST_F(EditingUtilitiesTest, isEditablePositionWithTable)
+{
+    // We would like to have below DOM tree without HTML, HEAD and BODY element.
+    //   <table id=table><caption>foo</caption></table>
+    // However, |setBodyContent()| automatically creates HTML, HEAD and BODY
+    // element. So, we build DOM tree manually.
+    // Note: This is unusual HTML taken from http://crbug.com/574230
+    RefPtrWillBeRawPtr<Element> table = document().createElement("table", ASSERT_NO_EXCEPTION);
+    table->setInnerHTML("<caption>foo</caption>", ASSERT_NO_EXCEPTION);
+    while (document().firstChild())
+        document().firstChild()->remove();
+    document().appendChild(table);
+    document().setDesignMode("on");
+    updateLayoutAndStyleForPainting();
+
+    EXPECT_FALSE(isEditablePosition(Position(table.get(), 0)));
 }
 
 TEST_F(EditingUtilitiesTest, isFirstPositionAfterTable)
@@ -154,6 +173,31 @@ TEST_F(EditingUtilitiesTest, NextVisuallyDistinctCandidate)
 
     EXPECT_EQ(Position(two->firstChild(), 1), nextVisuallyDistinctCandidate(Position(one, 1)));
     EXPECT_EQ(PositionInComposedTree(three->firstChild(), 1), nextVisuallyDistinctCandidate(PositionInComposedTree(one, 1)));
+}
+
+TEST_F(EditingUtilitiesTest, AreaIdenticalElements)
+{
+    setBodyContent("<style>li:nth-child(even) { -webkit-user-modify: read-write; }</style><ul><li>first item</li><li>second item</li><li class=foo>third</li><li>fourth</li></ul>");
+    updateLayoutAndStyleForPainting();
+    RefPtrWillBeRawPtr<StaticElementList> items = document().querySelectorAll("li", ASSERT_NO_EXCEPTION);
+    ASSERT(items->length() == 4);
+
+    EXPECT_FALSE(areIdenticalElements(*items->item(0)->firstChild(), *items->item(1)->firstChild()))
+        << "Can't merge non-elements.  e.g. Text nodes";
+
+    // Compare a LI and a UL.
+    EXPECT_FALSE(areIdenticalElements(*items->item(0), *items->item(0)->parentNode()))
+        << "Can't merge different tag names.";
+
+    EXPECT_FALSE(areIdenticalElements(*items->item(0), *items->item(2)))
+        << "Can't merge a element with no attributes and another element with an attribute.";
+
+    // We can't use contenteditable attribute to make editability difference
+    // because the hasEquivalentAttributes check is done earier.
+    EXPECT_FALSE(areIdenticalElements(*items->item(0), *items->item(1)))
+        << "Can't merge non-editable nodes.";
+
+    EXPECT_TRUE(areIdenticalElements(*items->item(1), *items->item(3)));
 }
 
 } // namespace blink

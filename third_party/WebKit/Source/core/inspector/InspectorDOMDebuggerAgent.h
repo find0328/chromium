@@ -35,6 +35,7 @@
 #include "core/CoreExport.h"
 #include "core/inspector/InspectorBaseAgent.h"
 #include "core/inspector/InspectorDOMAgent.h"
+#include "core/inspector/v8/EventListenerInfo.h"
 #include "wtf/HashMap.h"
 #include "wtf/PassOwnPtr.h"
 #include "wtf/text/WTFString.h"
@@ -43,7 +44,6 @@ namespace blink {
 
 class Element;
 class Event;
-class EventListener;
 class EventTarget;
 class InjectedScriptManager;
 class InspectorDOMAgent;
@@ -60,6 +60,8 @@ class CORE_EXPORT InspectorDOMDebuggerAgent final
     WTF_MAKE_NONCOPYABLE(InspectorDOMDebuggerAgent);
 public:
     static PassOwnPtrWillBeRawPtr<InspectorDOMDebuggerAgent> create(InjectedScriptManager*, InspectorDOMAgent*, V8DebuggerAgent*);
+
+    static void eventListenersInfoForTarget(v8::Isolate*, v8::Local<v8::Value>, EventListenerInfoMap& listeners);
 
     ~InspectorDOMDebuggerAgent() override;
     DECLARE_VIRTUAL_TRACE();
@@ -108,6 +110,9 @@ private:
     void pauseOnNativeEventIfNeeded(PassRefPtr<JSONObject> eventData, bool synchronous);
     PassRefPtr<JSONObject> preparePauseOnNativeEventData(const String& eventName, const String* targetName);
 
+    PassRefPtr<JSONObject> eventListenerBreakpoints();
+    PassRefPtr<JSONObject> xhrBreakpoints();
+
     void descriptionForDOMEvent(Node* target, int breakpointType, bool insertion, JSONObject* description);
     void updateSubtreeBreakpoints(Node*, uint32_t rootMask, bool set);
     bool hasBreakpoint(Node*, int type);
@@ -118,10 +123,10 @@ private:
     void didRemoveBreakpoint();
     void setEnabled(bool);
 
-    void eventListeners(InjectedScript&, v8::Local<v8::Value>, const String& objectGroup, RefPtr<TypeBuilder::Array<TypeBuilder::DOMDebugger::EventListener>>& listenersArray);
-    PassRefPtr<TypeBuilder::DOMDebugger::EventListener> buildObjectForEventListener(InjectedScript&, v8::Local<v8::Object> handler, bool useCapture, const String& type, const String& objectGroupId);
+    void eventListeners(InjectedScript*, v8::Local<v8::Value>, const String& objectGroup, RefPtr<TypeBuilder::Array<TypeBuilder::DOMDebugger::EventListener>>& listenersArray);
+    PassRefPtr<TypeBuilder::DOMDebugger::EventListener> buildObjectForEventListener(InjectedScript*, const EventListenerInfo&, const String& objectGroupId);
 
-    RawPtrWillBeMember<InjectedScriptManager> m_injectedScriptManager;
+    InjectedScriptManager* m_injectedScriptManager;
     RawPtrWillBeMember<InspectorDOMAgent> m_domAgent;
     V8DebuggerAgent* m_debuggerAgent;
     WillBeHeapHashMap<RawPtrWillBeMember<Node>, uint32_t> m_domBreakpoints;

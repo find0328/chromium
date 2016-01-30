@@ -28,8 +28,8 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/layout.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/data_pack.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/codec/jpeg_codec.h"
@@ -621,7 +621,7 @@ void ResourceBundle::InitSharedInstance(Delegate* delegate) {
   if (closest != SCALE_FACTOR_100P)
     supported_scale_factors.push_back(closest);
 #elif defined(OS_IOS)
-    gfx::Display display = gfx::Screen::GetNativeScreen()->GetPrimaryDisplay();
+  gfx::Display display = gfx::Screen::GetScreen()->GetPrimaryDisplay();
   if (display.device_scale_factor() > 2.0) {
     DCHECK_EQ(3.0, display.device_scale_factor());
     supported_scale_factors.push_back(SCALE_FACTOR_300P);

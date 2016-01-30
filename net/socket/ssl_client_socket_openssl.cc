@@ -50,10 +50,6 @@
 #include "net/ssl/ssl_info.h"
 #include "net/ssl/ssl_private_key.h"
 
-#if defined(OS_WIN)
-#include "base/win/windows_version.h"
-#endif
-
 #if !defined(OS_NACL)
 #include "net/ssl/ssl_key_logger.h"
 #endif
@@ -91,9 +87,9 @@ const unsigned int kTbExtNum = 30033;
 
 // Token Binding ProtocolVersions supported.
 const uint8_t kTbProtocolVersionMajor = 0;
-const uint8_t kTbProtocolVersionMinor = 3;
+const uint8_t kTbProtocolVersionMinor = 4;
 const uint8_t kTbMinProtocolVersionMajor = 0;
-const uint8_t kTbMinProtocolVersionMinor = 2;
+const uint8_t kTbMinProtocolVersionMinor = 3;
 
 void FreeX509Stack(STACK_OF(X509)* ptr) {
   sk_X509_pop_free(ptr, X509_free);
@@ -483,8 +479,8 @@ SSLClientSocketOpenSSL::PeerCertificateChain::AsOSChain() const {
     intermediates.push_back(sk_X509_value(openssl_chain_.get(), i));
   }
 
-  return make_scoped_refptr(X509Certificate::CreateFromHandle(
-      sk_X509_value(openssl_chain_.get(), 0), intermediates));
+  return X509Certificate::CreateFromHandle(
+      sk_X509_value(openssl_chain_.get(), 0), intermediates);
 #else
   // DER-encode the chain and convert to a platform certificate handle.
   std::vector<base::StringPiece> der_chain;
@@ -496,7 +492,7 @@ SSLClientSocketOpenSSL::PeerCertificateChain::AsOSChain() const {
     der_chain.push_back(der);
   }
 
-  return make_scoped_refptr(X509Certificate::CreateFromDERCertChain(der_chain));
+  return X509Certificate::CreateFromDERCertChain(der_chain);
 #endif
 }
 
@@ -526,6 +522,7 @@ SSLClientSocketOpenSSL::SSLClientSocketOpenSSL(
       channel_id_service_(context.channel_id_service),
       tb_was_negotiated_(false),
       tb_negotiated_param_(TB_PARAM_ECDSAP256),
+      tb_signed_ekm_map_(10),
       ssl_(NULL),
       transport_bio_(NULL),
       transport_(std::move(transport_socket)),
@@ -575,6 +572,47 @@ SSLClientSocket::NextProtoStatus SSLClientSocketOpenSSL::GetNextProto(
 ChannelIDService*
 SSLClientSocketOpenSSL::GetChannelIDService() const {
   return channel_id_service_;
+}
+
+Error SSLClientSocketOpenSSL::GetSignedEKMForTokenBinding(
+    crypto::ECPrivateKey* key,
+    std::vector<uint8_t>* out) {
+  // The same key will be used across multiple requests to sign the same value,
+  // so the signature is cached.
+  std::string raw_public_key;
+  if (!key->ExportRawPublicKey(&raw_public_key))
+    return ERR_FAILED;
+  SignedEkmMap::iterator it = tb_signed_ekm_map_.Get(raw_public_key);
+  if (it != tb_signed_ekm_map_.end()) {
+    *out = it->second;
+    return OK;
+  }
+
+  uint8_t tb_ekm_buf[32];
+  static const char kTokenBindingExporterLabel[] = "EXPORTER-Token-Binding";
+  if (!SSL_export_keying_material(ssl_, tb_ekm_buf, sizeof(tb_ekm_buf),
+                                  kTokenBindingExporterLabel,
+                                  strlen(kTokenBindingExporterLabel), nullptr,
+                                  0, false /* no context */)) {
+    return ERR_FAILED;
+  }
+
+  size_t sig_len;
+  crypto::ScopedEVP_PKEY_CTX pctx(EVP_PKEY_CTX_new(key->key(), nullptr));
+  if (!EVP_PKEY_sign_init(pctx.get()) ||
+      !EVP_PKEY_sign(pctx.get(), nullptr, &sig_len, tb_ekm_buf,
+                     sizeof(tb_ekm_buf))) {
+    return ERR_FAILED;
+  }
+  out->resize(sig_len);
+  if (!EVP_PKEY_sign(pctx.get(), out->data(), &sig_len, tb_ekm_buf,
+                     sizeof(tb_ekm_buf))) {
+    return ERR_FAILED;
+  }
+  out->resize(sig_len);
+
+  tb_signed_ekm_map_.Put(raw_public_key, *out);
+  return OK;
 }
 
 SSLFailureState SSLClientSocketOpenSSL::GetSSLFailureState() const {
@@ -1000,14 +1038,6 @@ int SSLClientSocketOpenSSL::Init() {
     }
   }
 
-  // Disable ECDSA cipher suites on platforms that do not support ECDSA
-  // signed certificates, as servers may use the presence of such
-  // ciphersuites as a hint to send an ECDSA certificate.
-#if defined(OS_WIN)
-  if (base::win::GetVersion() < base::win::VERSION_VISTA)
-    command.append(":!ECDSA");
-#endif
-
   int rv = SSL_set_cipher_list(ssl_, command.c_str());
   // If this fails (rv = 0) it means there are no ciphers enabled on this SSL.
   // This will almost certainly result in the socket failing to complete the
@@ -1257,13 +1287,9 @@ int SSLClientSocketOpenSSL::DoChannelIDLookupComplete(int result) {
   if (result < 0)
     return result;
 
-  if (!channel_id_key_) {
-    LOG(ERROR) << "Failed to import Channel ID.";
-    return ERR_CHANNEL_ID_IMPORT_FAILED;
-  }
-
   // Hand the key to OpenSSL. Check for error in case OpenSSL rejects the key
   // type.
+  DCHECK(channel_id_key_);
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
   int rv = SSL_set1_tls_channel_id(ssl_, channel_id_key_->key());
   if (!rv) {

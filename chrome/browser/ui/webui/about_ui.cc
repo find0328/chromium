@@ -522,7 +522,7 @@ std::vector<std::string> GetHtmlTabDescriptorsForDiscardPage() {
     str += "<b>";
     str += it->is_app ? "[App] " : "";
     str += it->is_internal_page ? "[Internal] " : "";
-    str += it->is_playing_audio ? "[Audio] " : "";
+    str += it->is_media ? "[Media] " : "";
     str += it->is_pinned ? "[Pinned] " : "";
     str += it->is_discarded ? "[Discarded] " : "";
     str += "</b>";
@@ -746,7 +746,8 @@ std::string AboutSandbox() {
   data.append("</h1>");
 
   // Get expected sandboxing status of renderers.
-  const int status = content::ZygoteHost::GetInstance()->GetSandboxStatus();
+  const int status =
+      content::ZygoteHost::GetInstance()->GetRendererSandboxStatus();
 
   data.append("<table>");
 

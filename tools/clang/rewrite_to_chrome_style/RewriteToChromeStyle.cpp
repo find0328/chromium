@@ -18,7 +18,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -34,6 +33,13 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetSelect.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <sys/file.h>
+#include <unistd.h>
+#endif
+
 using namespace clang::ast_matchers;
 using clang::tooling::CommonOptionsParser;
 using clang::tooling::Replacement;
@@ -42,17 +48,39 @@ using llvm::StringRef;
 
 namespace {
 
+const char kBlinkFieldPrefix[] = "m_";
+const char kBlinkStaticMemberPrefix[] = "s_";
+
 AST_MATCHER(clang::FunctionDecl, isOverloadedOperator) {
   return Node.isOverloadedOperator();
 }
 
-constexpr char kBlinkFieldPrefix[] = "m_";
-constexpr char kBlinkStaticMemberPrefix[] = "s_";
+// This is available in newer clang revisions... but alas, Chrome has not rolled
+// that far yet.
+AST_MATCHER(clang::FunctionDecl, isDefaulted) {
+  return Node.isDefaulted();
+}
 
-bool GetNameForDecl(const clang::FunctionDecl& decl, std::string& name) {
-  name = decl.getNameAsString();
-  name[0] = clang::toUppercase(name[0]);
-  return true;
+// A method is from Blink if it is from the Blink namespace or overrides a
+// method from the Blink namespace.
+bool IsBlinkMethod(const clang::CXXMethodDecl& decl) {
+  auto* namespace_decl = clang::cast_or_null<clang::NamespaceDecl>(
+      decl.getParent()->getEnclosingNamespaceContext());
+  if (namespace_decl && namespace_decl->getParent()->isTranslationUnit() &&
+      (namespace_decl->getName() == "blink" ||
+       namespace_decl->getName() == "WTF"))
+    return true;
+
+  for (auto it = decl.begin_overridden_methods();
+       it != decl.end_overridden_methods(); ++it) {
+    if (IsBlinkMethod(**it))
+      return true;
+  }
+  return false;
+}
+
+AST_MATCHER(clang::CXXMethodDecl, isBlinkMethod) {
+  return IsBlinkMethod(Node);
 }
 
 // Helper to convert from a camelCaseName to camel_case_name. It uses some
@@ -89,23 +117,8 @@ std::string CamelCaseToUnderscoreCase(StringRef input) {
   return output;
 }
 
-bool GetNameForDecl(const clang::FieldDecl& decl, std::string& name) {
-  StringRef original_name = decl.getName();
-  // Blink style field names are prefixed with `m_`. If this prefix isn't
-  // present, assume it's already been converted to Google style.
-  if (original_name.size() < strlen(kBlinkFieldPrefix) ||
-      !original_name.startswith(kBlinkFieldPrefix))
-    return false;
-  name = CamelCaseToUnderscoreCase(
-      original_name.substr(strlen(kBlinkFieldPrefix)));
-  // The few examples I could find used struct-style naming with no `_` suffix
-  // for unions.
-  if (decl.getParent()->isClass())
-    name += '_';
-  return true;
-}
-
-bool IsProbablyConst(const clang::VarDecl& decl) {
+bool IsProbablyConst(const clang::VarDecl& decl,
+                     const clang::ASTContext& context) {
   clang::QualType type = decl.getType();
   if (!type.isConstQualified())
     return false;
@@ -118,30 +131,76 @@ bool IsProbablyConst(const clang::VarDecl& decl) {
   if (decl.getStorageDuration() == clang::SD_Static)
     return true;
 
-  // Otherwise, use a simple heuristic: if it's initialized with a literal of
-  // some sort, also use kConstantStyle naming.
   const clang::Expr* initializer = decl.getInit();
   if (!initializer)
     return false;
 
-  // Ignore implicit casts, so the literal check below still matches on
-  // array-to-pointer decay, e.g.
-  //   const char* const kConst = "...";
-  if (const clang::ImplicitCastExpr* cast_expr =
-          clang::dyn_cast<clang::ImplicitCastExpr>(initializer))
-    initializer = cast_expr->getSubExprAsWritten();
+  // If the expression is dependent on a template input, then we are not
+  // sure if it can be compile-time generated as calling isEvaluatable() is
+  // not valid on |initializer|.
+  // TODO(crbug.com/581218): We could probably look at each compiled
+  // instantiation of the template and see if they are all compile-time
+  // isEvaluable().
+  if (initializer->isInstantiationDependent())
+    return false;
 
-  return clang::isa<clang::CharacterLiteral>(initializer) ||
-         clang::isa<clang::CompoundLiteralExpr>(initializer) ||
-         clang::isa<clang::CXXBoolLiteralExpr>(initializer) ||
-         clang::isa<clang::CXXNullPtrLiteralExpr>(initializer) ||
-         clang::isa<clang::FloatingLiteral>(initializer) ||
-         clang::isa<clang::IntegerLiteral>(initializer) ||
-         clang::isa<clang::StringLiteral>(initializer) ||
-         clang::isa<clang::UserDefinedLiteral>(initializer);
+  // If the expression can be evaluated at compile time, then it should have a
+  // kFoo style name. Otherwise, not.
+  return initializer->isEvaluatable(context);
 }
 
-bool GetNameForDecl(const clang::VarDecl& decl, std::string& name) {
+bool GetNameForDecl(const clang::FunctionDecl& decl,
+                    const clang::ASTContext& context,
+                    std::string& name) {
+  name = decl.getName().str();
+  name[0] = clang::toUppercase(name[0]);
+  return true;
+}
+
+bool GetNameForDecl(const clang::CXXMethodDecl& decl,
+                    const clang::ASTContext& context,
+                    std::string& name) {
+  StringRef original_name = decl.getName();
+
+  if (!decl.isStatic()) {
+    // Some methods shouldn't be renamed because reasons.
+    static const char* kBlacklist[] = {"begin", "end",  "rbegin", "rend",
+                                       "trace", "lock", "unlock", "try_lock"};
+    for (const auto& b : kBlacklist) {
+      if (original_name == b)
+        return false;
+    }
+  }
+
+  name = decl.getName().str();
+  name[0] = clang::toUppercase(name[0]);
+  return true;
+}
+
+bool GetNameForDecl(const clang::FieldDecl& decl,
+                    const clang::ASTContext& context,
+                    std::string& name) {
+  StringRef original_name = decl.getName();
+  // Blink style field names are prefixed with `m_`. If this prefix isn't
+  // present, assume it's already been converted to Google style.
+  if (original_name.size() < strlen(kBlinkFieldPrefix) ||
+      !original_name.startswith(kBlinkFieldPrefix))
+    return false;
+  name = CamelCaseToUnderscoreCase(
+      original_name.substr(strlen(kBlinkFieldPrefix)));
+  // The few examples I could find used struct-style naming with no `_` suffix
+  // for unions.
+  bool c = decl.getParent()->isClass();
+  // There appears to be a GCC bug that makes this branch incorrectly if we
+  // don't use a temp variable!! Clang works right. crbug.com/580745
+  if (c)
+    name += '_';
+  return true;
+}
+
+bool GetNameForDecl(const clang::VarDecl& decl,
+                    const clang::ASTContext& context,
+                    std::string& name) {
   StringRef original_name = decl.getName();
 
   // Nothing to do for unnamed parameters.
@@ -156,7 +215,8 @@ bool GetNameForDecl(const clang::VarDecl& decl, std::string& name) {
   else if (original_name.startswith(kBlinkFieldPrefix))
     original_name = original_name.substr(strlen(kBlinkFieldPrefix));
 
-  if (IsProbablyConst(decl)) {
+  bool is_const = IsProbablyConst(decl, context);
+  if (is_const) {
     // Don't try to rename constants that already conform to Chrome style.
     if (original_name.size() >= 2 && original_name[0] == 'k' &&
         clang::isUppercase(original_name[1]))
@@ -168,11 +228,37 @@ bool GetNameForDecl(const clang::VarDecl& decl, std::string& name) {
     name = CamelCaseToUnderscoreCase(original_name);
   }
 
-  if (decl.isStaticDataMember()) {
+  // Static members end with _ just like other members, but constants should
+  // not.
+  if (!is_const && decl.isStaticDataMember()) {
     name += '_';
   }
 
   return true;
+}
+
+bool GetNameForDecl(const clang::UsingDecl& decl,
+                    const clang::ASTContext& context,
+                    std::string& name) {
+  assert(decl.shadow_size() > 0);
+
+  // If a using declaration's targeted declaration is a set of overloaded
+  // functions, it can introduce multiple shadowed declarations. Just using the
+  // first one is OK, since overloaded functions have the same name, by
+  // definition.
+  clang::NamedDecl* shadowed_name = decl.shadow_begin()->getTargetDecl();
+  // Note: CXXMethodDecl must be checked before FunctionDecl, because
+  // CXXMethodDecl is derived from FunctionDecl.
+  if (auto* method = clang::dyn_cast<clang::CXXMethodDecl>(shadowed_name))
+    return GetNameForDecl(*method, context, name);
+  if (auto* function = clang::dyn_cast<clang::FunctionDecl>(shadowed_name))
+    return GetNameForDecl(*function, context, name);
+  if (auto* var = clang::dyn_cast<clang::VarDecl>(shadowed_name))
+    return GetNameForDecl(*var, context, name);
+  if (auto* field = clang::dyn_cast<clang::FieldDecl>(shadowed_name))
+    return GetNameForDecl(*field, context, name);
+
+  return false;
 }
 
 template <typename Type>
@@ -180,40 +266,40 @@ struct TargetNodeTraits;
 
 template <>
 struct TargetNodeTraits<clang::NamedDecl> {
-  static constexpr char kName[] = "decl";
-  static clang::CharSourceRange GetRange(const clang::NamedDecl& decl) {
-    return clang::CharSourceRange::getTokenRange(decl.getLocation());
+  static const char kName[];
+  static clang::SourceLocation GetLoc(const clang::NamedDecl& decl) {
+    return decl.getLocation();
   }
 };
-constexpr char TargetNodeTraits<clang::NamedDecl>::kName[];
+const char TargetNodeTraits<clang::NamedDecl>::kName[] = "decl";
 
 template <>
 struct TargetNodeTraits<clang::MemberExpr> {
-  static constexpr char kName[] = "expr";
-  static clang::CharSourceRange GetRange(const clang::MemberExpr& expr) {
-    return clang::CharSourceRange::getTokenRange(expr.getMemberLoc());
+  static const char kName[];
+  static clang::SourceLocation GetLoc(const clang::MemberExpr& expr) {
+    return expr.getMemberLoc();
   }
 };
-constexpr char TargetNodeTraits<clang::MemberExpr>::kName[];
+const char TargetNodeTraits<clang::MemberExpr>::kName[] = "expr";
 
 template <>
 struct TargetNodeTraits<clang::DeclRefExpr> {
-  static constexpr char kName[] = "expr";
-  static clang::CharSourceRange GetRange(const clang::DeclRefExpr& expr) {
-    return clang::CharSourceRange::getTokenRange(expr.getLocation());
+  static const char kName[];
+  static clang::SourceLocation GetLoc(const clang::DeclRefExpr& expr) {
+    return expr.getLocation();
   }
 };
-constexpr char TargetNodeTraits<clang::DeclRefExpr>::kName[];
+const char TargetNodeTraits<clang::DeclRefExpr>::kName[] = "expr";
 
 template <>
 struct TargetNodeTraits<clang::CXXCtorInitializer> {
-  static constexpr char kName[] = "initializer";
-  static clang::CharSourceRange GetRange(
-      const clang::CXXCtorInitializer& init) {
-    return clang::CharSourceRange::getTokenRange(init.getSourceLocation());
+  static const char kName[];
+  static clang::SourceLocation GetLoc(const clang::CXXCtorInitializer& init) {
+    assert(init.isWritten());
+    return init.getSourceLocation();
   }
 };
-constexpr char TargetNodeTraits<clang::CXXCtorInitializer>::kName[];
+const char TargetNodeTraits<clang::CXXCtorInitializer>::kName[] = "initializer";
 
 template <typename DeclNode, typename TargetNode>
 class RewriterBase : public MatchFinder::MatchCallback {
@@ -222,19 +308,29 @@ class RewriterBase : public MatchFinder::MatchCallback {
       : replacements_(replacements) {}
 
   void run(const MatchFinder::MatchResult& result) override {
-    std::string name;
     const DeclNode* decl = result.Nodes.getNodeAs<DeclNode>("decl");
-    if (!GetNameForDecl(*decl, name))
+    // If the decl originates inside a macro, just skip it completely.
+    clang::SourceLocation decl_loc =
+        TargetNodeTraits<clang::NamedDecl>::GetLoc(*decl);
+    if (decl_loc.isMacroID())
       return;
-    auto r = replacements_->emplace(
-        *result.SourceManager, TargetNodeTraits<TargetNode>::GetRange(
-                                   *result.Nodes.getNodeAs<TargetNode>(
-                                       TargetNodeTraits<TargetNode>::kName)),
-        name);
-    auto from = decl->getNameAsString();
-    auto to = r.first->getReplacementText().str();
-    if (from != to)
-      replacement_names_.emplace(std::move(from), std::move(to));
+    // If false, there's no name to be renamed.
+    if (!decl->getIdentifier())
+      return;
+    // If false, the name was not suitable for renaming.
+    clang::ASTContext* context = result.Context;
+    std::string new_name;
+    if (!GetNameForDecl(*decl, *context, new_name))
+      return;
+    llvm::StringRef old_name = decl->getName();
+    if (old_name == new_name)
+      return;
+    clang::SourceLocation loc = TargetNodeTraits<TargetNode>::GetLoc(
+        *result.Nodes.getNodeAs<TargetNode>(
+            TargetNodeTraits<TargetNode>::kName));
+    clang::CharSourceRange range = clang::CharSourceRange::getTokenRange(loc);
+    replacements_->emplace(*result.SourceManager, range, new_name);
+    replacement_names_.emplace(old_name.str(), std::move(new_name));
   }
 
   const std::unordered_map<std::string, std::string>& replacement_names()
@@ -258,86 +354,13 @@ using FunctionRefRewriter =
 using ConstructorInitializerRewriter =
     RewriterBase<clang::FieldDecl, clang::CXXCtorInitializer>;
 
-// Helpers for rewriting methods. The tool needs to detect overrides of Blink
-// methods, and uses two matchers to help accomplish this goal:
-// - The first matcher matches all method declarations in Blink. When the
-//   callback rewrites the declaration, it also stores a pointer to the
-//   canonical declaration, to record it as a Blink method.
-// - The second matcher matches all method declarations that are overrides. When
-//   the callback processes the match, it checks if its overriding a method that
-//   was marked as a Blink method. If so, it rewrites the declaration.
-// - Because an override is determined based on inclusion in the set of Blink
-//   methods, the overridden methods matcher does not need to filter out special
-//   member functions: they get filtered out by virtue of the first matcher.
-//
-// This works because per the documentation on MatchFinder:
-//   The order of matches is guaranteed to be equivalent to doing a pre-order
-//   traversal on the AST, and applying the matchers in the order in which they
-//   were added to the MatchFinder.
-//
-// Since classes cannot forward declare their base classes, it is guaranteed
-// that the base class methods will be seen before processing the overridden
-// methods.
-class MethodDeclRewriter
-    : public RewriterBase<clang::CXXMethodDecl, clang::NamedDecl> {
- public:
-  explicit MethodDeclRewriter(Replacements* replacements)
-      : RewriterBase(replacements) {}
+using MethodDeclRewriter = RewriterBase<clang::CXXMethodDecl, clang::NamedDecl>;
+using MethodRefRewriter =
+    RewriterBase<clang::CXXMethodDecl, clang::DeclRefExpr>;
+using MethodMemberRewriter =
+    RewriterBase<clang::CXXMethodDecl, clang::MemberExpr>;
 
-  void run(const MatchFinder::MatchResult& result) override {
-    const clang::CXXMethodDecl* method_decl =
-        result.Nodes.getNodeAs<clang::CXXMethodDecl>("decl");
-    // TODO(dcheng): Does this need to check for the override attribute, or is
-    // this good enough?
-    if (method_decl->size_overridden_methods() > 0) {
-      if (!IsBlinkOverride(method_decl))
-        return;
-    } else {
-      blink_methods_.emplace(method_decl->getCanonicalDecl());
-    }
-
-    RewriterBase::run(result);
-  }
-
-  bool IsBlinkOverride(const clang::CXXMethodDecl* decl) const {
-    assert(decl->size_overridden_methods() > 0);
-    for (auto it = decl->begin_overridden_methods();
-         it != decl->end_overridden_methods(); ++it) {
-      if (blink_methods_.find((*it)->getCanonicalDecl()) !=
-          blink_methods_.end())
-        return true;
-    }
-    return false;
-  }
-
- private:
-  std::unordered_set<const clang::CXXMethodDecl*> blink_methods_;
-};
-
-template <typename Base>
-class FilteringMethodRewriter : public Base {
- public:
-  FilteringMethodRewriter(const MethodDeclRewriter& decl_rewriter,
-                          Replacements* replacements)
-      : Base(replacements), decl_rewriter_(decl_rewriter) {}
-
-  void run(const MatchFinder::MatchResult& result) override {
-    const clang::CXXMethodDecl* method_decl =
-        result.Nodes.getNodeAs<clang::CXXMethodDecl>("decl");
-    if (method_decl->size_overridden_methods() > 0 &&
-        !decl_rewriter_.IsBlinkOverride(method_decl))
-      return;
-    Base::run(result);
-  }
-
- private:
-  const MethodDeclRewriter& decl_rewriter_;
-};
-
-using MethodRefRewriter = FilteringMethodRewriter<
-    RewriterBase<clang::CXXMethodDecl, clang::DeclRefExpr>>;
-using MethodMemberRewriter = FilteringMethodRewriter<
-    RewriterBase<clang::CXXMethodDecl, clang::MemberExpr>>;
+using UsingDeclRewriter = RewriterBase<clang::UsingDecl, clang::NamedDecl>;
 
 }  // namespace
 
@@ -358,7 +381,11 @@ int main(int argc, const char* argv[]) {
   Replacements replacements;
 
   auto in_blink_namespace =
-      decl(hasAncestor(namespaceDecl(anyOf(hasName("blink"), hasName("WTF")))));
+      decl(hasAncestor(namespaceDecl(anyOf(hasName("blink"), hasName("WTF")),
+                                     hasParent(translationUnitDecl()))));
+  // The ^gen/ rule is used for production code, but the /gen/ one exists here
+  // too for making testing easier.
+  auto is_generated = decl(isExpansionInFileMatching("^gen/|/gen/"));
 
   // Field and variable declarations ========
   // Given
@@ -367,8 +394,10 @@ int main(int argc, const char* argv[]) {
   //     int y;
   //   };
   // matches |x| and |y|.
-  auto field_decl_matcher = id("decl", fieldDecl(in_blink_namespace));
-  auto var_decl_matcher = id("decl", varDecl(in_blink_namespace));
+  auto field_decl_matcher =
+      id("decl", fieldDecl(in_blink_namespace, unless(is_generated)));
+  auto var_decl_matcher =
+      id("decl", varDecl(in_blink_namespace, unless(is_generated)));
 
   FieldDeclRewriter field_decl_rewriter(&replacements);
   match_finder.addMatcher(field_decl_matcher, &field_decl_rewriter);
@@ -383,7 +412,16 @@ int main(int argc, const char* argv[]) {
   //     ...
   //   }
   // matches |x| in if (x).
-  auto member_matcher = id("expr", memberExpr(member(field_decl_matcher)));
+  auto member_matcher = id(
+      "expr",
+      memberExpr(
+          member(field_decl_matcher),
+          // Needed to avoid matching member references in functions (which will
+          // be an ancestor of the member reference) synthesized by the
+          // compiler, such as a synthesized copy constructor.
+          // This skips explicitly defaulted functions as well, but that's OK:
+          // there's nothing interesting to rewrite in those either.
+          unless(hasAncestor(functionDecl(isDefaulted())))));
   auto decl_ref_matcher = id("expr", declRefExpr(to(var_decl_matcher)));
 
   MemberRewriter member_rewriter(&replacements);
@@ -399,8 +437,16 @@ int main(int argc, const char* argv[]) {
   //     void g();
   //   };
   // matches |f| but not |g|.
-  auto function_decl_matcher =
-      id("decl", functionDecl(unless(cxxMethodDecl()), in_blink_namespace));
+  auto function_decl_matcher = id(
+      "decl",
+      functionDecl(
+          unless(anyOf(
+              // Methods are covered by the method matchers.
+              cxxMethodDecl(),
+              // Out-of-line overloaded operators have special names and should
+              // never be renamed.
+              isOverloadedOperator())),
+          in_blink_namespace, unless(is_generated)));
   FunctionDeclRewriter function_decl_rewriter(&replacements);
   match_finder.addMatcher(function_decl_matcher, &function_decl_rewriter);
 
@@ -420,31 +466,20 @@ int main(int argc, const char* argv[]) {
   //     void g();
   //   };
   // matches |g|.
-  //
-  // Note: the AST matchers don't provide a good way to match against an
-  // override from a given base class. Instead, the rewriter uses two matchers:
-  // one that matches all method declarations in the Blink namespace, and
-  // another which matches all overridden methods not in the Blink namespace.
-  // The second list is filtered against the first list to determine which
-  // methods are inherited from Blink classes and need to be rewritten.
-  auto blink_method_decl_matcher =
-      id("decl", cxxMethodDecl(unless(anyOf(
-                                   // Overloaded operators have special names
-                                   // and should never be renamed.
-                                   isOverloadedOperator(),
-                                   // Similarly, constructors and destructors
-                                   // should not be considered for renaming.
-                                   cxxConstructorDecl(), cxxDestructorDecl())),
-                               in_blink_namespace));
-  // Note that the matcher for overridden methods doesn't need to filter for
-  // special member functions: see implementation of FunctionDeclRewriter for
-  // the full explanation.
-  auto non_blink_overridden_method_decl_matcher =
-      id("decl", cxxMethodDecl(isOverride(), unless(in_blink_namespace)));
+  auto method_decl_matcher =
+      id("decl",
+         cxxMethodDecl(isBlinkMethod(),
+                       unless(anyOf(is_generated,
+                                    // Overloaded operators have special names
+                                    // and should never be renamed.
+                                    isOverloadedOperator(),
+                                    // Similarly, constructors, destructors, and
+                                    // conversion functions should not be
+                                    // considered for renaming.
+                                    cxxConstructorDecl(), cxxDestructorDecl(),
+                                    cxxConversionDecl()))));
   MethodDeclRewriter method_decl_rewriter(&replacements);
-  match_finder.addMatcher(blink_method_decl_matcher, &method_decl_rewriter);
-  match_finder.addMatcher(non_blink_overridden_method_decl_matcher,
-                          &method_decl_rewriter);
+  match_finder.addMatcher(method_decl_matcher, &method_decl_rewriter);
 
   // Method references in a non-member context ========
   // Given
@@ -452,15 +487,10 @@ int main(int argc, const char* argv[]) {
   //   s.g();
   //   void (S::*p)() = &S::g;
   // matches |&S::g| but not |s.g()|.
-  auto blink_method_ref_matcher =
-      id("expr", declRefExpr(to(blink_method_decl_matcher)));
-  auto non_blink_overridden_method_ref_matcher =
-      id("expr", declRefExpr(to(non_blink_overridden_method_decl_matcher)));
+  auto method_ref_matcher = id("expr", declRefExpr(to(method_decl_matcher)));
 
-  MethodRefRewriter method_ref_rewriter(method_decl_rewriter, &replacements);
-  match_finder.addMatcher(blink_method_ref_matcher, &method_ref_rewriter);
-  match_finder.addMatcher(non_blink_overridden_method_ref_matcher,
-                          &method_ref_rewriter);
+  MethodRefRewriter method_ref_rewriter(&replacements);
+  match_finder.addMatcher(method_ref_matcher, &method_ref_rewriter);
 
   // Method references in a member context ========
   // Given
@@ -468,16 +498,11 @@ int main(int argc, const char* argv[]) {
   //   s.g();
   //   void (S::*p)() = &S::g;
   // matches |s.g()| but not |&S::g|.
-  auto blink_method_member_matcher =
-      id("expr", memberExpr(member(blink_method_decl_matcher)));
-  auto non_blink_overridden_method_member_matcher =
-      id("expr", memberExpr(member(non_blink_overridden_method_decl_matcher)));
+  auto method_member_matcher =
+      id("expr", memberExpr(member(method_decl_matcher)));
 
-  MethodMemberRewriter method_member_rewriter(method_decl_rewriter,
-                                              &replacements);
-  match_finder.addMatcher(blink_method_member_matcher, &method_member_rewriter);
-  match_finder.addMatcher(non_blink_overridden_method_member_matcher,
-                          &method_member_rewriter);
+  MethodMemberRewriter method_member_rewriter(&replacements);
+  match_finder.addMatcher(method_member_matcher, &method_member_rewriter);
 
   // Initializers ========
   // Given
@@ -488,18 +513,41 @@ int main(int argc, const char* argv[]) {
   // matches each initializer in the constructor for S.
   auto constructor_initializer_matcher =
       cxxConstructorDecl(forEachConstructorInitializer(
-          id("initializer", cxxCtorInitializer(forField(field_decl_matcher)))));
+          id("initializer",
+             cxxCtorInitializer(forField(field_decl_matcher), isWritten()))));
 
   ConstructorInitializerRewriter constructor_initializer_rewriter(
       &replacements);
   match_finder.addMatcher(constructor_initializer_matcher,
                           &constructor_initializer_rewriter);
 
+  // Using declarations ========
+  // Given
+  //   using blink::X;
+  // matches |using blink::X|.
+  UsingDeclRewriter using_decl_rewriter(&replacements);
+  match_finder.addMatcher(
+      id("decl", usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(
+                     anyOf(var_decl_matcher, field_decl_matcher,
+                           function_decl_matcher, method_decl_matcher))))),
+      &using_decl_rewriter);
+
   std::unique_ptr<clang::tooling::FrontendActionFactory> factory =
       clang::tooling::newFrontendActionFactory(&match_finder);
   int result = tool.run(factory.get());
   if (result != 0)
     return result;
+
+#if defined(_WIN32)
+  HANDLE lockfd = CreateFile("rewrite-sym.lock", GENERIC_READ, FILE_SHARE_READ,
+                             NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  OVERLAPPED overlapped = {};
+  LockFileEx(lockfd, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlapped);
+#else
+  int lockfd = open("rewrite-sym.lock", O_RDWR | O_CREAT, 0666);
+  while (flock(lockfd, LOCK_EX)) {  // :D
+  }
+#endif
 
   std::ofstream replacement_db_file("rewrite-sym.txt",
                                     std::ios_base::out | std::ios_base::app);
@@ -512,6 +560,14 @@ int main(int argc, const char* argv[]) {
   for (const auto& p : method_decl_rewriter.replacement_names())
     replacement_db_file << "fun:" << p.first << ":" << p.second << "\n";
   replacement_db_file.close();
+
+#if defined(_WIN32)
+  UnlockFileEx(lockfd, 0, 1, 0, &overlapped);
+  CloseHandle(lockfd);
+#else
+  flock(lockfd, LOCK_UN);
+  close(lockfd);
+#endif
 
   // Serialization format is documented in tools/clang/scripts/run_tool.py
   llvm::outs() << "==== BEGIN EDITS ====\n";

@@ -1007,8 +1007,11 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         bookmarkModel.runAfterBookmarkModelLoaded(new Runnable() {
             @Override
             public void run() {
-                EnhancedBookmarkUtils.addOrEditBookmark(bookmarkId, bookmarkModel,
-                        tabToBookmark, getSnackbarManager(), ChromeActivity.this);
+                // Gives up the bookmarking if the tab is being destroyed.
+                if (!tabToBookmark.isClosing() && tabToBookmark.isInitialized()) {
+                    EnhancedBookmarkUtils.addOrEditBookmark(bookmarkId, bookmarkModel,
+                            tabToBookmark, getSnackbarManager(), ChromeActivity.this);
+                }
             }
         });
     }
@@ -1516,11 +1519,11 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         }
         RecordHistogram.recordCountHistogram("InputMethod.ActiveCount", uniqueLanguages.size());
 
-        InputMethodSubtype current = imm.getCurrentInputMethodSubtype();
-        Locale currentSystemLocale = Locale.getDefault();
-        if (current.getLocale() != null && Locale.getDefault() != null) {
-            boolean match = currentSystemLocale.getLanguage().equalsIgnoreCase(
-                    current.getLocale().split("_")[0]);
+        InputMethodSubtype currentSubtype = imm.getCurrentInputMethodSubtype();
+        Locale systemLocale = Locale.getDefault();
+        if (currentSubtype != null && currentSubtype.getLocale() != null && systemLocale != null) {
+            String keyboardLanguage = currentSubtype.getLocale().split("_")[0];
+            boolean match = systemLocale.getLanguage().equalsIgnoreCase(keyboardLanguage);
             RecordHistogram.recordBooleanHistogram("InputMethod.MatchesSystemLanguage", match);
         }
     }

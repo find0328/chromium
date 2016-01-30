@@ -39,6 +39,9 @@ class SCHEDULER_EXPORT ThrottlingHelper : public TimeDomain::Observer {
   // zero this function does nothing.
   void DecreaseThrottleRefCount(TaskQueue* task_queue);
 
+  // Removes |task_queue| from |throttled_queues_|.
+  void UnregisterTaskQueue(TaskQueue* task_queue);
+
   const VirtualTimeDomain* time_domain() const { return time_domain_.get(); }
 
   static base::TimeTicks ThrottledRunTime(base::TimeTicks unthrottled_runtime);
@@ -49,6 +52,10 @@ class SCHEDULER_EXPORT ThrottlingHelper : public TimeDomain::Observer {
   using TaskQueueMap = std::map<TaskQueue*, size_t>;
 
   void PumpThrottledTasks();
+
+  // Note |unthrottled_runtime| might be in the past. When this happens we
+  // compute the delay to the next runtime based on now rather than
+  // unthrottled_runtime.
   void MaybeSchedulePumpThrottledTasksLocked(
       const tracked_objects::Location& from_here,
       base::TimeTicks now,

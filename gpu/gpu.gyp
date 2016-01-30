@@ -199,7 +199,6 @@
         'command_buffer/common/gles2_cmd_format_test_autogen.h',
         'command_buffer/common/gles2_cmd_utils_unittest.cc',
         'command_buffer/common/id_allocator_test.cc',
-        'command_buffer/common/trace_event.h',
         'command_buffer/common/unittest_main.cc',
         'command_buffer/service/buffer_manager_unittest.cc',
         'command_buffer/service/cmd_parser_test.cc',
@@ -279,12 +278,6 @@
             '../testing/android/native_test.gyp:native_test_native_code',
           ],
         }],
-        # See http://crbug.com/162998#c4 for why this is needed.
-        ['OS=="linux" and use_allocator!="none"', {
-          'dependencies': [
-            '../base/allocator/allocator.gyp:allocator',
-          ],
-        }],
       ],
       # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
       'msvs_disabled_warnings': [ 4267, ],
@@ -313,14 +306,6 @@
           {
             'dependencies': [
               '../testing/android/native_test.gyp:native_test_native_code',
-            ],
-          }
-        ],
-        # See http://crbug.com/162998#c4 for why this is needed.
-        ['OS=="linux" and use_allocator!="none"',
-          {
-            'dependencies': [
-              '../base/allocator/allocator.gyp:allocator',
             ],
           }
         ],
@@ -368,6 +353,7 @@
         'command_buffer/tests/gl_copy_texture_CHROMIUM_unittest.cc',
         'command_buffer/tests/gl_cube_map_texture_unittest.cc',
         'command_buffer/tests/gl_depth_texture_unittest.cc',
+        'command_buffer/tests/gl_dynamic_config_unittest.cc',
         'command_buffer/tests/gl_ext_blend_func_extended_unittest.cc',
         'command_buffer/tests/gl_ext_multisample_compatibility_unittest.cc',
         'command_buffer/tests/gl_ext_srgb_unittest.cc',

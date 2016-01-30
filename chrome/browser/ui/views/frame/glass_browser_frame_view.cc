@@ -14,7 +14,6 @@
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/profiles/avatar_menu_button.h"
-#include "chrome/browser/ui/views/profiles/new_avatar_button.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -22,7 +21,7 @@
 #include "components/signin/core/common/profile_management_switches.h"
 #include "grit/theme_resources.h"
 #include "skia/ext/image_operations.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle_win.h"
 #include "ui/base/theme_provider.h"
 #include "ui/gfx/canvas.h"
@@ -267,26 +266,9 @@ void GlassBrowserFrameView::Layout() {
 ///////////////////////////////////////////////////////////////////////////////
 // GlassBrowserFrameView, protected:
 
-// views::ButtonListener:
-void GlassBrowserFrameView::ButtonPressed(views::Button* sender,
-                                          const ui::Event& event) {
-  if (sender == new_avatar_button()) {
-    BrowserWindow::AvatarBubbleMode mode =
-        BrowserWindow::AVATAR_BUBBLE_MODE_DEFAULT;
-    if ((event.IsMouseEvent() &&
-         static_cast<const ui::MouseEvent&>(event).IsRightMouseButton()) ||
-        (event.type() == ui::ET_GESTURE_LONG_PRESS)) {
-      mode = BrowserWindow::AVATAR_BUBBLE_MODE_FAST_USER_SWITCH;
-    }
-    browser_view()->ShowAvatarBubbleFromAvatarButton(
-        mode, signin::ManageAccountsParams(),
-        signin_metrics::AccessPoint::ACCESS_POINT_AVATAR_BUBBLE_SIGN_IN);
-  }
-}
-
 // BrowserNonClientFrameView:
 void GlassBrowserFrameView::UpdateNewAvatarButtonImpl() {
-  UpdateNewAvatarButton(this, NewAvatarButton::NATIVE_BUTTON);
+  UpdateNewAvatarButton(AvatarButtonStyle::NATIVE);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -321,7 +303,7 @@ int GlassBrowserFrameView::NonClientBorderThickness(bool restored) const {
   if ((frame()->IsMaximized() || frame()->IsFullscreen()) && !restored)
     return 0;
 
-  return (base::win::GetVersion() <= base::win::VERSION_WIN8_1)
+  return (base::win::GetVersion() < base::win::VERSION_WIN10)
              ? kNonClientBorderThicknessPreWin10
              : kNonClientBorderThicknessWin10;
 }
@@ -349,7 +331,7 @@ bool GlassBrowserFrameView::IsToolbarVisible() const {
       !browser_view()->toolbar()->GetPreferredSize().IsEmpty();
 }
 
-void GlassBrowserFrameView::PaintToolbarBackground(gfx::Canvas* canvas) {
+void GlassBrowserFrameView::PaintToolbarBackground(gfx::Canvas* canvas) const {
   gfx::Rect toolbar_bounds(browser_view()->GetToolbarBounds());
   if (toolbar_bounds.IsEmpty())
     return;
@@ -454,7 +436,7 @@ void GlassBrowserFrameView::PaintToolbarBackground(gfx::Canvas* canvas) {
   }
 }
 
-void GlassBrowserFrameView::PaintClientEdge(gfx::Canvas* canvas) {
+void GlassBrowserFrameView::PaintClientEdge(gfx::Canvas* canvas) const {
   gfx::Rect client_bounds = CalculateClientAreaBounds();
   int y = client_bounds.y();
   const bool normal_mode = browser_view()->IsTabStripVisible();
@@ -486,18 +468,22 @@ void GlassBrowserFrameView::PaintClientEdge(gfx::Canvas* canvas) {
   const int x = client_bounds.x();
   // Pre-Material Design, the client edge images start below the toolbar.  In MD
   // the client edge images start at the top of the toolbar.
-  y += toolbar_bounds.bottom();
-  const int img_y = ui::MaterialDesignController::IsModeMaterial() ?
-      (y - toolbar_bounds.height()) : y;
+  const bool md = ui::MaterialDesignController::IsModeMaterial();
+  y += md ? toolbar_bounds.y() : toolbar_bounds.bottom();
   const int w = client_bounds.width();
   const int right = client_bounds.right();
   const int bottom = std::max(y, height() - NonClientBorderThickness(false));
-  const int height = bottom - img_y;
+  const int height = bottom - y;
 
-  // Draw the client edge images.
+  // Draw the client edge images.  For non-MD, we fill the toolbar color
+  // underneath these images so they will lighten/darken it appropriately to
+  // create a "3D shaded" effect.  For MD, where we want a flatter appearance,
+  // we do the filling afterwards so the user sees the unmodified toolbar color.
+  if (!md)
+    FillClientEdgeRects(x, y, right, bottom, toolbar_color, canvas);
   gfx::ImageSkia* right_image = tp->GetImageSkiaNamed(IDR_CONTENT_RIGHT_SIDE);
   const int img_w = right_image->width();
-  canvas->TileImageInt(*right_image, right, img_y, img_w, height);
+  canvas->TileImageInt(*right_image, right, y, img_w, height);
   canvas->DrawImageInt(*tp->GetImageSkiaNamed(IDR_CONTENT_BOTTOM_RIGHT_CORNER),
                        right, bottom);
   gfx::ImageSkia* bottom_image =
@@ -506,19 +492,24 @@ void GlassBrowserFrameView::PaintClientEdge(gfx::Canvas* canvas) {
   canvas->DrawImageInt(*tp->GetImageSkiaNamed(IDR_CONTENT_BOTTOM_LEFT_CORNER),
                        x - img_w, bottom);
   canvas->TileImageInt(*tp->GetImageSkiaNamed(IDR_CONTENT_LEFT_SIDE), x - img_w,
-                       img_y, img_w, height);
+                       y, img_w, height);
+  if (md)
+    FillClientEdgeRects(x, y, right, bottom, toolbar_color, canvas);
+}
 
-  // Draw the toolbar color so that the client edges show the right color even
-  // where not covered by the toolbar image.  NOTE: We do this after drawing the
-  // images because the images are meant to alpha-blend atop the frame whereas
-  // these rects are meant to be fully opaque, without anything overlaid.
+void GlassBrowserFrameView::FillClientEdgeRects(int x,
+                                                int y,
+                                                int right,
+                                                int bottom,
+                                                SkColor color,
+                                                gfx::Canvas* canvas) const {
   gfx::Rect side(x - kClientEdgeThickness, y, kClientEdgeThickness,
                  bottom + kClientEdgeThickness - y);
-  canvas->FillRect(side, toolbar_color);
-  canvas->FillRect(gfx::Rect(x, bottom, w, kClientEdgeThickness),
-                   toolbar_color);
+  canvas->FillRect(side, color);
+  canvas->FillRect(gfx::Rect(x, bottom, right - x, kClientEdgeThickness),
+                   color);
   side.set_x(right);
-  canvas->FillRect(side, toolbar_color);
+  canvas->FillRect(side, color);
 }
 
 void GlassBrowserFrameView::LayoutNewStyleAvatar() {
@@ -555,6 +546,7 @@ void GlassBrowserFrameView::LayoutNewStyleAvatar() {
 }
 
 void GlassBrowserFrameView::LayoutIncognitoIcon() {
+  const bool md = ui::MaterialDesignController::IsModeMaterial();
   const gfx::Insets insets(GetLayoutInsets(AVATAR_ICON));
   gfx::Size size;
   // During startup it's possible to reach here before the browser view has been
@@ -571,11 +563,17 @@ void GlassBrowserFrameView::LayoutIncognitoIcon() {
     x = width() - frame()->GetMinimizeButtonOffset() +
         (new_avatar_button() ?
             (new_avatar_button()->width() + kNewAvatarButtonOffset) : 0);
+  } else if (!md && !avatar_button() &&
+             (base::win::GetVersion() < base::win::VERSION_WIN10)) {
+    // In non-MD before Win 10, the toolbar has a rounded corner that we don't
+    // want the tabstrip to overlap.
+    x += browser_view()->GetToolbarBounds().x() - kContentEdgeShadowThickness +
+        GetThemeProvider()->GetImageSkiaNamed(
+            IDR_CONTENT_TOP_LEFT_CORNER)->width();
   }
   const int bottom = GetTopInset(false) + browser_view()->GetTabStripHeight() -
       insets.bottom();
-  const int y = (ui::MaterialDesignController::IsModeMaterial() ||
-                 !frame()->IsMaximized()) ?
+  const int y = (md || !frame()->IsMaximized()) ?
       (bottom - size.height()) : FrameTopBorderHeight(false);
   incognito_bounds_.SetRect(x + (avatar_button() ? insets.left() : 0), y,
                             avatar_button() ? size.width() : 0, bottom - y);

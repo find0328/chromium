@@ -13,7 +13,7 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "components/mus/public/interfaces/window_manager.mojom.h"
+#include "components/mus/public/interfaces/window_tree.mojom.h"
 #include "ui/aura/window_delegate.h"
 #include "ui/aura/window_tree_host_observer.h"
 #include "ui/platform_window/platform_window_delegate.h"
@@ -34,10 +34,8 @@ class Shell;
 
 namespace mus {
 class Window;
+class WindowTreeConnection;
 
-namespace mojom {
-class WindowManager;
-}
 }
 
 namespace wm {
@@ -47,7 +45,6 @@ class FocusController;
 namespace views {
 class SurfaceContextFactory;
 class WidgetDelegate;
-struct WindowManagerClientAreaInsets;
 class WindowTreeHostMus;
 
 // An implementation of NativeWidget that binds to a mus::Window. Because Aura
@@ -71,6 +68,9 @@ class VIEWS_MUS_EXPORT NativeWidgetMus : public internal::NativeWidgetPrivate,
   static void ConfigurePropertiesForNewWindow(
       const Widget::InitParams& init_params,
       std::map<std::string, std::vector<uint8_t>>* properties);
+
+  // Notifies all widgets the frame constants changed in some way.
+  static void NotifyFrameChanged(mus::WindowTreeConnection* connection);
 
   mus::Window* window() { return window_; }
 

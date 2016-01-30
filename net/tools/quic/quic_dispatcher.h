@@ -18,6 +18,7 @@
 #include "net/quic/quic_blocked_writer_interface.h"
 #include "net/quic/quic_connection.h"
 #include "net/quic/quic_protocol.h"
+#include "net/tools/quic/quic_process_packet_interface.h"
 #include "net/tools/quic/quic_server_session_base.h"
 #include "net/tools/quic/quic_time_wait_list_manager.h"
 
@@ -32,14 +33,6 @@ namespace tools {
 namespace test {
 class QuicDispatcherPeer;
 }  // namespace test
-
-class ProcessPacketInterface {
- public:
-  virtual ~ProcessPacketInterface() {}
-  virtual void ProcessPacket(const IPEndPoint& server_address,
-                             const IPEndPoint& client_address,
-                             const QuicEncryptedPacket& packet) = 0;
-};
 
 class QuicDispatcher : public QuicServerSessionVisitor,
                        public ProcessPacketInterface,
@@ -215,6 +208,8 @@ class QuicDispatcher : public QuicServerSessionVisitor,
   scoped_ptr<QuicPacketWriter> writer_;
 
   // A per-connection writer that is passed to the time wait list manager.
+  // TODO(jdorfman): Remove this when deprecating
+  // FLAGS_quic_time_wait_list_manager_use_shared_writer.
   scoped_ptr<QuicPacketWriter> time_wait_list_writer_;
 
   // This vector contains QUIC versions which we currently support.

@@ -23,6 +23,7 @@ MojoRendererImpl::MojoRendererImpl(
     interfaces::RendererPtr remote_renderer)
     : task_runner_(task_runner),
       remote_renderer_(std::move(remote_renderer)),
+      binding_(this),
       weak_factory_(this) {
   DVLOG(1) << __FUNCTION__;
 }
@@ -67,11 +68,9 @@ void MojoRendererImpl::Initialize(
   if (video)
     new MojoDemuxerStreamImpl(video, GetProxy(&video_stream));
 
-  interfaces::RendererClientPtr client_ptr;
-  binding_.reset(
-      new mojo::Binding<RendererClient>(this, GetProxy(&client_ptr)));
   remote_renderer_->Initialize(
-      std::move(client_ptr), std::move(audio_stream), std::move(video_stream),
+      binding_.CreateInterfacePtrAndBind(), std::move(audio_stream),
+      std::move(video_stream),
       BindToCurrentLoop(base::Bind(&MojoRendererImpl::OnInitialized,
                                    weak_factory_.GetWeakPtr())));
 }

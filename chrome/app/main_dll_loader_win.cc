@@ -64,35 +64,31 @@ HMODULE LoadModuleWithDirectory(const base::FilePath& module) {
   ::SetCurrentDirectoryW(module.DirName().value().c_str());
 
   // Get pre-read options from the PreRead field trial.
-  bool trial_no_pre_read = false;
-  bool trial_high_priority = false;
-  bool trial_only_if_cold = false;
-  bool trial_prefetch_virtual_memory = false;
-  startup_metric_utils::GetPreReadOptions(
-      BrowserDistribution::GetDistribution()->GetRegistryPath(),
-      &trial_no_pre_read, &trial_high_priority, &trial_only_if_cold,
-      &trial_prefetch_virtual_memory);
+  startup_metric_utils::InitializePreReadOptions(
+      BrowserDistribution::GetDistribution()->GetRegistryPath());
+  const startup_metric_utils::PreReadOptions pre_read_options =
+      startup_metric_utils::GetPreReadOptions();
 
   // Pre-read the binary to warm the memory caches (avoids a lot of random IO).
-  if (!trial_no_pre_read) {
+  if (!pre_read_options.no_pre_read) {
     base::ThreadPriority previous_priority = base::ThreadPriority::NORMAL;
-    if (trial_high_priority) {
+    if (pre_read_options.high_priority) {
       previous_priority = base::PlatformThread::GetCurrentThreadPriority();
       base::PlatformThread::SetCurrentThreadPriority(
           base::ThreadPriority::DISPLAY);
     }
 
-    if (trial_only_if_cold) {
+    if (pre_read_options.only_if_cold) {
       base::MemoryMappedFile module_memory_map;
       const bool map_initialize_success = module_memory_map.Initialize(module);
       DCHECK(map_initialize_success);
       if (!IsMemoryMappedFileWarm(module_memory_map)) {
-        if (trial_prefetch_virtual_memory)
+        if (pre_read_options.prefetch_virtual_memory)
           PreReadMemoryMappedFile(module_memory_map, module);
         else
           PreReadFile(module);
       }
-    } else if (trial_prefetch_virtual_memory) {
+    } else if (pre_read_options.prefetch_virtual_memory) {
       base::MemoryMappedFile module_memory_map;
       const bool map_initialize_success = module_memory_map.Initialize(module);
       DCHECK(map_initialize_success);
@@ -101,7 +97,7 @@ HMODULE LoadModuleWithDirectory(const base::FilePath& module) {
       PreReadFile(module);
     }
 
-    if (trial_high_priority)
+    if (pre_read_options.high_priority)
       base::PlatformThread::SetCurrentThreadPriority(previous_priority);
   }
 
@@ -228,16 +224,6 @@ int MainDllLoader::Launch(HINSTANCE instance) {
       return chrome::RESULT_CODE_UNSUPPORTED_PARAM;
     }
 
-    base::FilePath default_user_data_directory;
-    if (!PathService::Get(chrome::DIR_USER_DATA, &default_user_data_directory))
-      return chrome::RESULT_CODE_MISSING_DATA;
-    // The actual user data directory may differ from the default according to
-    // policy and command-line arguments evaluated in the browser process.
-    // The hang monitor will simply be disabled if a window with this name is
-    // never instantiated by the browser process. Since this should be
-    // exceptionally rare it should not impact stability efforts.
-    base::string16 message_window_name = default_user_data_directory.value();
-
     base::FilePath watcher_data_directory;
     if (!PathService::Get(chrome::DIR_WATCHER_DATA, &watcher_data_directory))
       return chrome::RESULT_CODE_MISSING_DATA;
@@ -253,11 +239,10 @@ int MainDllLoader::Launch(HINSTANCE instance) {
     ChromeWatcherMainFunction watcher_main =
         reinterpret_cast<ChromeWatcherMainFunction>(
             ::GetProcAddress(watcher_dll, kChromeWatcherDLLEntrypoint));
-    return watcher_main(chrome::kBrowserExitCodesRegistryPath,
-                        parent_process.Take(), main_thread_id,
-                        on_initialized_event.Take(),
-                        watcher_data_directory.value().c_str(),
-                        message_window_name.c_str(), channel_name.c_str());
+    return watcher_main(
+        chrome::kBrowserExitCodesRegistryPath, parent_process.Take(),
+        main_thread_id, on_initialized_event.Take(),
+        watcher_data_directory.value().c_str(), channel_name.c_str());
   }
 
   // Initialize the sandbox services.

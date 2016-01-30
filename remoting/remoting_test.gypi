@@ -11,6 +11,7 @@
       'dependencies': [
         '../base/base.gyp:base',
         '../net/net.gyp:net_test_support',
+        '../skia/skia.gyp:skia',
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
         'remoting_base',
@@ -65,6 +66,8 @@
         'test/connection_setup_info.h',
         'test/connection_time_observer.cc',
         'test/connection_time_observer.h',
+        'test/cyclic_frame_generator.cc',
+        'test/cyclic_frame_generator.h',
         'test/fake_access_token_fetcher.cc',
         'test/fake_access_token_fetcher.h',
         'test/fake_app_remoting_report_issue_request.cc',
@@ -403,11 +406,6 @@
             ['exclude', '^host/'],
           ]
         }],
-        [ 'OS == "linux" and use_allocator!="none"', {
-          'dependencies': [
-            '../base/allocator/allocator.gyp:allocator',
-          ],
-        }],
         ['configuration_policy == 1', {
           'dependencies': [
             '../components/components.gyp:policy',
@@ -557,9 +555,7 @@
           ],
           'sources': [
             'base/run_all_unittests.cc',
-            'codec/codec_test.cc',
-            'codec/codec_test.h',
-            'codec/video_encoder_vpx_perftest.cc',
+            'test/codec_perftest.cc',
             'test/protocol_perftest.cc',
           ],
           'conditions': [
@@ -573,11 +569,6 @@
             [ 'OS=="android"', {
               'dependencies': [
                 '../testing/android/native_test.gyp:native_test_native_code',
-              ],
-            }],
-            [ 'OS == "linux" and use_allocator!="none"', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
               ],
             }],
           ],  # end of 'conditions'

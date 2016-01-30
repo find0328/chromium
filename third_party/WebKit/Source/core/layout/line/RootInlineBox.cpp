@@ -116,7 +116,7 @@ bool RootInlineBox::lineCanAccommodateEllipsis(bool ltr, int blockEdge, int line
 LayoutUnit RootInlineBox::placeEllipsis(const AtomicString& ellipsisStr,  bool ltr, LayoutUnit blockLeftEdge, LayoutUnit blockRightEdge, LayoutUnit ellipsisWidth)
 {
     // Create an ellipsis box.
-    EllipsisBox* ellipsisBox = new EllipsisBox(layoutObject(), ellipsisStr, this,
+    EllipsisBox* ellipsisBox = new EllipsisBox(this, ellipsisStr, this,
         ellipsisWidth, logicalHeight().toFloat(), x(), y(), !prevRootBox(), isHorizontal());
 
     if (!gEllipsisBoxMap)
@@ -134,7 +134,7 @@ LayoutUnit RootInlineBox::placeEllipsis(const AtomicString& ellipsisStr,  bool l
     // of that glyph.  Mark all of the objects that intersect the ellipsis box as not painting (as being
     // truncated).
     bool foundBox = false;
-    LayoutUnit truncatedWidth = 0;
+    LayoutUnit truncatedWidth;
     LayoutUnit position = placeEllipsisBox(ltr, blockLeftEdge, blockRightEdge, ellipsisWidth, truncatedWidth, foundBox);
     ellipsisBox->setLogicalLeft(position);
     return truncatedWidth;
@@ -196,8 +196,8 @@ LayoutUnit RootInlineBox::alignBoxesInBlockDirection(LayoutUnit heightOfBlock, G
     if (isSVGRootInlineBox())
         return 0;
 
-    LayoutUnit maxPositionTop = 0;
-    LayoutUnit maxPositionBottom = 0;
+    LayoutUnit maxPositionTop;
+    LayoutUnit maxPositionBottom;
     int maxAscent = 0;
     int maxDescent = 0;
     bool setMaxAscent = false;
@@ -226,7 +226,7 @@ LayoutUnit RootInlineBox::alignBoxesInBlockDirection(LayoutUnit heightOfBlock, G
     m_hasAnnotationsBefore = hasAnnotationsBefore;
     m_hasAnnotationsAfter = hasAnnotationsAfter;
 
-    maxHeight = std::max<LayoutUnit>(0, maxHeight);
+    maxHeight = maxHeight.clampNegativeToZero();
 
     setLineTopBottomPositions(lineTop, lineBottom, heightOfBlock, heightOfBlock + maxHeight, selectionBottom);
 
@@ -250,7 +250,7 @@ LayoutUnit RootInlineBox::maxLogicalTop() const
 
 LayoutUnit RootInlineBox::beforeAnnotationsAdjustment() const
 {
-    LayoutUnit result = 0;
+    LayoutUnit result;
 
     if (!lineLayoutItem().style()->isFlippedLinesWritingMode()) {
         // Annotations under the previous line may push us down.
@@ -274,59 +274,6 @@ LayoutUnit RootInlineBox::beforeAnnotationsAdjustment() const
         // We have to compute the expansion for annotations over the previous line to see how much we should move.
         LayoutUnit lowestAllowedPosition = std::max(prevRootBox()->lineBottom(), lineTop()) - result;
         result = prevRootBox()->computeOverAnnotationAdjustment(lowestAllowedPosition);
-    }
-
-    return result;
-}
-
-GapRects RootInlineBox::lineSelectionGap(const LayoutBlock* rootBlock, const LayoutPoint& rootBlockPhysicalPosition, const LayoutSize& offsetFromRootBlock, LayoutUnit selTop, LayoutUnit selHeight, const PaintInfo* paintInfo) const
-{
-    SelectionState lineState = selectionState();
-
-    bool leftGap, rightGap;
-    block().getSelectionGapInfo(lineState, leftGap, rightGap);
-
-    GapRects result;
-
-    InlineBox* firstBox = firstSelectedBox();
-    InlineBox* lastBox = lastSelectedBox();
-    if (leftGap) {
-        result.uniteLeft(block().logicalLeftSelectionGap(rootBlock, rootBlockPhysicalPosition, offsetFromRootBlock,
-            &firstBox->parent()->layoutObject(), firstBox->logicalLeft(), selTop, selHeight, paintInfo));
-    }
-    if (rightGap) {
-        result.uniteRight(block().logicalRightSelectionGap(rootBlock, rootBlockPhysicalPosition, offsetFromRootBlock,
-            &lastBox->parent()->layoutObject(), lastBox->logicalRight(), selTop, selHeight, paintInfo));
-    }
-
-    // When dealing with bidi text, a non-contiguous selection region is possible.
-    // e.g. The logical text aaaAAAbbb (capitals denote RTL text and non-capitals LTR) is laid out
-    // visually as 3 text runs |aaa|bbb|AAA| if we select 4 characters from the start of the text the
-    // selection will look like (underline denotes selection):
-    // |aaa|bbb|AAA|
-    //  ___       _
-    // We can see that the |bbb| run is not part of the selection while the runs around it are.
-    if (firstBox && firstBox != lastBox) {
-        // Now fill in any gaps on the line that occurred between two selected elements.
-        LayoutUnit lastLogicalLeft = firstBox->logicalRight();
-        bool isPreviousBoxSelected = firstBox->selectionState() != SelectionNone;
-        for (InlineBox* box = firstBox->nextLeafChild(); box; box = box->nextLeafChild()) {
-            if (box->selectionState() != SelectionNone) {
-                LayoutRect logicalRect(lastLogicalLeft, selTop, box->logicalLeft() - lastLogicalLeft, selHeight);
-                logicalRect.move(lineLayoutItem().isHorizontalWritingMode() ? offsetFromRootBlock : LayoutSize(offsetFromRootBlock.height(), offsetFromRootBlock.width()));
-                LayoutRect gapRect = rootBlock->logicalRectToPhysicalRect(rootBlockPhysicalPosition, logicalRect);
-                if (isPreviousBoxSelected && gapRect.width() > 0 && gapRect.height() > 0) {
-                    if (paintInfo && box->parent()->lineLayoutItem().style()->visibility() == VISIBLE)
-                        paintInfo->context.fillRect(FloatRect(gapRect), box->parent()->lineLayoutItem().selectionBackgroundColor());
-                    // VisibleSelection may be non-contiguous, see comment above.
-                    result.uniteCenter(gapRect);
-                }
-                lastLogicalLeft = box->logicalRight();
-            }
-            if (box == lastBox)
-                break;
-            isPreviousBoxSelected = box->selectionState() != SelectionNone;
-        }
     }
 
     return result;
@@ -516,7 +463,10 @@ InlineBox* RootInlineBox::closestLeafChildForLogicalLeftPosition(LayoutUnit left
 
 BidiStatus RootInlineBox::lineBreakBidiStatus() const
 {
-    return BidiStatus(static_cast<WTF::Unicode::Direction>(m_lineBreakBidiStatusEor), static_cast<WTF::Unicode::Direction>(m_lineBreakBidiStatusLastStrong), static_cast<WTF::Unicode::Direction>(m_lineBreakBidiStatusLast), m_lineBreakContext);
+    return BidiStatus(static_cast<WTF::Unicode::CharDirection>(m_lineBreakBidiStatusEor),
+        static_cast<WTF::Unicode::CharDirection>(m_lineBreakBidiStatusLastStrong),
+        static_cast<WTF::Unicode::CharDirection>(m_lineBreakBidiStatusLast),
+        m_lineBreakContext);
 }
 
 void RootInlineBox::setLineBreakInfo(LineLayoutItem obj, unsigned breakPos, const BidiStatus& status)
@@ -672,7 +622,7 @@ LayoutUnit RootInlineBox::verticalPositionForBox(InlineBox* box, VerticalPositio
             return verticalPosition;
     }
 
-    LayoutUnit verticalPosition = 0;
+    LayoutUnit verticalPosition;
     EVerticalAlign verticalAlign = boxModel.style()->verticalAlign();
     if (verticalAlign == TOP || verticalAlign == BOTTOM)
         return 0;

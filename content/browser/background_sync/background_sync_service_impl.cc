@@ -24,10 +24,7 @@ BackgroundSyncRegistrationOptions ToBackgroundSyncRegistrationOptions(
   BackgroundSyncRegistrationOptions out;
 
   out.tag = in->tag;
-  out.min_period = in->min_period_ms;
-  out.power_state = static_cast<SyncPowerState>(in->power_state);
   out.network_state = static_cast<SyncNetworkState>(in->network_state);
-  out.periodicity = static_cast<SyncPeriodicity>(in->periodicity);
   return out;
 }
 
@@ -36,11 +33,6 @@ SyncRegistrationPtr ToMojoRegistration(
   SyncRegistrationPtr out(content::SyncRegistration::New());
   out->handle_id = in.handle_id();
   out->tag = in.options()->tag;
-  out->min_period_ms = in.options()->min_period;
-  out->periodicity = static_cast<content::BackgroundSyncPeriodicity>(
-      in.options()->periodicity);
-  out->power_state =
-      static_cast<content::BackgroundSyncPowerState>(in.options()->power_state);
   out->network_state = static_cast<content::BackgroundSyncNetworkState>(
       in.options()->network_state);
   return out;
@@ -54,41 +46,27 @@ SyncRegistrationPtr ToMojoRegistration(
                 "mojo and manager enums must match")
 
 // TODO(iclelland): Move these tests somewhere else
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_ERROR_NONE,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncError::NONE,
                              BACKGROUND_SYNC_STATUS_OK);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_ERROR_STORAGE,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncError::STORAGE,
                              BACKGROUND_SYNC_STATUS_STORAGE_ERROR);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_ERROR_NOT_FOUND,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncError::NOT_FOUND,
                              BACKGROUND_SYNC_STATUS_NOT_FOUND);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_ERROR_NO_SERVICE_WORKER,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncError::NO_SERVICE_WORKER,
                              BACKGROUND_SYNC_STATUS_NO_SERVICE_WORKER);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_ERROR_NOT_ALLOWED,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncError::NOT_ALLOWED,
                              BACKGROUND_SYNC_STATUS_NOT_ALLOWED);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_ERROR_MAX,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncError::MAX,
                              BACKGROUND_SYNC_STATUS_NOT_ALLOWED);
 
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_NETWORK_STATE_ANY,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncNetworkState::ANY,
                              SyncNetworkState::NETWORK_STATE_ANY);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_NETWORK_STATE_AVOID_CELLULAR,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncNetworkState::AVOID_CELLULAR,
                              SyncNetworkState::NETWORK_STATE_AVOID_CELLULAR);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_NETWORK_STATE_ONLINE,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncNetworkState::ONLINE,
                              SyncNetworkState::NETWORK_STATE_ONLINE);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_NETWORK_STATE_MAX,
+COMPILE_ASSERT_MATCHING_ENUM(BackgroundSyncNetworkState::MAX,
                              SyncNetworkState::NETWORK_STATE_ONLINE);
-
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_POWER_STATE_AUTO,
-                             SyncPowerState::POWER_STATE_AUTO);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_POWER_STATE_AVOID_DRAINING,
-                             SyncPowerState::POWER_STATE_AVOID_DRAINING);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_POWER_STATE_MAX,
-                             SyncPowerState::POWER_STATE_AVOID_DRAINING);
-
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_PERIODICITY_PERIODIC,
-                             SyncPeriodicity::SYNC_PERIODIC);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_PERIODICITY_ONE_SHOT,
-                             SyncPeriodicity::SYNC_ONE_SHOT);
-COMPILE_ASSERT_MATCHING_ENUM(BACKGROUND_SYNC_PERIODICITY_MAX,
-                             SyncPeriodicity::SYNC_ONE_SHOT);
 
 BackgroundSyncServiceImpl::~BackgroundSyncServiceImpl() {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
@@ -141,7 +119,7 @@ void BackgroundSyncServiceImpl::Unregister(
   BackgroundSyncRegistrationHandle* registration =
       active_handles_.Lookup(handle_id);
   if (!registration) {
-    callback.Run(BACKGROUND_SYNC_ERROR_NOT_ALLOWED);
+    callback.Run(BackgroundSyncError::NOT_ALLOWED);
     return;
   }
 
@@ -152,7 +130,6 @@ void BackgroundSyncServiceImpl::Unregister(
 }
 
 void BackgroundSyncServiceImpl::GetRegistration(
-    BackgroundSyncPeriodicity periodicity,
     const mojo::String& tag,
     int64_t sw_registration_id,
     const GetRegistrationCallback& callback) {
@@ -161,13 +138,12 @@ void BackgroundSyncServiceImpl::GetRegistration(
       background_sync_context_->background_sync_manager();
   DCHECK(background_sync_manager);
   background_sync_manager->GetRegistration(
-      sw_registration_id, tag.get(), static_cast<SyncPeriodicity>(periodicity),
+      sw_registration_id, tag.get(),
       base::Bind(&BackgroundSyncServiceImpl::OnRegisterResult,
                  weak_ptr_factory_.GetWeakPtr(), callback));
 }
 
 void BackgroundSyncServiceImpl::GetRegistrations(
-    BackgroundSyncPeriodicity periodicity,
     int64_t sw_registration_id,
     const GetRegistrationsCallback& callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
@@ -175,21 +151,9 @@ void BackgroundSyncServiceImpl::GetRegistrations(
       background_sync_context_->background_sync_manager();
   DCHECK(background_sync_manager);
   background_sync_manager->GetRegistrations(
-      sw_registration_id, static_cast<SyncPeriodicity>(periodicity),
+      sw_registration_id,
       base::Bind(&BackgroundSyncServiceImpl::OnGetRegistrationsResult,
                  weak_ptr_factory_.GetWeakPtr(), callback));
-}
-
-void BackgroundSyncServiceImpl::GetPermissionStatus(
-    BackgroundSyncPeriodicity periodicity,
-    int64_t sw_registration_id,
-    const GetPermissionStatusCallback& callback) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-
-  // TODO(iclelland): Implement a real policy. This is a stub implementation.
-  // OneShot: crbug.com/482091
-  // Periodic: crbug.com/482093
-  callback.Run(BACKGROUND_SYNC_ERROR_NONE, PERMISSION_STATUS_GRANTED);
 }
 
 void BackgroundSyncServiceImpl::DuplicateRegistrationHandle(
@@ -206,7 +170,7 @@ void BackgroundSyncServiceImpl::DuplicateRegistrationHandle(
   BackgroundSyncRegistrationHandle* handle_ptr = registration_handle.get();
 
   if (!registration_handle) {
-    callback.Run(BACKGROUND_SYNC_ERROR_NOT_FOUND,
+    callback.Run(BackgroundSyncError::NOT_FOUND,
                  SyncRegistrationPtr(content::SyncRegistration::New()));
     return;
   }
@@ -214,7 +178,7 @@ void BackgroundSyncServiceImpl::DuplicateRegistrationHandle(
   active_handles_.AddWithID(registration_handle.release(),
                             handle_ptr->handle_id());
   SyncRegistrationPtr mojoResult = ToMojoRegistration(*handle_ptr);
-  callback.Run(BACKGROUND_SYNC_ERROR_NONE, std::move(mojoResult));
+  callback.Run(BackgroundSyncError::NONE, std::move(mojoResult));
 }
 
 void BackgroundSyncServiceImpl::ReleaseRegistration(
@@ -235,8 +199,7 @@ void BackgroundSyncServiceImpl::NotifyWhenFinished(
   BackgroundSyncRegistrationHandle* registration =
       active_handles_.Lookup(handle_id);
   if (!registration) {
-    callback.Run(BACKGROUND_SYNC_ERROR_NOT_ALLOWED,
-                 BACKGROUND_SYNC_STATE_FAILED);
+    callback.Run(BackgroundSyncError::NOT_ALLOWED, BackgroundSyncState::FAILED);
     return;
   }
 

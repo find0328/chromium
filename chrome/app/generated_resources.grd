@@ -494,8 +494,8 @@ are declared in build/common.gypi.
         Right to Left
       </message>
 
-      <!-- content area context menus. -->
-      <if expr="not is_android or use_aura">
+       <!-- content area context menus. Android does not use it -->
+      <if expr="not is_android">
         <message name="IDS_CONTENT_CONTEXT_INSPECTELEMENT" desc="The name of the Inspect Element command in the content area context menu">
           I&amp;nspect
         </message>
@@ -7738,7 +7738,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Blocked
       </message>
       <message name="IDS_BLOCK_INTERSTITIAL_SEND_FEEDBACK" desc="The text for a link to submit feedback about a blocked site.">
-        Was this unexpected? Tell us about it!
+        Was this unexpected? <ph name="BEGIN_LINK">&lt;a is="action-link" id="feedback-link"&gt;</ph>Let us know<ph name="END_LINK">&lt;/a&gt;</ph>
       </message>
       <message name="IDS_BLOCK_INTERSTITIAL_SHOW_DETAILS" desc="The text for the link to show details about the interstitial.">
         Details
@@ -9289,8 +9289,8 @@ I don't think this site should be blocked!
         Platform
       </message>
 
-      <!-- chrome://settings. Non-Aura Android uses native UI for settings -->
-      <if expr="not is_android or use_aura">
+      <!-- chrome://settings. Android uses native UI for settings -->
+      <if expr="not is_android">
         <if expr="chromeos">
           <message name="IDS_OPTIONS_INTERNET_TAB_LABEL" desc="The title of the Internet tab">
             Internet
@@ -10912,6 +10912,20 @@ I don't think this site should be blocked!
           This account is already being used on this computer.
         </message>
       </if>
+
+      <!--  Sync Confirmation section of the tab modal signin flow -->
+      <message name="IDS_SYNC_CONFIRMATION_TITLE" desc="Title of the sync confirmation dialog in the tab modal signin flow">
+        You're now signed in to Chrome
+      </message>
+      <message name="IDS_SYNC_CONFIRMATION_BODY" desc="Body of the sync confirmation dialog in the tab modal signin flow">
+        Your bookmarks, history, passwords and other settings will be synced to your Google Account so you can use them wherever you use Chrome. You can change this in <ph name="BEGIN_LINK">&lt;a id="settingsLink" href="#"&gt;Settings&lt;/a&gt;.</ph>
+      </message>
+      <message name="IDS_SYNC_CONFIRMATION_CONFIRM_BUTTON_LABEL" desc="Label of the confirmation button in the sync confirmation dialog of the tab modal signin flow">
+        Ok, got it
+      </message>
+      <message name="IDS_SYNC_CONFIRMATION_UNDO_BUTTON_LABEL" desc="Label of the undo button in the sync confirmation dialog of the tab modal signin flow">
+        Undo
+      </message>
 
       <message name="IDS_PLUGIN_OUTDATED_PROMPT" desc="Info Bar message when an outdated plugin was disabled">
         <ph name="PLUGIN_NAME">$1<ex>Flash</ex></ph> was blocked because it is out of date.
@@ -13262,7 +13276,7 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       </if>
 
       <!-- Media Galleries. -->
-      <if expr="not is_android or use_aura">
+      <if expr="not is_android">
         <message name="IDS_MEDIA_GALLERIES_DIALOG_HEADER" desc="Header for media gallery permissions dialog.">
           Media-File Permissions for "<ph name="EXTENSION">$1<ex>Photo Editor</ex></ph>"
         </message>
@@ -14274,16 +14288,7 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       <message name="IDS_CREDENTIAL_MANAGEMENT_ACCOUNT_CHOOSER_NO_THANKS" desc="Text of the button to dismiss the account chooser.">
         No thanks
       </message>
-      <message name="IDS_CREDENTIAL_MANAGEMENT_ACCOUNT_CHOOSER_MORE" desc="Text of the button to show more options on the account chooser.">
-        More
-      </message>
-      <message name="IDS_CREDENTIAL_MANAGEMENT_ACCOUNT_CHOOSER_PASSWORDS_LINK" desc="Text of the item on the account chooser to show existing passwords.">
-        Settings
-      </message>
-      <message name="IDS_CREDENTIAL_MANAGEMENT_ACCOUNT_CHOOSER_LEARN_MORE" desc="Text of the item on the account chooser to show the help center article about credential management.">
-        Learn more
-      </message>
-
+      
       <message name="IDS_ALLOW_INSECURE_LOCALHOST" desc="Name of the 'Allow insecure localhost' flag.">
         Allow invalid certificates for resources loaded from localhost.
       </message>
@@ -14324,6 +14329,9 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       </message>
       <message name="IDS_DEVICE_LOG_TYPE_POWER" desc="Checkbox to enable showing events of type POWER">
         Power
+      </message>
+      <message name="IDS_DEVICE_LOG_TYPE_BLUETOOTH" desc="Checkbox to enable showing events of type BLUETOOTH">
+        Bluetooth
       </message>
       <message name="IDS_DEVICE_LOG_TYPE_USB" desc="Checkbox to enable showing events of type USB">
         USB
@@ -14430,6 +14438,12 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       </message>
       <message name="IDS_FLAGS_OFFLINE_PAGES_DESCRIPTION" desc="Description for the flag to enable offline pages.">
         Enable storing pages locally for offline use.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_OFFLINE_PAGES_AS_BOOKMARKS" desc="Option to enable offline pages feature using name 'bookmarks' shown in user-visible strings">
+        Enabled as bookmarks
+      </message>
+      <message name="IDS_FLAGS_ENABLE_OFFLINE_PAGES_AS_SAVED_PAGES" desc="Option to enable offline pages feature using name 'saved pages' shown in user-visible strings">
+        Enabled as saved pages
       </message>
       <message name="IDS_FLAGS_NTP_POPULAR_SITES_NAME" desc="Name for the flag to enable showing non-personalized popular suggestions on the New Tab Page, when no personal suggestions are available yet.">
         Show popular sites on the New Tab page

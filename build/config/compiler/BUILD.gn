@@ -70,6 +70,10 @@ declare_args() {
     # The patch is preapplied to the internal toolchain and hence all bots.
     msvs_xtree_patched = false
   }
+
+  # Omit unwind support in official builds to save space.
+  # We can use breakpad for these builds.
+  exclude_unwind_tables = is_chrome_branded && is_official_build
 }
 
 # Apply the default logic for these values if they were not set explicitly.
@@ -225,9 +229,7 @@ config("compiler") {
     }
 
     if (!is_nacl) {
-      # Omit unwind support in official builds to save space.
-      # We can use breakpad for these builds.
-      if (is_chrome_branded && is_official_build) {
+      if (exclude_unwind_tables) {
         cflags += [
           "-fno-unwind-tables",
           "-fno-asynchronous-unwind-tables",
@@ -575,10 +577,6 @@ config("compiler_codegen") {
           # Else building libyuv gives clang's register allocator issues,
           # see llvm.org/PR15798 / crbug.com/233709
           "-momit-leaf-frame-pointer",
-
-          # Align the stack on 16-byte boundaries, http://crbug.com/418554.
-          "-mstack-alignment=16",
-          "-mstackrealign",
         ]
       }
     } else if (current_cpu == "arm") {
@@ -601,6 +599,20 @@ config("compiler_codegen") {
   }
 
   asmflags = cflags
+}
+
+# This is separate from :compiler_codegen (and not even a sub-config there)
+# so that some targets can remove it from the list with:
+#   configs -= [ "//build/config/compiler:clang_stackrealign" ]
+# See https://crbug.com/556393 for details of where it must be avoided.
+config("clang_stackrealign") {
+  if (is_clang && current_cpu == "x86" && !is_nacl) {
+    cflags = [
+      # Align the stack on 16-byte boundaries, http://crbug.com/418554.
+      "-mstack-alignment=16",
+      "-mstackrealign",
+    ]
+  }
 }
 
 config("compiler_arm_fpu") {
@@ -869,6 +881,16 @@ config("default_warnings") {
       cflags += [
         # TODO(thakis): Enable this, crbug.com/507717
         "-Wno-shift-negative-value",
+      ]
+    }
+
+    if (exec_script("//tools/clang/scripts/update.py",
+                    [ "--print-revision" ],
+                    "trim string") != "257955-1") {
+      cflags += [
+        # TODO(thakis): Remove once
+        # https://chromium-review.googlesource.com/#/c/324860/ is in.
+        "-Wno-constant-conversion",
       ]
     }
   }

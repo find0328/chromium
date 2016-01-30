@@ -6,8 +6,8 @@
 
 # Reproduces the content of 'components' and 'components-chromium' using the
 # list of dependencies from 'bower.json'. Downloads needed packages and makes
-# Chromium specific modifications. To launch the script you need 'bower',
-# 'crisper', and 'vulcanize' installed on your system.
+# Chromium specific modifications. To launch the script you need 'bower' and
+# 'crisper' installed on your system.
 
 set -e
 
@@ -22,9 +22,6 @@ rm components/*/.travis.yml
 
 mv components/web-animations-js ../../web-animations-js/sources
 cp ../../web-animations-js/sources/COPYING ../../web-animations-js/LICENSE
-
-# Remove unused gzipped binary which causes git-cl problems.
-rm ../../web-animations-js/sources/web-animations.min.js.gz
 
 # Remove source mapping directives since we don't compile the maps.
 sed -i 's/^\s*\/\/#\s*sourceMappingURL.*//' \
@@ -42,10 +39,6 @@ rm -rf components/polymer/explainer
 rm -rf components/promise-polyfill
 rm -rf components/iron-ajax
 rm -rf components/iron-form
-
-# Remove iron-image as it's only a developer dependency of iron-dropdown.
-# https://github.com/PolymerElements/iron-dropdown/pull/17
-rm -rf components/iron-image
 
 # Make checkperms.py happy.
 find components/*/hero.svg -type f -exec chmod -x {} \;
@@ -68,7 +61,7 @@ sed -i 's/['"$NBSP"']/\\u00A0/g' components/polymer/polymer-mini.html
 patch -p1 < chromium.patch
 
 new=$(git status --porcelain components-chromium | grep '^??' | \
-      cut -d' ' -f2 | egrep '\.(html|js|css)$')
+      cut -d' ' -f2 | egrep '\.(html|js|css)$' || true)
 
 if [[ ! -z "${new}" ]]; then
   echo
@@ -77,7 +70,7 @@ if [[ ! -z "${new}" ]]; then
 fi
 
 deleted=$(git status --porcelain components-chromium | grep '^.D' | \
-          sed 's/^.//' | cut -d' ' -f2 | egrep '\.(html|js|css)$')
+          sed 's/^.//' | cut -d' ' -f2 | egrep '\.(html|js|css)$' || true)
 
 if [[ ! -z "${deleted}" ]]; then
   echo
@@ -88,3 +81,5 @@ fi
 if [[ ! -z "${new}${deleted}" ]]; then
   echo
 fi
+
+python create_components_summary.py > components_summary.txt

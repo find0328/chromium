@@ -530,7 +530,8 @@ bool CommandBufferProxyImpl::IsGpuChannelLost() {
 }
 
 void CommandBufferProxyImpl::EnsureWorkVisible() {
-  channel_->ValidateFlushIDReachedServer(stream_id_, true);
+  if (channel_)
+    channel_->ValidateFlushIDReachedServer(stream_id_, true);
 }
 
 gpu::CommandBufferNamespace CommandBufferProxyImpl::GetNamespaceID() const {
@@ -617,50 +618,6 @@ bool CommandBufferProxyImpl::CanWaitUnverifiedSyncToken(
     channel_->FlushPendingStream(release_stream_id);
 
   return true;
-}
-
-uint32_t CommandBufferProxyImpl::InsertSyncPoint() {
-  CheckLock();
-  if (last_state_.error != gpu::error::kNoError)
-    return 0;
-
-  uint32_t sync_point = 0;
-  Send(new GpuCommandBufferMsg_InsertSyncPoint(route_id_, true, &sync_point));
-  return sync_point;
-}
-
-uint32_t CommandBufferProxyImpl::InsertFutureSyncPoint() {
-  CheckLock();
-  if (last_state_.error != gpu::error::kNoError)
-    return 0;
-
-  uint32_t sync_point = 0;
-  Send(new GpuCommandBufferMsg_InsertSyncPoint(route_id_, false, &sync_point));
-  return sync_point;
-}
-
-void CommandBufferProxyImpl::RetireSyncPoint(uint32_t sync_point) {
-  CheckLock();
-  if (last_state_.error != gpu::error::kNoError)
-    return;
-
-  Send(new GpuCommandBufferMsg_RetireSyncPoint(route_id_, sync_point));
-}
-
-void CommandBufferProxyImpl::SignalSyncPoint(uint32_t sync_point,
-                                             const base::Closure& callback) {
-  CheckLock();
-  if (last_state_.error != gpu::error::kNoError)
-    return;
-
-  uint32_t signal_id = next_signal_id_++;
-  if (!Send(new GpuCommandBufferMsg_SignalSyncPoint(route_id_,
-                                                    sync_point,
-                                                    signal_id))) {
-    return;
-  }
-
-  signal_tasks_.insert(std::make_pair(signal_id, callback));
 }
 
 void CommandBufferProxyImpl::SignalQuery(uint32_t query,

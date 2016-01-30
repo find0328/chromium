@@ -32,8 +32,6 @@
       'browser/android/thumbnail/scoped_ptr_expiring_cache_unittest.cc',
       'browser/app_controller_mac_unittest.mm',
       'browser/autocomplete/builtin_provider_unittest.cc',
-      'browser/autocomplete/history_quick_provider_unittest.cc',
-      'browser/autocomplete/history_url_provider_unittest.cc',
       'browser/autocomplete/in_memory_url_index_unittest.cc',
       'browser/autocomplete/search_provider_unittest.cc',
       'browser/autocomplete/shortcuts_backend_unittest.cc',
@@ -135,6 +133,7 @@
       'browser/manifest/manifest_icon_selector_unittest.cc',
       'browser/media/media_stream_device_permission_context_unittest.cc',
       'browser/media/midi_permission_context_unittest.cc',
+      'browser/media/native_desktop_media_list_unittest.cc',
       'browser/metrics/chrome_browser_main_extra_parts_metrics_unittest.cc',
       'browser/metrics/chrome_metrics_service_accessor_unittest.cc',
       'browser/metrics/perf/perf_provider_chromeos_unittest.cc',
@@ -154,12 +153,12 @@
       'browser/net/spdyproxy/data_reduction_proxy_chrome_settings_unittest.cc',
       'browser/net/spdyproxy/data_reduction_proxy_settings_unittest_android.cc',
       'browser/net/url_info_unittest.cc',
-      'browser/page_load_metrics/observers/page_load_metrics_observer_test_harness.cc',
-      'browser/page_load_metrics/observers/page_load_metrics_observer_test_harness.h',
       'browser/page_load_metrics/observers/aborts_page_load_metrics_observer_unittest.cc',
       'browser/page_load_metrics/observers/core_page_load_metrics_observer_unittest.cc',
       'browser/page_load_metrics/observers/from_gws_page_load_metrics_observer_unittest.cc',
       'browser/page_load_metrics/observers/google_captcha_observer_unittest.cc',
+      'browser/page_load_metrics/observers/page_load_metrics_observer_test_harness.cc',
+      'browser/page_load_metrics/observers/page_load_metrics_observer_test_harness.h',
       'browser/password_manager/chrome_password_manager_client_unittest.cc',
       'browser/password_manager/password_manager_internals_service_unittest.cc',
       'browser/password_manager/password_store_mac_unittest.cc',
@@ -250,9 +249,8 @@
       'browser/ui/android/tab_model/tab_model_unittest.cc',
       'browser/ui/autofill/autofill_dialog_models_unittest.cc',
       'browser/ui/autofill/autofill_dialog_types_unittest.cc',
-      'browser/ui/autofill/popup_controller_common_unittest.cc',
-      'browser/ui/autofill/test_popup_controller_common.cc',
-      'browser/ui/autofill/test_popup_controller_common.h',
+      'browser/ui/autofill/autofill_popup_layout_model_unittest.cc',
+      'browser/ui/autofill/popup_view_common_unittest.cc',
       'browser/ui/bookmarks/bookmark_editor_unittest.cc',
       'browser/ui/bookmarks/bookmark_ui_utils_desktop_unittest.cc',
       'browser/ui/bookmarks/recently_used_folders_combo_model_unittest.cc',
@@ -689,7 +687,6 @@
       # Ash implies the app list is enabled (only disabled on mobile).
       'browser/ui/ash/accessibility/ax_tree_source_aura_unittest.cc',
       'browser/ui/ash/chrome_screenshot_grabber_unittest.cc',
-      'browser/ui/ash/ime_controller_chromeos_unittest.cc',
       'browser/ui/ash/launcher/chrome_launcher_controller_unittest.cc',
       'browser/ui/ash/launcher/launcher_application_menu_item_model_unittest.cc',
       'browser/ui/ash/launcher/launcher_context_menu_unittest.cc',
@@ -962,6 +959,8 @@
       '../components/drive/sync/entry_update_performer_unittest.cc',
       '../components/drive/sync/remove_performer_unittest.cc',
       '../components/drive/sync_client_unittest.cc',
+      '../ui/base/ime/chromeos/input_method_whitelist.cc',
+      '../ui/base/ime/chromeos/input_method_whitelist.h',
       'browser/chromeos/accessibility/magnification_manager_unittest.cc',
       'browser/chromeos/accessibility/spoken_feedback_event_rewriter_unittest.cc',
       'browser/chromeos/attestation/attestation_ca_client_unittest.cc',
@@ -1213,11 +1212,11 @@
       'browser/ui/cocoa/bookmarks/bookmark_model_observer_for_cocoa_unittest.mm',
       'browser/ui/cocoa/bookmarks/bookmark_name_folder_controller_unittest.mm',
       'browser/ui/cocoa/bookmarks/bookmark_tree_browser_cell_unittest.mm',
+      'browser/ui/cocoa/browser/edit_search_engine_cocoa_controller_unittest.mm',
+      'browser/ui/cocoa/browser/zoom_bubble_controller_unittest.mm',
       'browser/ui/cocoa/browser_window_cocoa_unittest.mm',
       'browser/ui/cocoa/browser_window_controller_unittest.mm',
       'browser/ui/cocoa/browser_window_layout_unittest.mm',
-      'browser/ui/cocoa/browser/edit_search_engine_cocoa_controller_unittest.mm',
-      'browser/ui/cocoa/browser/zoom_bubble_controller_unittest.mm',
       'browser/ui/cocoa/bubble_view_unittest.mm',
       'browser/ui/cocoa/chrome_browser_window_unittest.mm',
       'browser/ui/cocoa/clickhold_button_cell_unittest.mm',
@@ -1276,8 +1275,8 @@
       'browser/ui/cocoa/infobars/translate_infobar_unittest.mm',
       'browser/ui/cocoa/location_bar/autocomplete_text_field_cell_unittest.mm',
       'browser/ui/cocoa/location_bar/autocomplete_text_field_editor_unittest.mm',
-      'browser/ui/cocoa/location_bar/autocomplete_text_field_unittest_helper.mm',
       'browser/ui/cocoa/location_bar/autocomplete_text_field_unittest.mm',
+      'browser/ui/cocoa/location_bar/autocomplete_text_field_unittest_helper.mm',
       'browser/ui/cocoa/location_bar/ev_bubble_decoration_unittest.mm',
       'browser/ui/cocoa/location_bar/image_decoration_unittest.mm',
       'browser/ui/cocoa/location_bar/keyword_hint_decoration_unittest.mm',
@@ -1308,7 +1307,6 @@
       'browser/ui/cocoa/profiles/avatar_button_controller_unittest.mm',
       'browser/ui/cocoa/profiles/avatar_button_unittest.mm',
       'browser/ui/cocoa/profiles/avatar_icon_controller_unittest.mm',
-      'browser/ui/cocoa/profiles/avatar_label_button_unittest.mm',
       'browser/ui/cocoa/profiles/avatar_menu_bubble_controller_unittest.mm',
       'browser/ui/cocoa/profiles/profile_chooser_controller_unittest.mm',
       'browser/ui/cocoa/profiles/profile_menu_controller_unittest.mm',
@@ -1342,7 +1340,6 @@
       'browser/ui/cocoa/vertical_gradient_view_unittest.mm',
       'browser/ui/cocoa/view_resizer_pong.h',
       'browser/ui/cocoa/view_resizer_pong.mm',
-      'browser/ui/cocoa/web_dialog_window_controller_unittest.mm',
       'browser/ui/cocoa/website_settings/permission_bubble_controller_unittest.mm',
       'browser/ui/cocoa/website_settings/permission_selector_button_unittest.mm',
       'browser/ui/cocoa/website_settings/website_settings_bubble_controller_unittest.mm',
@@ -1367,7 +1364,6 @@
       'browser/ui/views/accelerator_table_unittest.cc',
       # Views implies app list is enabled (only disabled on mobile).
       'browser/ui/views/app_list/win/app_list_win_unittest.cc',
-      'browser/ui/views/apps/app_info_dialog/app_info_dialog_ash_unittest.cc',
       'browser/ui/views/apps/shaped_app_window_targeter_unittest.cc',
       'browser/ui/views/autofill/autofill_dialog_views_unittest.cc',
       'browser/ui/views/bookmarks/bookmark_bar_view_unittest.cc',
@@ -1485,7 +1481,7 @@
       'browser/font_family_cache_unittest.cc',
       'browser/importer/firefox_profile_lock_unittest.cc',
       'browser/importer/profile_writer_unittest.cc',
-      'browser/media/native_desktop_media_list_unittest.cc',
+      'browser/media/combined_desktop_media_list_unittest.cc',
       'browser/media_galleries/fileapi/native_media_file_util_unittest.cc',
       'browser/media_galleries/gallery_watch_manager_unittest.cc',
       'browser/media_galleries/linux/mtp_device_object_enumerator_unittest.cc',
@@ -1532,7 +1528,6 @@
       'browser/ui/browser_close_unittest.cc',
       'browser/ui/browser_command_controller_unittest.cc',
       'browser/ui/browser_instant_controller_unittest.cc',
-      'browser/ui/browser_iterator_unittest.cc',
       'browser/ui/browser_unittest.cc',
       'browser/ui/chrome_bubble_manager_unittest.cc',
       'browser/ui/content_settings/content_setting_bubble_model_unittest.cc',
@@ -1574,8 +1569,6 @@
       'browser/ui/toolbar/recent_tabs_sub_menu_model_unittest.cc',
       'browser/ui/toolbar/test_toolbar_actions_bar_bubble_delegate.cc',
       'browser/ui/toolbar/test_toolbar_actions_bar_bubble_delegate.h',
-      'browser/ui/toolbar/test_toolbar_model.cc',
-      'browser/ui/toolbar/test_toolbar_model.h',
       'browser/ui/toolbar/toolbar_actions_bar_unittest.cc',
       'browser/ui/toolbar/toolbar_actions_bar_unittest.h',
       'browser/ui/toolbar/toolbar_actions_model_unittest.cc',
@@ -1585,6 +1578,7 @@
       'browser/ui/webui/downloads_util_unittest.cc',
       'browser/ui/webui/help/version_updater_chromeos_unittest.cc',
       'browser/ui/webui/md_downloads/downloads_list_tracker_unittest.cc',
+      'browser/ui/webui/md_downloads/md_downloads_dom_handler_unittest.cc',
       'browser/ui/webui/ntp/ntp_user_data_logger_unittest.cc',
       'browser/ui/webui/options/autofill_options_handler_unittest.cc',
       'browser/ui/webui/options/language_options_handler_unittest.cc',
@@ -1620,6 +1614,7 @@
       'browser/signin/signin_global_error_unittest.cc',
       'browser/sync/sync_global_error_unittest.cc',
       'browser/upgrade_detector_impl_unittest.cc',
+      'browser/ui/webui/signin/sync_confirmation_handler_unittest.cc'
     ],
     'chrome_unit_tests_app_list_sources': [
       'browser/ui/app_list/app_list_positioner_unittest.cc',
@@ -1645,13 +1640,15 @@
     # ChromeOS only sources of app_list.
     'chrome_unit_tests_app_list_chromeos_sources': [
       'browser/ui/app_list/search/launcher_search/launcher_search_icon_image_loader_unittest.cc',
+      'browser/ui/views/apps/app_info_dialog/app_info_dialog_ash_unittest.cc',
     ],
     # ARC only sources of app_list.
     'chrome_unit_tests_app_list_chromeos_arc_sources': [
       'browser/ui/app_list/arc/arc_app_unittest.cc',
     ],
-    'chrome_unit_tests_arc_settings_bridge_sources': [
-      'browser/chromeos/arc/arc_settings_bridge_unittest.cc',
+    'chrome_unit_tests_arc_sources': [
+      'browser/chromeos/arc/arc_auth_service_unittest.cc',
+      'browser/chromeos/arc/settings_bridge_unittest.cc',
     ],
     # Sources for Offline pages. For now only for Android.
     'chrome_unit_tests_offline_pages_sources': [
@@ -1680,7 +1677,6 @@
         'chrome_resources.gyp:chrome_strings',
         'chrome_resources.gyp:theme_resources',
         'common',
-        '../base/base.gyp:base_prefs_test_support',
         '../base/base.gyp:test_support_base',
         '../components/components.gyp:bookmarks_test_support',
         '../components/components.gyp:browser_sync_browser_test_support',
@@ -1700,8 +1696,10 @@
         '../components/components.gyp:sync_driver_test_support',
         '../components/components.gyp:sync_sessions_test_support',
         '../components/components.gyp:syncable_prefs_test_support',
+        '../components/components.gyp:toolbar_test_support',
         '../components/components.gyp:update_client_test_support',
         '../components/components.gyp:user_prefs_tracked_test_support',
+        '../components/prefs/prefs.gyp:prefs_test_support',
         '../content/content.gyp:content_app_both',
         '../content/content_shell_and_tests.gyp:test_support_content',
         '../net/net.gyp:net',
@@ -1752,8 +1750,6 @@
         'browser/download/download_test_file_activity_observer.h',
         'browser/download/test_download_shelf.cc',
         'browser/download/test_download_shelf.h',
-        'browser/invalidation/fake_invalidation_service.cc',
-        'browser/invalidation/fake_invalidation_service.h',
         'browser/media/fake_desktop_media_list.cc',
         'browser/media/fake_desktop_media_list.h',
         'browser/net/dns_probe_test_util.cc',
@@ -1830,8 +1826,6 @@
         'test/base/dialog_test_browser_window.h',
         'test/base/find_in_page_observer.cc',
         'test/base/find_in_page_observer.h',
-        'test/base/history_index_restore_observer.cc',
-        'test/base/history_index_restore_observer.h',
         'test/base/scoped_browser_locale.cc',
         'test/base/scoped_browser_locale.h',
         'test/base/scoped_bundle_swizzler_mac.h',
@@ -2224,6 +2218,7 @@
         # 2) test-specific support libraries:
         '../base/base.gyp:test_support_base',
         '../components/components_resources.gyp:components_resources',
+        '../components/components.gyp:browser_sync_browser_test_support',
         '../components/components.gyp:content_settings_core_test_support',
         '../components/components.gyp:gcm_driver',
         '../components/components.gyp:password_manager_core_browser_test_support',
@@ -2550,7 +2545,9 @@
           ],
           'dependencies': [
             '../ash/ash_resources.gyp:ash_resources',
+            '../chromeos/ime/input_method.gyp:gencode',
             '../components/components.gyp:drive_test_support',
+            '../components/components.gyp:drive_test_support_chromeos',
             '../ui/chromeos/ui_chromeos.gyp:ui_chromeos_resources',
           ],
           'sources!': [
@@ -2606,15 +2603,6 @@
               ],
             },
           },
-        }],
-        ['os_posix == 1 and OS != "mac" and OS != "ios" and OS != "android"', {
-          'conditions': [
-            ['use_allocator!="none"', {
-              'dependencies': [
-                '../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
-          ],
         }],
         ['OS=="mac"', {
           # The test fetches resources which means Mac need the app bundle to
@@ -2703,11 +2691,6 @@
             '../third_party/isimpledom/isimpledom.gyp:isimpledom',
           ],
           'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(allocator_target)',
-              ],
-            }],
             ['branding!="Chrome"', {
               'sources!': [
                 'browser/google/google_update_win_unittest.cc',
@@ -2818,7 +2801,7 @@
           ],
         }],
         ['chromeos==1', {
-          'sources': [ '<@(chrome_unit_tests_arc_settings_bridge_sources)' ],
+          'sources': [ '<@(chrome_unit_tests_arc_sources)' ],
           'dependencies': [
             '../components/components.gyp:arc_test_support',
           ],
@@ -2928,13 +2911,6 @@
             # breakpad is currently only tested on Windows.
             '../breakpad/breakpad.gyp:*',
             '../components/components.gyp:crash_component',
-          ],
-          'conditions': [
-            ['win_use_allocator_shim==1', {
-              'dependencies': [
-                '<(allocator_target)',
-              ],
-            }],
           ],
         }],
       ],

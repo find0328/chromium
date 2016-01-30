@@ -38,6 +38,7 @@
 #include "core/css/StylePropertySet.h"
 #include "core/dom/AXObjectCache.h"
 #include "core/dom/DocumentFragment.h"
+#include "core/dom/ElementTraversal.h"
 #include "core/dom/NodeTraversal.h"
 #include "core/dom/ParserContentPolicy.h"
 #include "core/dom/Text.h"
@@ -49,6 +50,7 @@
 #include "core/editing/commands/DeleteSelectionCommand.h"
 #include "core/editing/commands/IndentOutdentCommand.h"
 #include "core/editing/commands/InsertListCommand.h"
+#include "core/editing/commands/MoveSelectionCommand.h"
 #include "core/editing/commands/RemoveFormatCommand.h"
 #include "core/editing/commands/ReplaceSelectionCommand.h"
 #include "core/editing/commands/SimplifyMarkupCommand.h"
@@ -68,12 +70,15 @@
 #include "core/frame/LocalFrame.h"
 #include "core/frame/Settings.h"
 #include "core/frame/UseCounter.h"
+#include "core/html/HTMLBodyElement.h"
 #include "core/html/HTMLCanvasElement.h"
+#include "core/html/HTMLHtmlElement.h"
 #include "core/html/HTMLImageElement.h"
 #include "core/html/HTMLInputElement.h"
 #include "core/html/HTMLTextAreaElement.h"
 #include "core/html/parser/HTMLParserIdioms.h"
 #include "core/input/EventHandler.h"
+#include "core/inspector/ConsoleMessage.h"
 #include "core/layout/HitTestResult.h"
 #include "core/layout/LayoutImage.h"
 #include "core/loader/EmptyClients.h"
@@ -509,15 +514,28 @@ void Editor::replaceSelectionWithFragment(PassRefPtrWillBeRawPtr<DocumentFragmen
     ASSERT(frame().document());
     ReplaceSelectionCommand::create(*frame().document(), fragment, options, EditActionPaste)->apply();
     revealSelectionAfterEditingOperation();
-
-    if (frame().selection().isInPasswordField() || !spellChecker().isContinuousSpellCheckingEnabled())
-        return;
-    spellChecker().chunkAndMarkAllMisspellingsAndBadGrammar(frame().selection().rootEditableElement());
 }
 
 void Editor::replaceSelectionWithText(const String& text, bool selectReplacement, bool smartReplace)
 {
     replaceSelectionWithFragment(createFragmentFromText(selectedRange(), text), selectReplacement, smartReplace, true);
+}
+
+// TODO(xiaochengh): Merge it with |replaceSelectionWithFragment()|.
+void Editor::replaceSelectionAfterDragging(PassRefPtrWillBeRawPtr<DocumentFragment> fragment, bool smartReplace, bool plainText)
+{
+    ReplaceSelectionCommand::CommandOptions options = ReplaceSelectionCommand::SelectReplacement | ReplaceSelectionCommand::PreventNesting;
+    if (smartReplace)
+        options |= ReplaceSelectionCommand::SmartReplace;
+    if (plainText)
+        options |= ReplaceSelectionCommand::MatchStyle;
+    ASSERT(frame().document());
+    ReplaceSelectionCommand::create(*frame().document(), fragment, options, EditActionDrag)->apply();
+}
+
+void Editor::moveSelectionAfterDragging(PassRefPtrWillBeRawPtr<DocumentFragment> fragment, const Position& pos, bool smartInsert, bool smartDelete)
+{
+    MoveSelectionCommand::create(fragment, pos, smartInsert, smartDelete)->apply();
 }
 
 EphemeralRange Editor::selectedRange()
@@ -649,10 +667,29 @@ static void dispatchEditableContentChangedEvents(PassRefPtrWillBeRawPtr<Element>
         endRoot->dispatchEvent(Event::create(EventTypeNames::webkitEditableContentChanged));
 }
 
+void Editor::requestSpellcheckingAfterApplyingCommand(CompositeEditCommand* cmd)
+{
+    // Note: Request spell checking for and only for |ReplaceSelectionCommand|s
+    // created in |Editor::replaceSelectionWithFragment()|.
+    // TODO(xiaochengh): May also need to do this after dragging crbug.com/298046.
+    if (cmd->editingAction() != EditActionPaste)
+        return;
+    if (frame().selection().isInPasswordField() || !spellChecker().isContinuousSpellCheckingEnabled())
+        return;
+    ASSERT(cmd->isReplaceSelectionCommand());
+    const EphemeralRange& insertedRange = toReplaceSelectionCommand(cmd)->insertedRange();
+    if (insertedRange.isNull())
+        return;
+    spellChecker().chunkAndMarkAllMisspellingsAndBadGrammar(cmd->endingSelection().rootEditableElement(), insertedRange);
+}
+
 void Editor::appliedEditing(PassRefPtrWillBeRawPtr<CompositeEditCommand> cmd)
 {
     EventQueueScope scope;
     frame().document()->updateLayout();
+
+    // Request spell checking after pasting before any further DOM change.
+    requestSpellcheckingAfterApplyingCommand(cmd.get());
 
     EditCommandComposition* composition = cmd->composition();
     ASSERT(composition);
@@ -1081,7 +1118,7 @@ void Editor::changeSelectionAfterCommand(const VisibleSelection& newSelection,  
 
 IntRect Editor::firstRectForRange(const EphemeralRange& range) const
 {
-    LayoutUnit extraWidthToEndOfLine = 0;
+    LayoutUnit extraWidthToEndOfLine;
     ASSERT(range.isNotNull());
 
     IntRect startCaretRect = RenderedPosition(createVisiblePosition(range.startPosition()).deepEquivalent(), TextAffinity::Downstream).absoluteRect(&extraWidthToEndOfLine);
@@ -1297,6 +1334,49 @@ void Editor::toggleOverwriteModeEnabled()
 {
     m_overwriteModeEnabled = !m_overwriteModeEnabled;
     frame().selection().setShouldShowBlockCursor(m_overwriteModeEnabled);
+}
+
+void Editor::tidyUpHTMLStructure(Document& document)
+{
+    // hasEditableStyle() needs up-to-date ComputedStyle.
+    document.updateLayoutTreeIfNeeded();
+    bool needsValidStructure = document.hasEditableStyle() || (document.documentElement() && document.documentElement()->hasEditableStyle());
+    if (!needsValidStructure)
+        return;
+    RefPtrWillBeRawPtr<Element> existingHead = nullptr;
+    RefPtrWillBeRawPtr<Element> existingBody = nullptr;
+    Element* currentRoot = document.documentElement();
+    if (currentRoot) {
+        if (isHTMLHtmlElement(currentRoot))
+            return;
+        if (isHTMLHeadElement(currentRoot))
+            existingHead = currentRoot;
+        else if (isHTMLBodyElement(currentRoot))
+            existingBody = currentRoot;
+        else if (isHTMLFrameSetElement(currentRoot))
+            existingBody = currentRoot;
+    }
+    // We ensure only "the root is <html>."
+    // documentElement as rootEditableElement is problematic.  So we move
+    // non-<html> root elements under <body>, and the <body> works as
+    // rootEditableElement.
+    document.addConsoleMessage(ConsoleMessage::create(JSMessageSource, WarningMessageLevel, "document.execCommand() doesn't work with an invalid HTML structure. It is corrected automatically."));
+
+    RefPtrWillBeRawPtr<Element> root = HTMLHtmlElement::create(document);
+    if (existingHead)
+        root->appendChild(existingHead.release());
+    RefPtrWillBeRawPtr<Element> body = nullptr;
+    if (existingBody)
+        body = existingBody.release();
+    else
+        body = HTMLBodyElement::create(document);
+    if (document.documentElement())
+        body->appendChild(document.documentElement());
+    root->appendChild(body.release());
+    ASSERT(!document.documentElement());
+    document.appendChild(root.release());
+
+    // TODO(tkent): Should we check and move Text node children of <html>?
 }
 
 DEFINE_TRACE(Editor)

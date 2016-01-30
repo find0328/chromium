@@ -16,7 +16,7 @@
 #include "ui/ozone/platform/drm/host/drm_display_host.h"
 #include "ui/ozone/platform/drm/host/drm_display_host_manager.h"
 #include "ui/ozone/platform/drm/host/drm_gpu_platform_support_host.h"
-#include "ui/ozone/platform/drm/host/drm_overlay_candidates_host.h"
+#include "ui/ozone/platform/drm/host/drm_overlay_manager.h"
 #include "ui/ozone/platform/drm/host/drm_window_host_manager.h"
 #include "ui/platform_window/platform_window_delegate.h"
 
@@ -28,14 +28,15 @@ DrmWindowHost::DrmWindowHost(PlatformWindowDelegate* delegate,
                              EventFactoryEvdev* event_factory,
                              DrmCursor* cursor,
                              DrmWindowHostManager* window_manager,
-                             DrmDisplayHostManager* display_manager)
+                             DrmDisplayHostManager* display_manager,
+                             DrmOverlayManager* overlay_manager)
     : delegate_(delegate),
       sender_(sender),
       event_factory_(event_factory),
       cursor_(cursor),
       window_manager_(window_manager),
       display_manager_(display_manager),
-      overlay_candidates_host_(nullptr),
+      overlay_manager_(overlay_manager),
       bounds_(bounds),
       widget_(window_manager->NextAcceleratedWidget()) {
   window_manager_->AddWindow(widget_, this);
@@ -46,12 +47,12 @@ DrmWindowHost::~DrmWindowHost() {
   window_manager_->RemoveWindow(widget_);
   cursor_->OnWindowRemoved(widget_);
 
-  sender_->RemoveChannelObserver(this);
+  sender_->RemoveGpuThreadObserver(this);
   sender_->Send(new OzoneGpuMsg_DestroyWindow(widget_));
 }
 
 void DrmWindowHost::Initialize() {
-  sender_->AddChannelObserver(this);
+  sender_->AddGpuThreadObserver(this);
   PlatformEventSource::GetInstance()->AddPlatformEventDispatcher(this);
   cursor_->OnWindowAdded(widget_, bounds_, GetCursorConfinedBounds());
   delegate_->OnAcceleratedWidgetAvailable(widget_, 1.f);
@@ -187,17 +188,12 @@ uint32_t DrmWindowHost::DispatchEvent(const PlatformEvent& native_event) {
   return POST_DISPATCH_STOP_PROPAGATION;
 }
 
-void DrmWindowHost::OnChannelEstablished() {
+void DrmWindowHost::OnGpuThreadReady() {
   sender_->Send(new OzoneGpuMsg_CreateWindow(widget_));
   SendBoundsChange();
 }
 
-void DrmWindowHost::OnChannelDestroyed() {
-}
-
-void DrmWindowHost::SetOverlayCandidatesHost(DrmOverlayCandidatesHost* host) {
-  overlay_candidates_host_ = host;
-}
+void DrmWindowHost::OnGpuThreadRetired() {}
 
 void DrmWindowHost::SendBoundsChange() {
   // Update the cursor before the window so that the cursor stays within the
@@ -205,8 +201,7 @@ void DrmWindowHost::SendBoundsChange() {
   cursor_->CommitBoundsChange(widget_, bounds_, GetCursorConfinedBounds());
   sender_->Send(new OzoneGpuMsg_WindowBoundsChanged(widget_, bounds_));
 
-  if (overlay_candidates_host_)
-    overlay_candidates_host_->ResetCache();
+  overlay_manager_->ResetCache();
 }
 
 }  // namespace ui

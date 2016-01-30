@@ -4,7 +4,8 @@
 
 #include <stddef.h>
 
-#include "base/containers/hash_tables.h"
+#include <unordered_map>
+
 #include "base/thread_task_runner_handle.h"
 #include "cc/animation/scrollbar_animation_controller.h"
 #include "cc/layers/append_quads_data.h"
@@ -65,7 +66,7 @@ class FakeResourceTrackingLayerTreeHost : public FakeLayerTreeHost {
  public:
   FakeResourceTrackingLayerTreeHost(FakeLayerTreeHostClient* client,
                                     LayerTreeHost::InitParams* params)
-      : FakeLayerTreeHost(client, params, CompositorMode::SingleThreaded),
+      : FakeLayerTreeHost(client, params, CompositorMode::SINGLE_THREADED),
         next_id_(1),
         total_ui_resource_created_(0),
         total_ui_resource_deleted_(0) {
@@ -109,7 +110,8 @@ class FakeResourceTrackingLayerTreeHost : public FakeLayerTreeHost {
   }
 
  private:
-  using UIResourceBitmapMap = base::hash_map<UIResourceId, UIResourceBitmap>;
+  using UIResourceBitmapMap =
+      std::unordered_map<UIResourceId, UIResourceBitmap>;
   UIResourceBitmapMap ui_resource_bitmap_map_;
 
   int next_id_;
@@ -160,10 +162,10 @@ TEST_F(ScrollbarLayerTest, ShouldScrollNonOverlayOnMainThread) {
   // When the scrollbar is not an overlay scrollbar, the scroll should be
   // responded to on the main thread as the compositor does not yet implement
   // scrollbar scrolling.
-  InputHandler::ScrollStatus status = scrollbar_layer_impl->TryScroll(
-      gfx::PointF(), InputHandler::GESTURE, SCROLL_BLOCKS_ON_NONE);
+  InputHandler::ScrollStatus status =
+      scrollbar_layer_impl->TryScroll(gfx::PointF(), InputHandler::GESTURE);
   EXPECT_EQ(InputHandler::SCROLL_ON_MAIN_THREAD, status.thread);
-  EXPECT_EQ(InputHandler::SCROLL_BAR_SCROLLING,
+  EXPECT_EQ(MainThreadScrollingReason::kScrollbarScrolling,
             status.main_thread_scrolling_reasons);
 
   // Create and attach an overlay scrollbar.
@@ -177,10 +179,11 @@ TEST_F(ScrollbarLayerTest, ShouldScrollNonOverlayOnMainThread) {
 
   // The user shouldn't be able to drag an overlay scrollbar and the scroll
   // may be handled in the compositor.
-  status = scrollbar_layer_impl->TryScroll(gfx::PointF(), InputHandler::GESTURE,
-                                           SCROLL_BLOCKS_ON_NONE);
+  status =
+      scrollbar_layer_impl->TryScroll(gfx::PointF(), InputHandler::GESTURE);
   EXPECT_EQ(InputHandler::SCROLL_IGNORED, status.thread);
-  EXPECT_EQ(InputHandler::NOT_SCROLLABLE, status.main_thread_scrolling_reasons);
+  EXPECT_EQ(MainThreadScrollingReason::kNotScrollable,
+            status.main_thread_scrolling_reasons);
 }
 
 TEST_F(ScrollbarLayerTest, ScrollOffsetSynchronization) {
@@ -639,7 +642,7 @@ TEST_F(ScrollbarLayerTestMaxTextureSize, DirectRenderer) {
   int max_size = 0;
   context->getIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
   SetScrollbarBounds(gfx::Size(max_size + 100, max_size + 100));
-  RunTest(CompositorMode::Threaded, false);
+  RunTest(CompositorMode::THREADED, false);
 }
 
 TEST_F(ScrollbarLayerTestMaxTextureSize, DelegatingRenderer) {
@@ -648,7 +651,7 @@ TEST_F(ScrollbarLayerTestMaxTextureSize, DelegatingRenderer) {
   int max_size = 0;
   context->getIntegerv(GL_MAX_TEXTURE_SIZE, &max_size);
   SetScrollbarBounds(gfx::Size(max_size + 100, max_size + 100));
-  RunTest(CompositorMode::Threaded, true);
+  RunTest(CompositorMode::THREADED, true);
 }
 
 class ScrollbarLayerTestResourceCreationAndRelease : public ScrollbarLayerTest {

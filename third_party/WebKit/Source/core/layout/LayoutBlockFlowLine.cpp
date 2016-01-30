@@ -433,7 +433,7 @@ static inline void setLogicalWidthForTextRun(RootInlineBox* lineBox, BidiRun* ru
 
     const Font& font = layoutText->style(lineInfo.isFirstLine())->font();
 
-    LayoutUnit hyphenWidth = 0;
+    LayoutUnit hyphenWidth;
     if (toInlineTextBox(run->m_box)->hasHyphen())
         hyphenWidth = layoutText->hyphenWidth(font, run->direction());
 
@@ -839,6 +839,9 @@ void LayoutBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState,
     while (!endOfLine.atEnd()) {
         bool logicalWidthIsAvailable = false;
 
+        // The runs from the previous line should have been cleaned up.
+        ASSERT(!resolver.runs().runCount());
+
         // FIXME: Is this check necessary before the first iteration or can it be moved to the end?
         if (layoutState.endLine()) {
             layoutState.setEndLineMatched(layoutState.endLineMatched() || matchedEndLine(layoutState, resolver, cleanLineStart, cleanLineBidiStatus));
@@ -876,6 +879,7 @@ void LayoutBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState,
         if (layoutState.lineInfo().isEmpty()) {
             if (lastRootBox())
                 lastRootBox()->setLineBreakInfo(endOfLine.object(), endOfLine.offset(), resolver.status());
+            resolver.runs().deleteRuns();
         } else {
             VisualDirectionOverride override = (styleToUse.rtlOrdering() == VisualOrder ? (styleToUse.direction() == LTR ? VisualLeftToRightOverride : VisualRightToLeftOverride) : NoVisualOverride);
             if (isNewUBAParagraph && styleToUse.unicodeBidi() == Plaintext && !resolver.context()->parent()) {
@@ -908,7 +912,7 @@ void LayoutBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState,
                     layoutState.updatePaintInvalidationRangeFromBox(lineBox);
 
                 if (paginated) {
-                    LayoutUnit adjustment = 0;
+                    LayoutUnit adjustment;
                     adjustLinePositionForPagination(*lineBox, adjustment);
                     if (adjustment) {
                         LayoutUnit oldLineWidth = availableLogicalWidthForLine(oldLogicalHeight, layoutState.lineInfo().isFirstLine() ? IndentText : DoNotIndentText);
@@ -948,6 +952,9 @@ void LayoutBlockFlow::layoutRunsAndFloatsInRange(LineLayoutState& layoutState,
         lineMidpointState.reset();
         resolver.setPosition(endOfLine, numberOfIsolateAncestors(endOfLine));
     }
+
+    // The resolver runs should have been cleared, otherwise they're leaking.
+    ASSERT(!resolver.runs().runCount());
 
     // In case we already adjusted the line positions during this layout to avoid widows
     // then we need to ignore the possibility of having a new widows situation.
@@ -1633,7 +1640,7 @@ RootInlineBox* LayoutBlockFlow::determineStartPosition(LineLayoutState& layoutSt
     if (!layoutState.isFullLayout()) {
         // Paginate all of the clean lines.
         bool paginated = view()->layoutState() && view()->layoutState()->isPaginated();
-        LayoutUnit paginationDelta = 0;
+        LayoutUnit paginationDelta;
         for (curr = firstRootBox(); curr && !curr->isDirty(); curr = curr->nextRootBox()) {
             if (paginated) {
                 paginationDelta -= curr->paginationStrut();
@@ -2053,7 +2060,24 @@ LayoutUnit LayoutBlockFlow::startAlignedOffsetForLine(LayoutUnit position, Inden
 {
     ETextAlign textAlign = style()->textAlign();
 
-    if (textAlign == TASTART) // FIXME: Handle TAEND here
+    bool applyIndentText;
+    switch (textAlign) { // FIXME: Handle TAEND here
+    case LEFT:
+    case WEBKIT_LEFT:
+        applyIndentText = style()->isLeftToRightDirection();
+        break;
+    case RIGHT:
+    case WEBKIT_RIGHT:
+        applyIndentText = !style()->isLeftToRightDirection();
+        break;
+    case TASTART:
+        applyIndentText = true;
+        break;
+    default:
+        applyIndentText = false;
+    }
+
+    if (applyIndentText)
         return startOffsetForLine(position, indentText);
 
     // updateLogicalWidthForAlignment() handles the direction of the block so no need to consider it here
@@ -2089,4 +2113,4 @@ PaintInvalidationReason LayoutBlockFlow::invalidatePaintIfNeeded(PaintInvalidati
     return reason;
 }
 
-}
+} // namespace blink

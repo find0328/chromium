@@ -30,6 +30,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Range.h"
 #include "core/editing/EditingUtilities.h"
+#include "core/editing/SelectionAdjuster.h"
 #include "core/editing/iterators/CharacterIterator.h"
 #include "core/layout/LayoutObject.h"
 #include "platform/geometry/LayoutPoint.h"
@@ -111,30 +112,6 @@ static SelectionType computeSelectionType(const PositionTemplate<Strategy>& star
 }
 
 template <typename Strategy>
-VisibleSelectionTemplate<Strategy>::VisibleSelectionTemplate(
-    const PositionTemplate<Strategy>& base,
-    const PositionTemplate<Strategy>& extent,
-    const PositionTemplate<Strategy>& start,
-    const PositionTemplate<Strategy>& end,
-    TextAffinity affinity,
-    bool isDirectional)
-    : m_base(base)
-    , m_extent(extent)
-    , m_start(start)
-    , m_end(end)
-    , m_affinity(affinity)
-    , m_changeObserver(nullptr) // Observer is associated with only one VisibleSelection, so this should not be copied.
-    , m_selectionType(computeSelectionType(start, end))
-    , m_baseIsFirst(base.isNull() || base.compareTo(extent) <= 0)
-    , m_isDirectional(isDirectional)
-{
-    ASSERT(base.isNull() == extent.isNull());
-    ASSERT(base.isNull() == start.isNull());
-    ASSERT(base.isNull() == end.isNull());
-    ASSERT(start.isNull() || start.compareTo(end) <= 0);
-}
-
-template <typename Strategy>
 VisibleSelectionTemplate<Strategy>::VisibleSelectionTemplate(const VisibleSelectionTemplate<Strategy>& other)
     : m_base(other.m_base)
     , m_extent(other.m_extent)
@@ -163,12 +140,6 @@ VisibleSelectionTemplate<Strategy>& VisibleSelectionTemplate<Strategy>::operator
     m_baseIsFirst = other.m_baseIsFirst;
     m_isDirectional = other.m_isDirectional;
     return *this;
-}
-
-template <typename Strategy>
-VisibleSelectionTemplate<Strategy> VisibleSelectionTemplate<Strategy>::createWithoutValidation(const PositionTemplate<Strategy>& base, const PositionTemplate<Strategy>& extent, const PositionTemplate<Strategy>& start, const PositionTemplate<Strategy>& end, TextAffinity affinity, bool isDirectional)
-{
-    return VisibleSelectionTemplate<Strategy>(base, extent, start, end, affinity, isDirectional);
 }
 
 #if !ENABLE(OILPAN)
@@ -543,56 +514,6 @@ void VisibleSelectionTemplate<Strategy>::updateSelectionType()
         m_affinity = TextAffinity::Downstream;
 }
 
-static Node* enclosingShadowHost(Node* node)
-{
-    for (Node* runner = node; runner; runner = ComposedTreeTraversal::parent(*runner)) {
-        if (isShadowHost(runner))
-            return runner;
-    }
-    return nullptr;
-}
-
-static bool isEnclosedBy(const PositionInComposedTree& position, const Node& node)
-{
-    ASSERT(position.isNotNull());
-    Node* anchorNode = position.anchorNode();
-    if (anchorNode == node)
-        return !position.isAfterAnchor() && !position.isBeforeAnchor();
-
-    return ComposedTreeTraversal::isDescendantOf(*anchorNode, node);
-}
-
-static bool isSelectionBoundary(const Node& node)
-{
-    return isHTMLTextAreaElement(node) || isHTMLInputElement(node) || isHTMLSelectElement(node);
-}
-
-static Node* enclosingShadowHostForStart(const PositionInComposedTree& position)
-{
-    Node* node = position.nodeAsRangeFirstNode();
-    if (!node)
-        return nullptr;
-    Node* shadowHost = enclosingShadowHost(node);
-    if (!shadowHost)
-        return nullptr;
-    if (!isEnclosedBy(position, *shadowHost))
-        return nullptr;
-    return isSelectionBoundary(*shadowHost) ? shadowHost : nullptr;
-}
-
-static Node* enclosingShadowHostForEnd(const PositionInComposedTree& position)
-{
-    Node* node = position.nodeAsRangeLastNode();
-    if (!node)
-        return nullptr;
-    Node* shadowHost = enclosingShadowHost(node);
-    if (!shadowHost)
-        return nullptr;
-    if (!isEnclosedBy(position, *shadowHost))
-        return nullptr;
-    return isSelectionBoundary(*shadowHost) ? shadowHost : nullptr;
-}
-
 template <typename Strategy>
 void VisibleSelectionTemplate<Strategy>::validate(TextGranularity granularity)
 {
@@ -675,122 +596,12 @@ void VisibleSelectionTemplate<Strategy>::setWithoutValidation(const PositionTemp
     didChange();
 }
 
-static PositionInComposedTree adjustPositionInComposedTreeForStart(const PositionInComposedTree& position, Node* shadowHost)
-{
-    if (isEnclosedBy(position, *shadowHost)) {
-        if (position.isBeforeChildren())
-            return PositionInComposedTree::beforeNode(shadowHost);
-        return PositionInComposedTree::afterNode(shadowHost);
-    }
-
-    // We use |firstChild|'s after instead of beforeAllChildren for backward
-    // compatibility. The positions are same but the anchors would be different,
-    // and selection painting uses anchor nodes.
-    if (Node* firstChild = ComposedTreeTraversal::firstChild(*shadowHost))
-        return PositionInComposedTree::beforeNode(firstChild);
-    return PositionInComposedTree();
-}
-
-static Position adjustPositionForEnd(const Position& currentPosition, Node* startContainerNode)
-{
-    TreeScope& treeScope = startContainerNode->treeScope();
-
-    ASSERT(currentPosition.computeContainerNode()->treeScope() != treeScope);
-
-    if (Node* ancestor = treeScope.ancestorInThisScope(currentPosition.computeContainerNode())) {
-        if (ancestor->contains(startContainerNode))
-            return positionAfterNode(ancestor);
-        return positionBeforeNode(ancestor);
-    }
-
-    if (Node* lastChild = treeScope.rootNode().lastChild())
-        return positionAfterNode(lastChild);
-
-    return Position();
-}
-
-static PositionInComposedTree adjustPositionInComposedTreeForEnd(const PositionInComposedTree& position, Node* shadowHost)
-{
-    if (isEnclosedBy(position, *shadowHost)) {
-        if (position.isAfterChildren())
-            return PositionInComposedTree::afterNode(shadowHost);
-        return PositionInComposedTree::beforeNode(shadowHost);
-    }
-
-    // We use |lastChild|'s after instead of afterAllChildren for backward
-    // compatibility. The positions are same but the anchors would be different,
-    // and selection painting uses anchor nodes.
-    if (Node* lastChild = ComposedTreeTraversal::lastChild(*shadowHost))
-        return PositionInComposedTree::afterNode(lastChild);
-    return PositionInComposedTree();
-}
-
-static Position adjustPositionForStart(const Position& currentPosition, Node* endContainerNode)
-{
-    TreeScope& treeScope = endContainerNode->treeScope();
-
-    ASSERT(currentPosition.computeContainerNode()->treeScope() != treeScope);
-
-    if (Node* ancestor = treeScope.ancestorInThisScope(currentPosition.computeContainerNode())) {
-        if (ancestor->contains(endContainerNode))
-            return positionBeforeNode(ancestor);
-        return positionAfterNode(ancestor);
-    }
-
-    if (Node* firstChild = treeScope.rootNode().firstChild())
-        return positionBeforeNode(firstChild);
-
-    return Position();
-}
-
-static VisibleSelection computeSelectionToAvoidCrossingShadowBoundaries(const VisibleSelection& selection)
-{
-    // Note: |m_selectionType| isn't computed yet.
-    ASSERT(selection.base().isNotNull());
-    ASSERT(selection.extent().isNotNull());
-    ASSERT(selection.start().isNotNull());
-    ASSERT(selection.end().isNotNull());
-
-    // TODO(hajimehoshi): Checking treeScope is wrong when a node is
-    // distributed, but we leave it as it is for backward compatibility.
-    if (selection.start().anchorNode()->treeScope() == selection.end().anchorNode()->treeScope())
-        return selection;
-
-    if (selection.isBaseFirst()) {
-        const Position newEnd = adjustPositionForEnd(selection.end(), selection.start().computeContainerNode());
-        return VisibleSelection::createWithoutValidation(selection.base(), newEnd, selection.start(), newEnd, selection.affinity(), selection.isDirectional());
-    }
-
-    const Position newStart = adjustPositionForStart(selection.start(), selection.end().computeContainerNode());
-    return VisibleSelection::createWithoutValidation(selection.base(), newStart, newStart, selection.end(), selection.affinity(), selection.isDirectional());
-}
-
-// This function is called twice. The first is called when |m_start| and |m_end|
-// or |m_extent| are same, and the second when |m_start| and |m_end| are changed
-// after downstream/upstream.
-static VisibleSelectionInComposedTree computeSelectionToAvoidCrossingShadowBoundaries(const VisibleSelectionInComposedTree& selection)
-{
-    Node* shadowHostStart = enclosingShadowHostForStart(selection.start());
-    Node* shadowHostEnd = enclosingShadowHostForEnd(selection.end());
-    if (shadowHostStart == shadowHostEnd)
-        return selection;
-
-    if (selection.isBaseFirst()) {
-        Node* shadowHost = shadowHostStart ? shadowHostStart : shadowHostEnd;
-        const PositionInComposedTree newEnd = adjustPositionInComposedTreeForEnd(selection.end(), shadowHost);
-        return VisibleSelectionInComposedTree::createWithoutValidation(selection.base(), newEnd, selection.start(), newEnd, selection.affinity(), selection.isDirectional());
-    }
-    Node* shadowHost = shadowHostEnd ? shadowHostEnd : shadowHostStart;
-    const PositionInComposedTree newStart = adjustPositionInComposedTreeForStart(selection.start(), shadowHost);
-    return VisibleSelectionInComposedTree::createWithoutValidation(selection.base(), newStart, newStart, selection.end(), selection.affinity(), selection.isDirectional());
-}
-
 template <typename Strategy>
 void VisibleSelectionTemplate<Strategy>::adjustSelectionToAvoidCrossingShadowBoundaries()
 {
     if (m_base.isNull() || m_start.isNull() || m_base.isNull())
         return;
-    *this = computeSelectionToAvoidCrossingShadowBoundaries(*this);
+    SelectionAdjuster::adjustSelectionToAvoidCrossingShadowBoundaries(this);
 }
 
 static Element* lowestEditableAncestor(Node* node)
@@ -859,7 +670,7 @@ void VisibleSelectionTemplate<Strategy>::adjustSelectionToAvoidCrossingEditingBo
             if (p.isNull() && shadowAncestor)
                 p = PositionTemplate<Strategy>::afterNode(shadowAncestor);
             while (p.isNotNull() && !(lowestEditableAncestor(p.computeContainerNode()) == baseEditableAncestor && !isEditablePosition(p))) {
-                Element* root = editableRootForPosition(p);
+                Element* root = rootEditableElementOf(p);
                 shadowAncestor = root ? root->shadowHost() : nullptr;
                 p = isAtomicNode(p.computeContainerNode()) ? PositionTemplate<Strategy>::inParentBeforeNode(*p.computeContainerNode()) : previousVisuallyDistinctCandidate(p);
                 if (p.isNull() && shadowAncestor)
@@ -888,7 +699,7 @@ void VisibleSelectionTemplate<Strategy>::adjustSelectionToAvoidCrossingEditingBo
             if (p.isNull() && shadowAncestor)
                 p = PositionTemplate<Strategy>::beforeNode(shadowAncestor);
             while (p.isNotNull() && !(lowestEditableAncestor(p.computeContainerNode()) == baseEditableAncestor && !isEditablePosition(p))) {
-                Element* root = editableRootForPosition(p);
+                Element* root = rootEditableElementOf(p);
                 shadowAncestor = root ? root->shadowHost() : nullptr;
                 p = isAtomicNode(p.computeContainerNode()) ? PositionTemplate<Strategy>::inParentAfterNode(*p.computeContainerNode()) : nextVisuallyDistinctCandidate(p);
                 if (p.isNull() && shadowAncestor)
@@ -962,7 +773,7 @@ bool VisibleSelectionTemplate<Strategy>::isContentRichlyEditable() const
 template <typename Strategy>
 Element* VisibleSelectionTemplate<Strategy>::rootEditableElement() const
 {
-    return editableRootForPosition(start());
+    return rootEditableElementOf(start());
 }
 
 template <typename Strategy>
@@ -1015,6 +826,16 @@ static bool isValidPosition(const PositionTemplate<Strategy>& position)
     const unsigned offset = static_cast<unsigned>(position.offsetInContainerNode());
     const unsigned nodeLength = position.anchorNode()->lengthOfContents();
     return offset <= nodeLength;
+}
+
+template <typename Strategy>
+void VisibleSelectionTemplate<Strategy>::updateIfNeeded()
+{
+    Document* document = m_base.document();
+    if (!document)
+        return;
+    document->updateLayoutIgnorePendingStylesheets();
+    validate();
 }
 
 template <typename Strategy>

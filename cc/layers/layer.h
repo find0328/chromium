@@ -10,6 +10,7 @@
 
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/callback.h"
@@ -27,7 +28,6 @@
 #include "cc/layers/layer_lists.h"
 #include "cc/layers/layer_position_constraint.h"
 #include "cc/layers/paint_properties.h"
-#include "cc/layers/scroll_blocks_on.h"
 #include "cc/output/filter_operations.h"
 #include "cc/trees/property_tree.h"
 #include "skia/ext/refptr.h"
@@ -83,8 +83,8 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
                         public LayerAnimationValueObserver,
                         public LayerAnimationValueProvider {
  public:
-  typedef LayerList LayerListType;
-  typedef base::hash_map<int, scoped_refptr<Layer>> LayerIdMap;
+  using LayerListType = LayerList;
+  using LayerIdMap = std::unordered_map<int, scoped_refptr<Layer>>;
 
   enum LayerIdLabels {
     INVALID_ID = -1,
@@ -141,6 +141,7 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
 
   void SetOpacity(float opacity);
   float opacity() const { return opacity_; }
+  float EffectiveOpacity() const;
   bool OpacityIsAnimating() const;
   bool HasPotentiallyRunningOpacityAnimation() const;
   virtual bool OpacityCanAnimateOnImplThread() const;
@@ -277,15 +278,11 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   }
   bool user_scrollable_vertical() const { return user_scrollable_vertical_; }
 
-  void AddMainThreadScrollingReasons(
-      InputHandler::MainThreadScrollingReason main_thread_scrolling_reasons);
+  void AddMainThreadScrollingReasons(uint32_t main_thread_scrolling_reasons);
   void ClearMainThreadScrollingReasons();
   bool should_scroll_on_main_thread() const {
     return !!main_thread_scrolling_reasons_;
   }
-
-  void SetHaveWheelEventHandlers(bool have_wheel_event_handlers);
-  bool have_wheel_event_handlers() const { return have_wheel_event_handlers_; }
 
   void SetHaveScrollEventHandlers(bool have_scroll_event_handlers);
   bool have_scroll_event_handlers() const {
@@ -301,9 +298,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   const Region& touch_event_handler_region() const {
     return touch_event_handler_region_;
   }
-
-  void SetScrollBlocksOn(ScrollBlocksOn scroll_blocks_on);
-  ScrollBlocksOn scroll_blocks_on() const { return scroll_blocks_on_; }
 
   void set_did_scroll_callback(const base::Closure& callback) {
     did_scroll_callback_ = callback;
@@ -419,7 +413,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   bool AddAnimation(scoped_ptr<Animation> animation);
   void PauseAnimation(int animation_id, double time_offset);
   void RemoveAnimation(int animation_id);
-  void RemoveAnimation(int animation_id, Animation::TargetProperty property);
   void AbortAnimation(int animation_id);
   LayerAnimationController* layer_animation_controller() const {
     return layer_animation_controller_.get();
@@ -473,6 +466,7 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   void set_property_tree_sequence_number(int sequence_number) {
     property_tree_sequence_number_ = sequence_number;
   }
+  int property_tree_sequence_number() { return property_tree_sequence_number_; }
 
   void SetTransformTreeIndex(int index);
   int transform_tree_index() const;
@@ -482,6 +476,9 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
 
   void SetEffectTreeIndex(int index);
   int effect_tree_index() const;
+
+  void SetScrollTreeIndex(int index);
+  int scroll_tree_index() const;
 
   void set_offset_to_transform_parent(gfx::Vector2dF offset) {
     if (offset_to_transform_parent_ == offset)
@@ -561,12 +558,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   bool layer_or_descendant_is_drawn();
   void set_sorted_for_recursion(bool sorted_for_recursion);
   bool sorted_for_recursion();
-  void set_is_hidden_from_property_trees(bool is_hidden) {
-    if (is_hidden == is_hidden_from_property_trees_)
-      return;
-    is_hidden_from_property_trees_ = is_hidden;
-    SetNeedsPushProperties();
-  }
 
   // LayerAnimationValueProvider implementation.
   gfx::ScrollOffset ScrollOffsetForAnimation() const override;
@@ -722,13 +713,13 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   int transform_tree_index_;
   int effect_tree_index_;
   int clip_tree_index_;
+  int scroll_tree_index_;
   int property_tree_sequence_number_;
   uint64_t element_id_;
   uint32_t mutable_properties_;
   gfx::Vector2dF offset_to_transform_parent_;
-  InputHandler::MainThreadScrollingReason main_thread_scrolling_reasons_;
+  uint32_t main_thread_scrolling_reasons_;
   bool should_flatten_transform_from_property_tree_ : 1;
-  bool have_wheel_event_handlers_ : 1;
   bool have_scroll_event_handlers_ : 1;
   bool user_scrollable_horizontal_ : 1;
   bool user_scrollable_vertical_ : 1;
@@ -745,7 +736,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   bool force_render_surface_ : 1;
   bool transform_is_invertible_ : 1;
   bool has_render_surface_ : 1;
-  ScrollBlocksOn scroll_blocks_on_ : 3;
   Region non_fast_scrollable_region_;
   Region touch_event_handler_region_;
   gfx::PointF position_;
@@ -793,7 +783,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
 
   std::vector<FrameTimingRequest> frame_timing_requests_;
   bool frame_timing_requests_dirty_;
-  bool is_hidden_from_property_trees_;
 
   DISALLOW_COPY_AND_ASSIGN(Layer);
 };

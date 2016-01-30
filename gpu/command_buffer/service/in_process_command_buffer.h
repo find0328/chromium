@@ -122,11 +122,6 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
                                      size_t height,
                                      unsigned internalformat,
                                      unsigned usage) override;
-  uint32_t InsertSyncPoint() override;
-  uint32_t InsertFutureSyncPoint() override;
-  void RetireSyncPoint(uint32_t sync_point) override;
-  void SignalSyncPoint(uint32_t sync_point,
-                       const base::Closure& callback) override;
   void SignalQuery(uint32_t query_id, const base::Closure& callback) override;
   void SetLock(base::Lock*) override;
   bool IsGpuChannelLost() override;
@@ -222,8 +217,6 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   State GetStateFast();
   void QueueTask(const base::Closure& task) { service_->ScheduleTask(task); }
   void CheckSequencedThread();
-  void RetireSyncPointOnGpuThread(uint32_t sync_point);
-  bool WaitSyncPointOnGpuThread(uint32_t sync_point);
   void FenceSyncReleaseOnGpuThread(uint64_t release);
   bool WaitFenceSyncOnGpuThread(gpu::CommandBufferNamespace namespace_id,
                                 uint64_t command_buffer_id,

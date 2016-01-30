@@ -37,16 +37,18 @@
 #include "bindings/core/v8/ExceptionMessages.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/NativeValueTraits.h"
+#include "bindings/core/v8/ScriptState.h"
 #include "bindings/core/v8/ScriptValue.h"
 #include "bindings/core/v8/ScriptWrappable.h"
 #include "bindings/core/v8/V8BindingMacros.h"
 #include "bindings/core/v8/V8PerIsolateData.h"
+#include "bindings/core/v8/V8ScriptRunner.h"
 #include "bindings/core/v8/V8StringResource.h"
 #include "bindings/core/v8/V8ThrowException.h"
 #include "bindings/core/v8/V8ValueCache.h"
 #include "core/CoreExport.h"
-#include "platform/JSONValues.h"
 #include "platform/heap/Handle.h"
+#include "platform/text/CompressibleString.h"
 #include "wtf/text/AtomicString.h"
 #include <v8.h>
 
@@ -62,6 +64,7 @@ class Frame;
 class LocalDOMWindow;
 class LocalFrame;
 class NodeFilter;
+class TracedValue;
 class WorkerGlobalScope;
 class WorkerOrWorkletGlobalScope;
 class XPathNSResolver;
@@ -74,10 +77,6 @@ struct V8TypeOf {
     // V8TypeOf for each wrapper class.
     typedef void Type;
 };
-
-namespace TraceEvent {
-class ConvertableToTraceFormat;
-}
 
 // Helpers for throwing JavaScript TypeErrors for arity mismatches.
 CORE_EXPORT void setArityTypeError(ExceptionState&, const char* valid, unsigned provided);
@@ -432,6 +431,13 @@ inline v8::Local<v8::String> v8String(v8::Isolate* isolate, const String& string
     if (string.isNull())
         return v8::String::Empty(isolate);
     return V8PerIsolateData::from(isolate)->stringCache()->v8ExternalString(isolate, string.impl());
+}
+
+inline v8::Local<v8::String> v8String(v8::Isolate* isolate, const CompressibleString& string)
+{
+    if (string.isNull())
+        return v8::String::Empty(isolate);
+    return V8PerIsolateData::from(isolate)->stringCache()->v8ExternalString(isolate, string);
 }
 
 inline v8::Local<v8::String> v8AtomicString(v8::Isolate* isolate, const char* str, int length = -1)
@@ -941,14 +947,6 @@ struct NativeValueTraits<Vector<T>> {
     }
 };
 
-using JSONValuePtr = PassRefPtr<JSONValue>;
-template <>
-struct NativeValueTraits<JSONValuePtr> {
-    CORE_EXPORT static JSONValuePtr nativeValue(v8::Isolate*, v8::Local<v8::Value>, ExceptionState&, int maxDepth = JSONValue::maxDepth);
-};
-
-JSONValuePtr toJSONValue(v8::Isolate*, v8::Local<v8::Value>, int maxDepth = JSONValue::maxDepth);
-
 CORE_EXPORT v8::Isolate* toIsolate(ExecutionContext*);
 CORE_EXPORT v8::Isolate* toIsolate(LocalFrame*);
 
@@ -1029,8 +1027,7 @@ enum DeleteResult {
     DeleteUnknownProperty
 };
 
-class V8IsolateInterruptor : public BlinkGCInterruptor {
-    USING_FAST_MALLOC(V8IsolateInterruptor);
+class V8IsolateInterruptor final : public BlinkGCInterruptor {
 public:
     explicit V8IsolateInterruptor(v8::Isolate* isolate)
         : m_isolate(isolate)
@@ -1083,12 +1080,36 @@ private:
     mutable v8::Local<v8::Function> m_function;
 };
 
-PassRefPtr<TraceEvent::ConvertableToTraceFormat> devToolsTraceEventData(v8::Isolate*, ExecutionContext*, v8::Local<v8::Function>);
+PassRefPtr<TracedValue> devToolsTraceEventData(v8::Isolate*, ExecutionContext*, v8::Local<v8::Function>);
 
 // Callback functions used by generated code.
 CORE_EXPORT void v8ConstructorAttributeGetter(v8::Local<v8::Name> propertyName, const v8::PropertyCallbackInfo<v8::Value>&);
 
 typedef void (*InstallTemplateFunction)(v8::Local<v8::FunctionTemplate>, v8::Isolate*);
+
+// Utiltiies for calling functions added to the V8 extras binding object.
+
+inline v8::MaybeLocal<v8::Value> v8CallExtraHelper(ScriptState* scriptState, const char* name, size_t numArgs, v8::Local<v8::Value>* args)
+{
+    v8::Isolate* isolate = scriptState->isolate();
+    ExecutionContext* ec = scriptState->executionContext();
+    v8::Local<v8::Value> undefined = v8::Undefined(isolate);
+    v8::Local<v8::Value> functionValue = scriptState->getFromExtrasExports(name).v8Value();
+    v8::Local<v8::Function> function = functionValue.As<v8::Function>();
+    return V8ScriptRunner::callFunction(function, ec, undefined, numArgs, args, isolate);
+}
+
+template <size_t N>
+v8::MaybeLocal<v8::Value> v8CallExtra(ScriptState* scriptState, const char* name, v8::Local<v8::Value>(&args)[N])
+{
+    return v8CallExtraHelper(scriptState, name, N, args);
+}
+
+template <size_t N>
+v8::Local<v8::Value> v8CallExtraOrCrash(ScriptState* scriptState, const char* name, v8::Local<v8::Value>(&args)[N])
+{
+    return v8CallOrCrash(v8CallExtraHelper(scriptState, name, N, args));
+}
 
 } // namespace blink
 

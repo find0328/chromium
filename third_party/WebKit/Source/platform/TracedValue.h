@@ -18,10 +18,13 @@ class TracedValue;
 
 namespace blink {
 
-class PLATFORM_EXPORT TracedValue : public TraceEvent::ConvertableToTraceFormat {
+// TracedValue copies all passed names and values and doesn't retain references.
+class PLATFORM_EXPORT TracedValue final : public RefCounted<TracedValue> {
     WTF_MAKE_NONCOPYABLE(TracedValue);
 
 public:
+    ~TracedValue();
+
     static PassRefPtr<TracedValue> create();
 
     void endDictionary();
@@ -41,13 +44,16 @@ public:
     void beginArray();
     void beginDictionary();
 
-    String asTraceFormat() const override;
+    String toString() const;
 
 private:
     TracedValue();
-    ~TracedValue() override;
 
+    // This will be moved (and become null) when TracedValue is passed to
+    // EventTracer::addTraceEvent().
     scoped_refptr<base::trace_event::TracedValue> m_tracedValue;
+
+    friend class EventTracer;
 };
 
 } // namespace blink

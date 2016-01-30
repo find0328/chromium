@@ -26,6 +26,7 @@ class Value;
 namespace content {
 class RenderProcessHost;
 class RenderViewHost;
+class RenderWidgetHostView;
 class ServiceRegistry;
 class SiteInstance;
 
@@ -72,6 +73,10 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
 
   // Returns the process for this frame.
   virtual RenderProcessHost* GetProcess() = 0;
+
+  // Returns the RenderWidgetHostView that can be used to control focus and
+  // visibility for this frame.
+  virtual RenderWidgetHostView* GetView() = 0;
 
   // Returns the current RenderFrameHost of the parent frame, or nullptr if
   // there is no parent. The result may be in a different process than the
@@ -187,6 +192,15 @@ class CONTENT_EXPORT RenderFrameHost : public IPC::Listener,
   // Returns whether the RenderFrame in the renderer process has been created
   // and still has a connection.  This is valid for all frames.
   virtual bool IsRenderFrameLive() = 0;
+
+#if defined(OS_ANDROID)
+  // Selects and zooms to the find result nearest to the point (x,y)
+  // defined in find-in-page coordinates.
+  virtual void ActivateNearestFindResult(int request_id, float x, float y) = 0;
+
+  // Asks the renderer process to send the rects of the current find matches.
+  virtual void RequestFindMatchRects(int current_version) = 0;
+#endif
 
  private:
   // This interface should only be implemented inside content.

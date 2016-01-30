@@ -91,11 +91,6 @@ public:
         return static_cast<EUserTriggered>(options & UserTriggered);
     }
 
-    enum ResetCaretBlinkOption {
-        None,
-        ResetCaretBlink
-    };
-
     LocalFrame* frame() const { return m_frame; }
     Element* rootEditableElement() const { return selection().rootEditableElement(); }
     Element* rootEditableElementOrDocumentElement() const;
@@ -186,7 +181,7 @@ public:
 
     bool isAppearanceDirty() const;
     void commitAppearanceIfNeeded(LayoutView&);
-    void updateAppearance(ResetCaretBlinkOption = None);
+    void updateAppearance();
     void setCaretVisible(bool caretIsVisible) { setCaretVisibility(caretIsVisible ? Visible : Hidden); }
     bool isCaretBoundsDirty() const { return m_caretRectDirty; }
     void setCaretRectNeedsUpdate();
@@ -241,6 +236,12 @@ public:
     bool shouldShowBlockCursor() const { return m_shouldShowBlockCursor; }
     void setShouldShowBlockCursor(bool);
 
+    // TODO(yosin): We should check DOM tree version and style version in
+    // |FrameSelection::selection()| to make sure we use updated selection,
+    // rather than having |updateIfNeeded()|. Once, we update all layout tests
+    // to use updated selection, we should make |updateIfNeeded()| private.
+    void updateIfNeeded();
+
     DECLARE_VIRTUAL_TRACE();
 
 private:
@@ -275,6 +276,7 @@ private:
     void focusedOrActiveStateChanged();
 
     void caretBlinkTimerFired(Timer<FrameSelection>*);
+    void stopCaretBlinkTimer();
 
     void setUseSecureKeyboardEntry(bool);
 

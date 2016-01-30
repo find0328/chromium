@@ -7,7 +7,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/location_bar/background_with_1_px_border.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
@@ -113,7 +113,7 @@ void IconLabelBubbleView::Layout() {
   // this up when MD is on by default.
   bool icon_has_enough_padding =
       !is_extension_icon_ || ui::MaterialDesignController::IsModeMaterial();
-  const int image_width = image()->GetPreferredSize().width();
+  const int image_width = image_->GetPreferredSize().width();
   image_->SetBounds(std::min((width() - image_width) / 2,
                              GetBubbleOuterPadding(icon_has_enough_padding)),
                     0, image_->GetPreferredSize().width(), height());
@@ -126,11 +126,6 @@ void IconLabelBubbleView::Layout() {
 
 void IconLabelBubbleView::OnNativeThemeChanged(
     const ui::NativeTheme* native_theme) {
-  // If the background isn't visible, the label and border won't be either, so
-  // don't bother updating them.
-  if (!ShouldShowBackground())
-    return;
-
   label_->SetEnabledColor(GetTextColor());
 
   if (!ui::MaterialDesignController::IsModeMaterial())

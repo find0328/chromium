@@ -47,6 +47,7 @@ cr.define('media_router', function() {
     container.addEventListener('report-initial-action', onInitialAction);
     container.addEventListener('report-initial-action-close',
                                onInitialActionClose);
+    container.addEventListener('report-route-creation', onReportRouteCreation);
     container.addEventListener('report-sink-click-time',
                                onSinkClickTimeReported);
     container.addEventListener('report-sink-count', onSinkCountReported);
@@ -80,9 +81,17 @@ cr.define('media_router', function() {
    * Updates the preference that the user has seen the first run flow.
    * Called when the user clicks on the acknowledgement button on the first run
    * flow.
+   *
+   * @param {!Event} event
+   * Parameters in |event|.detail:
+   *   optedIntoCloudServices - whether or not the user opted into cloud
+   *                            services.
    */
-  function onAcknowledgeFirstRunFlow() {
-    media_router.browserApi.acknowledgeFirstRunFlow();
+  function onAcknowledgeFirstRunFlow(event) {
+    /** @type {{optedIntoCloudServices: boolean}} */
+    var detail = event.detail;
+    media_router.browserApi.acknowledgeFirstRunFlow(
+        detail.optedIntoCloudServices);
   }
 
   /**
@@ -216,6 +225,18 @@ cr.define('media_router', function() {
   function onNavigateToSinkList() {
     media_router.browserApi.reportNavigateToView(
         media_router.MediaRouterView.SINK_LIST);
+  }
+
+  /**
+   * Reports whether or not the route creation was successful.
+   *
+   * @param {!Event} event
+   * Parameters in |event|.detail:
+   *   success - whether or not the route creation was successful.
+   */
+  function onReportRouteCreation(event) {
+    var detail = event.detail;
+    media_router.browserApi.reportRouteCreation(detail.success);
   }
 
   /**

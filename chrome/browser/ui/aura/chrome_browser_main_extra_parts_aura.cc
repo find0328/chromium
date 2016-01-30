@@ -8,7 +8,6 @@
 #include "base/run_loop.h"
 #include "build/build_config.h"
 #include "chrome/browser/chrome_browser_main.h"
-#include "chrome/browser/ui/aura/active_desktop_monitor.h"
 #include "chrome/browser/ui/host_desktop.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/common/chrome_switches.h"
@@ -23,6 +22,9 @@
 #if defined(OS_LINUX) && !defined(OS_CHROMEOS)
 #include "base/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/themes/theme_service.h"
+#include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/pref_names.h"
 #include "ui/aura/window.h"
 #include "ui/base/ime/input_method_initializer.h"
@@ -51,42 +53,33 @@ ui::NativeTheme* GetNativeThemeForWindow(aura::Window* window) {
     return nullptr;
 
   Profile* profile = nullptr;
+  // Window types not listed here (such as tooltips) will never use Chrome
+  // theming.
   if (window->type() == ui::wm::WINDOW_TYPE_NORMAL ||
-      window->type() == ui::wm::WINDOW_TYPE_POPUP ||
-      window->type() == ui::wm::WINDOW_TYPE_CONTROL) {
+      window->type() == ui::wm::WINDOW_TYPE_POPUP) {
     profile = reinterpret_cast<Profile*>(
         window->GetNativeWindowProperty(Profile::kProfileKey));
   }
 
-  if (profile && !profile->GetPrefs()->GetBoolean(prefs::kUsesSystemTheme)) {
-    return profile->IsOffTheRecord() ? ui::NativeThemeDarkAura::instance()
-                                     : ui::NativeThemeAura::instance();
+  if (profile) {
+    ThemeService* ts = ThemeServiceFactory::GetForProfile(profile);
+    // If using the system (GTK) theme, don't use an Aura NativeTheme at all.
+    if (!ts->UsingSystemTheme()) {
+      // Use a dark theme for incognito browser windows that aren't
+      // custom-themed. Otherwise, normal Aura theme.
+      if (profile->GetProfileType() == Profile::INCOGNITO_PROFILE &&
+          ts->UsingDefaultTheme() &&
+          BrowserView::GetBrowserViewForNativeWindow(window)) {
+        return ui::NativeThemeDarkAura::instance();
+      }
+
+      return ui::NativeThemeAura::instance();
+    }
   }
 
   return nullptr;
 }
 #endif
-
-#if !defined(OS_CHROMEOS) && defined(USE_ASH)
-// Returns the desktop this process was initially launched in.
-chrome::HostDesktopType GetInitialDesktop() {
-#if defined(OS_WIN) && defined(USE_ASH)
-  const base::CommandLine* command_line =
-      base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kViewerConnect) ||
-      command_line->HasSwitch(switches::kViewerLaunchViaAppId)) {
-    return chrome::HOST_DESKTOP_TYPE_ASH;
-  }
-#elif defined(OS_LINUX)
-  const base::CommandLine* command_line =
-      base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kOpenAsh))
-    return chrome::HOST_DESKTOP_TYPE_ASH;
-#endif
-
-  return chrome::HOST_DESKTOP_TYPE_NATIVE;
-}
-#endif  // !defined(OS_CHROMEOS) && defined(USE_ASH)
 
 }  // namespace
 
@@ -98,12 +91,6 @@ ChromeBrowserMainExtraPartsAura::~ChromeBrowserMainExtraPartsAura() {
 
 void ChromeBrowserMainExtraPartsAura::PreEarlyInitialization() {
 #if defined(USE_X11) && !defined(OS_CHROMEOS)
-#if defined(USE_ASH)
-  if (GetInitialDesktop() == chrome::HOST_DESKTOP_TYPE_ASH) {
-    ui::InitializeInputMethodForTesting();
-    return;
-  }
-#endif
   // TODO(erg): Refactor this into a dlopen call when we add a GTK3 port.
   views::LinuxUI* gtk2_ui = BuildGtk2UI();
   gtk2_ui->SetNativeThemeOverride(base::Bind(&GetNativeThemeForWindow));
@@ -112,16 +99,7 @@ void ChromeBrowserMainExtraPartsAura::PreEarlyInitialization() {
 }
 
 void ChromeBrowserMainExtraPartsAura::ToolkitInitialized() {
-#if !defined(OS_CHROMEOS) && defined(USE_ASH)
-  CHECK(aura::Env::GetInstance());
-  active_desktop_monitor_.reset(new ActiveDesktopMonitor(GetInitialDesktop()));
-#endif
-
 #if defined(USE_X11) && !defined(OS_CHROMEOS)
-#if defined(USE_ASH)
-  if (GetInitialDesktop() == chrome::HOST_DESKTOP_TYPE_ASH)
-    return;
-#endif
   views::LinuxUI::instance()->Initialize();
 #endif
 }
@@ -135,7 +113,7 @@ void ChromeBrowserMainExtraPartsAura::PreCreateThreads() {
 #endif
   if (!should_open_ash) {
     gfx::Screen* screen = views::CreateDesktopScreen();
-    gfx::Screen::SetScreenInstance(gfx::SCREEN_TYPE_NATIVE, screen);
+    gfx::Screen::SetScreenInstance(screen);
 #if defined(USE_X11)
     views::LinuxUI::instance()->UpdateDeviceScaleFactor(
         screen->GetPrimaryDisplay().device_scale_factor());
@@ -153,8 +131,6 @@ void ChromeBrowserMainExtraPartsAura::PreProfileInit() {
 }
 
 void ChromeBrowserMainExtraPartsAura::PostMainMessageLoopRun() {
-  active_desktop_monitor_.reset();
-
   // aura::Env instance is deleted in BrowserProcessImpl::StartTearDown
   // after the metrics service is deleted.
 }

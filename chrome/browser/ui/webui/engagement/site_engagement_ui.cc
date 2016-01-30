@@ -52,7 +52,7 @@ class SiteEngagementUIHandlerImpl : public SiteEngagementUIHandler {
 
   void SetSiteEngagementScoreForOrigin(const mojo::String& origin,
                                        double score) override {
-    GURL origin_gurl(origin);
+    GURL origin_gurl(origin.get());
     if (!origin_gurl.is_valid() || score < 0 ||
         score > SiteEngagementScore::kMaxPoints) {
       return;
@@ -88,7 +88,6 @@ SiteEngagementUI::SiteEngagementUI(content::WebUI* web_ui)
   source->AddResourcePath(
       "chrome/browser/ui/webui/engagement/site_engagement.mojom",
       IDR_SITE_ENGAGEMENT_MOJO_JS);
-  source->AddMojoResources();
   source->SetDefaultResource(IDR_SITE_ENGAGEMENT_HTML);
 
   content::WebUIDataSource::Add(Profile::FromWebUI(web_ui), source.release());

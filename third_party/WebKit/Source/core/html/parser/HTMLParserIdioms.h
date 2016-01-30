@@ -60,6 +60,9 @@ bool parseHTMLInteger(const String&, int&);
 // http://www.whatwg.org/specs/web-apps/current-work/#rules-for-parsing-non-negative-integers
 bool parseHTMLNonNegativeInteger(const String&, unsigned&);
 
+// https://html.spec.whatwg.org/multipage/infrastructure.html#rules-for-parsing-a-list-of-floating-point-numbers
+Vector<double> parseHTMLListOfFloatingPointNumbers(const String&);
+
 typedef Vector<std::pair<String, String>> HTMLAttributeList;
 // The returned encoding might not be valid.
 WTF::TextEncoding encodingFromMetaAttributes(const HTMLAttributeList&);
@@ -130,6 +133,5 @@ inline static String attemptStaticStringCreation(const String str)
     return attemptStaticStringCreation(str.characters8(), str.length());
 }
 
-
-}
+} // namespace blink
 #endif

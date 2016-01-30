@@ -38,8 +38,9 @@ class TaskViewer : public views::WidgetDelegateView,
                    public views::ButtonListener,
                    public mojo::shell::mojom::ApplicationManagerListener {
  public:
-  explicit TaskViewer(ListenerRequest request)
+  TaskViewer(ListenerRequest request, scoped_ptr<mojo::AppRefCount> app)
       : binding_(this, std::move(request)),
+        app_(std::move(app)),
         table_view_(nullptr),
         table_view_parent_(nullptr),
         kill_button_(
@@ -65,11 +66,11 @@ class TaskViewer : public views::WidgetDelegateView,
 
  private:
   struct ApplicationInfo {
-    int id;
+    uint32_t id;
     std::string url;
     uint32_t pid;
 
-    ApplicationInfo(int id, const std::string url, base::ProcessId pid)
+    ApplicationInfo(uint32_t id, const std::string url, base::ProcessId pid)
         : id(id), url(url), pid(pid) {}
   };
 
@@ -145,7 +146,7 @@ class TaskViewer : public views::WidgetDelegateView,
                             application->pid)));
     observer_->OnItemsAdded(static_cast<int>(applications_.size()), 1);
   }
-  void ApplicationInstanceDestroyed(int32_t id) override {
+  void ApplicationInstanceDestroyed(uint32_t id) override {
     for (auto it = applications_.begin(); it != applications_.end(); ++it) {
       if ((*it)->id == id) {
         observer_->OnItemsRemoved(
@@ -156,7 +157,7 @@ class TaskViewer : public views::WidgetDelegateView,
     }
     NOTREACHED();
   }
-  void ApplicationPIDAvailable(int id, uint32_t pid) override {
+  void ApplicationPIDAvailable(uint32_t id, uint32_t pid) override {
     for (auto it = applications_.begin(); it != applications_.end(); ++it) {
       if ((*it)->id == id) {
         (*it)->pid = pid;
@@ -167,7 +168,7 @@ class TaskViewer : public views::WidgetDelegateView,
     }
   }
 
-  bool ContainsId(int id) const {
+  bool ContainsId(uint32_t id) const {
     for (auto& it : applications_) {
       if (it->id == id)
         return true;
@@ -199,6 +200,7 @@ class TaskViewer : public views::WidgetDelegateView,
   }
 
   mojo::Binding<mojo::shell::mojom::ApplicationManagerListener> binding_;
+  scoped_ptr<mojo::AppRefCount> app_;
 
   views::TableView* table_view_;
   views::View* table_view_parent_;
@@ -229,7 +231,8 @@ void TaskViewerApplicationDelegate::Initialize(mojo::ApplicationImpl* app) {
   ListenerRequest request = GetProxy(&listener);
   application_manager->AddListener(std::move(listener));
 
-  TaskViewer* task_viewer = new TaskViewer(std::move(request));
+  TaskViewer* task_viewer = new TaskViewer(
+      std::move(request), app->app_lifetime_helper()->CreateAppRefCount());
   views::Widget* window = views::Widget::CreateWindowWithBounds(
       task_viewer, gfx::Rect(10, 10, 500, 500));
   window->Show();

@@ -970,6 +970,43 @@ public:
         SVG1DOMImageElement = 1115,
         SVG1DOMForeignObjectElement = 1116,
         AudioContextCreateIIRFilter = 1117,
+        // The above items are available in M49 branch
+
+        CSSSelectorPseudoSlotted = 1118,
+        MediaDevicesEnumerateDevices = 1119,
+        NonSecureSharedWorkerAccessedFromSecureContext = 1120,
+        SecureSharedWorkerAccessedFromNonSecureContext = 1121,
+        EventDeepPath = 1123,
+        LinkHeaderPreload = 1124,
+        MouseWheelEvent = 1125,
+        WheelEvent = 1126,
+        MouseWheelAndWheelEvent = 1127,
+        BodyScrollsInAdditionToViewport = 1128,
+        DocumentDesignModeEnabeld = 1129,
+        ContentEditableTrue = 1130,
+        ContentEditableTrueOnHTML = 1131,
+        ContentEditablePlainTextOnly = 1132,
+        V8RegExpPrototypeUnicodeGetter = 1133,
+        V8IntlV8Parse = 1134,
+        V8IntlPattern = 1135,
+        V8IntlResolved = 1136,
+        V8PromiseChain = 1137,
+        V8PromiseAccept = 1138,
+        V8PromiseDefer = 1139,
+        EventScoped = 1140,
+        GeolocationInsecureOriginIframe = 1141,
+        GeolocationSecureOriginIframe = 1142,
+        RequestMIDIAccessIframe = 1143,
+        GetUserMediaInsecureOriginIframe = 1144,
+        GetUserMediaSecureOriginIframe = 1145,
+        ElementRequestPointerLockIframe = 1146,
+        NotificationAPIInsecureOriginIframe = 1147,
+        NotificationAPISecureOriginIframe = 1148,
+        WebSocket = 1149,
+        MediaStreamConstraintsNameValue = 1150,
+        MediaStreamConstraintsFromDictionary = 1151,
+        MediaStreamConstraintsConformant = 1152,
+        CSSSelectorIndirectAdjacent = 1153,
 
         // Add new features immediately above this line. Don't change assigned
         // numbers of any item, and don't reuse removed slots.
@@ -1011,6 +1048,10 @@ public:
     // countDeprecationIfNotPrivateScript() in a binding layer.
     static void countDeprecationIfNotPrivateScript(v8::Isolate*, ExecutionContext*, Feature);
     static String deprecationMessage(Feature);
+
+    // Count only features if they're being used in an iframe which does not
+    // have script access into the top level document.
+    static void countCrossOriginIframe(const Document&, Feature);
 
     // Return whether the Feature was previously counted for this document.
     // NOTE: only for use in testing.

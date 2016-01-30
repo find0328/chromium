@@ -2646,6 +2646,14 @@ should be able to be added at any place in this file.
   <description>Please enter the description of this user action.</description>
 </action>
 
+<action name="DesktopSearch">
+  <owner>fdoray@chromium.org</owner>
+  <description>
+    Recorded when a desktop search is opened in Chrome. This is currently
+    Windows-specific.
+  </description>
+</action>
+
 <action name="Desktop_SwitchTask">
   <owner>bruthig@google.com</owner>
   <owner>tdanderson@google.com</owner>
@@ -7718,6 +7726,16 @@ should be able to be added at any place in this file.
   <description>Please enter the description of this user action.</description>
 </action>
 
+<action name="Media.Audible.AddTab">
+  <owner>mlamouri@chromium.org</owner>
+  <description>A tab became audible.</description>
+</action>
+
+<action name="Media.Audible.RemoveTab">
+  <owner>mlamouri@chromium.org</owner>
+  <description>A tab is no longer audible.</description>
+</action>
+
 <action name="MediaContextMenu_Controls">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
@@ -7832,6 +7850,13 @@ should be able to be added at any place in this file.
 <action name="MobileActionBarShown">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
+</action>
+
+<action name="MobileAddBookmarkViaIntent">
+  <owner>newt@chromium.org</owner>
+  <description>
+    User added a bookmark to Chrome via an intent from a third-party app.
+  </description>
 </action>
 
 <action name="MobileBeamCallbackSuccess">
@@ -9692,6 +9717,11 @@ should be able to be added at any place in this file.
   <description>
     Settings: Device: Display settings: arrange desktops
   </description>
+</action>
+
+<action name="Options_DisplaySetColorProfile">
+  <owner>stevenjb@chromium.org</owner>
+  <description>Settings: Device: Display settings: Color Profile</description>
 </action>
 
 <action name="Options_DisplaySetOrientation">

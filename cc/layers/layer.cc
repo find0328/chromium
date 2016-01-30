@@ -22,6 +22,7 @@
 #include "cc/animation/mutable_properties.h"
 #include "cc/base/simple_enclosed_region.h"
 #include "cc/debug/frame_viewer_instrumentation.h"
+#include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/layers/layer_client.h"
 #include "cc/layers/layer_impl.h"
 #include "cc/layers/layer_proto_converter.h"
@@ -63,12 +64,13 @@ Layer::Layer(const LayerSettings& settings)
       transform_tree_index_(-1),
       effect_tree_index_(-1),
       clip_tree_index_(-1),
+      scroll_tree_index_(-1),
       property_tree_sequence_number_(-1),
       element_id_(0),
-      mutable_properties_(kMutablePropertyNone),
-      main_thread_scrolling_reasons_(InputHandler::NOT_SCROLLING_ON_MAIN),
+      mutable_properties_(MutableProperty::kNone),
+      main_thread_scrolling_reasons_(
+          MainThreadScrollingReason::kNotScrollingOnMain),
       should_flatten_transform_from_property_tree_(false),
-      have_wheel_event_handlers_(false),
       have_scroll_event_handlers_(false),
       user_scrollable_horizontal_(true),
       user_scrollable_vertical_(true),
@@ -85,7 +87,6 @@ Layer::Layer(const LayerSettings& settings)
       force_render_surface_(false),
       transform_is_invertible_(true),
       has_render_surface_(false),
-      scroll_blocks_on_(SCROLL_BLOCKS_ON_NONE),
       background_color_(0),
       opacity_(1.f),
       blend_mode_(SkXfermode::kSrcOver_Mode),
@@ -98,8 +99,7 @@ Layer::Layer(const LayerSettings& settings)
       replica_layer_(nullptr),
       client_(nullptr),
       num_unclipped_descendants_(0),
-      frame_timing_requests_dirty_(false),
-      is_hidden_from_property_trees_(false) {
+      frame_timing_requests_dirty_(false) {
   if (!settings.use_compositor_animation_timelines) {
     layer_animation_controller_ = LayerAnimationController::Create(layer_id_);
     layer_animation_controller_->AddValueObserver(this);
@@ -537,6 +537,10 @@ void Layer::SetOpacity(float opacity) {
   SetNeedsCommit();
 }
 
+float Layer::EffectiveOpacity() const {
+  return hide_layer_and_subtree_ ? 0.f : opacity_;
+}
+
 bool Layer::OpacityIsAnimating() const {
   DCHECK(layer_tree_host_);
   return layer_animation_controller_
@@ -948,7 +952,7 @@ void Layer::SetUserScrollable(bool horizontal, bool vertical) {
 }
 
 void Layer::AddMainThreadScrollingReasons(
-    InputHandler::MainThreadScrollingReason main_thread_scrolling_reasons) {
+    uint32_t main_thread_scrolling_reasons) {
   DCHECK(IsPropertyChangeAllowed());
   DCHECK(main_thread_scrolling_reasons);
   if (main_thread_scrolling_reasons_ == main_thread_scrolling_reasons)
@@ -961,16 +965,8 @@ void Layer::ClearMainThreadScrollingReasons() {
   DCHECK(IsPropertyChangeAllowed());
   if (!main_thread_scrolling_reasons_)
     return;
-  main_thread_scrolling_reasons_ = InputHandler::NOT_SCROLLING_ON_MAIN;
-  SetNeedsCommit();
-}
-
-void Layer::SetHaveWheelEventHandlers(bool have_wheel_event_handlers) {
-  DCHECK(IsPropertyChangeAllowed());
-  if (have_wheel_event_handlers_ == have_wheel_event_handlers)
-    return;
-
-  have_wheel_event_handlers_ = have_wheel_event_handlers;
+  main_thread_scrolling_reasons_ =
+      MainThreadScrollingReason::kNotScrollingOnMain;
   SetNeedsCommit();
 }
 
@@ -996,14 +992,6 @@ void Layer::SetTouchEventHandlerRegion(const Region& region) {
     return;
 
   touch_event_handler_region_ = region;
-  SetNeedsCommit();
-}
-
-void Layer::SetScrollBlocksOn(ScrollBlocksOn scroll_blocks_on) {
-  DCHECK(IsPropertyChangeAllowed());
-  if (scroll_blocks_on_ == scroll_blocks_on)
-    return;
-  scroll_blocks_on_ = scroll_blocks_on;
   SetNeedsCommit();
 }
 
@@ -1080,6 +1068,23 @@ int Layer::effect_tree_index() const {
     return -1;
   }
   return effect_tree_index_;
+}
+
+void Layer::SetScrollTreeIndex(int index) {
+  DCHECK(IsPropertyChangeAllowed());
+  if (scroll_tree_index_ == index)
+    return;
+  scroll_tree_index_ = index;
+  SetNeedsPushProperties();
+}
+
+int Layer::scroll_tree_index() const {
+  if (!layer_tree_host_ ||
+      layer_tree_host_->property_trees()->sequence_number !=
+          property_tree_sequence_number_) {
+    return -1;
+  }
+  return scroll_tree_index_;
 }
 
 void Layer::InvalidatePropertyTreesIndices() {
@@ -1195,6 +1200,7 @@ void Layer::PushPropertiesTo(LayerImpl* layer) {
   layer->SetTransformTreeIndex(transform_tree_index());
   layer->SetEffectTreeIndex(effect_tree_index());
   layer->SetClipTreeIndex(clip_tree_index());
+  layer->SetScrollTreeIndex(scroll_tree_index());
   layer->set_offset_to_transform_parent(offset_to_transform_parent_);
   layer->SetDoubleSided(double_sided_);
   layer->SetDrawsContent(DrawsContent());
@@ -1207,11 +1213,9 @@ void Layer::PushPropertiesTo(LayerImpl* layer) {
   layer->SetBackgroundFilters(background_filters());
   layer->SetMasksToBounds(masks_to_bounds_);
   layer->set_main_thread_scrolling_reasons(main_thread_scrolling_reasons_);
-  layer->SetHaveWheelEventHandlers(have_wheel_event_handlers_);
   layer->SetHaveScrollEventHandlers(have_scroll_event_handlers_);
   layer->SetNonFastScrollableRegion(non_fast_scrollable_region_);
   layer->SetTouchEventHandlerRegion(touch_event_handler_region_);
-  layer->SetScrollBlocksOn(scroll_blocks_on_);
   layer->SetContentsOpaque(contents_opaque_);
   if (!layer->OpacityIsAnimatingOnImplOnly() && !OpacityIsAnimating())
     layer->SetOpacity(opacity_);
@@ -1238,7 +1242,6 @@ void Layer::PushPropertiesTo(LayerImpl* layer) {
   layer->set_user_scrollable_vertical(user_scrollable_vertical_);
   layer->SetElementId(element_id_);
   layer->SetMutableProperties(mutable_properties_);
-  layer->set_is_hidden_from_property_trees(is_hidden_from_property_trees_);
 
   LayerImpl* scroll_parent = nullptr;
   if (scroll_parent_) {
@@ -1466,6 +1469,7 @@ void Layer::LayerSpecificPropertiesToProto(proto::LayerProperties* proto) {
   base->set_transform_free_index(transform_tree_index_);
   base->set_effect_tree_index(effect_tree_index_);
   base->set_clip_tree_index(clip_tree_index_);
+  base->set_scroll_tree_index(scroll_tree_index_);
   Vector2dFToProto(offset_to_transform_parent_,
                    base->mutable_offset_to_transform_parent());
   base->set_double_sided(double_sided_);
@@ -1478,13 +1482,11 @@ void Layer::LayerSpecificPropertiesToProto(proto::LayerProperties* proto) {
 
   base->set_masks_to_bounds(masks_to_bounds_);
   base->set_main_thread_scrolling_reasons(main_thread_scrolling_reasons_);
-  base->set_have_wheel_event_handlers(have_wheel_event_handlers_);
   base->set_have_scroll_event_handlers(have_scroll_event_handlers_);
   RegionToProto(non_fast_scrollable_region_,
                 base->mutable_non_fast_scrollable_region());
   RegionToProto(touch_event_handler_region_,
                 base->mutable_touch_event_handler_region());
-  base->set_scroll_blocks_on(scroll_blocks_on_);
   base->set_contents_opaque(contents_opaque_);
   base->set_opacity(opacity_);
   base->set_blend_mode(SkXfermodeModeToProto(blend_mode_));
@@ -1556,6 +1558,7 @@ void Layer::FromLayerSpecificPropertiesProto(
   transform_tree_index_ = base.transform_free_index();
   effect_tree_index_ = base.effect_tree_index();
   clip_tree_index_ = base.clip_tree_index();
+  scroll_tree_index_ = base.scroll_tree_index();
   offset_to_transform_parent_ =
       ProtoToVector2dF(base.offset_to_transform_parent());
   double_sided_ = base.double_sided();
@@ -1563,16 +1566,12 @@ void Layer::FromLayerSpecificPropertiesProto(
   hide_layer_and_subtree_ = base.hide_layer_and_subtree();
   has_render_surface_ = base.has_render_surface();
   masks_to_bounds_ = base.masks_to_bounds();
-  main_thread_scrolling_reasons_ =
-      static_cast<InputHandler::MainThreadScrollingReason>(
-          base.main_thread_scrolling_reasons());
-  have_wheel_event_handlers_ = base.have_wheel_event_handlers();
+  main_thread_scrolling_reasons_ = base.main_thread_scrolling_reasons();
   have_scroll_event_handlers_ = base.have_scroll_event_handlers();
   non_fast_scrollable_region_ =
       RegionFromProto(base.non_fast_scrollable_region());
   touch_event_handler_region_ =
       RegionFromProto(base.touch_event_handler_region());
-  scroll_blocks_on_ = (ScrollBlocksOn)base.scroll_blocks_on();
   contents_opaque_ = base.contents_opaque();
   opacity_ = base.opacity();
   blend_mode_ = SkXfermodeModeFromProto(base.blend_mode());
@@ -1847,13 +1846,6 @@ void Layer::PauseAnimation(int animation_id, double time_offset) {
 void Layer::RemoveAnimation(int animation_id) {
   DCHECK(layer_animation_controller_);
   layer_animation_controller_->RemoveAnimation(animation_id);
-  SetNeedsCommit();
-}
-
-void Layer::RemoveAnimation(int animation_id,
-                            Animation::TargetProperty property) {
-  DCHECK(layer_animation_controller_);
-  layer_animation_controller_->RemoveAnimation(animation_id, property);
   SetNeedsCommit();
 }
 

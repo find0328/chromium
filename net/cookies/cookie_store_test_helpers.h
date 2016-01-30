@@ -37,6 +37,8 @@ class DelayedCookieMonster : public CookieStore {
   void GetAllCookiesForURLAsync(const GURL& url,
                                 const GetCookieListCallback& callback) override;
 
+  void GetAllCookiesAsync(const GetCookieListCallback& callback) override;
+
   virtual bool SetCookieWithOptions(const GURL& url,
                                     const std::string& cookie_line,
                                     const CookieOptions& options);
@@ -62,6 +64,8 @@ class DelayedCookieMonster : public CookieStore {
       const DeleteCallback& callback) override;
 
   void DeleteSessionCookiesAsync(const DeleteCallback&) override;
+
+  void FlushStore(const base::Closure& callback) override;
 
   CookieMonster* GetCookieMonster() override;
 

@@ -37,7 +37,6 @@
 namespace content {
 
 class BackgroundSyncNetworkObserver;
-class BackgroundSyncPowerObserver;
 class ServiceWorkerContextWrapper;
 
 // BackgroundSyncManager manages and stores the set of background sync
@@ -65,9 +64,9 @@ class CONTENT_EXPORT BackgroundSyncManager
   ~BackgroundSyncManager() override;
 
   // Stores the given background sync registration and adds it to the scheduling
-  // queue. It will overwrite an existing registration with the same tag and
-  // periodicity unless they're identical (save for the id). Calls |callback|
-  // with BACKGROUND_SYNC_STATUS_OK and the accepted registration on success.
+  // queue. It will overwrite an existing registration with the same tag unless
+  // they're identical (save for the id). Calls |callback| with
+  // BACKGROUND_SYNC_STATUS_OK and the accepted registration on success.
   // The accepted registration will have a unique id. It may also have altered
   // parameters if the user or UA chose different parameters than those
   // supplied.
@@ -77,22 +76,19 @@ class CONTENT_EXPORT BackgroundSyncManager
                 const StatusAndRegistrationCallback& callback);
 
   // Finds the background sync registration associated with
-  // |sw_registration_id|, periodicity |periodicity|, and tag
-  // |sync_registration_tag|. Calls |callback| with
-  // BACKGROUND_SYNC_STATUS_NOT_FOUND if it doesn't exist. Calls |callback| with
-  // BACKGROUND_SYNC_STATUS_OK on success. If the callback's status
-  // is not BACKGROUND_SYNC_STATUS_OK then the callback's RegistrationHandle
-  // will be nullptr.
+  // |sw_registration_id|, and tag |sync_registration_tag|. Calls |callback|
+  // with BACKGROUND_SYNC_STATUS_NOT_FOUND if it doesn't exist. Calls |callback|
+  // with BACKGROUND_SYNC_STATUS_OK on success. If the callback's status is not
+  // BACKGROUND_SYNC_STATUS_OK then the callback's RegistrationHandle will be
+  // nullptr.
   void GetRegistration(int64_t sw_registration_id,
                        const std::string& sync_registration_tag,
-                       SyncPeriodicity periodicity,
                        const StatusAndRegistrationCallback& callback);
 
   // Finds the background sync registrations associated with
-  // |sw_registration_id| and periodicity |periodicity|. Calls
-  // |callback| with BACKGROUND_SYNC_STATUS_OK on success.
+  // |sw_registration_id|. Calls |callback| with BACKGROUND_SYNC_STATUS_OK on
+  // success.
   void GetRegistrations(int64_t sw_registration_id,
-                        SyncPeriodicity periodicity,
                         const StatusAndRegistrationsCallback& callback);
 
   // Given a HandleId |handle_id|, return a new handle for the same
@@ -144,7 +140,7 @@ class CONTENT_EXPORT BackgroundSyncManager
       const std::string& backend_key,
       const ServiceWorkerStorage::GetUserDataForAllRegistrationsCallback&
           callback);
-  virtual void FireOneShotSync(
+  virtual void DispatchSyncEvent(
       BackgroundSyncRegistrationHandle::HandleId handle_id,
       const scoped_refptr<ServiceWorkerVersion>& active_version,
       BackgroundSyncEventLastChance last_chance,
@@ -163,7 +159,7 @@ class CONTENT_EXPORT BackgroundSyncManager
    public:
     explicit RegistrationKey(const BackgroundSyncRegistration& registration);
     explicit RegistrationKey(const BackgroundSyncRegistrationOptions& options);
-    RegistrationKey(const std::string& tag, SyncPeriodicity periodicity);
+    RegistrationKey(const std::string& tag);
     RegistrationKey(const RegistrationKey& other) = default;
     RegistrationKey& operator=(const RegistrationKey& other) = default;
 
@@ -267,10 +263,9 @@ class CONTENT_EXPORT BackgroundSyncManager
       const StatusAndRegistrationCallback& callback,
       ServiceWorkerStatusCode status);
 
-  // Removes the background sync with periodicity |periodicity| and id
-  // |sync_registration_id|. Calls |callback| with
-  // BACKGROUND_SYNC_STATUS_NOT_FOUND if no match is found. Calls |callback|
-  // with BACKGROUND_SYNC_STATUS_OK on success.
+  // Removes the background sync with id |sync_registration_id|. Calls
+  // |callback| with BACKGROUND_SYNC_STATUS_NOT_FOUND if no match is found.
+  // Calls |callback| with BACKGROUND_SYNC_STATUS_OK on success.
   void Unregister(int64_t sw_registration_id,
                   BackgroundSyncRegistrationHandle::HandleId handle_id,
                   const StatusCallback& callback);
@@ -278,10 +273,8 @@ class CONTENT_EXPORT BackgroundSyncManager
       int64_t sw_registration_id,
       const RegistrationKey& key,
       BackgroundSyncRegistration::RegistrationId sync_registration_id,
-      SyncPeriodicity periodicity,
       const StatusCallback& callback);
   void UnregisterDidStore(int64_t sw_registration_id,
-                          SyncPeriodicity periodicity,
                           const StatusCallback& callback,
                           ServiceWorkerStatusCode status);
 
@@ -303,7 +296,6 @@ class CONTENT_EXPORT BackgroundSyncManager
 
   // GetRegistrations callbacks
   void GetRegistrationsImpl(int64_t sw_registration_id,
-                            SyncPeriodicity periodicity,
                             const StatusAndRegistrationsCallback& callback);
 
   bool AreOptionConditionsMet(const BackgroundSyncRegistrationOptions& options);
@@ -362,7 +354,6 @@ class CONTENT_EXPORT BackgroundSyncManager
   void OnStorageWipedImpl(const base::Closure& callback);
 
   void OnNetworkChanged();
-  void OnPowerChanged();
 
   // SetMaxSyncAttempts callback
   void SetMaxSyncAttemptsImpl(int max_sync_attempts,
@@ -404,7 +395,6 @@ class CONTENT_EXPORT BackgroundSyncManager
   base::CancelableCallback<void()> delayed_sync_task_;
 
   scoped_ptr<BackgroundSyncNetworkObserver> network_observer_;
-  scoped_ptr<BackgroundSyncPowerObserver> power_observer_;
 
   // The registrations that clients have handles to.
   IDMap<scoped_refptr<RefCountedRegistration>,

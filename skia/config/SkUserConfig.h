@@ -206,8 +206,8 @@ SK_API void SkDebugf_FileLine(const char* file, int line, bool fatal,
 //
 // Remove these as we update our sites.
 //
-#ifndef    SK_SUPPORT_LEGACY_CONIC_MEASURE
-#   define SK_SUPPORT_LEGACY_CONIC_MEASURE
+#ifndef    SK_SUPPORT_LEGACY_SAMPLER_BIAS
+#   define SK_SUPPORT_LEGACY_SAMPLER_BIAS
 #endif
 
 #ifndef    SK_SUPPORT_LEGACY_GETTOPDEVICE
@@ -234,17 +234,22 @@ SK_API void SkDebugf_FileLine(const char* file, int line, bool fatal,
 #   define SK_SUPPORT_LEGACY_HQ_DOWNSAMPLING
 #endif
 
-#ifndef    SK_SUPPORT_LEGACY_PATH_MEASURE_TVALUE
-#   define SK_SUPPORT_LEGACY_PATH_MEASURE_TVALUE
-#endif
-
 #ifndef    SK_SUPPORT_LEGACY_BITMAP_FILTER
 #   define SK_SUPPORT_LEGACY_BITMAP_FILTER
 #endif
 
-#ifndef    SK_SUPPORT_LEGACY_TRANSLATEROUNDHACK
-#   define SK_SUPPORT_LEGACY_TRANSLATEROUNDHACK
+#ifndef    SK_SUPPORT_LEGACY_EVAL_CUBIC
+#   define SK_SUPPORT_LEGACY_EVAL_CUBIC
 #endif
+
+#ifndef    SK_SUPPORT_LEGACY_VERTICAL_EDGE
+#   define SK_SUPPORT_LEGACY_VERTICAL_EDGE
+#endif
+
+#ifndef    SK_SUPPORT_LEGACY_INSERT_NEW_EDGES
+#   define SK_SUPPORT_LEGACY_INSERT_NEW_EDGES
+#endif
+
 
 ///////////////////////// Imported from BUILD.gn and skia_common.gypi
 

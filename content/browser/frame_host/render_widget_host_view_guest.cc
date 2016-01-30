@@ -62,6 +62,8 @@ RenderWidgetHostViewGuest::RenderWidgetHostViewGuest(
       // |guest| is NULL during test.
       guest_(guest ? guest->AsWeakPtr() : base::WeakPtr<BrowserPluginGuest>()),
       platform_view_(platform_view) {
+  // Inputs for guest view are already scaled.
+  host_->set_scale_input_to_viewport(false);
 }
 
 RenderWidgetHostViewGuest::~RenderWidgetHostViewGuest() {
@@ -558,6 +560,7 @@ gfx::NativeViewId RenderWidgetHostViewGuest::GetParentForWindowlessPlugin()
 #endif
 
 void RenderWidgetHostViewGuest::DestroyGuestView() {
+  UnregisterSurfaceNamespaceId();
   host_->SetView(NULL);
   host_ = NULL;
   base::MessageLoop::current()->DeleteSoon(FROM_HERE, this);

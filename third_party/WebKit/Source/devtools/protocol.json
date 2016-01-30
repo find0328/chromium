@@ -451,6 +451,14 @@
                 ],
                 "hidden": true,
                 "description": "Sets overlay message."
+            },
+            {
+                "name": "requestAppBanner",
+                "returns": [
+                  { "name": "result", "type": "boolean" }
+                ],
+                "hidden": true,
+                "handlers": ["browser"]
             }
         ],
         "events": [
@@ -624,22 +632,6 @@
         "domain": "Emulation",
         "description": "This domain emulates different environments for the page.",
         "hidden": true,
-        "types": [
-            {
-                "id": "Viewport",
-                "type": "object",
-                "description": "Visible page viewport",
-                "properties": [
-                    { "name": "scrollX", "type": "number", "description": "X scroll offset in CSS pixels." },
-                    { "name": "scrollY", "type": "number", "description": "Y scroll offset in CSS pixels." },
-                    { "name": "contentsWidth", "type": "number", "description": "Contents width in CSS pixels." },
-                    { "name": "contentsHeight", "type": "number", "description": "Contents height in CSS pixels." },
-                    { "name": "pageScaleFactor", "type": "number", "description": "Page scale factor." },
-                    { "name": "minimumPageScaleFactor", "type": "number", "description": "Minimum page scale factor." },
-                    { "name": "maximumPageScaleFactor", "type": "number", "description": "Maximum page scale factor." }
-                ]
-            }
-        ],
         "commands": [
             {
                 "name": "setDeviceMetricsOverride",
@@ -666,8 +658,8 @@
                 "handlers": ["browser"]
             },
             {
-                "name": "resetScrollAndPageScaleFactor",
-                "description": "Requests that scroll offsets and page scale factor are reset to initial values."
+                "name": "resetPageScaleFactor",
+                "description": "Requests that page scale factor is reset to initial values."
             },
             {
                 "name": "setPageScaleFactor",
@@ -728,15 +720,6 @@
                     { "name": "result", "type": "boolean", "description": "True if emulation is supported." }
                 ],
                 "handlers": ["browser"]
-            }
-        ],
-        "events": [
-            {
-                "name": "viewportChanged",
-                "description": "Fired when a visible page viewport has changed. Only fired when device metrics are overridden.",
-                "parameters": [
-                    { "name": "viewport", "$ref": "Viewport", "description": "Viewport description." }
-                ]
             }
         ]
     },
@@ -3127,6 +3110,8 @@
                 "id": "CSSKeyframeRule",
                 "type": "object",
                 "properties": [
+                    { "name": "styleSheetId", "$ref": "StyleSheetId", "optional": true, "description": "The css style sheet identifier (absent for user agent stylesheet and user-specified stylesheet rules) this rule came from." },
+                    { "name": "origin", "$ref": "StyleSheetOrigin", "description": "Parent stylesheet's origin."},
                     { "name": "keyText", "$ref": "Value", "description": "Associated key text." },
                     { "name": "style", "$ref": "CSSStyle", "description": "Associated style declaration." }
                 ],
@@ -3153,7 +3138,8 @@
                     { "name": "attributesStyle", "$ref": "CSSStyle", "optional": true, "description": "Attribute-defined element style (e.g. resulting from \"width=20 height=100%\")."},
                     { "name": "matchedCSSRules", "type": "array", "items": { "$ref": "RuleMatch" }, "optional": true, "description": "CSS rules matching this node, from all applicable stylesheets." },
                     { "name": "pseudoElements", "type": "array", "items": { "$ref": "PseudoElementMatches" }, "optional": true, "description": "Pseudo style matches for this node." },
-                    { "name": "inherited", "type": "array", "items": { "$ref": "InheritedStyleEntry" }, "optional": true, "description": "A chain of inherited styles (from the immediate node parent up to the DOM tree root)." }
+                    { "name": "inherited", "type": "array", "items": { "$ref": "InheritedStyleEntry" }, "optional": true, "description": "A chain of inherited styles (from the immediate node parent up to the DOM tree root)." },
+                    { "name": "cssKeyframesRules", "type": "array", "items": { "$ref": "CSSKeyframesRule" }, "optional": true, "description": "A list of CSS keyframed animations matching this node." }
                 ],
                 "description": "Returns requested styles for a DOM node identified by <code>nodeId</code>."
             },
@@ -3190,16 +3176,6 @@
                 "hidden": true
             },
             {
-                "name": "getCSSAnimationsForNode",
-                "parameters": [
-                    { "name": "nodeId", "$ref": "DOM.NodeId" }
-                ],
-                "returns": [
-                    { "name": "cssKeyframesRules", "type": "array", "items": { "$ref": "CSSKeyframesRule" }, "optional": true, "description": "A list of CSS keyframed animations matching this node." }
-                ],
-                "description": "Returns all CSS keyframed animations mtaching this node."
-            },
-            {
                 "name": "getStyleSheetText",
                 "parameters": [
                     { "name": "styleSheetId", "$ref": "StyleSheetId" }
@@ -3231,6 +3207,18 @@
                     { "name": "selectorList", "$ref": "SelectorList", "description": "The resulting selector list after modification." }
                 ],
                 "description": "Modifies the rule selector."
+            },
+            {
+                "name": "setKeyframeKey",
+                "parameters": [
+                    { "name": "styleSheetId", "$ref": "StyleSheetId" },
+                    { "name": "range", "$ref": "SourceRange" },
+                    { "name": "keyText", "type": "string" }
+                ],
+                "returns": [
+                    { "name": "keyText", "$ref": "Value", "description": "The resulting key text after modification." }
+                ],
+                "description": "Modifies the keyframe rule key text."
             },
             {
                 "name": "setStyleText",
@@ -4993,6 +4981,14 @@
                 "returns": [
                     { "name": "dumpGuid", "type": "string", "description": "GUID of the resulting global memory dump." },
                     { "name": "success", "type": "boolean", "description": "True iff the global memory dump succeeded." }
+                ],
+                "handlers": ["browser"]
+            },
+            {
+                "name": "recordClockSyncMarker",
+                "description": "Record a clock sync marker in the trace.",
+                "parameters": [
+                    { "name": "syncId", "type": "string", "description": "The ID of this clock sync marker" }
                 ],
                 "handlers": ["browser"]
             }

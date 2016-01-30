@@ -424,7 +424,7 @@ FragmentationContext* LayoutMultiColumnFlowThread::enclosingFragmentationContext
     return view()->fragmentationContext();
 }
 
-void LayoutMultiColumnFlowThread::appendNewFragmentainerGroupIfNeeded(LayoutUnit offsetInFlowThread)
+void LayoutMultiColumnFlowThread::appendNewFragmentainerGroupIfNeeded(LayoutUnit bottomOffsetInFlowThread)
 {
     if (!isPageLogicalHeightKnown()) {
         // If we have no clue about the height of the multicol container, bail. This situation
@@ -434,7 +434,11 @@ void LayoutMultiColumnFlowThread::appendNewFragmentainerGroupIfNeeded(LayoutUnit
         // Its height is indefinite for now.
         return;
     }
-    LayoutMultiColumnSet* columnSet = columnSetAtBlockOffset(offsetInFlowThread);
+    // TODO(mstensho): bottomOffsetInFlowThread is an endpoint-exclusive offset, i.e. the offset
+    // just after the bottom of some object. So, ideally, columnSetAtBlockOffset() should be
+    // informed about this (i.e. take a PageBoundaryRule argument). This is not the only place with
+    // this issue; see also pageRemainingLogicalHeightForOffset().
+    LayoutMultiColumnSet* columnSet = columnSetAtBlockOffset(bottomOffsetInFlowThread);
     if (columnSet->isInitialHeightCalculated()) {
         // We only insert additional fragmentainer groups in the initial layout pass. We only want
         // to balance columns in the last fragmentainer group (if we need to balance at all), so we
@@ -442,7 +446,7 @@ void LayoutMultiColumnFlowThread::appendNewFragmentainerGroupIfNeeded(LayoutUnit
         return;
     }
 
-    if (!columnSet->hasFragmentainerGroupForColumnAt(offsetInFlowThread)) {
+    if (!columnSet->hasFragmentainerGroupForColumnAt(bottomOffsetInFlowThread)) {
         FragmentationContext* enclosingFragmentationContext = this->enclosingFragmentationContext();
         if (!enclosingFragmentationContext)
             return; // Not nested. We'll never need more rows than the one we already have then.
@@ -452,7 +456,7 @@ void LayoutMultiColumnFlowThread::appendNewFragmentainerGroupIfNeeded(LayoutUnit
         // multicol container. That in turn may mean that we've run out of columns there too.
         const MultiColumnFragmentainerGroup& newRow = columnSet->appendNewFragmentainerGroup();
         if (LayoutMultiColumnFlowThread* enclosingFlowThread = enclosingFragmentationContext->associatedFlowThread())
-            enclosingFlowThread->appendNewFragmentainerGroupIfNeeded(newRow.blockOffsetInEnclosingFragmentationContext());
+            enclosingFlowThread->appendNewFragmentainerGroupIfNeeded(newRow.blockOffsetInEnclosingFragmentationContext() + newRow.logicalHeight());
     }
 }
 
@@ -477,18 +481,18 @@ void LayoutMultiColumnFlowThread::calculateColumnCountAndWidth(LayoutUnit& width
     const ComputedStyle* columnStyle = columnBlock->style();
     LayoutUnit availableWidth = columnBlock->contentLogicalWidth();
     LayoutUnit columnGap = columnBlock->columnGap();
-    LayoutUnit computedColumnWidth = max<LayoutUnit>(1, LayoutUnit(columnStyle->columnWidth()));
+    LayoutUnit computedColumnWidth = max(LayoutUnit(1), LayoutUnit(columnStyle->columnWidth()));
     unsigned computedColumnCount = max<int>(1, columnStyle->columnCount());
 
     ASSERT(!columnStyle->hasAutoColumnCount() || !columnStyle->hasAutoColumnWidth());
     if (columnStyle->hasAutoColumnWidth() && !columnStyle->hasAutoColumnCount()) {
         count = computedColumnCount;
-        width = std::max<LayoutUnit>(0, (availableWidth - ((count - 1) * columnGap)) / count);
+        width = ((availableWidth - ((count - 1) * columnGap)) / count).clampNegativeToZero();
     } else if (!columnStyle->hasAutoColumnWidth() && columnStyle->hasAutoColumnCount()) {
-        count = std::max<LayoutUnit>(1, (availableWidth + columnGap) / (computedColumnWidth + columnGap));
+        count = std::max(LayoutUnit(1), (availableWidth + columnGap) / (computedColumnWidth + columnGap));
         width = ((availableWidth + columnGap) / count) - columnGap;
     } else {
-        count = std::max<LayoutUnit>(std::min<LayoutUnit>(computedColumnCount, (availableWidth + columnGap) / (computedColumnWidth + columnGap)), 1);
+        count = std::max(std::min(LayoutUnit(computedColumnCount), (availableWidth + columnGap) / (computedColumnWidth + columnGap)), LayoutUnit(1));
         width = ((availableWidth + columnGap) / count) - columnGap;
     }
 }
@@ -908,7 +912,7 @@ void LayoutMultiColumnFlowThread::layout()
     m_lastSetWorkedOn = nullptr;
 }
 
-void LayoutMultiColumnFlowThread::contentWasLaidOut(LayoutUnit logicalTopInFlowThreadAfterPagination)
+void LayoutMultiColumnFlowThread::contentWasLaidOut(LayoutUnit logicalBottomInFlowThreadAfterPagination)
 {
     // Check if we need another fragmentainer group. If we've run out of columns in the last
     // fragmentainer group (column row), we need to insert another fragmentainer group to hold more
@@ -924,7 +928,7 @@ void LayoutMultiColumnFlowThread::contentWasLaidOut(LayoutUnit logicalTopInFlowT
     bool mayBeNested = multiColumnBlockFlow()->isInsideFlowThread() || view()->fragmentationContext();
     if (!mayBeNested)
         return;
-    appendNewFragmentainerGroupIfNeeded(logicalTopInFlowThreadAfterPagination);
+    appendNewFragmentainerGroupIfNeeded(logicalBottomInFlowThreadAfterPagination);
 }
 
-}
+} // namespace blink

@@ -75,7 +75,6 @@ enum IPCMessageStart {
   AppShimMsgStart,
   WebRtcLoggingMsgStart,
   TtsMsgStart,
-  MemoryBenchmarkMsgStart,
   WebSocketMsgStart,
   NaClHostMsgStart,
   WebRTCIdentityMsgStart,
@@ -135,6 +134,7 @@ enum IPCMessageStart {
   StartupMetricMsgStart,
   ArcCameraMsgStart,
   DWriteFontProxyMsgStart,
+  MediaPlayerDelegateMsgStart,
   LastIPCMsgStart  // Must come last.
 };
 

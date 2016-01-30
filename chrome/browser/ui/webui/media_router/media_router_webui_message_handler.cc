@@ -41,6 +41,7 @@ const char kReportClickedSinkIndex[] = "reportClickedSinkIndex";
 const char kReportInitialAction[] = "reportInitialAction";
 const char kReportInitialState[] = "reportInitialState";
 const char kReportNavigateToView[] = "reportNavigateToView";
+const char kReportRouteCreation[] = "reportRouteCreation";
 const char kReportSelectedCastMode[] = "reportSelectedCastMode";
 const char kReportSinkCount[] = "reportSinkCount";
 const char kReportTimeToClickSink[] = "reportTimeToClickSink";
@@ -222,22 +223,11 @@ void MediaRouterWebUIMessageHandler::UpdateCastModes(
 
 void MediaRouterWebUIMessageHandler::OnCreateRouteResponseReceived(
     const MediaSink::Id& sink_id,
-    const MediaRoute* route) {
+    const MediaRoute::Id& route_id) {
   DVLOG(2) << "OnCreateRouteResponseReceived";
-  if (route) {
-    scoped_ptr<base::DictionaryValue> route_value(RouteToValue(*route, false,
-        media_router_ui_->GetRouteProviderExtensionId()));
-    web_ui()->CallJavascriptFunction(kOnCreateRouteResponseReceived,
-                                     base::StringValue(sink_id), *route_value);
-    UMA_HISTOGRAM_BOOLEAN("MediaRouter.Ui.Action.StartLocalSessionSuccessful",
-                          true);
-  } else {
-    web_ui()->CallJavascriptFunction(kOnCreateRouteResponseReceived,
-                                     base::StringValue(sink_id),
-                                     *base::Value::CreateNullValue());
-    UMA_HISTOGRAM_BOOLEAN("MediaRouter.Ui.Action.StartLocalSessionSuccessful",
-                          false);
-  }
+  web_ui()->CallJavascriptFunction(kOnCreateRouteResponseReceived,
+                                   base::StringValue(sink_id),
+                                   base::StringValue(route_id));
 }
 
 void MediaRouterWebUIMessageHandler::UpdateIssue(const Issue* issue) {
@@ -299,6 +289,10 @@ void MediaRouterWebUIMessageHandler::RegisterMessages() {
       base::Bind(&MediaRouterWebUIMessageHandler::OnReportInitialAction,
                  base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
+      kReportRouteCreation,
+      base::Bind(&MediaRouterWebUIMessageHandler::OnReportRouteCreation,
+                 base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
       kReportSelectedCastMode,
       base::Bind(&MediaRouterWebUIMessageHandler::OnReportSelectedCastMode,
                  base::Unretained(this)));
@@ -331,6 +325,11 @@ void MediaRouterWebUIMessageHandler::OnRequestInitialData(
   media_router_ui_->OnUIInitiallyLoaded();
   base::DictionaryValue initial_data;
 
+#if defined(GOOGLE_CHROME_BUILD)
+  // "Casting to a Hangout from Chrome" Chromecast help center page.
+  initial_data.SetString("firstRunFlowCloudPrefLearnMoreUrl",
+      base::StringPrintf(kHelpPageUrlPrefix, 6320939));
+#endif  // defined(GOOGLE_CHROME_BUILD)
   // "No Cast devices found?" Chromecast help center page.
   initial_data.SetString("deviceMissingUrl",
       base::StringPrintf(kHelpPageUrlPrefix, 3249268));
@@ -349,11 +348,24 @@ void MediaRouterWebUIMessageHandler::OnRequestInitialData(
                        media_router_ui_->GetPresentationRequestSourceName()));
   initial_data.Set("castModes", cast_modes_list.release());
 
+  Profile* profile = Profile::FromWebUI(web_ui());
+
   bool first_run_flow_acknowledged =
-      Profile::FromWebUI(web_ui())->GetPrefs()->GetBoolean(
+      profile->GetPrefs()->GetBoolean(
           prefs::kMediaRouterFirstRunFlowAcknowledged);
   initial_data.SetBoolean("wasFirstRunFlowAcknowledged",
                           first_run_flow_acknowledged);
+  bool show_cloud_pref = false;
+#if defined(GOOGLE_CHROME_BUILD)
+  // Cloud services preference is shown if user has sync enabled.
+  // If the user enables sync after acknowledging the first run flow, this is
+  // treated as the user opting into Google services, including cloud services,
+  // if the browser is a Chrome branded build.
+  show_cloud_pref = profile->IsSyncAllowed() &&
+      !profile->GetPrefs()->GetBoolean(
+          prefs::kMediaRouterCloudServicesPrefSet);
+#endif  // defined(GOOGLE_CHROME_BUILD)
+  initial_data.SetBoolean("showFirstRunFlowCloudPref", show_cloud_pref);
 
   web_ui()->CallJavascriptFunction(kSetInitialData, initial_data);
   media_router_ui_->UIInitialized();
@@ -415,6 +427,19 @@ void MediaRouterWebUIMessageHandler::OnAcknowledgeFirstRunFlow(
   DVLOG(1) << "OnAcknowledgeFirstRunFlow";
   Profile::FromWebUI(web_ui())->GetPrefs()->SetBoolean(
       prefs::kMediaRouterFirstRunFlowAcknowledged, true);
+
+#if defined(GOOGLE_CHROME_BUILD)
+  bool enabled_cloud_services = false;
+  if (!args->GetBoolean(0, &enabled_cloud_services)) {
+    DVLOG(1) << "Unable to extract args.";
+    return;
+  }
+
+  Profile::FromWebUI(web_ui())->GetPrefs()->SetBoolean(
+      prefs::kMediaRouterEnableCloudServices, enabled_cloud_services);
+  Profile::FromWebUI(web_ui())->GetPrefs()->SetBoolean(
+      prefs::kMediaRouterCloudServicesPrefSet, true);
+#endif  // defined(GOOGLE_CHROME_BUILD)
 }
 
 void MediaRouterWebUIMessageHandler::OnActOnIssue(
@@ -565,6 +590,19 @@ void MediaRouterWebUIMessageHandler::OnReportNavigateToView(
     base::RecordAction(base::UserMetricsAction(
         "MediaRouter_Ui_Navigate_RouteDetailsToSinkList"));
   }
+}
+
+void MediaRouterWebUIMessageHandler::OnReportRouteCreation(
+    const base::ListValue* args) {
+  DVLOG(1) << "OnReportRouteCreation";
+  bool route_created_successfully;
+  if (!args->GetBoolean(0, &route_created_successfully)) {
+    DVLOG(1) << "Unable to extract args.";
+    return;
+  }
+
+  UMA_HISTOGRAM_BOOLEAN("MediaRouter.Ui.Action.StartLocalSessionSuccessful",
+                        route_created_successfully);
 }
 
 void MediaRouterWebUIMessageHandler::OnReportSelectedCastMode(

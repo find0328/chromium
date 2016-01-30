@@ -150,7 +150,7 @@ LayoutUnit InlineBox::logicalHeight() const
     ASSERT(isInlineFlowBox());
     LineLayoutBoxModel flowObject = boxModelObject();
     const FontMetrics& fontMetrics = lineLayoutItem().style(isFirstLineStyle())->fontMetrics();
-    LayoutUnit result = fontMetrics.height();
+    LayoutUnit result(fontMetrics.height());
     if (parent())
         result += flowObject.borderAndPaddingLogicalHeight();
     return result;
@@ -214,9 +214,7 @@ void InlineBox::move(const LayoutSize& delta)
 
 void InlineBox::paint(const PaintInfo& paintInfo, const LayoutPoint& paintOffset, LayoutUnit /* lineTop */, LayoutUnit /* lineBottom */) const
 {
-    // Text clips are painted only for the direct inline children of the object that has a text clip style on it, not block children.
-    if (paintInfo.phase != PaintPhaseTextClip)
-        BlockPainter::paintInlineBox(*this, paintInfo, paintOffset);
+    BlockPainter::paintInlineBox(*this, paintInfo, paintOffset);
 }
 
 bool InlineBox::nodeAtPoint(HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset, LayoutUnit /* lineTop */, LayoutUnit /* lineBottom */)
@@ -228,17 +226,15 @@ bool InlineBox::nodeAtPoint(HitTestResult& result, const HitTestLocation& locati
     if (parent()->lineLayoutItem().hasFlippedBlocksWritingMode()) // Faster than calling containingBlock().
         childPoint = layoutObject().containingBlock()->flipForWritingModeForChild(&toLayoutBox(layoutObject()), childPoint);
 
-    if (lineLayoutItem().hitTest(result, locationInContainer, childPoint))
-        return true;
-
     if (lineLayoutItem().style()->hasBorderRadius()) {
         LayoutRect borderRect = logicalFrameRect();
         borderRect.moveBy(accumulatedOffset);
         FloatRoundedRect border = lineLayoutItem().style()->getRoundedBorderFor(borderRect);
-        if (locationInContainer.intersects(border))
-            return true;
+        if (!locationInContainer.intersects(border))
+            return false;
     }
-    return false;
+
+    return lineLayoutItem().hitTest(result, locationInContainer, childPoint);
 }
 
 const RootInlineBox& InlineBox::root() const
@@ -324,7 +320,7 @@ LayoutUnit InlineBox::placeEllipsisBox(bool, LayoutUnit, LayoutUnit, LayoutUnit,
 {
     // Use -1 to mean "we didn't set the position."
     truncatedWidth += logicalWidth();
-    return -1;
+    return LayoutUnit(-1);
 }
 
 void InlineBox::clearKnownToHaveNoOverflow()

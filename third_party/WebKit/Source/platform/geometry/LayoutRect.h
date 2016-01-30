@@ -93,8 +93,9 @@ public:
     LayoutPoint center() const { return LayoutPoint(x() + width() / 2, y() + height() / 2); }
 
     void move(const LayoutSize& size) { m_location += size; }
-    void move(const IntSize& size) { m_location.move(size.width(), size.height()); }
+    void move(const IntSize& size) { m_location.move(LayoutUnit(size.width()), LayoutUnit(size.height())); }
     void moveBy(const LayoutPoint& offset) { m_location.move(offset.x(), offset.y()); }
+    void moveBy(const IntPoint& offset) { m_location.move(LayoutUnit(offset.x()), LayoutUnit(offset.y())); }
     void move(LayoutUnit dx, LayoutUnit dy) { m_location.move(dx, dy); }
 
     void expand(const LayoutSize& size) { m_size += size; }
@@ -121,23 +122,23 @@ public:
     {
         LayoutUnit delta = edge - x();
         setX(edge);
-        setWidth(std::max<LayoutUnit>(0, width() - delta));
+        setWidth((width() - delta).clampNegativeToZero());
     }
     void shiftMaxXEdgeTo(LayoutUnit edge)
     {
         LayoutUnit delta = edge - maxX();
-        setWidth(std::max<LayoutUnit>(0, width() + delta));
+        setWidth((width() + delta).clampNegativeToZero());
     }
     void shiftYEdgeTo(LayoutUnit edge)
     {
         LayoutUnit delta = edge - y();
         setY(edge);
-        setHeight(std::max<LayoutUnit>(0, height() - delta));
+        setHeight((height() - delta).clampNegativeToZero());
     }
     void shiftMaxYEdgeTo(LayoutUnit edge)
     {
         LayoutUnit delta = edge - maxY();
-        setHeight(std::max<LayoutUnit>(0, height() + delta));
+        setHeight((height() + delta).clampNegativeToZero());
     }
 
     LayoutPoint minXMinYCorner() const { return m_location; } // typically topLeft

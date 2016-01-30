@@ -96,6 +96,10 @@ bool GLSurface::InitializeOneOffImplementation(GLImplementation impl,
 GLSurface::GLSurface() {}
 
 bool GLSurface::Initialize() {
+  return Initialize(SURFACE_DEFAULT);
+}
+
+bool GLSurface::Initialize(GLSurface::Format format) {
   return true;
 }
 
@@ -209,10 +213,11 @@ bool GLSurface::ScheduleCALayer(gl::GLImage* contents_image,
                                 float opacity,
                                 unsigned background_color,
                                 unsigned edge_aa_mask,
-                                const RectF& bounds_rect,
+                                const RectF& rect,
                                 bool is_clipped,
                                 const RectF& clip_rect,
-                                const Transform& transform) {
+                                const Transform& transform,
+                                int sorting_content_id) {
   NOTIMPLEMENTED();
   return false;
 }
@@ -260,8 +265,8 @@ void GLSurface::OnSetSwapInterval(int interval) {
 
 GLSurfaceAdapter::GLSurfaceAdapter(GLSurface* surface) : surface_(surface) {}
 
-bool GLSurfaceAdapter::Initialize() {
-  return surface_->Initialize();
+bool GLSurfaceAdapter::Initialize(GLSurface::Format format) {
+  return surface_->Initialize(format);
 }
 
 void GLSurfaceAdapter::Destroy() {

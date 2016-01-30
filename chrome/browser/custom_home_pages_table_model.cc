@@ -14,7 +14,6 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_iterator.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/settings_window_manager.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -41,15 +40,15 @@ bool ShouldAddPage(const GURL& url) {
     return false;
 
   if (url.SchemeIs(content::kChromeUIScheme)) {
-    if (url.host() == chrome::kChromeUISettingsHost ||
-        url.host() == chrome::kChromeUISettingsFrameHost) {
+    if (url.host_piece() == chrome::kChromeUISettingsHost ||
+        url.host_piece() == chrome::kChromeUISettingsFrameHost) {
       return false;
     }
 
     // For a settings page, the path will start with "/settings" not "settings"
     // so find() will return 1, not 0.
-    if (url.host() == chrome::kChromeUIUberHost &&
-        url.path().find(chrome::kChromeUISettingsHost) == 1) {
+    if (url.host_piece() == chrome::kChromeUIUberHost &&
+        url.path_piece().find(chrome::kChromeUISettingsHost) == 1) {
       return false;
     }
   }
@@ -188,8 +187,7 @@ void CustomHomePagesTableModel::SetToCurrentlyOpenPages() {
 
   // Add tabs from appropriate browser windows.
   int add_index = 0;
-  for (chrome::BrowserIterator it; !it.done(); it.Next()) {
-    Browser* browser = *it;
+  for (auto* browser : *BrowserList::GetInstance()) {
     if (!ShouldIncludeBrowser(browser))
       continue;
 

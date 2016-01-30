@@ -943,7 +943,7 @@ PassRefPtrWillBeRawPtr<HTMLElement> CompositeEditCommand::moveParagraphContentsT
     if (isEnclosingBlock(upstreamStart.anchorNode())) {
         // If the block is the root editable element, always move content to a new block,
         // since it is illegal to modify attributes on the root editable element for editing.
-        if (upstreamStart.anchorNode() == editableRootForPosition(upstreamStart)) {
+        if (upstreamStart.anchorNode() == rootEditableElementOf(upstreamStart)) {
             // If the block is the root editable element and it contains no visible content, create a new
             // block but don't try and move content into it, since there's nothing for moveParagraphs to move.
             if (!hasRenderedNonAnonymousDescendantsWithHeight(upstreamStart.anchorNode()->layoutObject()))
@@ -1014,7 +1014,7 @@ void CompositeEditCommand::cloneParagraphUnderNewElement(const Position& start, 
     if (outerNode->isRootEditableElement()) {
         lastNode = blockElement;
     } else {
-        lastNode = outerNode->cloneNode(isRenderedHTMLTableElement(outerNode.get()));
+        lastNode = outerNode->cloneNode(isDisplayInsideTable(outerNode.get()));
         appendNode(lastNode, blockElement);
     }
 
@@ -1029,7 +1029,7 @@ void CompositeEditCommand::cloneParagraphUnderNewElement(const Position& start, 
 
         for (size_t i = ancestors.size(); i != 0; --i) {
             Node* item = ancestors[i - 1].get();
-            RefPtrWillBeRawPtr<Node> child = item->cloneNode(isRenderedHTMLTableElement(item));
+            RefPtrWillBeRawPtr<Node> child = item->cloneNode(isDisplayInsideTable(item));
             appendNode(child, toElement(lastNode));
             lastNode = child.release();
         }
@@ -1166,7 +1166,7 @@ void CompositeEditCommand::moveParagraphWithClones(const VisiblePosition& startO
     beforeParagraph = createVisiblePosition(beforeParagraph.deepEquivalent());
     afterParagraph = createVisiblePosition(afterParagraph.deepEquivalent());
 
-    if (beforeParagraph.isNotNull() && !isRenderedTableElement(beforeParagraph.deepEquivalent().anchorNode())
+    if (beforeParagraph.isNotNull() && !isDisplayInsideTable(beforeParagraph.deepEquivalent().anchorNode())
         && ((!isEndOfParagraph(beforeParagraph) && !isStartOfParagraph(beforeParagraph)) || beforeParagraph.deepEquivalent() == afterParagraph.deepEquivalent())) {
         // FIXME: Trim text between beforeParagraph and afterParagraph if they aren't equal.
         insertNodeAt(HTMLBRElement::create(document()), beforeParagraph.deepEquivalent());
@@ -1471,7 +1471,7 @@ Position CompositeEditCommand::positionAvoidingSpecialElementBoundary(const Posi
         }
     }
 
-    if (result.isNull() || !editableRootForPosition(result))
+    if (result.isNull() || !rootEditableElementOf(result))
         result = original;
 
     return result;

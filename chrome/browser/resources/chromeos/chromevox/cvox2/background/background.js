@@ -116,6 +116,7 @@ Background = function() {
   cvox.ExtensionBridge.addMessageListener(this.onMessage_);
 
   document.addEventListener('keydown', this.onKeyDown.bind(this), true);
+  document.addEventListener('keyup', this.onKeyUp.bind(this), true);
   cvox.ChromeVoxKbHandler.commandHandler = this.onGotCommand.bind(this);
 
   // Classic keymap.
@@ -123,6 +124,12 @@ Background = function() {
 
   // Live region handler.
   this.liveRegions_ = new LiveRegions(this);
+
+  /** @type {number} @private */
+  this.passThroughKeyUpCount_ = 0;
+
+  if (!chrome.accessibilityPrivate.setKeyboardListener)
+    chrome.accessibilityPrivate.setKeyboardListener = function() {};
 };
 
 Background.prototype = {
@@ -153,10 +160,13 @@ Background.prototype = {
       if (chrome.commands &&
           chrome.commands.onCommand.hasListener(this.onGotCommand))
         chrome.commands.onCommand.removeListener(this.onGotCommand);
+      chrome.accessibilityPrivate.setKeyboardListener(false, false);
     } else {
       if (chrome.commands &&
           !chrome.commands.onCommand.hasListener(this.onGotCommand))
         chrome.commands.onCommand.addListener(this.onGotCommand);
+        chrome.accessibilityPrivate.setKeyboardListener(
+            true, cvox.ChromeVox.isStickyPrefOn);
     }
 
     chrome.tabs.query({active: true}, function(tabs) {
@@ -412,7 +422,7 @@ Background.prototype = {
               .go();
           prevRange = this.currentRange_;
           this.setCurrentRange(
-              this.currentRange_.move(cursors.Unit.NODE, Dir.FORWARD));
+              this.currentRange_.move(cursors.Unit.DOM_NODE, Dir.FORWARD));
 
           if (!this.currentRange_ || this.currentRange_.equals(prevRange))
             global.isReadingContinuously = false;
@@ -464,7 +474,17 @@ Background.prototype = {
         cvox.ChromeVoxBackground.setPref('sticky',
                                          !cvox.ChromeVox.isStickyPrefOn,
                                          true);
-        break;
+
+        if (cvox.ChromeVox.isStickyPrefOn)
+          chrome.accessibilityPrivate.setKeyboardListener(true, true);
+        else
+          chrome.accessibilityPrivate.setKeyboardListener(true, false);
+        return false;
+      case 'passThroughMode':
+        cvox.ChromeVox.passThroughMode = true;
+        cvox.ChromeVox.tts.speak(
+            Msgs.getMsg('pass_through_key'), cvox.QueueMode.QUEUE);
+        return true;
       default:
         return true;
     }
@@ -489,7 +509,11 @@ Background.prototype = {
       var actionNode = current.start.node;
       if (actionNode.role == RoleType.inlineTextBox)
         actionNode = actionNode.parent;
-      actionNode.focus();
+
+      // Iframes, when focused, causes the child webArea to fire focus event.
+      // This can result in getting stuck when navigating backward.
+      if (actionNode.role != RoleType.iframe && !actionNode.state.focused)
+        actionNode.focus();
 
       var prevRange = this.currentRange_;
       this.setCurrentRange(current);
@@ -510,13 +534,33 @@ Background.prototype = {
    */
   onKeyDown: function(evt) {
     evt.stickyMode = cvox.ChromeVox.isStickyModeOn() && cvox.ChromeVox.isActive;
+    if (cvox.ChromeVox.passThroughMode)
+      return false;
+
     if (this.mode_ != ChromeVoxMode.CLASSIC &&
         !cvox.ChromeVoxKbHandler.basicKeyDownActionsListener(evt)) {
       evt.preventDefault();
       evt.stopPropagation();
     }
-
     Output.flushNextSpeechUtterance();
+  },
+
+  /**
+   * Handles key up events.
+   * @param {Event} evt The key down event to process.
+   * @return {boolean} True if the default action should be performed.
+   */
+  onKeyUp: function(evt) {
+    // Reset pass through mode once a keyup (not involving the pass through key)
+    // is seen. The pass through command involves three keys.
+    if (cvox.ChromeVox.passThroughMode) {
+      if (this.passThroughKeyUpCount_ >= 3) {
+        cvox.ChromeVox.passThroughMode = false;
+        this.passThroughKeyUpCount_ = 0;
+      } else {
+        this.passThroughKeyUpCount_++;
+      }
+    }
   },
 
   /**
@@ -635,7 +679,8 @@ Background.prototype = {
     actionNode.doDefault();
     if (selectionSpan) {
       var start = text.getSpanStart(selectionSpan);
-      actionNode.setSelection(position - start, position - start);
+      var targetPosition = position - start + selectionSpan.offset;
+      actionNode.setSelection(targetPosition, targetPosition);
     }
   },
 

@@ -39,9 +39,9 @@
 namespace blink {
 
 class LayoutPoint;
+class SelectionAdjuster;
 
-// TODO(yosin) We should use capitalized name instead of |SEL_DEFAULT_AFFINITY|.
-const TextAffinity SEL_DEFAULT_AFFINITY = TextAffinity::Downstream; // NOLINT
+const TextAffinity SelDefaultAffinity = TextAffinity::Downstream;
 enum SelectionDirection { DirectionForward, DirectionBackward, DirectionRight, DirectionLeft };
 
 // Listener of |VisibleSelection| modification. |didChangeVisibleSelection()|
@@ -66,15 +66,13 @@ class CORE_TEMPLATE_CLASS_EXPORT VisibleSelectionTemplate {
 public:
     VisibleSelectionTemplate();
     VisibleSelectionTemplate(const PositionTemplate<Strategy>&, TextAffinity, bool isDirectional = false);
-    VisibleSelectionTemplate(const PositionTemplate<Strategy>& base, const PositionTemplate<Strategy>& extent, TextAffinity = SEL_DEFAULT_AFFINITY, bool isDirectional = false);
-    explicit VisibleSelectionTemplate(const EphemeralRangeTemplate<Strategy>&, TextAffinity = SEL_DEFAULT_AFFINITY, bool isDirectional = false);
+    VisibleSelectionTemplate(const PositionTemplate<Strategy>& base, const PositionTemplate<Strategy>& extent, TextAffinity = SelDefaultAffinity, bool isDirectional = false);
+    explicit VisibleSelectionTemplate(const EphemeralRangeTemplate<Strategy>&, TextAffinity = SelDefaultAffinity, bool isDirectional = false);
 
     explicit VisibleSelectionTemplate(const VisiblePositionTemplate<Strategy>&, bool isDirectional = false);
     VisibleSelectionTemplate(const VisiblePositionTemplate<Strategy>&, const VisiblePositionTemplate<Strategy>&, bool isDirectional = false);
 
     explicit VisibleSelectionTemplate(const PositionWithAffinityTemplate<Strategy>&, bool isDirectional = false);
-
-    static VisibleSelectionTemplate<Strategy> createWithoutValidation(const PositionTemplate<Strategy>& base, const PositionTemplate<Strategy>& extent, const PositionTemplate<Strategy>& start, const PositionTemplate<Strategy>& end, TextAffinity, bool isDirectional);
 
     VisibleSelectionTemplate(const VisibleSelectionTemplate&);
     VisibleSelectionTemplate& operator=(const VisibleSelectionTemplate&);
@@ -152,6 +150,7 @@ public:
         visitor->trace(m_changeObserver);
     }
 
+    void updateIfNeeded();
     void validatePositionsIfNeeded();
 
 #ifndef NDEBUG
@@ -164,7 +163,7 @@ public:
     void setEndRespectingGranularity(TextGranularity, EWordSide = RightWordIfOnBoundary);
 
 private:
-    VisibleSelectionTemplate(const PositionTemplate<Strategy>& base, const PositionTemplate<Strategy>& extent, const PositionTemplate<Strategy>& start, const PositionTemplate<Strategy>& end, TextAffinity, bool isDirectional);
+    friend class SelectionAdjuster;
 
     void validate(TextGranularity = CharacterGranularity);
 

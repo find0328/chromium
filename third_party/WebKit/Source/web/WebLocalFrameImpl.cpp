@@ -872,17 +872,6 @@ void WebLocalFrameImpl::collectGarbage()
     V8GCController::collectGarbage(v8::Isolate::GetCurrent());
 }
 
-bool WebLocalFrameImpl::checkIfRunInsecureContent(const WebURL& url) const
-{
-    ASSERT(frame());
-
-    // This is only called (eventually, through proxies and delegates and IPC) from
-    // PluginURLFetcher::OnReceivedRedirect for redirects of NPAPI resources.
-    //
-    // FIXME: Remove this method entirely once we smother NPAPI.
-    return !MixedContentChecker::shouldBlockFetch(frame(), WebURLRequest::RequestContextObject, WebURLRequest::FrameTypeNested, url);
-}
-
 v8::Local<v8::Value> WebLocalFrameImpl::executeScriptAndReturnValue(const WebScriptSource& source)
 {
     ASSERT(frame());
@@ -2265,6 +2254,11 @@ WebSandboxFlags WebLocalFrameImpl::effectiveSandboxFlags() const
     if (!frame())
         return WebSandboxFlags::None;
     return static_cast<WebSandboxFlags>(frame()->loader().effectiveSandboxFlags());
+}
+
+void WebLocalFrameImpl::forceSandboxFlags(WebSandboxFlags flags)
+{
+    frame()->loader().forceSandboxFlags(static_cast<SandboxFlags>(flags));
 }
 
 } // namespace blink

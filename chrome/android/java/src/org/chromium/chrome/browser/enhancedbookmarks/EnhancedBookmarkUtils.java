@@ -59,10 +59,11 @@ public class EnhancedBookmarkUtils {
      */
     public static void addOrEditBookmark(long idToAdd, EnhancedBookmarksModel bookmarkModel,
             Tab tab, SnackbarManager snackbarManager, Activity activity) {
+        // See if the Tab's contents should be saved or not.
+        WebContents webContentsToSave = null;
+        if (!shouldSkipSavingTabOffline(tab)) webContentsToSave = tab.getWebContents();
+
         if (idToAdd != ChromeBrowserProviderClient.INVALID_BOOKMARK_ID) {
-            // See if the Tab's contents should be saved or not.
-            WebContents webContentsToSave = null;
-            if (!shouldSkipSavingTabOffline(tab)) webContentsToSave = tab.getWebContents();
             startEditActivity(activity, new BookmarkId(idToAdd, BookmarkType.NORMAL),
                     webContentsToSave);
             return;
@@ -74,8 +75,25 @@ public class EnhancedBookmarkUtils {
         }
 
         bookmarkModel.addBookmarkAsync(parent, bookmarkModel.getChildCount(parent), tab.getTitle(),
-                tab.getUrl(), tab.getWebContents(), shouldSkipSavingTabOffline(tab),
+                tab.getUrl(), webContentsToSave,
                 createAddBookmarkCallback(bookmarkModel, snackbarManager, activity));
+    }
+
+    /**
+     * Adds a bookmark with the given title and url to the last used parent folder. Provides
+     * no visual feedback that a bookmark has been added.
+     *
+     * @param title The title of the bookmark.
+     * @param url The URL of the new bookmark.
+     */
+    public static BookmarkId addBookmarkSilently(Context context,
+            EnhancedBookmarksModel bookmarkModel, String title, String url) {
+        BookmarkId parent = getLastUsedParent(context);
+        if (parent == null || !bookmarkModel.doesBookmarkExist(parent)) {
+            parent = bookmarkModel.getDefaultFolder();
+        }
+
+        return bookmarkModel.addBookmark(parent, bookmarkModel.getChildCount(parent), title, url);
     }
 
     /**
@@ -118,9 +136,9 @@ public class EnhancedBookmarkUtils {
                     bookmarkModel, activity, bookmarkId);
             if (getLastUsedParent(activity) == null) {
                 snackbar = Snackbar.make(activity.getString(R.string.enhanced_bookmark_page_saved),
-                        snackbarController);
+                        snackbarController, Snackbar.TYPE_ACTION);
             } else {
-                snackbar = Snackbar.make(folderName, snackbarController)
+                snackbar = Snackbar.make(folderName, snackbarController, Snackbar.TYPE_ACTION)
                         .setTemplateText(activity.getString(
                                 R.string.enhanced_bookmark_page_saved_folder));
             }
@@ -129,28 +147,43 @@ public class EnhancedBookmarkUtils {
         } else {
             SnackbarController snackbarController = null;
             int messageId;
+            String suffix = null;
             int buttonId = R.string.enhanced_bookmark_item_edit;
 
             if (saveResult == AddBookmarkCallback.SKIPPED) {
-                messageId = R.string.offline_pages_page_skipped;
+                messageId = OfflinePageUtils.getStringId(
+                        R.string.offline_pages_as_bookmarks_page_skipped);
             } else if (isStorageAlmostFull) {
-                messageId = saveResult == AddBookmarkCallback.SAVED
-                        ? R.string.offline_pages_page_saved_storage_near_full
-                        : R.string.offline_pages_page_failed_to_save_storage_near_full;
+                messageId = OfflinePageUtils.getStringId(saveResult == AddBookmarkCallback.SAVED
+                    ? R.string.offline_pages_as_bookmarks_page_saved_storage_near_full
+                    : R.string.offline_pages_as_bookmarks_page_failed_to_save_storage_near_full);
                 // Show "Free up space" button.
-                buttonId = R.string.offline_pages_free_up_space_title;
+                buttonId = OfflinePageUtils.getStringId(R.string.offline_pages_free_up_space_title);
                 snackbarController = createSnackbarControllerForFreeUpSpaceButton(
                         bookmarkModel, snackbarManager, activity);
             } else {
-                messageId = saveResult == AddBookmarkCallback.SAVED
-                        ? R.string.offline_pages_page_saved
-                        : R.string.offline_pages_page_failed_to_save;
+                if (saveResult == AddBookmarkCallback.SAVED) {
+                    if (getLastUsedParent(activity) == null) {
+                        messageId = OfflinePageUtils.getStringId(
+                                R.string.offline_pages_as_bookmarks_page_saved);
+                    } else {
+                        messageId = OfflinePageUtils.getStringId(
+                                R.string.offline_pages_as_bookmarks_page_saved_folder);
+                        suffix = bookmarkModel.getBookmarkTitle(
+                                bookmarkModel.getBookmarkById(bookmarkId).getParentId());
+                    }
+                } else {
+                    messageId = OfflinePageUtils.getStringId(
+                            R.string.offline_pages_as_bookmarks_page_failed_to_save);
+                }
             }
             if (snackbarController == null) {
                 snackbarController = createSnackbarControllerForEditButton(
                         bookmarkModel, activity, bookmarkId);
             }
-            snackbar = Snackbar.make(activity.getString(messageId), snackbarController)
+            snackbar = Snackbar
+                    .make(activity.getString(messageId, suffix), snackbarController,
+                            Snackbar.TYPE_ACTION)
                     .setAction(activity.getString(buttonId), null).setSingleLine(false);
         }
 
@@ -197,8 +230,6 @@ public class EnhancedBookmarkUtils {
             final EnhancedBookmarksModel bookmarkModel, final Activity activity,
             final BookmarkId bookmarkId) {
         return new SnackbarController() {
-            @Override
-            public void onDismissForEachType(boolean isTimeout) {}
 
             @Override
             public void onDismissNoAction(Object actionData) {
@@ -224,9 +255,6 @@ public class EnhancedBookmarkUtils {
             final EnhancedBookmarksModel bookmarkModel, final SnackbarManager snackbarManager,
             final Activity activity) {
         return new SnackbarController() {
-            @Override
-            public void onDismissForEachType(boolean isTimeout) {}
-
             @Override
             public void onDismissNoAction(Object actionData) {
                 // This method will be called only if the snackbar is dismissed by timeout.

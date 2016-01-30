@@ -16,6 +16,7 @@
 #include "content/public/common/message_port_types.h"
 #include "content/public/common/navigator_connect_client.h"
 #include "content/public/common/platform_notification_data.h"
+#include "content/public/common/push_event_payload.h"
 #include "ipc/ipc_message_macros.h"
 #include "ipc/ipc_param_traits.h"
 #include "third_party/WebKit/public/platform/WebCircularGeofencingRegion.h"
@@ -133,6 +134,11 @@ IPC_STRUCT_TRAITS_BEGIN(content::NavigatorConnectClient)
   IPC_STRUCT_TRAITS_MEMBER(message_port_id)
 IPC_STRUCT_TRAITS_END()
 
+IPC_STRUCT_TRAITS_BEGIN(content::PushEventPayload)
+  IPC_STRUCT_TRAITS_MEMBER(data)
+  IPC_STRUCT_TRAITS_MEMBER(is_null)
+IPC_STRUCT_TRAITS_END()
+
 //---------------------------------------------------------------------------
 // Messages sent from the child process to the browser.
 
@@ -235,8 +241,9 @@ IPC_MESSAGE_ROUTED3(ServiceWorkerHostMsg_FetchEventFinished,
                     int /* request_id */,
                     content::ServiceWorkerFetchEventResult,
                     content::ServiceWorkerResponse)
-IPC_MESSAGE_ROUTED1(ServiceWorkerHostMsg_NotificationClickEventFinished,
-                    int /* request_id */)
+IPC_MESSAGE_ROUTED2(ServiceWorkerHostMsg_NotificationClickEventFinished,
+                    int /* request_id */,
+                    blink::WebServiceWorkerEventResult)
 IPC_MESSAGE_ROUTED2(ServiceWorkerHostMsg_PushEventFinished,
                     int /* request_id */,
                     blink::WebServiceWorkerEventResult)
@@ -444,7 +451,7 @@ IPC_MESSAGE_CONTROL4(ServiceWorkerMsg_NotificationClickEvent,
                      int /* action_index */)
 IPC_MESSAGE_CONTROL2(ServiceWorkerMsg_PushEvent,
                      int /* request_id */,
-                     std::string /* data */)
+                     content::PushEventPayload /* data */)
 IPC_MESSAGE_CONTROL4(ServiceWorkerMsg_GeofencingEvent,
                      int /* request_id */,
                      blink::WebGeofencingEventType /* event_type */,

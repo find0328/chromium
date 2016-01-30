@@ -62,12 +62,10 @@ bool CreateMapAndDupSharedBuffer(size_t size,
   return true;
 }
 
-void PostTask(
-    const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
-    const base::Closure& callback) {
+void PostTask(const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
+              const base::Closure& callback) {
   task_runner->PostTask(FROM_HERE, callback);
 }
-
 }
 
 const unsigned int GL_READ_WRITE_CHROMIUM = 0x78F2;
@@ -295,42 +293,13 @@ int32_t CommandBufferLocal::CreateGpuMemoryBufferImage(size_t width,
   return CreateImage(buffer->AsClientBuffer(), width, height, internal_format);
 }
 
-uint32_t CommandBufferLocal::InsertSyncPoint() {
-  DCHECK(CalledOnValidThread());
-  uint32_t sync_point = gpu_state_->sync_point_manager()->GenerateSyncPoint();
-  sync_points_.push_back(sync_point);
-  RetireSyncPoint(sync_point);
-  return sync_point;
-}
-
-uint32_t CommandBufferLocal::InsertFutureSyncPoint() {
-  DCHECK(CalledOnValidThread());
-  uint32_t sync_point = gpu_state_->sync_point_manager()->GenerateSyncPoint();
-  sync_points_.push_back(sync_point);
-  return sync_point;
-}
-
-void CommandBufferLocal::RetireSyncPoint(uint32_t sync_point) {
-  DCHECK(CalledOnValidThread());
-  DCHECK(!sync_points_.empty() && sync_points_.front() == sync_point);
-  sync_points_.pop_front();
-  gpu_state_->command_buffer_task_runner()->PostTask(
-      driver_.get(), base::Bind(&CommandBufferLocal::RetireSyncPointOnGpuThread,
-                                base::Unretained(this), sync_point));
-}
-
-void CommandBufferLocal::SignalSyncPoint(uint32_t sync_point,
-                                         const base::Closure& callback) {
-  DCHECK(CalledOnValidThread());
-  gpu_state_->sync_point_manager()->AddSyncPointCallback(sync_point,
-      base::Bind(&PostTask, client_thread_task_runner_, callback));
-}
-
-void CommandBufferLocal::SignalQuery(uint32_t query,
+void CommandBufferLocal::SignalQuery(uint32_t query_id,
                                      const base::Closure& callback) {
   DCHECK(CalledOnValidThread());
-  // TODO(piman)
-  NOTIMPLEMENTED();
+
+  gpu_state_->command_buffer_task_runner()->PostTask(
+      driver_.get(), base::Bind(&CommandBufferLocal::SignalQueryOnGpuThread,
+                                base::Unretained(this), query_id, callback));
 }
 
 void CommandBufferLocal::SetLock(base::Lock* lock) {
@@ -428,10 +397,7 @@ void CommandBufferLocal::UpdateVSyncParameters(int64_t timebase,
   }
 }
 
-CommandBufferLocal::~CommandBufferLocal() {
-  for (uint32_t sync_point : sync_points_)
-    gpu_state_->sync_point_manager()->RetireSyncPoint(sync_point);
-}
+CommandBufferLocal::~CommandBufferLocal() {}
 
 void CommandBufferLocal::TryUpdateState() {
   if (last_state_.error == gpu::error::kNoError)
@@ -512,12 +478,6 @@ bool CommandBufferLocal::DestroyTransferBufferOnGpuThread(int32_t id) {
   return true;
 }
 
-bool CommandBufferLocal::RetireSyncPointOnGpuThread(uint32_t sync_point) {
-  DCHECK(driver_->IsScheduled());
-  gpu_state_->sync_point_manager()->RetireSyncPoint(sync_point);
-  return true;
-}
-
 bool CommandBufferLocal::CreateImageOnGpuThread(
     int32_t id,
     mojo::ScopedHandle memory_handle,
@@ -548,6 +508,14 @@ bool CommandBufferLocal::MakeProgressOnGpuThread(
 
 bool CommandBufferLocal::DeleteOnGpuThread() {
   delete this;
+  return true;
+}
+
+bool CommandBufferLocal::SignalQueryOnGpuThread(uint32_t query_id,
+                                                const base::Closure& callback) {
+  // |callback| should run on the client thread.
+  driver_->SignalQuery(
+      query_id, base::Bind(&PostTask, client_thread_task_runner_, callback));
   return true;
 }
 

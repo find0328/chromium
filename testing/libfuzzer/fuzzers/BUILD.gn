@@ -8,6 +8,10 @@ import("//build/config/features.gni")
 import("//media/media_options.gni")
 import("//testing/libfuzzer/fuzzer_test.gni")
 
+# root BUILD depenends on this target. Needed for package discovery
+group("fuzzers") {
+}
+
 fuzzer_test("empty_fuzzer") {
   sources = [
     "empty_fuzzer.cc",
@@ -267,6 +271,7 @@ fuzzer_test("libxml_xml_read_memory_fuzzer") {
   deps = [
     "//third_party/libxml:libxml",
   ]
+  dict = "dicts/xml.dict"
 }
 
 fuzzer_test("unicode_string_codepage_create_fuzzer") {
@@ -278,13 +283,16 @@ fuzzer_test("unicode_string_codepage_create_fuzzer") {
   ]
 }
 
-fuzzer_test("libexif_parser_fuzzer") {
-  sources = [
-    "libexif_parser_fuzzer.cc",
-  ]
-  deps = [
-    "//third_party/libexif:libexif_fuzzers",
-  ]
+if (is_linux) {
+  # libexif_fuzzer is linux only atm
+  fuzzer_test("libexif_parser_fuzzer") {
+    sources = [
+      "libexif_parser_fuzzer.cc",
+    ]
+    deps = [
+      "//third_party/libexif:libexif_fuzzers",
+    ]
+  }
 }
 
 fuzzer_test("libpng_read_fuzzer") {
@@ -295,4 +303,21 @@ fuzzer_test("libpng_read_fuzzer") {
     "//base",
     "//third_party/libpng",
   ]
+}
+
+fuzzer_test("icu_uregex_open_fuzzer") {
+  sources = [
+    "icu_uregex_open_fuzzer.cc",
+  ]
+  deps = [
+    "//third_party/icu",
+  ]
+}
+
+fuzzer_test("v8_parser") {
+  sources = []
+  deps = [
+    "//v8:parser_fuzzer",
+  ]
+  dict = "dicts/js.dict"
 }

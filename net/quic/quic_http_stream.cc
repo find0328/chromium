@@ -281,6 +281,12 @@ bool QuicHttpStream::GetRemoteEndpoint(IPEndPoint* endpoint) {
   return true;
 }
 
+Error QuicHttpStream::GetSignedEKMForTokenBinding(crypto::ECPrivateKey* key,
+                                                  std::vector<uint8_t>* out) {
+  NOTREACHED();
+  return ERR_NOT_IMPLEMENTED;
+}
+
 void QuicHttpStream::Drain(HttpNetworkSession* session) {
   NOTREACHED();
   Close(false);
@@ -471,6 +477,10 @@ int QuicHttpStream::DoReadRequestBodyComplete(int rv) {
   if (rv < 0)
     return rv;
 
+  // If the stream is already closed, don't continue.
+  if (!stream_)
+    return response_status_;
+
   request_body_buf_ = new DrainableIOBuffer(raw_request_body_buf_.get(), rv);
   if (rv == 0) {  // Reached the end.
     DCHECK(request_body_stream_->IsEOF());
@@ -503,6 +513,10 @@ int QuicHttpStream::DoSendBody() {
 int QuicHttpStream::DoSendBodyComplete(int rv) {
   if (rv < 0)
     return rv;
+
+  // If the stream is already closed, don't continue.
+  if (!stream_)
+    return response_status_;
 
   request_body_buf_->DidConsume(request_body_buf_->BytesRemaining());
 

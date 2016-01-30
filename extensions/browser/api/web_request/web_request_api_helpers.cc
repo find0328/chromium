@@ -378,7 +378,7 @@ EventResponseDelta* CalculateOnHeadersReceivedDelta(
 
   // Find deleted headers (header keys are treated case insensitively).
   {
-    void* iter = NULL;
+    size_t iter = 0;
     std::string name;
     std::string value;
     while (old_response_headers->EnumerateHeaderLines(&iter, &name, &value)) {
@@ -401,7 +401,7 @@ EventResponseDelta* CalculateOnHeadersReceivedDelta(
   {
     for (const auto& i : *new_response_headers) {
       std::string name_lowercase = base::ToLowerASCII(i.first);
-      void* iter = nullptr;
+      size_t iter = 0;
       std::string name;
       std::string value;
       bool header_found = false;
@@ -838,7 +838,7 @@ static ParsedResponseCookies GetResponseCookies(
     scoped_refptr<net::HttpResponseHeaders> override_response_headers) {
   ParsedResponseCookies result;
 
-  void* iter = NULL;
+  size_t iter = 0;
   std::string value;
   while (override_response_headers->EnumerateHeader(&iter, "Set-Cookie",
                                                     &value)) {

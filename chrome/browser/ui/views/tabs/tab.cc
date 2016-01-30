@@ -22,7 +22,6 @@
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/tabs/media_indicator_button.h"
 #include "chrome/browser/ui/views/tabs/tab_controller.h"
-#include "chrome/browser/ui/views/theme_image_mapper.h"
 #include "chrome/browser/ui/views/touch_uma/touch_uma.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/grit/generated_resources.h"
@@ -34,8 +33,8 @@
 #include "third_party/skia/include/pathops/SkPathOps.h"
 #include "ui/accessibility/ax_view_state.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/models/list_selection_model.h"
-#include "ui/base/resource/material_design/material_design_controller.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/theme_provider.h"
 #include "ui/gfx/animation/animation_container.h"
@@ -141,13 +140,6 @@ const int kTabCloseButtonSize = 16;
 // stroke inner edge is (GetUnscaledEndcapWidth() * scale) + 1.
 float GetUnscaledEndcapWidth() {
   return GetLayoutInsets(TAB).left() - 0.5f;
-}
-
-chrome::HostDesktopType GetHostDesktopType(views::View* view) {
-  // Widget is NULL when tabs are detached.
-  views::Widget* widget = view->GetWidget();
-  return chrome::GetHostDesktopTypeForNativeView(
-      widget ? widget->GetNativeView() : NULL);
 }
 
 // Stop()s |animation| and then deletes it. We do this rather than just deleting
@@ -442,7 +434,8 @@ void Tab::ThrobberView::OnPaint(gfx::Canvas* canvas) {
 // Tab::ImageCacheEntryMetadata
 
 struct Tab::ImageCacheEntryMetadata {
-  ImageCacheEntryMetadata(int resource_id,
+  ImageCacheEntryMetadata(bool incognito,
+                          int resource_id,
                           ui::ScaleFactor scale_factor,
                           const gfx::Size& size);
   ~ImageCacheEntryMetadata();
@@ -450,16 +443,23 @@ struct Tab::ImageCacheEntryMetadata {
   // Making this a non-member would require a friend declaration in Tab.  Bleh.
   bool operator==(const ImageCacheEntryMetadata& rhs) const;
 
+  // Whether the resource is drawn in an incognito window.  This is only set to
+  // true when Material Design is enabled, since before MD tabs in normal and
+  // incognito windows look the same.
+  bool incognito;
+
   int resource_id;
   ui::ScaleFactor scale_factor;
   gfx::Size size;
 };
 
 Tab::ImageCacheEntryMetadata::ImageCacheEntryMetadata(
+    bool incognito,
     int resource_id,
     ui::ScaleFactor scale_factor,
     const gfx::Size& size)
-    : resource_id(resource_id),
+    : incognito(incognito),
+      resource_id(resource_id),
       scale_factor(scale_factor),
       size(size) {
   DCHECK_NE(ui::SCALE_FACTOR_NONE, scale_factor);
@@ -469,8 +469,8 @@ Tab::ImageCacheEntryMetadata::~ImageCacheEntryMetadata() {}
 
 bool Tab::ImageCacheEntryMetadata::operator==(
     const ImageCacheEntryMetadata& rhs) const {
-  return resource_id == rhs.resource_id && scale_factor == rhs.scale_factor &&
-      size == rhs.size;
+  return incognito == rhs.incognito && resource_id == rhs.resource_id &&
+      scale_factor == rhs.scale_factor && size == rhs.size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,7 +496,6 @@ Tab::ImageCacheEntry::~ImageCacheEntry() {}
 
 // static
 const char Tab::kViewClassName[] = "Tab";
-const SkColor Tab::kInactiveTabColor = SkColorSetRGB(0xD0, 0xD0, 0xD0);
 Tab::TabImages Tab::active_images_ = {0};
 Tab::TabImages Tab::inactive_images_ = {0};
 Tab::TabImages Tab::mask_images_ = {0};
@@ -941,10 +940,7 @@ void Tab::OnPaint(gfx::Canvas* canvas) {
 }
 
 void Tab::Layout() {
-  gfx::Rect lb = GetContentsBounds();
-  if (lb.IsEmpty())
-    return;
-
+  const gfx::Rect lb = GetContentsBounds();
   showing_icon_ = ShouldShowIcon();
   // See comments in IconCapacity().
   const int extra_padding =
@@ -1336,9 +1332,6 @@ void Tab::PaintInactiveTabBackgroundWithTitleChange(gfx::Canvas* canvas) {
 void Tab::PaintInactiveTabBackground(gfx::Canvas* canvas) {
   bool has_custom_image;
   int fill_id = controller_->GetBackgroundResourceId(&has_custom_image);
-  // Explicitly map the id so we cache correctly.
-  const chrome::HostDesktopType host_desktop_type = GetHostDesktopType(this);
-  fill_id = chrome::MapThemeImage(host_desktop_type, fill_id);
 
   // If the theme is providing a custom background image, then its top edge
   // should be at the top of the tab. Otherwise, we assume that the background
@@ -1356,7 +1349,9 @@ void Tab::PaintInactiveTabBackground(gfx::Canvas* canvas) {
     return;
   }
 
-  ImageCacheEntryMetadata metadata(
+  const ImageCacheEntryMetadata metadata(
+      ui::MaterialDesignController::IsModeMaterial() &&
+          controller_->IsIncognito(),
       fill_id, ui::GetSupportedScaleFactor(canvas->image_scale()), size());
   auto it = std::find_if(
       image_cache_->begin(), image_cache_->end(),
@@ -1378,7 +1373,8 @@ void Tab::PaintTabBackgroundUsingFillId(gfx::Canvas* canvas,
                                         int fill_id,
                                         bool has_custom_image,
                                         int y_offset) {
-  gfx::ImageSkia* fill_image = GetThemeProvider()->GetImageSkiaNamed(fill_id);
+  const ui::ThemeProvider* tp = GetThemeProvider();
+  gfx::ImageSkia* fill_image = tp->GetImageSkiaNamed(fill_id);
   // The tab image needs to be lined up with the background image
   // so that it feels partially transparent.  These offsets represent the tab
   // position within the frame background image.
@@ -1409,8 +1405,9 @@ void Tab::PaintTabBackgroundUsingFillId(gfx::Canvas* canvas,
         canvas->TileImageInt(*fill_image, x_offset, y_offset, 0, 0, width(),
                              height());
       } else {
-        paint.setColor(
-            is_active ? SkColorSetRGB(0xF2, 0xF2, 0xF2) : kInactiveTabColor);
+        paint.setColor(tp->GetColor(is_active ?
+            static_cast<int>(ThemeProperties::COLOR_TOOLBAR) :
+            ThemeProperties::COLOR_BACKGROUND_TAB));
         canvas->DrawRect(gfx::ScaleToEnclosingRect(GetLocalBounds(), scale),
                          paint);
       }

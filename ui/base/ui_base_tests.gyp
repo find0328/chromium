@@ -79,10 +79,10 @@
         'ime/input_method_chromeos_unittest.cc',
         'ime/win/imm32_manager_unittest.cc',
         'ime/win/tsf_input_scope_unittest.cc',
+        'material_design/material_design_controller_unittest.cc',
         'models/list_model_unittest.cc',
         'models/list_selection_model_unittest.cc',
         'models/tree_node_model_unittest.cc',
-        'resource/material_design/material_design_controller_unittest.cc',
         'test/data/resource.h',
         'test/test_clipboard_unittest.cc',
         'test/scoped_fake_nswindow_fullscreen_unittest.mm',
@@ -164,13 +164,6 @@
         ['use_pango == 1', {
           'dependencies': [
             '../../build/linux/system.gyp:pangocairo',
-          ],
-          'conditions': [
-            ['use_allocator!="none"', {
-              'dependencies': [
-                '../../base/allocator/allocator.gyp:allocator',
-              ],
-            }],
           ],
         }],
         ['use_x11==1', {

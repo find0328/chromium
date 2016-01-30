@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_MEDIA_ANDROID_REMOTE_REMOTE_MEDIA_PLAYER_MANAGER_H_
 
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include "base/macros.h"
@@ -69,10 +70,10 @@ class RemoteMediaPlayerManager : public content::BrowserMediaPlayerManager {
       const MediaPlayerHostMsg_Initialize_Params& media_player_params) override;
   void OnDestroyPlayer(int player_id) override;
   void OnSuspendAndReleaseResources(int player_id) override;
-  void OnSuspend(int player_id) override;
-  void OnResume(int player_id) override;
   void OnRequestRemotePlayback(int player_id) override;
   void OnRequestRemotePlaybackControl(int player_id) override;
+
+  bool IsPlayingRemotely(int player_id) override;
 
   void ReleaseFullscreenPlayer(media::MediaPlayerAndroid* player) override;
 
@@ -103,14 +104,15 @@ class RemoteMediaPlayerManager : public content::BrowserMediaPlayerManager {
 
   void SwapCurrentPlayer(int player_id);
 
+  void FetchPosterBitmap(int player_id);
+
   // Contains the alternative players that are not currently in use, i.e. the
   // remote players for videos that are playing locally, and the local players
   // for videos that are playing remotely.
   ScopedVector<media::MediaPlayerAndroid> alternative_players_;
 
-  bool IsPlayingRemotely(int player_id);
-
   std::set<int> players_playing_remotely_;
+  std::unordered_map<int, GURL> poster_urls_;
 
   base::WeakPtrFactory<RemoteMediaPlayerManager> weak_ptr_factory_;
 
