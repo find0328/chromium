@@ -13,9 +13,9 @@ namespace content {
 BluetoothBlacklist::BluetoothBlacklist() {
   // Blacklist UUIDs updated 2016-01-30 from:
   // https://github.com/WebBluetoothCG/registries/blob/master/gatt_blacklist.txt
-  auto emplace_result = blacklisted_uuids_.emplace(std::make_pair(
+  auto insert_result = blacklisted_uuids_.insert(std::make_pair(
       BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb"), Value::EXCLUDE));
-  DCHECK(emplace_result.second);  // Assert that there was no duplicate.
+  DCHECK(insert_result.second);  // Assert there was no duplicate.
 }
 
 BluetoothBlacklist::~BluetoothBlacklist() {}
