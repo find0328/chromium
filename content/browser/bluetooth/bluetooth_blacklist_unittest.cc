@@ -11,7 +11,15 @@ using device::BluetoothUUID;
 
 namespace content {
 
-TEST(BluetoothBlacklistTest, MyBluetoothBlacklistTest) {
+TEST(BluetoothBlacklistTest, NonExcludedUUID) {
+  BluetoothBlacklist blacklist;
+  BluetoothUUID non_excluded_UUID("00000000-0000-0000-0000-000000000000");
+  EXPECT_FALSE(blacklist.IsExcluded(non_excluded_UUID));
+  EXPECT_FALSE(blacklist.IsExcludedFromReads(non_excluded_UUID));
+  EXPECT_FALSE(blacklist.IsExcludedFromWrites(non_excluded_UUID));
+}
+
+TEST(BluetoothBlacklistTest, ExcludedUUID) {
   BluetoothBlacklist blacklist;
   BluetoothUUID excluded_UUID("00001800-0000-1000-8000-00805f9b34fb");
   EXPECT_TRUE(blacklist.IsExcluded(excluded_UUID));
