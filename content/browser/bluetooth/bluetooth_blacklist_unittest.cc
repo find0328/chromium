@@ -62,6 +62,8 @@ TEST(BluetoothBlacklistTest, AbreviatedUUIDs) {
 
 TEST(BluetoothBlacklistTest, VerifyDefaultBlacklistSize) {
   BluetoothBlacklist blacklist;
+  // When adding items to the blacklist the new values should be added in the
+  // tests below for each exclusion type.
   EXPECT_EQ(6u, blacklist.size());
 }
 
