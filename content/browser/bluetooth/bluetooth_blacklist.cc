@@ -13,12 +13,27 @@ namespace content {
 BluetoothBlacklist::BluetoothBlacklist() {
   // Blacklist UUIDs updated 2016-01-30 from:
   // https://github.com/WebBluetoothCG/registries/blob/master/gatt_blacklist.txt
-  auto insert_result = blacklisted_uuids_.insert(std::make_pair(
-      BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb"), Value::EXCLUDE));
-  DCHECK(insert_result.second);  // Assert there was no duplicate.
+  // Short UUIDs are used for readability of this list.
+  DCHECK(BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb") ==
+         BluetoothUUID("1800"));
+  // ## Services
+  AddOrDie(BluetoothUUID("1800"), Value::EXCLUDE);
+  AddOrDie(BluetoothUUID("1801"), Value::EXCLUDE);
+  AddOrDie(BluetoothUUID("1812"), Value::EXCLUDE);
+  // ## Characteristics
+  AddOrDie(BluetoothUUID("2a25"), Value::EXCLUDE);
+  // ## Descriptors
+  AddOrDie(BluetoothUUID("2902"), Value::EXCLUDE_WRITES);
+  AddOrDie(BluetoothUUID("2903"), Value::EXCLUDE_WRITES);
 }
 
 BluetoothBlacklist::~BluetoothBlacklist() {}
+
+void BluetoothBlacklist::AddOrDie(const device::BluetoothUUID& uuid,
+                                  Value value) {
+  auto insert_result = blacklisted_uuids_.insert(std::make_pair(uuid, value));
+  CHECK(insert_result.second);
+}
 
 bool BluetoothBlacklist::IsExcluded(const BluetoothUUID& uuid) const {
   const auto& it = blacklisted_uuids_.find(uuid);

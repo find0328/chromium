@@ -19,12 +19,20 @@ TEST(BluetoothBlacklistTest, NonExcludedUUID) {
   EXPECT_FALSE(blacklist.IsExcludedFromWrites(non_excluded_UUID));
 }
 
-TEST(BluetoothBlacklistTest, ExcludedUUID) {
+TEST(BluetoothBlacklistTest, ExcludeUUID) {
   BluetoothBlacklist blacklist;
   BluetoothUUID excluded_UUID("00001800-0000-1000-8000-00805f9b34fb");
   EXPECT_TRUE(blacklist.IsExcluded(excluded_UUID));
   EXPECT_TRUE(blacklist.IsExcludedFromReads(excluded_UUID));
   EXPECT_TRUE(blacklist.IsExcludedFromWrites(excluded_UUID));
+}
+
+TEST(BluetoothBlacklistTest, ExcludeWritesUUID) {
+  BluetoothBlacklist blacklist;
+  BluetoothUUID exclude_writes_UUID("00002902-0000-1000-8000-00805f9b34fb");
+  EXPECT_FALSE(blacklist.IsExcluded(exclude_writes_UUID));
+  EXPECT_FALSE(blacklist.IsExcludedFromReads(exclude_writes_UUID));
+  EXPECT_TRUE(blacklist.IsExcludedFromWrites(exclude_writes_UUID));
 }
 
 }  // namespace content

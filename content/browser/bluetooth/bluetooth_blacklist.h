@@ -32,6 +32,10 @@ class CONTENT_EXPORT BluetoothBlacklist final {
   BluetoothBlacklist();
   ~BluetoothBlacklist();
 
+  // Adds a UUID to the blacklist to be excluded from operations. Crash if the
+  // UUID is already in the blacklist.
+  void AddOrDie(const device::BluetoothUUID&, Value);
+
   // Returns if an UUID is excluded from all operations.
   bool IsExcluded(const device::BluetoothUUID&) const;
 
