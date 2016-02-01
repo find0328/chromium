@@ -60,6 +60,11 @@ TEST(BluetoothBlacklistTest, AbreviatedUUIDs) {
   EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("bbbb")));
 }
 
+TEST(BluetoothBlacklistTest, VerifyDefaultBlacklistSize) {
+  BluetoothBlacklist blacklist;
+  EXPECT_EQ(6u, blacklist.size());
+}
+
 TEST(BluetoothBlacklistTest, VerifyDefaultExcludeList) {
   BluetoothBlacklist blacklist;
   EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("1800")));

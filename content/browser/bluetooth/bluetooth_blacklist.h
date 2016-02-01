@@ -45,6 +45,9 @@ class CONTENT_EXPORT BluetoothBlacklist final {
   // Returns if an UUID is excluded from write operations.
   bool IsExcludedFromWrites(const device::BluetoothUUID&) const;
 
+  // Size of blacklist.
+  size_t size() { return blacklisted_uuids_.size(); }
+
  private:
   // Map of UUID to blacklisted value.
   std::map<device::BluetoothUUID, Value> blacklisted_uuids_;
