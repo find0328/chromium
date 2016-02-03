@@ -4,6 +4,7 @@
 
 #include "content/browser/bluetooth/bluetooth_blacklist.h"
 
+#include "content/common/bluetooth/bluetooth_scan_filter.h"
 #include "device/bluetooth/bluetooth_uuid.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -57,6 +58,8 @@ TEST_F(BluetoothBlacklistTest, ExcludeWritesUUID) {
   EXPECT_TRUE(blacklist.IsExcludedFromWrites(exclude_writes_uuid));
 }
 
+// Abreviated UUIDs used to create, or test against, the blacklist work
+// correctly compared to full UUIDs.
 TEST_F(BluetoothBlacklistTest, AbreviatedUUIDs) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
 
@@ -67,6 +70,26 @@ TEST_F(BluetoothBlacklistTest, AbreviatedUUIDs) {
   blacklist.AddOrDie(BluetoothUUID("0000bbbb-0000-1000-8000-00805f9b34fb"),
                      BluetoothBlacklist::Value::EXCLUDE);
   EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("bbbb")));
+}
+
+TEST_F(BluetoothBlacklistTest, IsExcluded_BluetoothScanFilter) {
+  BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
+  BluetoothUUID excluded_uuid("eeeeeeee");
+  blacklist.AddOrDie(excluded_uuid, BluetoothBlacklist::Value::EXCLUDE);
+
+  {
+    std::vector<BluetoothScanFilter> empty_filters;
+    EXPECT_FALSE(blacklist.IsExcluded(empty_filters));
+  }
+  {
+    std::vector<BluetoothScanFilter> single_empty_filter;
+    EXPECT_FALSE(blacklist.IsExcluded(single_empty_filter));
+  }
+  {
+    std::vector<BluetoothScanFilter> single_non_matching_filter(1);
+    single_non_matching_filter[0].services.push_back(BluetoothUUID("0000"));
+    EXPECT_FALSE(blacklist.IsExcluded(single_non_matching_filter));
+  }
 }
 
 TEST_F(BluetoothBlacklistTest, VerifyDefaultBlacklistSize) {
