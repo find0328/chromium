@@ -6,12 +6,16 @@
 #define CONTENT_BROWSER_BLUETOOTH_BLUETOOTH_BLACKLIST_H_
 
 #include <map>
+#include <vector>
 
 #include "base/macros.h"
+#include "base/lazy_instance.h"
 #include "content/common/content_export.h"
 #include "device/bluetooth/bluetooth_uuid.h"
 
 namespace content {
+
+struct BluetoothScanFilter;
 
 // Implements the Web Bluetooth Blacklist policy as defined in the Web Bluetooth
 // specification:
@@ -29,8 +33,10 @@ class CONTENT_EXPORT BluetoothBlacklist final {
     EXCLUDE_WRITES  // Excluded from write operations.
   };
 
-  BluetoothBlacklist();
   ~BluetoothBlacklist();
+
+  // Returns a singleton instance of the blacklist.
+  static BluetoothBlacklist& Get();
 
   // Adds a UUID to the blacklist to be excluded from operations. Crash if the
   // UUID is already in the blacklist.
@@ -39,16 +45,30 @@ class CONTENT_EXPORT BluetoothBlacklist final {
   // Returns if an UUID is excluded from all operations.
   bool IsExcluded(const device::BluetoothUUID&) const;
 
+  // Returns if any UUID in a set of filters is excluded from all operations.
+  bool IsExcluded(const std::vector<content::BluetoothScanFilter>&);
+
   // Returns if an UUID is excluded from read operations.
   bool IsExcludedFromReads(const device::BluetoothUUID&) const;
 
   // Returns if an UUID is excluded from write operations.
   bool IsExcludedFromWrites(const device::BluetoothUUID&) const;
 
+  // Modifies a list of UUIDs, removing any UUIDs with Value::EXCLUDE.
+  void RemoveExcludedUuids(std::vector<device::BluetoothUUID>&);
+
   // Size of blacklist.
   size_t size() { return blacklisted_uuids_.size(); }
 
+  void ResetToDefaultValuesForTest();
+
  private:
+   friend struct base::DefaultLazyInstanceTraits<BluetoothBlacklist>;
+
+  BluetoothBlacklist();
+
+  void PopulateWithDefaultValues();
+
   // Map of UUID to blacklisted value.
   std::map<device::BluetoothUUID, Value> blacklisted_uuids_;
 
