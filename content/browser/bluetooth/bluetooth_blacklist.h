@@ -23,6 +23,8 @@ struct BluetoothScanFilter;
 //
 // Client code may query UUIDs to determine if they are excluded from use by the
 // blacklist.
+//
+// Singleton access via Get() enforces only one copy of blacklist.
 class CONTENT_EXPORT BluetoothBlacklist final {
  public:
   // Blacklist value terminology from Web Bluetooth specification:
@@ -63,7 +65,8 @@ class CONTENT_EXPORT BluetoothBlacklist final {
   void ResetToDefaultValuesForTest();
 
  private:
-   friend struct base::DefaultLazyInstanceTraits<BluetoothBlacklist>;
+  // friend LazyInstance to permit access to private constructor.
+  friend base::DefaultLazyInstanceTraits<BluetoothBlacklist>;
 
   BluetoothBlacklist();
 

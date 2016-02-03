@@ -11,9 +11,9 @@ using device::BluetoothUUID;
 
 class BluetoothBlacklistTest : public ::testing::Test {
  public:
-   BluetoothBlacklistTest() {
+  BluetoothBlacklistTest() {
     // Because BluetoothBlacklist is used via a singleton instance, the data
-    // must be reset for each test. 
+    // must be reset for each test.
     content::BluetoothBlacklist::Get().ResetToDefaultValuesForTest();
   }
 };
