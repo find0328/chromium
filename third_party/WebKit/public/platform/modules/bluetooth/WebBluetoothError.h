@@ -55,7 +55,6 @@ enum class WebBluetoothError {
     GATTUntranslatedErrorCode,
     // SecurityError:
     GATTNotAuthorized,
-    RequestDeviceWithBlacklistedUUID,
     RequestDeviceWithUniqueOrigin,
     RequestDeviceWithoutFrame,
     // SyntaxError:

@@ -20,7 +20,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/thread_task_runner_handle.h"
 #include "content/browser/bad_message.h"
-#include "content/browser/bluetooth/bluetooth_blacklist.h"
 #include "content/browser/bluetooth/bluetooth_metrics.h"
 #include "content/browser/bluetooth/first_device_bluetooth_chooser.h"
 #include "content/browser/frame_host/render_frame_host_impl.h"
@@ -987,7 +986,6 @@ void BluetoothDispatcherHost::OnRequestDeviceImpl(
     int request_id,
     int frame_routing_id,
     const std::vector<BluetoothScanFilter>& filters,
-    // Use local optional_services_blacklist_filtered in this method.
     const std::vector<BluetoothUUID>& optional_services) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   RecordWebBluetoothFunctionCall(UMAWebBluetoothFunction::REQUEST_DEVICE);
@@ -1007,18 +1005,6 @@ void BluetoothDispatcherHost::OnRequestDeviceImpl(
   VLOG(1) << "requestDevice called with the following optional services: ";
   for (const BluetoothUUID& service : optional_services)
     VLOG(1) << "\t" << service.value();
-
-  // Check blacklist to reject invalid filters and adjust optional_services.
-  if (BluetoothBlacklist::Get().IsExcluded(filters)) {
-    Send(new BluetoothMsg_RequestDeviceError(
-        thread_id, request_id,
-        WebBluetoothError::RequestDeviceWithBlacklistedUUID));
-    return;
-  }
-  std::vector<BluetoothUUID> optional_services_blacklist_filtered(
-      optional_services);
-  BluetoothBlacklist::Get().RemoveExcludedUuids(
-      optional_services_blacklist_filtered);
 
   RenderFrameHostImpl* render_frame_host =
       RenderFrameHostImpl::FromID(render_process_id_, frame_routing_id);
@@ -1063,7 +1049,7 @@ void BluetoothDispatcherHost::OnRequestDeviceImpl(
   // chooser.
   RequestDeviceSession* const session = new RequestDeviceSession(
       thread_id, request_id, render_frame_host->GetLastCommittedOrigin(),
-      filters, optional_services_blacklist_filtered);
+      filters, optional_services);
   int chooser_id = request_device_sessions_.Add(session);
 
   BluetoothChooser::EventHandler chooser_event_handler =
