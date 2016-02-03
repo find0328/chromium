@@ -8,8 +8,8 @@
 #include <map>
 #include <vector>
 
-#include "base/macros.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "content/common/content_export.h"
 #include "device/bluetooth/bluetooth_uuid.h"
 
