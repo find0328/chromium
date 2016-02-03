@@ -74,8 +74,11 @@ TEST_F(BluetoothBlacklistTest, AbreviatedUUIDs) {
 
 TEST_F(BluetoothBlacklistTest, IsExcluded_BluetoothScanFilter_ReturnsFalse) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
-  BluetoothUUID excluded_uuid("eeee");
-  blacklist.AddOrDie(excluded_uuid, BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("eeee"), BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("ee01"),
+                     BluetoothBlacklist::Value::EXCLUDE_READS);
+  blacklist.AddOrDie(BluetoothUUID("ee02"),
+                     BluetoothBlacklist::Value::EXCLUDE_WRITES);
   {
     std::vector<BluetoothScanFilter> empty_filters;
     EXPECT_FALSE(blacklist.IsExcluded(empty_filters));
@@ -92,8 +95,8 @@ TEST_F(BluetoothBlacklistTest, IsExcluded_BluetoothScanFilter_ReturnsFalse) {
   {
     std::vector<BluetoothScanFilter> multiple_non_matching_filter(2);
     multiple_non_matching_filter[0].services.push_back(BluetoothUUID("0000"));
-    multiple_non_matching_filter[0].services.push_back(BluetoothUUID("0001"));
-    multiple_non_matching_filter[1].services.push_back(BluetoothUUID("0002"));
+    multiple_non_matching_filter[0].services.push_back(BluetoothUUID("ee01"));
+    multiple_non_matching_filter[1].services.push_back(BluetoothUUID("ee02"));
     multiple_non_matching_filter[1].services.push_back(BluetoothUUID("0003"));
     EXPECT_FALSE(blacklist.IsExcluded(multiple_non_matching_filter));
   }
@@ -101,8 +104,7 @@ TEST_F(BluetoothBlacklistTest, IsExcluded_BluetoothScanFilter_ReturnsFalse) {
 
 TEST_F(BluetoothBlacklistTest, IsExcluded_BluetoothScanFilter_ReturnsTrue) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
-  BluetoothUUID excluded_uuid("eeee");
-  blacklist.AddOrDie(excluded_uuid, BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("eeee"), BluetoothBlacklist::Value::EXCLUDE);
   {
     std::vector<BluetoothScanFilter> single_matching_filter(1);
     single_matching_filter[0].services.push_back(BluetoothUUID("eeee"));
@@ -134,14 +136,81 @@ TEST_F(BluetoothBlacklistTest, IsExcluded_BluetoothScanFilter_ReturnsTrue) {
   }
 }
 
-TEST_F(BluetoothBlacklistTest, RemoveExcludedUuids) {
+TEST_F(BluetoothBlacklistTest, RemoveExcludedUuids_NonMatching) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
-  BluetoothUUID excluded_uuid("eeee");
+  blacklist.AddOrDie(BluetoothUUID("eeee"), BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("ee01"),
+                     BluetoothBlacklist::Value::EXCLUDE_READS);
+  blacklist.AddOrDie(BluetoothUUID("ee02"),
+                     BluetoothBlacklist::Value::EXCLUDE_WRITES);
   {
-    std::vector<device::BluetoothUUID> empty_uuids;
-    std::vector<device::BluetoothUUID> empty_uuids_expected;
-    blacklist.RemoveExcludedUuids(empty_uuids);
-    EXPECT_EQ(empty_uuids, empty_uuids_expected);
+    std::vector<BluetoothUUID> empty;
+    std::vector<BluetoothUUID> expected_empty;
+    blacklist.RemoveExcludedUuids(empty);
+    EXPECT_EQ(expected_empty, empty);
+  }
+  {
+    std::vector<BluetoothUUID> single_non_matching;
+    single_non_matching.push_back(BluetoothUUID("0000"));
+
+    std::vector<BluetoothUUID> expected_copy(single_non_matching);
+
+    blacklist.RemoveExcludedUuids(single_non_matching);
+    EXPECT_EQ(expected_copy, single_non_matching);
+  }
+  {
+    std::vector<BluetoothUUID> multiple_non_matching;
+    multiple_non_matching.push_back(BluetoothUUID("0000"));
+    multiple_non_matching.push_back(BluetoothUUID("ee01"));
+    multiple_non_matching.push_back(BluetoothUUID("ee02"));
+    multiple_non_matching.push_back(BluetoothUUID("0003"));
+
+    std::vector<BluetoothUUID> expected_copy(multiple_non_matching);
+
+    blacklist.RemoveExcludedUuids(multiple_non_matching);
+    EXPECT_EQ(expected_copy, multiple_non_matching);
+  }
+}
+
+TEST_F(BluetoothBlacklistTest, RemoveExcludedUuids_Matching) {
+  BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
+  blacklist.AddOrDie(BluetoothUUID("eeee"), BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("eee2"), BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("eee3"), BluetoothBlacklist::Value::EXCLUDE);
+  blacklist.AddOrDie(BluetoothUUID("eee4"), BluetoothBlacklist::Value::EXCLUDE);
+  {
+    std::vector<BluetoothUUID> single_matching;
+    single_matching.push_back(BluetoothUUID("eeee"));
+
+    std::vector<BluetoothUUID> expected_empty;
+
+    blacklist.RemoveExcludedUuids(single_matching);
+    EXPECT_EQ(expected_empty, single_matching);
+  }
+  {
+    std::vector<BluetoothUUID> single_matching_of_many;
+    single_matching_of_many.push_back(BluetoothUUID("0000"));
+    single_matching_of_many.push_back(BluetoothUUID("eeee"));
+    single_matching_of_many.push_back(BluetoothUUID("0001"));
+
+    std::vector<BluetoothUUID> expected;
+    expected.push_back(BluetoothUUID("0000"));
+    expected.push_back(BluetoothUUID("0001"));
+
+    blacklist.RemoveExcludedUuids(single_matching_of_many);
+    EXPECT_EQ(expected, single_matching_of_many);
+  }
+  {
+    std::vector<BluetoothUUID> all_matching_of_many;
+    all_matching_of_many.push_back(BluetoothUUID("eee2"));
+    all_matching_of_many.push_back(BluetoothUUID("eee4"));
+    all_matching_of_many.push_back(BluetoothUUID("eee3"));
+    all_matching_of_many.push_back(BluetoothUUID("eeee"));
+
+    std::vector<BluetoothUUID> expected_empty;
+
+    blacklist.RemoveExcludedUuids(all_matching_of_many);
+    EXPECT_EQ(expected_empty, all_matching_of_many);
   }
 }
 
