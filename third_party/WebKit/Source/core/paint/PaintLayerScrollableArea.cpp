@@ -902,14 +902,14 @@ IntRect PaintLayerScrollableArea::rectForVerticalScrollbar(const IntRect& border
         borderBoxRect.height() - (box().borderTop() + box().borderBottom()) - scrollCorner.height());
 }
 
-LayoutUnit PaintLayerScrollableArea::verticalScrollbarStart(int minX, int maxX) const
+int PaintLayerScrollableArea::verticalScrollbarStart(int minX, int maxX) const
 {
     if (box().shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
         return minX + box().borderLeft();
     return maxX - box().borderRight() - verticalScrollbar()->width();
 }
 
-LayoutUnit PaintLayerScrollableArea::horizontalScrollbarStart(int minX) const
+int PaintLayerScrollableArea::horizontalScrollbarStart(int minX) const
 {
     int x = minX + box().borderLeft();
     if (box().shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
@@ -1108,7 +1108,7 @@ bool PaintLayerScrollableArea::hitTestOverflowControls(HitTestResult& result, co
     int resizeControlSize = max(resizeControlRect.height(), 0);
     if (hasVerticalScrollbar() && verticalScrollbar()->shouldParticipateInHitTesting()) {
         LayoutRect vBarRect(verticalScrollbarStart(0, box().size().width()),
-            box().borderTop(),
+            LayoutUnit(box().borderTop()),
             verticalScrollbar()->width(),
             box().size().height() - (box().borderTop() + box().borderBottom()) - (hasHorizontalScrollbar() ? horizontalScrollbar()->height() : resizeControlSize));
         if (vBarRect.contains(localPoint)) {
@@ -1119,7 +1119,7 @@ bool PaintLayerScrollableArea::hitTestOverflowControls(HitTestResult& result, co
 
     resizeControlSize = max(resizeControlRect.width(), 0);
     if (hasHorizontalScrollbar() && horizontalScrollbar()->shouldParticipateInHitTesting()) {
-        LayoutRect hBarRect(horizontalScrollbarStart(0),
+        LayoutRect hBarRect(horizontalScrollbarStart(LayoutUnit()),
             box().size().height() - box().borderBottom() - horizontalScrollbar()->height(),
             box().size().width() - (box().borderLeft() + box().borderRight()) - (hasVerticalScrollbar() ? verticalScrollbar()->width() : resizeControlSize),
             horizontalScrollbar()->height());
@@ -1316,7 +1316,7 @@ LayoutRect PaintLayerScrollableArea::scrollIntoView(const LayoutRect& rect, cons
 {
     LayoutRect localExposeRect(box().absoluteToLocalQuad(FloatQuad(FloatRect(rect)), UseTransforms).boundingBox());
     localExposeRect.move(-box().borderLeft(), -box().borderTop());
-    LayoutRect layerBounds(0, 0, box().clientWidth(), box().clientHeight());
+    LayoutRect layerBounds(LayoutPoint(), LayoutSize(box().clientWidth(), box().clientHeight()));
     LayoutRect r = ScrollAlignment::getRectToExpose(layerBounds, localExposeRect, alignX, alignY);
 
     DoublePoint clampedScrollPosition = clampScrollPosition(scrollPositionDouble() + roundedIntSize(r.location()));

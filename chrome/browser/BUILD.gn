@@ -162,6 +162,10 @@ source_set("browser") {
     "//components/ssl_errors",
     "//components/startup_metric_utils/browser:lib",
     "//components/startup_metric_utils/browser:message_filter_lib",
+
+    # TODO(fdoray): Remove this once the PreRead field trial has expired.
+    # crbug.com/577698
+    "//components/startup_metric_utils/common",
     "//components/strings",
     "//components/suggestions",
     "//components/sync_bookmarks",
@@ -507,6 +511,7 @@ source_set("browser") {
               gypi_values.chrome_browser_policy_shared_with_ios_not_chromeos_sources,
               ".",
               "//chrome")
+      defines = [ "FRAME_AVATAR_BUTTON=1" ]
     }
     if (is_win || is_mac || is_desktop_linux) {
       sources += rebase_path(gypi_values.chrome_browser_policy_desktop_sources,
@@ -546,8 +551,8 @@ source_set("browser") {
                     "//chrome")
     deps += [
       "//chrome/browser/safe_browsing:chunk_proto",
-      "//chrome/browser/safe_browsing:metadata_proto",
       "//chrome/common/safe_browsing:proto",
+      "//components/safe_browsing_db:metadata_proto",
     ]
     if (safe_browsing_mode == 1) {
       sources +=
@@ -563,6 +568,7 @@ source_set("browser") {
           rebase_path(gypi_values.chrome_browser_safe_browsing_mobile_sources,
                       ".",
                       "//chrome")
+      deps += [ "//components/safe_browsing_db:safe_browsing_db_mobile" ]
     }
   }
 
@@ -951,11 +957,7 @@ source_set("browser") {
   }
 
   if (enable_mojo_media != "none") {
-    configs += [ "//media/mojo/services:enable_mojo_media_config" ]
-  }
-
-  if (enable_mojo_media == "utility") {
-    deps += [ "//media/mojo/services:application" ]
+    deps += [ "//media/mojo/services:default_application" ]
   }
 
   if (enable_wayland_server) {
@@ -1035,6 +1037,7 @@ grit("resources") {
     # file, rather than the whole mojo target which will link the C++ bindings.
     "//chrome/browser/ui/webui/engagement:mojo_bindings__generator",
     "//chrome/browser/ui/webui/omnibox:mojo_bindings__generator",
+    "//chrome/browser/ui/webui/plugins:mojo_bindings__generator",
   ]
 }
 
@@ -1142,6 +1145,7 @@ source_set("test_support") {
     "//components/search_engines:test_support",
     "//components/syncable_prefs:test_support",
     "//components/user_prefs/tracked:user_prefs_tracked_test_support",
+    "//content/test:browsertest_base",
     "//content/test:test_support",
     "//net:test_support",
     "//skia",

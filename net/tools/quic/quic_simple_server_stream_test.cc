@@ -45,7 +45,6 @@ using testing::WithArgs;
 DECLARE_bool(quic_always_log_bugs_for_tests);
 
 namespace net {
-namespace tools {
 namespace test {
 
 class QuicSimpleServerStreamPeer : public QuicSimpleServerStream {
@@ -92,7 +91,8 @@ class MockQuicSimpleServerSession : public QuicSimpleServerSession {
                                 connection,
                                 owner,
                                 crypto_config) {
-    set_max_open_streams(kMaxStreamsForTest);
+    set_max_open_incoming_streams(kMaxStreamsForTest);
+    set_max_open_outgoing_streams(kMaxStreamsForTest);
     ON_CALL(*this, WritevData(_, _, _, _, _, _))
         .WillByDefault(testing::Return(QuicConsumedData(0, false)));
   }
@@ -600,5 +600,4 @@ TEST_P(QuicSimpleServerStreamTest, InvalidHeadersWithFin) {
 
 }  // namespace
 }  // namespace test
-}  // namespace tools
 }  // namespace net

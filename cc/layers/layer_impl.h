@@ -499,15 +499,13 @@ class CC_EXPORT LayerImpl : public LayerAnimationValueObserver,
       uint32_t main_thread_scrolling_reasons) {
     main_thread_scrolling_reasons_ = main_thread_scrolling_reasons;
   }
-  bool should_scroll_on_main_thread() const {
-    return !!main_thread_scrolling_reasons_;
+
+  uint32_t main_thread_scrolling_reasons() const {
+    return main_thread_scrolling_reasons_;
   }
 
-  void SetHaveScrollEventHandlers(bool have_scroll_event_handlers) {
-    have_scroll_event_handlers_ = have_scroll_event_handlers;
-  }
-  bool have_scroll_event_handlers() const {
-    return have_scroll_event_handlers_;
+  bool should_scroll_on_main_thread() const {
+    return !!main_thread_scrolling_reasons_;
   }
 
   void SetNonFastScrollableRegion(const Region& region) {
@@ -761,7 +759,6 @@ class CC_EXPORT LayerImpl : public LayerAnimationValueObserver,
 
   gfx::Vector2dF offset_to_transform_parent_;
   uint32_t main_thread_scrolling_reasons_;
-  bool have_scroll_event_handlers_ : 1;
 
   bool user_scrollable_horizontal_ : 1;
   bool user_scrollable_vertical_ : 1;

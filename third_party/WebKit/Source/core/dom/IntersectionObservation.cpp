@@ -36,6 +36,10 @@ void IntersectionObservation::initializeGeometry(IntersectionGeometry& geometry)
         geometry.targetRect = toLayoutBoxModelObject(targetLayoutObject)->visualOverflowRect();
     else
         geometry.targetRect = toLayoutText(targetLayoutObject)->visualOverflowRect();
+    if (!geometry.targetRect.size().width())
+        geometry.targetRect.setWidth(LayoutUnit(1));
+    if (!geometry.targetRect.size().height())
+        geometry.targetRect.setHeight(LayoutUnit(1));
     geometry.intersectionRect = geometry.targetRect;
 }
 
@@ -116,13 +120,11 @@ bool IntersectionObservation::computeGeometry(IntersectionGeometry& geometry)
 
     if (geometry.intersectionRect.size().isZero())
         geometry.intersectionRect = LayoutRect();
-    if (!m_shouldReportRootBounds)
-        geometry.rootRect = LayoutRect();
 
     return true;
 }
 
-void IntersectionObservation::computeIntersectionObservations(double timestamp)
+void IntersectionObservation::computeIntersectionObservations(DOMHighResTimeStamp timestamp)
 {
     // Pre-oilpan, there will be a delay between the time when the target Element gets deleted
     // (because its ref count dropped to zero) and when this IntersectionObservation gets
@@ -147,11 +149,13 @@ void IntersectionObservation::computeIntersectionObservations(double timestamp)
         return;
     float newVisibleRatio = intersectionArea / targetArea;
     unsigned newThresholdIndex = observer().firstThresholdGreaterThan(newVisibleRatio);
+    IntRect snappedRootBounds = pixelSnappedIntRect(geometry.rootRect);
+    IntRect* rootBoundsPointer = m_shouldReportRootBounds ? &snappedRootBounds : nullptr;
     if (m_lastThresholdIndex != newThresholdIndex) {
         IntersectionObserverEntry* newEntry = new IntersectionObserverEntry(
-            timestamp / 1000.0,
+            timestamp,
             pixelSnappedIntRect(geometry.targetRect),
-            pixelSnappedIntRect(geometry.rootRect),
+            rootBoundsPointer,
             pixelSnappedIntRect(geometry.intersectionRect),
             targetElement);
         observer().enqueueIntersectionObserverEntry(*newEntry);

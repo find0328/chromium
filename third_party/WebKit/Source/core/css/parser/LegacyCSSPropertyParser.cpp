@@ -28,7 +28,6 @@
 
 #include "core/StylePropertyShorthand.h"
 #include "core/css/CSSBorderImage.h"
-#include "core/css/CSSContentDistributionValue.h"
 #include "core/css/CSSCrossfadeValue.h"
 #include "core/css/CSSCustomIdentValue.h"
 #include "core/css/CSSFunctionValue.h"
@@ -49,7 +48,7 @@
 #include "core/css/parser/CSSParserFastPaths.h"
 #include "core/css/parser/CSSParserValues.h"
 #include "core/frame/UseCounter.h"
-#include "core/style/GridCoordinate.h"
+#include "core/style/GridArea.h"
 #include "platform/RuntimeEnabledFeatures.h"
 
 namespace blink {
@@ -362,34 +361,6 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::legacyParseValue(CSSProperty
         parsedValue = parseBorderImage(propId);
         break;
 
-    case CSSPropertyBorderImageOutset:
-    case CSSPropertyWebkitMaskBoxImageOutset: {
-        RefPtrWillBeRawPtr<CSSQuadValue> result = nullptr;
-        if (parseBorderImageOutset(result))
-            return result.release();
-        return nullptr;
-    }
-    case CSSPropertyBorderImageRepeat:
-    case CSSPropertyWebkitMaskBoxImageRepeat: {
-        RefPtrWillBeRawPtr<CSSValue> result = nullptr;
-        if (parseBorderImageRepeat(result))
-            return result.release();
-        return nullptr;
-    }
-    case CSSPropertyBorderImageSlice:
-    case CSSPropertyWebkitMaskBoxImageSlice: {
-        RefPtrWillBeRawPtr<CSSBorderImageSliceValue> result = nullptr;
-        if (parseBorderImageSlice(propId, result))
-            return result.release();
-        return nullptr;
-    }
-    case CSSPropertyBorderImageWidth:
-    case CSSPropertyWebkitMaskBoxImageWidth: {
-        RefPtrWillBeRawPtr<CSSQuadValue> result = nullptr;
-        if (parseBorderImageWidth(result))
-            return result.release();
-        return nullptr;
-    }
     case CSSPropertyWebkitBoxReflect:
         if (id == CSSValueNone)
             validPrimitive = true;
@@ -400,10 +371,7 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::legacyParseValue(CSSProperty
         ASSERT(RuntimeEnabledFeatures::cssFontSizeAdjustEnabled());
         validPrimitive = (id == CSSValueNone) ? true : validUnit(value, FNumber | FNonNeg);
         break;
-    case CSSPropertyJustifyContent:
-        ASSERT(RuntimeEnabledFeatures::cssGridLayoutEnabled());
-        parsedValue = parseContentDistributionOverflowPosition();
-        break;
+
     case CSSPropertyJustifySelf:
         ASSERT(RuntimeEnabledFeatures::cssGridLayoutEnabled());
         parsedValue = parseItemPositionOverflowPosition();
@@ -446,9 +414,6 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::legacyParseValue(CSSProperty
         parsedValue = parseGridTemplateAreas();
         break;
 
-    case CSSPropertyAlignContent:
-        ASSERT(RuntimeEnabledFeatures::cssGridLayoutEnabled());
-        parsedValue = parseContentDistributionOverflowPosition();
         break;
 
     case CSSPropertyAlignSelf:
@@ -2078,24 +2043,24 @@ bool CSSPropertyParser::parseGridTemplateAreasRow(NamedGridAreaMap& gridAreaMap,
 
         NamedGridAreaMap::iterator gridAreaIt = gridAreaMap.find(gridAreaName);
         if (gridAreaIt == gridAreaMap.end()) {
-            gridAreaMap.add(gridAreaName, GridCoordinate(GridSpan::translatedDefiniteGridSpan(rowCount, rowCount + 1), GridSpan::translatedDefiniteGridSpan(currentCol, lookAheadCol)));
+            gridAreaMap.add(gridAreaName, GridArea(GridSpan::translatedDefiniteGridSpan(rowCount, rowCount + 1), GridSpan::translatedDefiniteGridSpan(currentCol, lookAheadCol)));
         } else {
-            GridCoordinate& gridCoordinate = gridAreaIt->value;
+            GridArea& gridArea = gridAreaIt->value;
 
             // The following checks test that the grid area is a single filled-in rectangle.
             // 1. The new row is adjacent to the previously parsed row.
-            if (rowCount != gridCoordinate.rows.resolvedFinalPosition())
+            if (rowCount != gridArea.rows.resolvedFinalPosition())
                 return false;
 
             // 2. The new area starts at the same position as the previously parsed area.
-            if (currentCol != gridCoordinate.columns.resolvedInitialPosition())
+            if (currentCol != gridArea.columns.resolvedInitialPosition())
                 return false;
 
             // 3. The new area ends at the same position as the previously parsed area.
-            if (lookAheadCol != gridCoordinate.columns.resolvedFinalPosition())
+            if (lookAheadCol != gridArea.columns.resolvedFinalPosition())
                 return false;
 
-            gridCoordinate.rows = GridSpan::translatedDefiniteGridSpan(gridCoordinate.rows.resolvedInitialPosition(), gridCoordinate.rows.resolvedFinalPosition() + 1);
+            gridArea.rows = GridSpan::translatedDefiniteGridSpan(gridArea.rows.resolvedInitialPosition(), gridArea.rows.resolvedFinalPosition() + 1);
         }
         currentCol = lookAheadCol - 1;
     }
@@ -2167,19 +2132,6 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseGridAutoFlow(CSSParserV
     return parsedValues;
 }
 
-static bool isContentDistributionKeyword(CSSValueID id)
-{
-    return id == CSSValueSpaceBetween || id == CSSValueSpaceAround
-        || id == CSSValueSpaceEvenly || id == CSSValueStretch;
-}
-
-static bool isContentPositionKeyword(CSSValueID id)
-{
-    return id == CSSValueStart || id == CSSValueEnd || id == CSSValueCenter
-        || id == CSSValueFlexStart || id == CSSValueFlexEnd
-        || id == CSSValueLeft || id == CSSValueRight;
-}
-
 static bool isBaselinePositionKeyword(CSSValueID id)
 {
     return id == CSSValueBaseline || id == CSSValueLastBaseline;
@@ -2219,55 +2171,6 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseLegacyPosition()
 
     m_valueList->next();
     return CSSValuePair::create(cssValuePool().createIdentifierValue(CSSValueLegacy), cssValuePool().createIdentifierValue(value->id), CSSValuePair::DropIdenticalValues);
-}
-
-PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseContentDistributionOverflowPosition()
-{
-    // auto | <baseline-position> | <content-distribution> || [ <overflow-position>? && <content-position> ]
-    // <baseline-position> = baseline | last-baseline;
-    // <content-distribution> = space-between | space-around | space-evenly | stretch;
-    // <content-position> = center | start | end | flex-start | flex-end | left | right;
-    // <overflow-position> = true | safe
-
-    // auto | <baseline-position>
-    CSSParserValue* value = m_valueList->current();
-    if (value->id == CSSValueAuto || isBaselinePositionKeyword(value->id)) {
-        m_valueList->next();
-        return CSSContentDistributionValue::create(CSSValueInvalid, value->id, CSSValueInvalid);
-    }
-
-    CSSValueID distribution = CSSValueInvalid;
-    CSSValueID position = CSSValueInvalid;
-    CSSValueID overflow = CSSValueInvalid;
-    while (value) {
-        if (isContentDistributionKeyword(value->id)) {
-            if (distribution != CSSValueInvalid)
-                return nullptr;
-            distribution = value->id;
-        } else if (isContentPositionKeyword(value->id)) {
-            if (position != CSSValueInvalid)
-                return nullptr;
-            position = value->id;
-        } else if (isAlignmentOverflowKeyword(value->id)) {
-            if (overflow != CSSValueInvalid)
-                return nullptr;
-            overflow = value->id;
-        } else {
-            return nullptr;
-        }
-        value = m_valueList->next();
-    }
-
-    // The grammar states that we should have at least <content-distribution> or
-    // <content-position> ( <content-distribution> || <content-position> ).
-    if (position == CSSValueInvalid && distribution == CSSValueInvalid)
-        return nullptr;
-
-    // The grammar states that <overflow-position> must be associated to <content-position>.
-    if (overflow != CSSValueInvalid && position == CSSValueInvalid)
-        return nullptr;
-
-    return CSSContentDistributionValue::create(distribution, position, overflow);
 }
 
 PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseItemPositionOverflowPosition()

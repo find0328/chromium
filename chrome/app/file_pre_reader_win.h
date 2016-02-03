@@ -14,15 +14,7 @@ class MemoryMappedFile;
 }
 
 // Reads |file_path| to avoid touching the disk when the file is actually used.
-// The function checks the Windows version to determine which pre-reading
-// mechanism to use. On Vista+, chunks of 1 MB are read into a buffer. On XP,
-// pre-reading non-PE files is not supported.
 void PreReadFile(const base::FilePath& file_path);
-
-// Returns true if the first page of |memory_mapped_file| is warm. This function
-// must be called from a single-threaded process because it relies on the
-// process-wide hard fault counter. Returns false on failure.
-bool IsMemoryMappedFileWarm(const base::MemoryMappedFile& memory_mapped_file);
 
 // Reads |memory_mapped_file| to avoid touching the disk when the mapped file is
 // actually used. The function checks the Windows version to determine which

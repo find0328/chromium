@@ -25,7 +25,7 @@ namespace mash {
 namespace wm {
 
 WindowManagerImpl::WindowManagerImpl()
-    : state_(nullptr), window_manager_client_(nullptr) {}
+    : state_(nullptr), window_manager_client_(nullptr), binding_(this) {}
 
 WindowManagerImpl::~WindowManagerImpl() {
   if (!state_)
@@ -37,7 +37,8 @@ WindowManagerImpl::~WindowManagerImpl() {
   }
 }
 
-void WindowManagerImpl::Initialize(WindowManagerApplication* state) {
+void WindowManagerImpl::Initialize(WindowManagerApplication* state,
+                                   mash::shell::mojom::ShellPtr shell) {
   DCHECK(state);
   DCHECK(!state_);
   state_ = state;
@@ -63,6 +64,8 @@ void WindowManagerImpl::Initialize(WindowManagerApplication* state) {
       NonClientFrameController::GetMaxTitleBarButtonWidth();
   window_manager_client_->SetFrameDecorationValues(
       std::move(frame_decoration_values));
+
+  shell->AddScreenlockStateListener(binding_.CreateInterfacePtrAndBind());
 }
 
 gfx::Rect WindowManagerImpl::CalculateDefaultBounds(mus::Window* window) const {
@@ -89,7 +92,8 @@ gfx::Rect WindowManagerImpl::GetMaximizedWindowBounds() const {
 }
 
 mus::Window* WindowManagerImpl::NewTopLevelWindow(
-    std::map<std::string, std::vector<uint8_t>>* properties) {
+    std::map<std::string, std::vector<uint8_t>>* properties,
+    mus::mojom::WindowTreeClientPtr client) {
   DCHECK(state_);
   mus::Window* root = state_->root();
   DCHECK(root);
@@ -105,6 +109,9 @@ mus::Window* WindowManagerImpl::NewTopLevelWindow(
 
   mojom::Container container = GetRequestedContainer(window);
   state_->GetWindowForContainer(container)->AddChild(window);
+
+  if (client)
+    window->Embed(std::move(client));
 
   if (provide_non_client_frame) {
     // NonClientFrameController deletes itself when |window| is destroyed.
@@ -127,6 +134,14 @@ void WindowManagerImpl::OnTreeChanging(const TreeChangeParams& params) {
 
 void WindowManagerImpl::OnWindowEmbeddedAppDisconnected(mus::Window* window) {
   window->Destroy();
+}
+
+void WindowManagerImpl::OpenWindow(
+    mus::mojom::WindowTreeClientPtr client,
+    mojo::Map<mojo::String, mojo::Array<uint8_t>> transport_properties) {
+  mus::Window::SharedProperties properties =
+      transport_properties.To<mus::Window::SharedProperties>();
+  NewTopLevelWindow(&properties, std::move(client));
 }
 
 void WindowManagerImpl::SetWindowManagerClient(
@@ -153,7 +168,14 @@ bool WindowManagerImpl::OnWmSetProperty(
 
 mus::Window* WindowManagerImpl::OnWmCreateTopLevelWindow(
     std::map<std::string, std::vector<uint8_t>>* properties) {
-  return NewTopLevelWindow(properties);
+  return NewTopLevelWindow(properties, nullptr);
+}
+
+void WindowManagerImpl::ScreenlockStateChanged(bool locked) {
+  // Hide USER_PRIVATE windows when the screen is locked.
+  mus::Window* window =
+      state_->GetWindowForContainer(mash::wm::mojom::Container::USER_PRIVATE);
+  window->SetVisible(!locked);
 }
 
 }  // namespace wm

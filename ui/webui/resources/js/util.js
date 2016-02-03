@@ -5,12 +5,15 @@
 // <include src="assert.js">
 
 /**
- * Alias for document.getElementById.
+ * Alias for document.getElementById. Found elements must be HTMLElements.
  * @param {string} id The ID of the element to find.
  * @return {HTMLElement} The found element or null if not found.
  */
 function $(id) {
-  return document.getElementById(id);
+  var el = document.getElementById(id);
+  var message =
+      'Element ' + el + ' with id "' + id + '" is not an HTMLElement.';
+  return el ? assertInstanceof(el, HTMLElement, message) : null;
 }
 
 /**

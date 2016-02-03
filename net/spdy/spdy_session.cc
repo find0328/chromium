@@ -789,9 +789,8 @@ void SpdySession::InitializeWithSocket(
   buffered_spdy_framer_->set_visitor(this);
   buffered_spdy_framer_->set_debug_visitor(this);
   UMA_HISTOGRAM_ENUMERATION(
-      "Net.SpdyVersion2",
-      protocol_ - kProtoSPDYHistogramOffset,
-      kProtoSPDYMaximumVersion - kProtoSPDYMinimumVersion + 1);
+      "Net.SpdyVersion3", protocol_ - kProtoSPDYHistogramOffset,
+      kProtoSPDYMaximumVersion - kProtoSPDYHistogramOffset + 1);
 
   net_log_.AddEvent(
       NetLog::TYPE_HTTP2_SESSION_INITIALIZED,
@@ -2700,30 +2699,31 @@ bool SpdySession::TryCreatePushStream(SpdyStreamId stream_id,
     return false;
   }
 
+  DCHECK(gurl.is_valid());
+
   // Check that the pushed stream advertises the same origin as its associated
   // stream. Bypass this check if and only if this session is with a SPDY proxy
-  // that is trusted explicitly via the --trusted-spdy-proxy switch.
-  if (trusted_spdy_proxy_.Equals(host_port_pair())) {
-    // Disallow pushing of HTTPS content.
-    if (gurl.SchemeIs("https")) {
-      EnqueueResetStreamFrame(
-          stream_id,
-          request_priority,
-          RST_STREAM_REFUSED_STREAM,
-          base::StringPrintf("Rejected push of Cross Origin HTTPS content %d",
-                             associated_stream_id));
-      return false;
-    }
-  } else {
-    GURL associated_url(associated_it->second.stream->GetUrlFromHeaders());
-    if (associated_url.GetOrigin() != gurl.GetOrigin()) {
-      EnqueueResetStreamFrame(
-          stream_id,
-          request_priority,
-          RST_STREAM_REFUSED_STREAM,
-          base::StringPrintf("Rejected Cross Origin Push Stream %d",
-                             associated_stream_id));
-      return false;
+  // that is trusted explicitly via the --trusted-spdy-proxy switch or if the
+  // proxy is pushing same-origin resources.
+  if (!HostPortPair::FromURL(gurl).Equals(host_port_pair())) {
+    if (trusted_spdy_proxy_.Equals(host_port_pair())) {
+      // Disallow pushing of HTTPS content.
+      if (gurl.SchemeIs("https")) {
+        EnqueueResetStreamFrame(
+            stream_id, request_priority, RST_STREAM_REFUSED_STREAM,
+            base::StringPrintf("Rejected push of Cross Origin HTTPS content %d",
+                               associated_stream_id));
+        return false;
+      }
+    } else {
+      GURL associated_url(associated_it->second.stream->GetUrlFromHeaders());
+      if (associated_url.GetOrigin() != gurl.GetOrigin()) {
+        EnqueueResetStreamFrame(
+            stream_id, request_priority, RST_STREAM_REFUSED_STREAM,
+            base::StringPrintf("Rejected Cross Origin Push Stream %d",
+                               associated_stream_id));
+        return false;
+      }
     }
   }
 

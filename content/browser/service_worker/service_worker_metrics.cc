@@ -210,13 +210,23 @@ void ServiceWorkerMetrics::RecordEventTimeout(EventType event) {
 }
 
 void ServiceWorkerMetrics::RecordEventDuration(EventType event,
-                                               const base::TimeDelta& time) {
+                                               const base::TimeDelta& time,
+                                               bool was_handled) {
   switch (event) {
     case EventType::ACTIVATE:
       UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.ActivateEvent.Time", time);
       break;
     case EventType::INSTALL:
       UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.InstallEvent.Time", time);
+      break;
+    case EventType::FETCH:
+      if (was_handled) {
+        UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.FetchEvent.HasResponse.Time",
+                                   time);
+      } else {
+        UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.FetchEvent.Fallback.Time",
+                                   time);
+      }
       break;
     case EventType::SYNC:
       UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.BackgroundSyncEvent.Time",
@@ -229,13 +239,14 @@ void ServiceWorkerMetrics::RecordEventDuration(EventType event,
     case EventType::PUSH:
       UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.PushEvent.Time", time);
       break;
+    case EventType::MESSAGE:
+      // TODO(nhiroki): Record event duration for Message event after
+      // ExtendableMessageEvent is enabled by default (crbug.com/543198).
+      break;
 
-    // Event duration for fetch is recorded separately.
-    case EventType::FETCH:
     // For now event duration for these events is not recorded.
     case EventType::GEOFENCING:
     case EventType::SERVICE_PORT_CONNECT:
-    case EventType::MESSAGE:
       break;
 
     case EventType::NUM_TYPES:
@@ -253,23 +264,6 @@ void ServiceWorkerMetrics::RecordFetchEventStatus(
   } else {
     UMA_HISTOGRAM_ENUMERATION("ServiceWorker.FetchEvent.Subresource.Status",
                               status, SERVICE_WORKER_ERROR_MAX_VALUE);
-  }
-}
-
-void ServiceWorkerMetrics::RecordFetchEventTime(
-    ServiceWorkerFetchEventResult result,
-    const base::TimeDelta& time) {
-  switch (result) {
-    case ServiceWorkerFetchEventResult::
-        SERVICE_WORKER_FETCH_EVENT_RESULT_FALLBACK:
-      UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.FetchEvent.Fallback.Time",
-                                 time);
-      break;
-    case ServiceWorkerFetchEventResult::
-        SERVICE_WORKER_FETCH_EVENT_RESULT_RESPONSE:
-      UMA_HISTOGRAM_MEDIUM_TIMES("ServiceWorker.FetchEvent.HasResponse.Time",
-                                 time);
-      break;
   }
 }
 

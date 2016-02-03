@@ -27,14 +27,15 @@ struct UseNewEDKChecker {
   bool use_new;
 };
 
-base::LazyInstance<UseNewEDKChecker> g_use_new_checker =
+// This is Leaky to avoid a recursive lock acquisition in AtExitManager.
+base::LazyInstance<UseNewEDKChecker>::Leaky g_use_new_checker =
     LAZY_INSTANCE_INITIALIZER;
 
 bool UseNewEDK() {
   return g_use_new_checker.Get().use_new;
 }
 
-}
+}  // namespace
 
 // Definitions of the system functions.
 extern "C" {

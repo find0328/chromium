@@ -16,7 +16,6 @@
 #include "content/common/content_param_traits.h"
 #include "content/common/gpu/gpu_memory_uma_stats.h"
 #include "content/common/gpu/gpu_process_launch_causes.h"
-#include "content/common/gpu/gpu_result_codes.h"
 #include "content/common/gpu/gpu_stream_priority.h"
 #include "content/public/common/common_param_traits.h"
 #include "content/public/common/gpu_memory_stats.h"
@@ -58,8 +57,6 @@
 
 IPC_ENUM_TRAITS_MAX_VALUE(content::CauseForGpuLaunch,
                           content::CAUSE_FOR_GPU_LAUNCH_MAX_ENUM - 1)
-IPC_ENUM_TRAITS_MAX_VALUE(content::CreateCommandBufferResult,
-                          content::CREATE_COMMAND_BUFFER_RESULT_LAST)
 IPC_ENUM_TRAITS_MAX_VALUE(gfx::GpuPreference,
                           gfx::GpuPreferenceLast)
 IPC_ENUM_TRAITS_MAX_VALUE(content::GpuStreamPriority,
@@ -98,7 +95,7 @@ IPC_STRUCT_BEGIN(GpuMsg_EstablishChannel_Params)
   IPC_STRUCT_MEMBER(int, client_id)
   IPC_STRUCT_MEMBER(uint64_t, client_tracing_id)
   IPC_STRUCT_MEMBER(bool, preempts)
-  IPC_STRUCT_MEMBER(bool, preempted)
+  IPC_STRUCT_MEMBER(bool, allow_view_command_buffers)
   IPC_STRUCT_MEMBER(bool, allow_real_time_streams)
 IPC_STRUCT_END()
 
@@ -226,6 +223,7 @@ IPC_STRUCT_TRAITS_END()
 IPC_STRUCT_TRAITS_BEGIN(media::VideoDecodeAccelerator::Config)
   IPC_STRUCT_TRAITS_MEMBER(profile)
   IPC_STRUCT_TRAITS_MEMBER(is_encrypted)
+  IPC_STRUCT_TRAITS_MEMBER(surface_id)
 IPC_STRUCT_TRAITS_END()
 
 IPC_STRUCT_TRAITS_BEGIN(gpu::VideoDecodeAcceleratorSupportedProfile)
@@ -346,14 +344,6 @@ IPC_MESSAGE_CONTROL1(GpuMsg_EstablishChannel,
 IPC_MESSAGE_CONTROL1(GpuMsg_CloseChannel,
                      IPC::ChannelHandle /* channel_handle */)
 
-// Tells the GPU process to create a new command buffer that renders directly
-// to a native view. A corresponding GpuCommandBufferStub is created.
-IPC_MESSAGE_CONTROL4(GpuMsg_CreateViewCommandBuffer,
-                     gfx::GLSurfaceHandle,         /* compositing_surface */
-                     int32_t,                      /* client_id */
-                     GPUCreateCommandBufferConfig, /* init_params */
-                     int32_t /* route_id */)
-
 // Tells the GPU process to create a new gpu memory buffer.
 IPC_MESSAGE_CONTROL1(GpuMsg_CreateGpuMemoryBuffer,
                      GpuMsg_CreateGpuMemoryBuffer_Params)
@@ -368,13 +358,6 @@ IPC_MESSAGE_CONTROL3(GpuMsg_DestroyGpuMemoryBuffer,
                      gfx::GpuMemoryBufferId, /* id */
                      int32_t,                /* client_id */
                      gpu::SyncToken /* sync_token */)
-
-// Create and initialize a hardware jpeg decoder using the specified route_id.
-// Created decoders should be freed with AcceleratedJpegDecoderMsg_Destroy when
-// no longer needed.
-IPC_SYNC_MESSAGE_CONTROL1_1(GpuMsg_CreateJpegDecoder,
-                            int32_t /* route_id */,
-                            bool /* succeeded */)
 
 // Tells the GPU process to create a context for collecting graphics card
 // information.
@@ -451,10 +434,6 @@ IPC_MESSAGE_CONTROL3(GpuHostMsg_CacheShader,
 IPC_MESSAGE_CONTROL1(GpuMsg_LoadedShader,
                      std::string /* encoded shader */)
 
-// Respond from GPU to a GpuMsg_CreateViewCommandBuffer message.
-IPC_MESSAGE_CONTROL1(GpuHostMsg_CommandBufferCreated,
-                     content::CreateCommandBufferResult /* result */)
-
 // Response from GPU to a GpuMsg_CreateGpuMemoryBuffer message.
 IPC_MESSAGE_CONTROL1(GpuHostMsg_GpuMemoryBufferCreated,
                      gfx::GpuMemoryBufferHandle /* handle */)
@@ -517,6 +496,14 @@ IPC_MESSAGE_CONTROL2(GpuHostMsg_RemoveSubscription,
 // GPU Channel Messages
 // These are messages from a renderer process to the GPU process.
 
+// Tells the GPU process to create a new command buffer that renders directly
+// to a native view. A corresponding GpuCommandBufferStub is created.
+IPC_SYNC_MESSAGE_CONTROL3_1(GpuChannelMsg_CreateViewCommandBuffer,
+                            gfx::GLSurfaceHandle, /* compositing_surface */
+                            GPUCreateCommandBufferConfig, /* init_params */
+                            int32_t /* route_id */,
+                            bool /* succeeded */)
+
 // Tells the GPU process to create a new command buffer that renders to an
 // offscreen frame buffer.
 IPC_SYNC_MESSAGE_CONTROL3_1(GpuChannelMsg_CreateOffscreenCommandBuffer,
@@ -530,6 +517,13 @@ IPC_SYNC_MESSAGE_CONTROL3_1(GpuChannelMsg_CreateOffscreenCommandBuffer,
 // object that it's hosting.
 IPC_SYNC_MESSAGE_CONTROL1_0(GpuChannelMsg_DestroyCommandBuffer,
                             int32_t /* instance_id */)
+
+// Create and initialize a hardware jpeg decoder using the specified route_id.
+// Created decoders should be freed with AcceleratedJpegDecoderMsg_Destroy when
+// no longer needed.
+IPC_SYNC_MESSAGE_CONTROL1_1(GpuChannelMsg_CreateJpegDecoder,
+                            int32_t /* route_id */,
+                            bool /* succeeded */)
 
 // Simple NOP message which can be used as fence to ensure all previous sent
 // messages have been received.

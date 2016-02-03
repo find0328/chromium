@@ -185,6 +185,8 @@ interface EventTarget
 interface ExtendableEvent : Event
     method constructor
     method waitUntil
+interface ExtendableMessageEvent : ExtendableEvent
+    method constructor
 interface FetchEvent : ExtendableEvent
     getter clientId
     getter isReload
@@ -396,6 +398,7 @@ interface IDBVersionChangeEvent : Event
 interface ImageBitmap
     getter height
     getter width
+    method close
     method constructor
 interface ImageData
     getter height
@@ -448,6 +451,7 @@ interface Notification : EventTarget
     getter requireInteraction
     getter silent
     getter tag
+    getter timestamp
     getter title
     getter vibrate
     method close
@@ -860,6 +864,7 @@ global object
     getter onactivate
     getter oncrossoriginmessage
     getter onfetch
+    getter onforeignfetch
     getter ongeofenceenter
     getter ongeofenceleave
     getter oninstall
@@ -875,6 +880,7 @@ global object
     setter onactivate
     setter oncrossoriginmessage
     setter onfetch
+    setter onforeignfetch
     setter ongeofenceenter
     setter ongeofenceleave
     setter oninstall

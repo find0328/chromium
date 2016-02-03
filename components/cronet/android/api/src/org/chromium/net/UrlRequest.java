@@ -5,6 +5,7 @@
 package org.chromium.net;
 
 import android.support.annotation.IntDef;
+import android.util.Log;
 import android.util.Pair;
 
 import java.lang.annotation.Retention;
@@ -26,6 +27,7 @@ public interface UrlRequest {
      * with {@link Builder#build}.
      */
     public static final class Builder {
+        private static final String ACCEPT_ENCODING = "Accept-Encoding";
         // All fields are temporary storage of UrlRequest configuration to be
         // copied to built UrlRequests.
 
@@ -115,6 +117,14 @@ public interface UrlRequest {
             }
             if (value == null) {
                 throw new NullPointerException("Invalid header value.");
+            }
+            if (ACCEPT_ENCODING.equalsIgnoreCase(header)) {
+                Log.w("cronet",
+                        "It's not necessary to set Accept-Encoding on requests - cronet will do"
+                                + " this automatically for you, and setting it yourself has no "
+                                + "effect. See https://crbug.com/581399 for details.",
+                        new Exception());
+                return this;
             }
             mRequestHeaders.add(Pair.create(header, value));
             return this;
@@ -256,8 +266,8 @@ public interface UrlRequest {
     /**
      * Users of Cronet extend this class to receive callbacks indicating the
      * progress of a {@link UrlRequest} being processed. An instance of this class
-     * is passed in to {@link UrlRequest.Builder#UrlRequest.Builder UrlRequest.Builder()}
-     * when constructing the {@code UrlRequest}.
+     * is passed in to {@link UrlRequest.Builder}'s constructor when
+     * constructing the {@code UrlRequest}.
      * <p>
      * Note:  All methods will be invoked on the thread of the
      * {@link java.util.concurrent.Executor} used during construction of the
@@ -277,6 +287,7 @@ public interface UrlRequest {
          * @param request Request being redirected.
          * @param info Response information.
          * @param newLocationUrl Location where request is redirected.
+         * @throws Exception if an error occurs while processing a redirect.
          */
         public abstract void onRedirectReceived(
                 UrlRequest request, UrlResponseInfo info, String newLocationUrl) throws Exception;
@@ -294,6 +305,7 @@ public interface UrlRequest {
          *
          * @param request Request that started to get response.
          * @param info Response information.
+         * @throws Exception if an error occurs while processing response start.
          */
         public abstract void onResponseStarted(UrlRequest request, UrlResponseInfo info)
                 throws Exception;
@@ -316,6 +328,7 @@ public interface UrlRequest {
          *         {@link UrlRequest#read UrlRequest.read()}, now containing the
          *         received data. The buffer's position is updated to the end of
          *         the received data. The buffer's limit is not changed.
+         * @throws Exception if an error occurs while processing a read completion.
          */
         public abstract void onReadCompleted(
                 UrlRequest request, UrlResponseInfo info, ByteBuffer byteBuffer) throws Exception;
@@ -475,7 +488,9 @@ public interface UrlRequest {
         private Status() {}
 
         /**
-         * Convert a {@link LoadState} static int to one of values listed above.
+         * Convert a LoadState int to one of values listed above.
+         * @param loadState a LoadState to convert.
+         * @return static int Status.
          */
         @StatusValues
         static int convertLoadState(int loadState) {

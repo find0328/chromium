@@ -121,7 +121,7 @@ class PpapiPluginSandboxedProcessLauncherDelegate
         .GetSwitchValueNative(switches::kPpapiPluginLauncher);
     if (is_broker_ || !plugin_launcher.empty())
       return nullptr;
-    return &g_ppapi_zygote;
+    return GetGenericZygote();
   }
 #endif  // !defined(OS_MACOSX) && !defined(OS_ANDROID)
 
@@ -393,6 +393,13 @@ bool PpapiPluginProcessHost::Init(const PepperPluginInfo& info) {
                               is_broker_ ? switches::kPpapiBrokerProcess
                                          : switches::kPpapiPluginProcess);
   cmd_line->AppendSwitchASCII(switches::kProcessChannelID, channel_id);
+
+#if defined(OS_WIN)
+  if (GetContentClient()->browser()->ShouldUseWindowsPrefetchArgument()) {
+    cmd_line->AppendArg(is_broker_ ? switches::kPrefetchArgumentPpapiBroker
+                                   : switches::kPrefetchArgumentPpapi);
+  }
+#endif  // defined(OS_WIN)
 
   // These switches are forwarded to both plugin and broker pocesses.
   static const char* kCommonForwardSwitches[] = {

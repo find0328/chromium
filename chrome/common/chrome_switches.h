@@ -155,7 +155,6 @@ extern const char kEnableSiteEngagementService[];
 extern const char kEnableSupervisedUserManagedBookmarksFolder[];
 extern const char kEnableTabAudioMuting[];
 extern const char kEnableThumbnailRetargeting[];
-extern const char kEnableTokenBinding[];
 extern const char kEnableUserAlternateProtocolPorts[];
 extern const char kEnableWebAppFrame[];
 extern const char kEnableWebNotificationCustomLayouts[];
@@ -268,8 +267,6 @@ extern const char kSpeculativeResourcePrefetchingLearning[];
 #if defined(OS_ANDROID)
 extern const char kEnableAndroidSpellChecker[];
 #endif
-extern const char kDisableMultilingualSpellChecker[];
-extern const char kEnableMultilingualSpellChecker[];
 extern const char kEnableSpellingFeedbackFieldTrial[];
 extern const char kSpellingServiceFeedbackUrl[];
 extern const char kSpellingServiceFeedbackIntervalSeconds[];
@@ -315,6 +312,7 @@ extern const char kForceShowUpdateMenuItemNewFeaturesSummary[];
 extern const char kForceShowUpdateMenuItemCustomSummary[];
 extern const char kForceShowUpdateMenuBadge[];
 extern const char kMarketUrlForTesting[];
+extern const char kTabManagementExperimentType[];
 #endif  // defined(OS_ANDROID)
 
 #if defined(USE_ASH)
@@ -361,6 +359,8 @@ extern const char kForceDesktop[];
 extern const char kForceImmersive[];
 extern const char kHideIcons[];
 extern const char kNoNetworkProfileWarning[];
+extern const char kPrefetchArgumentBrowserBackground[];
+extern const char kPrefetchArgumentWatcher[];
 extern const char kRelaunchShortcut[];
 extern const char kShowIcons[];
 extern const char kUninstall[];

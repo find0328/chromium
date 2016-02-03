@@ -15,7 +15,6 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/prefs/pref_service.h"
 #include "base/single_thread_task_runner.h"
 #include "base/stl_util.h"
 #include "base/strings/pattern.h"
@@ -59,6 +58,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_service.h"
 #include "components/translate/core/browser/language_state.h"
 #include "components/translate/core/common/language_detection_details.h"
 #include "components/ui/zoom/zoom_controller.h"
@@ -912,8 +912,8 @@ bool TabsQueryFunction::RunSync() {
     window_type = tabs::ToString(params->query_info.window_type);
 
   base::ListValue* result = new base::ListValue();
-  Browser* last_active_browser = chrome::FindAnyBrowser(
-      GetProfile(), include_incognito(), chrome::GetActiveDesktop());
+  Browser* last_active_browser =
+      chrome::FindAnyBrowser(GetProfile(), include_incognito());
   Browser* current_browser = GetCurrentBrowser();
   for (auto* browser : *BrowserList::GetInstance()) {
     if (!GetProfile()->IsSameProfile(browser->profile()))
@@ -1647,6 +1647,10 @@ TabsCaptureVisibleTabFunction::TabsCaptureVisibleTabFunction()
     : chrome_details_(this) {
 }
 
+bool TabsCaptureVisibleTabFunction::HasPermission() {
+  return true;
+}
+
 bool TabsCaptureVisibleTabFunction::IsScreenshotEnabled() {
   PrefService* service = chrome_details_.GetProfile()->GetPrefs();
   if (service->GetBoolean(prefs::kDisableScreenshots)) {
@@ -1672,6 +1676,40 @@ WebContents* TabsCaptureVisibleTabFunction::GetWebContentsForID(int window_id) {
     return NULL;
   }
   return contents;
+}
+
+bool TabsCaptureVisibleTabFunction::RunAsync() {
+  using api::extension_types::ImageDetails;
+
+  EXTENSION_FUNCTION_VALIDATE(args_);
+
+  int context_id = extension_misc::kCurrentWindowId;
+  args_->GetInteger(0, &context_id);
+
+  scoped_ptr<ImageDetails> image_details;
+  if (args_->GetSize() > 1) {
+    base::Value* spec = NULL;
+    EXTENSION_FUNCTION_VALIDATE(args_->Get(1, &spec) && spec);
+    image_details = ImageDetails::FromValue(*spec);
+  }
+
+  WebContents* contents = GetWebContentsForID(context_id);
+
+  return CaptureAsync(
+      contents, image_details.get(),
+      base::Bind(&TabsCaptureVisibleTabFunction::CopyFromBackingStoreComplete,
+                 this));
+}
+
+void TabsCaptureVisibleTabFunction::OnCaptureSuccess(const SkBitmap& bitmap) {
+  std::string base64_result;
+  if (!EncodeBitmap(bitmap, &base64_result)) {
+    OnCaptureFailure(FAILURE_REASON_ENCODING_FAILED);
+    return;
+  }
+
+  SetResult(new base::StringValue(base64_result));
+  SendResponse(true);
 }
 
 void TabsCaptureVisibleTabFunction::OnCaptureFailure(FailureReason reason) {

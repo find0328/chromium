@@ -87,6 +87,25 @@ class RoundTripTestCookieStore : public net::CookieStore {
     store_->SetCookieWithOptionsAsync(url, cookie_line, options, callback);
   }
 
+  void SetCookieWithDetailsAsync(const GURL& url,
+                                 const std::string& name,
+                                 const std::string& value,
+                                 const std::string& domain,
+                                 const std::string& path,
+                                 const base::Time creation_time,
+                                 const base::Time expiration_time,
+                                 bool secure,
+                                 bool http_only,
+                                 bool same_site,
+                                 bool enforce_strict_secure,
+                                 CookiePriority priority,
+                                 const SetCookiesCallback& callback) override {
+    RoundTrip();
+    store_->SetCookieWithDetailsAsync(
+        url, name, value, domain, path, creation_time, expiration_time, secure,
+        http_only, same_site, enforce_strict_secure, priority, callback);
+  }
+
   void GetCookiesWithOptionsAsync(const GURL& url,
                                   const net::CookieOptions& options,
                                   const GetCookiesCallback& callback) override {
@@ -233,7 +252,7 @@ class TestPersistentCookieStore
         base::Time(),  // last_access
         false,         // secure
         false,         // httponly
-        false,         // first_party_only
+        false,         // same_site
         net::COOKIE_PRIORITY_DEFAULT);
     cookies.push_back(bad_canonical_cookie);
     loaded_callback_.Run(cookies);

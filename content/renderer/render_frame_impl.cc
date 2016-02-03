@@ -546,11 +546,6 @@ base::TimeTicks SanitizeNavigationTiming(
 CommonNavigationParams MakeCommonNavigationParams(
     blink::WebURLRequest* request,
     bool should_replace_current_entry) {
-  const RequestExtraData kEmptyData;
-  const RequestExtraData* extra_data =
-      static_cast<RequestExtraData*>(request->extraData());
-  if (!extra_data)
-    extra_data = &kEmptyData;
   Referrer referrer(
       GURL(request->httpHeaderField(WebString::fromUTF8("Referer")).latin1()),
       request->referrerPolicy());
@@ -566,6 +561,10 @@ CommonNavigationParams MakeCommonNavigationParams(
   FrameMsg_UILoadMetricsReportType::Value report_type =
       static_cast<FrameMsg_UILoadMetricsReportType::Value>(
           request->inputPerfMetricReportPolicy());
+
+  const RequestExtraData* extra_data =
+      static_cast<RequestExtraData*>(request->extraData());
+  DCHECK(extra_data);
   return CommonNavigationParams(
       request->url(), referrer, extra_data->transition_type(),
       FrameMsg_Navigate_Type::NORMAL, true, should_replace_current_entry,
@@ -4929,7 +4928,8 @@ WebNavigationPolicy RenderFrameImpl::decidePolicyForNavigation(
   if (IsBrowserSideNavigationEnabled() &&
       info.urlRequest.checkForBrowserSideNavigation() &&
       ShouldMakeNetworkRequestForURL(url)) {
-    BeginNavigation(&info.urlRequest);
+    BeginNavigation(&info.urlRequest, info.replacesCurrentHistoryItem,
+                    info.isClientRedirect);
     return blink::WebNavigationPolicyIgnore;
   }
 
@@ -5043,12 +5043,13 @@ void RenderFrameImpl::OnFind(int request_id,
     return;
   }
 
-  WebFrame* main_frame = GetWebFrame();
-  WebFrame* frame_after_main = main_frame->traverseNext(true);
-  WebFrame* focused_frame = render_view_->webview()->focusedFrame();
-  WebFrame* search_frame = focused_frame;  // start searching focused frame.
+  WebLocalFrame* main_frame = GetWebFrame();
+  WebLocalFrame* focused_frame =
+      render_view_->webview()->focusedFrame()->toWebLocalFrame();
+  // Start searching in the focused frame.
+  WebLocalFrame* search_frame = focused_frame;
 
-  bool multi_frame = (frame_after_main != main_frame);
+  bool multi_frame = (main_frame->traverseNext(true) != main_frame);
 
   // If we have multiple frames, we don't want to wrap the search within the
   // frame, so we check here if we only have main_frame in the chain.
@@ -5074,8 +5075,10 @@ void RenderFrameImpl::OnFind(int request_id,
       do {
         // What is the next frame to search (we might be going backwards)? Note
         // that we specify wrap=true so that search_frame never becomes NULL.
-        search_frame = options.forward ? search_frame->traverseNext(true)
-                                       : search_frame->traversePrevious(true);
+        search_frame =
+            options.forward
+                ? search_frame->traverseNext(true)->toWebLocalFrame()
+                : search_frame->traversePrevious(true)->toWebLocalFrame();
       } while (!search_frame->hasVisibleContent() &&
                search_frame != focused_frame);
 
@@ -5135,7 +5138,7 @@ void RenderFrameImpl::OnFind(int request_id,
 
       // Iterate to the next frame. The frame will not necessarily scope, for
       // example if it is not visible.
-      search_frame = search_frame->traverseNext(true);
+      search_frame = search_frame->traverseNext(true)->toWebLocalFrame();
     } while (search_frame != main_frame);
   }
 }
@@ -5164,9 +5167,9 @@ void RenderFrameImpl::OnStopFinding(StopFindAction action) {
                                          GetFocusedElement());
   }
 
-  WebFrame* frame = view->mainFrame();
+  WebFrame* frame = GetWebFrame();
   while (frame) {
-    frame->stopFinding(clear_selection);
+    frame->toWebLocalFrame()->stopFinding(clear_selection);
     frame = frame->traverseNext(false);
   }
 
@@ -5335,14 +5338,6 @@ void RenderFrameImpl::NavigateInternal(
   pending_navigation_params_->common_params.navigation_start =
       base::TimeTicks();
 
-  // Unless the load is a WebFrameLoadType::Standard, this should remain
-  // uninitialized. It will be updated when the load type is determined to be
-  // Standard, or after the previous document's unload handler has been
-  // triggered. This occurs in UpdateNavigationState.
-  // TODO(csharrison) See if we can always use the browser timestamp.
-  pending_navigation_params_->common_params.navigation_start =
-      base::TimeTicks();
-
   // Create parameters for a standard navigation.
   blink::WebFrameLoadType load_type = blink::WebFrameLoadType::Standard;
   blink::WebHistoryLoadType history_load_type =
@@ -5470,16 +5465,33 @@ void RenderFrameImpl::NavigateInternal(
     pending_navigation_params_->common_params.navigation_start =
         SanitizeNavigationTiming(load_type, common_params.navigation_start,
                                  renderer_navigation_start);
+
+    // PlzNavigate: Check if the load should replace the current item.
+    // TODO(clamy): Remove this when
+    // https://codereview.chromium.org/1250163002/ lands and makes it default
+    // for the current architecture.
+    if (browser_side_navigation && common_params.should_replace_current_entry) {
+      DCHECK(load_type == blink::WebFrameLoadType::Standard);
+      load_type = blink::WebFrameLoadType::ReplaceCurrentItem;
+    }
+
     // Perform a navigation to a data url if needed.
     if (!common_params.base_url_for_data_url.is_empty() ||
         (browser_side_navigation &&
          common_params.url.SchemeIs(url::kDataScheme))) {
       LoadDataURL(common_params, request_params, frame_, load_type);
     } else {
+      // PlzNavigate: check if the navigation being committed originated as a
+      // client redirect.
+      bool is_client_redirect = browser_side_navigation
+                                    ? !!(common_params.transition &
+                                         ui::PAGE_TRANSITION_CLIENT_REDIRECT)
+                                    : false;
+
       // Load the request.
       frame_->toWebLocalFrame()->load(request, load_type,
                                       item_for_history_navigation,
-                                      history_load_type);
+                                      history_load_type, is_client_redirect);
     }
   }
 
@@ -5654,7 +5666,9 @@ void RenderFrameImpl::PrepareRenderViewForNavigation(
   return;
 }
 
-void RenderFrameImpl::BeginNavigation(blink::WebURLRequest* request) {
+void RenderFrameImpl::BeginNavigation(blink::WebURLRequest* request,
+                                      bool should_replace_current_entry,
+                                      bool is_client_redirect) {
   CHECK(IsBrowserSideNavigationEnabled());
   DCHECK(request);
   // TODO(clamy): Execute the beforeunload event.
@@ -5671,21 +5685,19 @@ void RenderFrameImpl::BeginNavigation(blink::WebURLRequest* request) {
   // else in blink.
   willSendRequest(frame_, 0, *request, blink::WebURLResponse());
 
+  // Update the transition type of the request for client side redirects.
+  if (!request->extraData())
+    request->setExtraData(new RequestExtraData());
+  if (is_client_redirect) {
+    RequestExtraData* extra_data =
+        static_cast<RequestExtraData*>(request->extraData());
+    extra_data->set_transition_type(ui::PageTransitionFromInt(
+        extra_data->transition_type() | ui::PAGE_TRANSITION_CLIENT_REDIRECT));
+  }
+
   // TODO(clamy): Same-document navigations should not be sent back to the
   // browser.
   // TODO(clamy): Data urls should not be sent back to the browser either.
-  bool should_replace_current_entry = false;
-  WebDataSource* provisional_data_source = frame_->provisionalDataSource();
-  WebDataSource* current_data_source = frame_->dataSource();
-  WebDataSource* data_source =
-      provisional_data_source ? provisional_data_source : current_data_source;
-
-  // The current entry can only be replaced if there already is an entry in the
-  // history list.
-  if (data_source && render_view_->history_list_length_ > 0) {
-    should_replace_current_entry = data_source->replacesCurrentHistoryItem();
-  }
-
   // These values are assumed on the browser side for navigations. These checks
   // ensure the renderer has the correct values.
   DCHECK_EQ(FETCH_REQUEST_MODE_NAVIGATE,

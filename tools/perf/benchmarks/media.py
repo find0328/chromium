@@ -14,6 +14,7 @@ import page_sets
 
 
 class _MSEMeasurement(page_test.PageTest):
+
   def __init__(self):
     super(_MSEMeasurement, self).__init__()
 
@@ -25,22 +26,21 @@ class _MSEMeasurement(page_test.PageTest):
       trace_name = '%s.%s' % (m, trace)
       if isinstance(metrics[m], list):
         results.AddValue(list_of_scalar_values.ListOfScalarValues(
-                results.current_page, trace_name, units='ms',
-                values=[float(v) for v in metrics[m]],
-                important=True))
+            results.current_page, trace_name, units='ms',
+            values=[float(v) for v in metrics[m]],
+            important=True))
 
       else:
         results.AddValue(scalar.ScalarValue(
-                results.current_page, trace_name, units='ms',
-                value=float(metrics[m]), important=True))
+            results.current_page, trace_name, units='ms',
+            value=float(metrics[m]), important=True))
 
 
 # android: See media.android.tough_video_cases below
-# xp: crbug.com/475191
 # win8: crbug.com/531618
 # win7: crbug.com/555079
 # crbug.com/565180: Only include cases that report time_to_play
-@benchmark.Disabled('android', 'xp', 'win8', 'win7')
+@benchmark.Disabled('android', 'win8', 'win7')
 class Media(perf_benchmark.PerfBenchmark):
   """Obtains media metrics for key user scenarios."""
   test = media.Media
@@ -50,8 +50,9 @@ class Media(perf_benchmark.PerfBenchmark):
   def Name(cls):
     return 'media.tough_video_cases'
 
+
 # crbug.com/565180: Only include cases that don't report time_to_play
-@benchmark.Disabled('android', 'xp', 'win8', 'win7')
+@benchmark.Disabled('android', 'win8', 'win7')
 class MediaExtra(perf_benchmark.PerfBenchmark):
   """Obtains extra media metrics for key user scenarios."""
   test = media.Media
@@ -62,7 +63,7 @@ class MediaExtra(perf_benchmark.PerfBenchmark):
     return 'media.tough_video_cases_extra'
 
 
-@benchmark.Disabled('android', 'mac', 'xp')
+@benchmark.Disabled('android', 'mac')
 class MediaNetworkSimulation(perf_benchmark.PerfBenchmark):
   """Obtains media metrics under different network simulations."""
   test = media.Media
@@ -73,8 +74,8 @@ class MediaNetworkSimulation(perf_benchmark.PerfBenchmark):
     return 'media.media_cns_cases'
 
 
-@benchmark.Disabled('all') # crbug.com/448092
-@benchmark.Disabled('l', 'android-webview') # WebView: crbug.com/419689
+@benchmark.Disabled('all')  # crbug.com/448092
+@benchmark.Disabled('l', 'android-webview')  # WebView: crbug.com/419689
 class MediaAndroid(perf_benchmark.PerfBenchmark):
   """Obtains media metrics for key user scenarios on Android."""
   test = media.Media
@@ -124,7 +125,7 @@ class MediaChromeOS(perf_benchmark.PerfBenchmark):
     return 'media.chromeOS.tough_video_cases'
 
 
-@benchmark.Disabled('android-webview') # crbug.com/419689
+@benchmark.Disabled('android-webview')  # crbug.com/419689
 class MediaSourceExtensions(perf_benchmark.PerfBenchmark):
   """Obtains media metrics for key media source extensions functions."""
   test = _MSEMeasurement

@@ -14,6 +14,7 @@
 #include "components/mus/ws/connection_manager.h"
 #include "components/mus/ws/default_access_policy.h"
 #include "components/mus/ws/display_manager.h"
+#include "components/mus/ws/focus_controller.h"
 #include "components/mus/ws/operation.h"
 #include "components/mus/ws/server_window.h"
 #include "components/mus/ws/server_window_observer.h"
@@ -314,6 +315,12 @@ void WindowTreeImpl::OnWindowManagerCreatedTopLevelWindow(
 
 void WindowTreeImpl::OnChangeCompleted(uint32_t change_id, bool success) {
   client_->OnChangeCompleted(change_id, success);
+}
+
+void WindowTreeImpl::OnAccelerator(uint32_t accelerator_id,
+                                   mojom::EventPtr event) {
+  DCHECK(window_manager_internal_);
+  window_manager_internal_->OnAccelerator(accelerator_id, std::move(event));
 }
 
 void WindowTreeImpl::ProcessWindowBoundsChanged(const ServerWindow* window,
@@ -1191,6 +1198,63 @@ void WindowTreeImpl::GetWindowManagerClient(
   window_manager_internal_client_binding_.reset(
       new mojo::AssociatedBinding<mojom::WindowManagerClient>(
           this, std::move(internal)));
+}
+
+void WindowTreeImpl::AddAccelerator(uint32_t id,
+                                    mojom::EventMatcherPtr event_matcher,
+                                    const AddAcceleratorCallback& callback) {
+  WindowTreeHostImpl* host = GetHostForWindowManager();
+  const bool success =
+      host &&
+      host->event_dispatcher()->AddAccelerator(id, std::move(event_matcher));
+  callback.Run(success);
+}
+
+void WindowTreeImpl::RemoveAccelerator(uint32_t id) {
+  WindowTreeHostImpl* host = GetHostForWindowManager();
+  if (!host)
+    return;
+  host->event_dispatcher()->RemoveAccelerator(id);
+}
+
+void WindowTreeImpl::AddActivationParent(Id transport_window_id) {
+  WindowTreeHostImpl* host = GetHostForWindowManager();
+  if (!host)
+    return;
+  ServerWindow* window =
+      GetWindowByClientId(ClientWindowId(transport_window_id));
+  if (window)
+    host->AddActivationParent(window);
+}
+
+void WindowTreeImpl::RemoveActivationParent(Id transport_window_id) {
+  WindowTreeHostImpl* host = GetHostForWindowManager();
+  if (!host)
+    return;
+  ServerWindow* window =
+      GetWindowByClientId(ClientWindowId(transport_window_id));
+  if (window)
+    host->RemoveActivationParent(window);
+}
+
+void WindowTreeImpl::ActivateNextWindow() {
+  WindowTreeHostImpl* host = GetHostForWindowManager();
+  if (!host)
+    return;
+  host->focus_controller()->ActivateNextWindow();
+}
+
+void WindowTreeImpl::SetUnderlaySurfaceOffsetAndExtendedHitArea(
+    Id window_id,
+    int32_t x_offset,
+    int32_t y_offset,
+    mojo::InsetsPtr hit_area) {
+  ServerWindow* window = GetWindowByClientId(ClientWindowId(window_id));
+  if (!window)
+    return;
+
+  window->SetUnderlayOffset(gfx::Vector2d(x_offset, y_offset));
+  window->set_extended_hit_test_region(hit_area.To<gfx::Insets>());
 }
 
 void WindowTreeImpl::WmResponse(uint32_t change_id, bool response) {

@@ -9,7 +9,6 @@
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/macros.h"
-#include "base/prefs/pref_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -32,6 +31,7 @@
 #include "chrome/common/url_constants.h"
 #include "components/browser_sync/browser/profile_sync_service.h"
 #include "components/flags_ui/pref_service_flags_storage.h"
+#include "components/prefs/pref_service.h"
 #include "components/signin/core/browser/account_reconcilor.h"
 #include "components/signin/core/browser/account_tracker_service.h"
 #include "components/signin/core/browser/signin_manager.h"
@@ -156,7 +156,7 @@ void OpenBrowserWindowForProfile(
   // case, as you could manually activate an incorrect browser and trigger
   // a false positive.
   if (!always_create) {
-    Browser* browser = chrome::FindTabbedBrowser(profile, false, desktop_type);
+    Browser* browser = chrome::FindTabbedBrowser(profile, false);
     if (browser) {
       browser->window()->Activate();
       if (!callback.is_null())
@@ -275,7 +275,7 @@ void FindOrCreateNewWindowForProfile(
   DCHECK(profile);
 
   if (!always_create) {
-    Browser* browser = chrome::FindTabbedBrowser(profile, false, desktop_type);
+    Browser* browser = chrome::FindTabbedBrowser(profile, false);
     if (browser) {
       browser->window()->Activate();
       return;

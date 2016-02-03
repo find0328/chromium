@@ -10,7 +10,6 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/macros.h"
-#include "base/prefs/pref_service.h"
 #include "base/profiler/scoped_tracker.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
@@ -43,6 +42,7 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/prefs/pref_service.h"
 #include "components/proximity_auth/screenlock_bridge.h"
 #include "components/signin/core/account_id/account_id.h"
 #include "content/public/browser/notification_service.h"
@@ -207,7 +207,7 @@ void UrlHashHelper::ExecuteUrlHash() {
 
   Browser* target_browser = browser_;
   if (!target_browser) {
-    target_browser = chrome::FindLastActiveWithProfile(profile_, desktop_type_);
+    target_browser = chrome::FindLastActiveWithProfile(profile_);
     if (!target_browser)
       return;
   }
@@ -589,7 +589,7 @@ void UserManagerScreenHandler::HandleRemoveUserWarningLoadStats(
   if (!profile)
     return;
 
-  if (!chrome::FindAnyBrowser(profile, true, desktop_type_)) {
+  if (!chrome::FindAnyBrowser(profile, true)) {
     // If no windows are open for that profile, the statistics in
     // ProfileInfoCache are up to date. The statistics in ProfileInfoCache are
     // returned because the copy in user_pod_row.js may be outdated. However, if
@@ -1014,7 +1014,7 @@ void UserManagerScreenHandler::Observe(
 // cause Chrome to close.
 void UserManagerScreenHandler::OnSwitchToProfileComplete(
     Profile* profile, Profile::CreateStatus profile_create_status) {
-  Browser* browser = chrome::FindAnyBrowser(profile, false, desktop_type_);
+  Browser* browser = chrome::FindAnyBrowser(profile, false);
   if (browser && browser->window()) {
     OnBrowserWindowReady(browser);
   } else {

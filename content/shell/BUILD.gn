@@ -7,6 +7,7 @@ import("//build/config/sanitizers/sanitizers.gni")
 import("//build/config/ui.gni")
 import("//build/config/win/console_app.gni")
 import("//build/config/win/manifest.gni")
+import("//media/media_options.gni")
 import("//tools/grit/repack.gni")
 import("//tools/grit/grit_rule.gni")
 if (is_android) {
@@ -244,6 +245,9 @@ static_library("content_shell_lib") {
       "//ppapi:blink_test_plugin",
     ]
   }
+  if (enable_mojo_media != "none") {
+    deps += [ "//media/mojo/services:default_application" ]
+  }
 
   if (is_win) {
     #'LinkIncremental': '<(msvs_large_module_debug_link_mode)',  TODO(GYP)
@@ -315,7 +319,7 @@ static_library("content_shell_lib") {
     ]
   }
 
-  if (is_linux && !is_chromecast) {
+  if (is_linux) {
     deps += [ "//third_party/freetype2" ]
   }
 

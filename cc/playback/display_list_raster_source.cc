@@ -16,6 +16,7 @@
 #include "skia/ext/analysis_canvas.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkPictureRecorder.h"
+#include "third_party/skia/include/core/SkTLazy.h"
 #include "third_party/skia/include/utils/SkNWayCanvas.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
@@ -64,6 +65,9 @@ class ImageHijackCanvas : public SkNWayCanvas {
         SkRect::MakeIWH(image->width(), image->height()), scale,
         is_decomposable, ctm.hasPerspective(), paint);
     const DecodedDrawImage& decoded_image = scoped_lock.decoded_image();
+    if (!decoded_image.image())
+      return;
+
     DCHECK_EQ(0, static_cast<int>(decoded_image.src_rect_offset().width()));
     DCHECK_EQ(0, static_cast<int>(decoded_image.src_rect_offset().height()));
     const SkPaint* decoded_paint = scoped_lock.decoded_paint();
@@ -104,6 +108,9 @@ class ImageHijackCanvas : public SkNWayCanvas {
                                        scale, is_decomposable,
                                        matrix.hasPerspective(), paint);
     const DecodedDrawImage& decoded_image = scoped_lock.decoded_image();
+    if (!decoded_image.image())
+      return;
+
     const SkPaint* decoded_paint = scoped_lock.decoded_paint();
 
     SkRect adjusted_src =
@@ -139,7 +146,6 @@ class ImageHijackCanvas : public SkNWayCanvas {
                            bool has_perspective,
                            const SkPaint* paint)
         : image_decode_controller_(image_decode_controller),
-          paint_(paint),
           draw_image_(image,
                       RoundOutRect(src_rect),
                       scale,
@@ -149,10 +155,9 @@ class ImageHijackCanvas : public SkNWayCanvas {
           decoded_draw_image_(
               image_decode_controller_->GetDecodedImageForDraw(draw_image_)) {
       DCHECK(image->isLazyGenerated());
-      if (paint) {
-        decoded_paint_ = *paint;
-        decoded_paint_.setFilterQuality(decoded_draw_image_.filter_quality());
-      }
+      if (paint)
+        decoded_paint_.set(*paint)->setFilterQuality(
+            decoded_draw_image_.filter_quality());
     }
 
     ~ScopedDecodedImageLock() {
@@ -164,15 +169,15 @@ class ImageHijackCanvas : public SkNWayCanvas {
       return decoded_draw_image_;
     }
     const SkPaint* decoded_paint() const {
-      return paint_ ? &decoded_paint_ : nullptr;
+      return decoded_paint_.getMaybeNull();
     }
 
    private:
     ImageDecodeController* image_decode_controller_;
-    const SkPaint* paint_;
     DrawImage draw_image_;
     DecodedDrawImage decoded_draw_image_;
-    SkPaint decoded_paint_;
+    // TODO(fmalita): use base::Optional when it becomes available
+    SkTLazy<SkPaint> decoded_paint_;
   };
 
   ImageDecodeController* image_decode_controller_;

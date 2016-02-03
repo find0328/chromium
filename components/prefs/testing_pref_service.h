@@ -2,15 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_PREFS_TESTING_PREF_SERVICE_H_
-#define BASE_PREFS_TESTING_PREF_SERVICE_H_
+#ifndef COMPONENTS_PREFS_TESTING_PREF_SERVICE_H_
+#define COMPONENTS_PREFS_TESTING_PREF_SERVICE_H_
 
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
-#include "base/prefs/pref_registry.h"
-#include "base/prefs/pref_service.h"
-#include "base/prefs/testing_pref_store.h"
+#include "components/prefs/pref_registry.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/testing_pref_store.h"
 
 class PrefNotifierImpl;
 class PrefRegistrySimple;
@@ -193,4 +193,4 @@ void TestingPrefServiceBase<SuperPrefService, ConstructionPrefRegistry>::
   pref_store->RemoveValue(path, WriteablePrefStore::DEFAULT_PREF_WRITE_FLAGS);
 }
 
-#endif  // BASE_PREFS_TESTING_PREF_SERVICE_H_
+#endif  // COMPONENTS_PREFS_TESTING_PREF_SERVICE_H_

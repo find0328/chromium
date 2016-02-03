@@ -25,12 +25,12 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/user_metrics_action.h"
-#include "base/prefs/pref_service.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/prefs/pref_service.h"
 #include "components/url_formatter/url_formatter.h"
 #import "ios/net/nsurlrequest_util.h"
 #include "ios/public/provider/web/web_ui_ios.h"
@@ -2425,6 +2425,11 @@ const NSTimeInterval kSnapshotOverlayTransition = 0.5;
 - (BOOL)handleWindowHashChangeMessage:(base::DictionaryValue*)message
                               context:(NSDictionary*)context {
   [self checkForUnexpectedURLChange];
+
+  // Because hash changes don't trigger |-didFinishNavigation|, fetch favicons
+  // for the new page manually.
+  [self evaluateJavaScript:@"__gCrWeb.sendFaviconsToHost();"
+       stringResultHandler:nil];
 
   // Notify the observers.
   _webStateImpl->OnUrlHashChanged();

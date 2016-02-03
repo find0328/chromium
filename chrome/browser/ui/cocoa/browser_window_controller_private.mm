@@ -14,8 +14,6 @@
 #import "base/mac/scoped_nsobject.h"
 #import "base/mac/sdk_forward_declarations.h"
 #include "base/metrics/histogram.h"
-#include "base/prefs/pref_service.h"
-#include "base/prefs/scoped_user_pref_update.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/fullscreen.h"
 #include "chrome/browser/profiles/profile.h"
@@ -25,6 +23,7 @@
 #include "chrome/browser/ui/browser_window_state.h"
 #import "chrome/browser/ui/cocoa/browser_window_fullscreen_transition.h"
 #import "chrome/browser/ui/cocoa/browser_window_layout.h"
+#import "chrome/browser/ui/cocoa/browser/exclusive_access_controller_views.h"
 #import "chrome/browser/ui/cocoa/constrained_window/constrained_window_sheet_controller.h"
 #import "chrome/browser/ui/cocoa/custom_frame_view.h"
 #import "chrome/browser/ui/cocoa/dev_tools_controller.h"
@@ -40,6 +39,7 @@
 #import "chrome/browser/ui/cocoa/profiles/avatar_icon_controller.h"
 #import "chrome/browser/ui/cocoa/status_bubble_mac.h"
 #import "chrome/browser/ui/cocoa/tab_contents/overlayable_contents_controller.h"
+#import "chrome/browser/ui/cocoa/tab_contents/tab_contents_controller.h"
 #import "chrome/browser/ui/cocoa/tabs/tab_strip_view.h"
 #import "chrome/browser/ui/cocoa/toolbar/toolbar_controller.h"
 #import "chrome/browser/ui/cocoa/website_settings/permission_bubble_cocoa.h"
@@ -47,6 +47,8 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/website_settings/permission_bubble_manager.h"
 #include "chrome/common/chrome_switches.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #import "ui/base/cocoa/focus_tracker.h"
@@ -630,27 +632,16 @@ willPositionSheet:(NSWindow*)sheet
 
   [self hideOverlayIfPossibleWithAnimation:NO delay:NO];
 
-  if (exclusiveAccessBubbleType_ == EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE ||
-      exclusiveAccessBubbleType_ ==
-          EXCLUSIVE_ACCESS_BUBBLE_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION) {
-    // Show no exit instruction bubble on Mac when in Browser Fullscreen.
-    [self destroyFullscreenExitBubbleIfNecessary];
-  } else {
-    [exclusiveAccessBubbleWindowController_ closeImmediately];
-    exclusiveAccessBubbleWindowController_.reset(
-        [[ExclusiveAccessBubbleWindowController alloc]
-                       initWithOwner:self
-            exclusive_access_manager:browser_.get()->exclusive_access_manager()
-                             profile:browser_.get()->profile()
-                                 url:fullscreenUrl_
-                          bubbleType:exclusiveAccessBubbleType_]);
-    [exclusiveAccessBubbleWindowController_ showWindow];
-  }
-}
+  switch (exclusiveAccessController_->bubble_type()) {
+    case EXCLUSIVE_ACCESS_BUBBLE_TYPE_NONE:
+    case EXCLUSIVE_ACCESS_BUBBLE_TYPE_BROWSER_FULLSCREEN_EXIT_INSTRUCTION:
+      // Show no exit instruction bubble on Mac when in Browser Fullscreen.
+      exclusiveAccessController_->Destroy();
+      break;
 
-- (void)destroyFullscreenExitBubbleIfNecessary {
-  [exclusiveAccessBubbleWindowController_ closeImmediately];
-  exclusiveAccessBubbleWindowController_.reset();
+    default:
+      exclusiveAccessController_->Show();
+  }
 }
 
 - (void)contentViewDidResize:(NSNotification*)notification {
@@ -692,6 +683,9 @@ willPositionSheet:(NSWindow*)sheet
   if (notification)  // For System Fullscreen when non-nil.
     [self registerForContentViewResizeNotifications];
 
+  [[tabStripController_ activeTabContentsController]
+      setBlockFullscreenResize:YES];
+
   NSWindow* window = [self window];
   savedRegularWindowFrame_ = [window frame];
 
@@ -700,28 +694,10 @@ willPositionSheet:(NSWindow*)sheet
       [[[self window] screen] isEqual:[[NSScreen screens] firstObject]];
 
   [self setSheetHiddenForFullscreenTransition:YES];
-
-  // If we are using custom fullscreen animations, the layout will resize
-  // in startCustomAnimationToEnterFullScreenWithDuration. In order to prevent
-  // multiple resizing messages from being sent to the renderer, we should call
-  // adjustUIForEnteringFullscreen after the layout gets resized.
-  if (isUsingCustomAnimation_)
-    blockLayoutSubviews_ = YES;
-  else
-    [self adjustUIForEnteringFullscreen];
+  [self adjustUIForEnteringFullscreen];
 }
 
 - (void)windowDidEnterFullScreen:(NSNotification*)notification {
-  blockLayoutSubviews_ = NO;
-  fullscreenTransition_.reset();
-
-  if ([self isFullscreenForTabContent]) {
-     NSRect windowFrame = [self window].frame;
-     NSRect contentViewFrame =
-        NSMakeRect(0, 0, windowFrame.size.width, windowFrame.size.height);
-     [self.chromeContentView setFrame:contentViewFrame];
-  }
-
   // In Yosemite, some combination of the titlebar and toolbar always show in
   // full-screen mode. We do not want either to show. Search for the window that
   // contains the views, and hide it. There is no need to ever unhide the view.
@@ -771,10 +747,12 @@ willPositionSheet:(NSWindow*)sheet
   if (notification)  // For System Fullscreen when non-nil.
     [self deregisterForContentViewResizeNotifications];
 
-  enteringAppKitFullscreen_ = NO;
   enteringImmersiveFullscreen_ = NO;
   enteringPresentationMode_ = NO;
-  isUsingCustomAnimation_ = NO;
+
+  [self resetCustomAppKitFullscreenVariables];
+  [[tabStripController_ activeTabContentsController]
+      updateFullscreenWidgetFrame];
 
   [self showFullscreenExitBubbleIfNecessary];
   browser_->WindowFullscreenStateChanged();
@@ -790,14 +768,8 @@ willPositionSheet:(NSWindow*)sheet
   // startCustomAnimationToExitFullScreenWithDuration.
   if (isUsingCustomAnimation_) {
     blockLayoutSubviews_ = YES;
-    [self setSheetHiddenForFullscreenTransition:YES];
-
-    // In OSX 10.11, when the NSFullScreenWindowMask is added or removed,
-    // the window's frame and layer changes slightly which causes a janky
-    // movement. As a result, we should disable the content view's autoresize
-    // at the beginning of the animation and set it back to its original value
-    // at the end of the animation.
     [self.chromeContentView setAutoresizesSubviews:NO];
+    [self setSheetHiddenForFullscreenTransition:YES];
   } else {
     [self adjustUIForExitingFullscreen];
   }
@@ -810,35 +782,24 @@ willPositionSheet:(NSWindow*)sheet
     [self deregisterForContentViewResizeNotifications];
 
   browser_->WindowFullscreenStateChanged();
-  [self.chromeContentView setAutoresizesSubviews:YES];
 
-  [self setSheetHiddenForFullscreenTransition:NO];
+  [self resetCustomAppKitFullscreenVariables];
 
-  exitingAppKitFullscreen_ = NO;
-  isUsingCustomAnimation_ = NO;
-  fullscreenTransition_.reset();
-
-  blockLayoutSubviews_ = NO;
+  // Ensure that the window is layout properly.
+  [self layoutSubviews];
 }
 
 - (void)windowDidFailToEnterFullScreen:(NSWindow*)window {
   [self deregisterForContentViewResizeNotifications];
-  enteringAppKitFullscreen_ = NO;
-  fullscreenTransition_.reset();
-  blockLayoutSubviews_ = NO;
-  isUsingCustomAnimation_ = NO;
+  [self resetCustomAppKitFullscreenVariables];
   [self adjustUIForExitingFullscreenAndStopOmniboxSliding];
 }
 
 - (void)windowDidFailToExitFullScreen:(NSWindow*)window {
   [self deregisterForContentViewResizeNotifications];
-  exitingAppKitFullscreen_ = NO;
-  fullscreenTransition_.reset();
-  isUsingCustomAnimation_ = NO;
-  blockLayoutSubviews_ = NO;
+  [self resetCustomAppKitFullscreenVariables];
 
   // Force a relayout to try and get the window back into a reasonable state.
-  [self.chromeContentView setAutoresizesSubviews:YES];
   [self layoutSubviews];
 }
 
@@ -856,7 +817,7 @@ willPositionSheet:(NSWindow*)sheet
 }
 
 - (void)adjustUIForExitingFullscreen {
-  [self destroyFullscreenExitBubbleIfNecessary];
+  exclusiveAccessController_->Destroy();
   [self adjustUIForExitingFullscreenAndStopOmniboxSliding];
 }
 
@@ -1051,9 +1012,7 @@ willPositionSheet:(NSWindow*)sheet
       positionFindBarViewAtMaxY:output.findBarMaxY
                        maxWidth:NSWidth(output.contentAreaFrame)];
 
-  [exclusiveAccessBubbleWindowController_
-      positionInWindowAtTop:output.fullscreenExitButtonMaxY
-                      width:NSWidth(output.contentAreaFrame)];
+  exclusiveAccessController_->Layout(output.fullscreenExitButtonMaxY);
 }
 
 - (void)updateSubviewZOrder {
@@ -1172,13 +1131,6 @@ willPositionSheet:(NSWindow*)sheet
   if (base::mac::IsOSMavericks() && !enterFullScreen)
     return NO;
 
-  // Temporary disable custom enter animation since it currently breaks the
-  // fullscreen Flash content.
-  // TODO(spqchan): Fix the custom animation to enter fullscreen so that it
-  // will work with Flash content.
-  if (enterFullScreen && [self isFullscreenForTabContent])
-    return NO;
-
   NSView* root = [[self.window contentView] superview];
   if (!root.layer)
     return NO;
@@ -1193,6 +1145,20 @@ willPositionSheet:(NSWindow*)sheet
   }
 
   return YES;
+}
+
+- (void)resetCustomAppKitFullscreenVariables {
+  [self setSheetHiddenForFullscreenTransition:NO];
+  [self.chromeContentView setAutoresizesSubviews:YES];
+
+  fullscreenTransition_.reset();
+  [[tabStripController_ activeTabContentsController]
+      setBlockFullscreenResize:NO];
+  blockLayoutSubviews_ = NO;
+
+  enteringAppKitFullscreen_ = NO;
+  exitingAppKitFullscreen_ = NO;
+  isUsingCustomAnimation_ = NO;
 }
 
 - (NSArray*)customWindowsToEnterFullScreenForWindow:(NSWindow*)window {
@@ -1235,9 +1201,6 @@ willPositionSheet:(NSWindow*)sheet
     startCustomAnimationToEnterFullScreenWithDuration:(NSTimeInterval)duration {
   DCHECK([window isEqual:self.window]);
   [fullscreenTransition_ startCustomFullScreenAnimationWithDuration:duration];
-
-  base::AutoReset<BOOL> autoReset(&blockLayoutSubviews_, NO);
-  [self adjustUIForEnteringFullscreen];
 }
 
 - (void)window:(NSWindow*)window

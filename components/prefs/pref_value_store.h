@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_PREFS_PREF_VALUE_STORE_H_
-#define BASE_PREFS_PREF_VALUE_STORE_H_
+#ifndef COMPONENTS_PREFS_PREF_VALUE_STORE_H_
+#define COMPONENTS_PREFS_PREF_VALUE_STORE_H_
 
 #include <map>
 #include <string>
@@ -12,9 +12,9 @@
 #include "base/callback.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "base/prefs/base_prefs_export.h"
-#include "base/prefs/pref_store.h"
 #include "base/values.h"
+#include "components/prefs/base_prefs_export.h"
+#include "components/prefs/pref_store.h"
 
 class PrefNotifier;
 class PrefStore;
@@ -26,7 +26,7 @@ class PrefStore;
 //
 // Unless otherwise explicitly noted, all of the methods of this class must
 // be called on the UI thread.
-class BASE_PREFS_EXPORT PrefValueStore {
+class COMPONENTS_PREFS_EXPORT PrefValueStore {
  public:
   typedef base::Callback<void(const std::string&)> PrefChangedCallback;
 
@@ -257,4 +257,4 @@ class BASE_PREFS_EXPORT PrefValueStore {
   DISALLOW_COPY_AND_ASSIGN(PrefValueStore);
 };
 
-#endif  // BASE_PREFS_PREF_VALUE_STORE_H_
+#endif  // COMPONENTS_PREFS_PREF_VALUE_STORE_H_

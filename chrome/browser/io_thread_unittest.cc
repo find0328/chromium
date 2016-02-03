@@ -8,9 +8,6 @@
 #include "base/command_line.h"
 #include "base/macros.h"
 #include "base/metrics/field_trial.h"
-#include "base/prefs/pref_registry_simple.h"
-#include "base/prefs/pref_service.h"
-#include "base/prefs/testing_pref_service.h"
 #include "base/run_loop.h"
 #include "base/test/mock_entropy_provider.h"
 #include "build/build_config.h"
@@ -19,6 +16,9 @@
 #include "chrome/common/pref_names.h"
 #include "components/data_reduction_proxy/core/common/data_reduction_proxy_params.h"
 #include "components/policy/core/common/mock_policy_service.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/testing_pref_service.h"
 #include "components/proxy_config/pref_proxy_config_tracker_impl.h"
 #include "components/proxy_config/proxy_config_pref_names.h"
 #include "content/public/browser/browser_thread.h"
@@ -153,34 +153,39 @@ TEST_F(IOThreadTest, SpdyFieldTrialHoldbackEnabled) {
 TEST_F(IOThreadTest, SpdyFieldTrialSpdy31Enabled) {
   field_trial_group_ = "Spdy31Enabled";
   ConfigureSpdyGlobals();
-  EXPECT_THAT(globals_.next_protos,
-              ElementsAre(net::kProtoSPDY31, net::kProtoHTTP11));
+  net::HttpNetworkSession::Params params;
+  InitializeNetworkSessionParams(&params);
+  EXPECT_TRUE(params.enable_spdy31);
+  EXPECT_FALSE(params.enable_http2);
 }
 
 TEST_F(IOThreadTest, SpdyFieldTrialSpdy4Enabled) {
   field_trial_group_ = "Spdy4Enabled";
   ConfigureSpdyGlobals();
-  EXPECT_THAT(
-      globals_.next_protos,
-      ElementsAre(net::kProtoHTTP2, net::kProtoSPDY31, net::kProtoHTTP11));
+  net::HttpNetworkSession::Params params;
+  InitializeNetworkSessionParams(&params);
+  EXPECT_TRUE(params.enable_spdy31);
+  EXPECT_TRUE(params.enable_http2);
 }
 
 TEST_F(IOThreadTest, SpdyFieldTrialDefault) {
   field_trial_group_ = "";
   ConfigureSpdyGlobals();
-  EXPECT_THAT(
-      globals_.next_protos,
-      ElementsAre(net::kProtoHTTP2, net::kProtoSPDY31, net::kProtoHTTP11));
+  net::HttpNetworkSession::Params params;
+  InitializeNetworkSessionParams(&params);
+  EXPECT_TRUE(params.enable_spdy31);
+  EXPECT_TRUE(params.enable_http2);
 }
 
 TEST_F(IOThreadTest, SpdyFieldTrialParametrized) {
   field_trial_params_["enable_spdy31"] = "false";
-  // Undefined parameter "enable_http2_14" should default to false.
   field_trial_params_["enable_http2"] = "true";
   field_trial_group_ = "ParametrizedHTTP2Only";
   ConfigureSpdyGlobals();
-  EXPECT_THAT(globals_.next_protos,
-              ElementsAre(net::kProtoHTTP2, net::kProtoHTTP11));
+  net::HttpNetworkSession::Params params;
+  InitializeNetworkSessionParams(&params);
+  EXPECT_FALSE(params.enable_spdy31);
+  EXPECT_TRUE(params.enable_http2);
 }
 
 TEST_F(IOThreadTest, SpdyCommandLineUseSpdyOff) {
@@ -188,7 +193,10 @@ TEST_F(IOThreadTest, SpdyCommandLineUseSpdyOff) {
   // Command line should overwrite field trial group.
   field_trial_group_ = "Spdy4Enabled";
   ConfigureSpdyGlobals();
-  EXPECT_EQ(0u, globals_.next_protos.size());
+  net::HttpNetworkSession::Params params;
+  InitializeNetworkSessionParams(&params);
+  EXPECT_FALSE(params.enable_spdy31);
+  EXPECT_FALSE(params.enable_http2);
 }
 
 TEST_F(IOThreadTest, NPNFieldTrialEnabled) {

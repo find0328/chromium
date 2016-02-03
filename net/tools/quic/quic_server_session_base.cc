@@ -13,7 +13,6 @@
 #include "net/quic/reliable_quic_stream.h"
 
 namespace net {
-namespace tools {
 
 QuicServerSessionBase::QuicServerSessionBase(
     const QuicConfig& config,
@@ -201,7 +200,7 @@ bool QuicServerSessionBase::ShouldCreateOutgoingDynamicStream() {
     QUIC_BUG << "Encryption not established so no outgoing stream created.";
     return false;
   }
-  if (GetNumOpenOutgoingStreams() >= get_max_open_streams()) {
+  if (GetNumOpenOutgoingStreams() >= max_open_outgoing_streams()) {
     VLOG(1) << "No more streams should be created. "
             << "Already " << GetNumOpenOutgoingStreams() << " open.";
     return false;
@@ -213,5 +212,4 @@ QuicCryptoServerStreamBase* QuicServerSessionBase::GetCryptoStream() {
   return crypto_stream_.get();
 }
 
-}  // namespace tools
 }  // namespace net

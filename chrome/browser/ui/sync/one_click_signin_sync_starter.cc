@@ -7,9 +7,9 @@
 #include <stddef.h>
 
 #include "base/metrics/histogram.h"
-#include "base/prefs/pref_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
+#include "components/prefs/pref_service.h"
 
 #if defined(ENABLE_CONFIGURATION_POLICY)
 #include "chrome/browser/policy/cloud/user_policy_signin_service.h"
@@ -545,7 +545,7 @@ Browser* OneClickSigninSyncStarter::EnsureBrowser(
     // The user just created a new profile or has closed the browser that
     // we used previously. Grab the most recently active browser or else
     // create a new one.
-    browser = chrome::FindLastActiveWithProfile(profile, desktop_type);
+    browser = chrome::FindLastActiveWithProfile(profile);
     if (!browser) {
       browser = new Browser(Browser::CreateParams(profile,
                                                    desktop_type));

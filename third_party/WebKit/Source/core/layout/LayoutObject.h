@@ -726,12 +726,12 @@ public:
 
     Node* node() const
     {
-        return isAnonymous() ? 0 : m_node;
+        return isAnonymous() ? nullptr : m_node;
     }
 
     Node* nonPseudoNode() const
     {
-        return isPseudoElement() ? 0 : node();
+        return isPseudoElement() ? nullptr : node();
     }
 
     void clearNode() { m_node = nullptr; }
@@ -1095,10 +1095,9 @@ public:
     virtual LayoutRect absoluteClippedOverflowRect() const;
     virtual LayoutRect clippedOverflowRectForPaintInvalidation(const LayoutBoxModelObject* paintInvalidationContainer, const PaintInvalidationState* = nullptr) const;
 
-    // Given a rect in the object's coordinate space, compute a rect suitable for invalidating paints of that
-    // rect in the coordinate space of paintInvalidationContainer.  If intermediate containers have clipping or
-    // scrolling of any kind, it is applied; but overflow clipping is *not* applied for paintInvalidationContainer
-    // itself.
+    // Given a rect in the object's coordinate space, compute a rect in the coordinate space of |ancestor|.  If
+    // intermediate containers have clipping or scrolling of any kind, it is applied; but overflow clipping is *not*
+    // applied for |ancestor| itself. The output rect is suitable for purposes such as paint invalidation.
     virtual void mapToVisibleRectInAncestorSpace(const LayoutBoxModelObject* ancestor, LayoutRect&, const PaintInvalidationState*) const;
 
     // Return the offset to the column in which the specified point (in flow-thread coordinates)
@@ -1589,9 +1588,8 @@ private:
 
     RefPtr<ComputedStyle> m_style;
 
-    // Oilpan: raw pointer back to the owning Node is considered safe.
-    GC_PLUGIN_IGNORE("http://crbug.com/509911")
-    Node* m_node;
+    // Oilpan: This untraced pointer to the owning Node is considered safe.
+    RawPtrWillBeUntracedMember<Node> m_node;
 
     LayoutObject* m_parent;
     LayoutObject* m_previous;

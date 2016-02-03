@@ -67,6 +67,7 @@ LayerAnimator::~LayerAnimator() {
   }
   ClearAnimationsInternal();
   delegate_ = NULL;
+  DCHECK(!animation_player_ || !animation_player_->animation_timeline());
 }
 
 // static
@@ -214,6 +215,10 @@ void LayerAnimator::RemoveThreadedAnimation(int animation_id) {
 bool LayerAnimator::HasPendingThreadedAnimationsForTesting() const {
   DCHECK(animation_player_);
   return animation_player_->has_pending_animations_for_testing();
+}
+
+cc::AnimationPlayer* LayerAnimator::GetAnimationPlayerForTesting() const {
+  return animation_player_.get();
 }
 
 void LayerAnimator::StartAnimation(LayerAnimationSequence* animation) {

@@ -460,6 +460,14 @@ are declared in build/common.gypi.
         Loading...
       </message>
 
+      <!-- Material Design History Strings -->
+      <message name="IDS_MD_HISTORY_SEARCH" desc="Placeholder text/label for the search input in the history page">
+        Search
+      </message>
+      <message name="IDS_MD_HISTORY_CLEAR_SEARCH" desc="Tooltip text for the button that clears the search term on the history page">
+        Clear search
+      </message>
+
       <!-- Generic terms -->
       <message name="IDS_ADD" desc="Used for Add on buttons">
         Add
@@ -5563,6 +5571,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_QUIC_DESCRIPTION" desc="Description for the flag to enable QUIC.">
         Enable experimental QUIC protocol support.
       </message>
+      <message name="IDS_FLAGS_ENABLE_TOKEN_BINDING_NAME" desc="Title for the flag to enable Token Binding. Please do not translate 'Token Binding'.">
+        Token Binding.
+      </message>
+      <message name="IDS_FLAGS_ENABLE_TOKEN_BINDING_DESCRIPTION" desc="Description for the flag to enable Token Binding. Please do not translate 'Token Binding'.">
+        Enable Token Binding support.
+      </message>
       <message name="IDS_FLAGS_ALTSVC_NAME" desc="Title for the flag for Alternative Services.  Please do not translate &quot;Alternative Services&quot;.">
         Alternative services
       </message>
@@ -5757,12 +5771,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAGS_SILENT_DEBUGGER_EXTENSION_API_DESCRIPTION" desc="Description for the flag to enable silent debugging via chrome.debugger extension API.">
         Do not show the infobar when an extension attaches to a page via chrome.debugger API. This is required to debug extension background pages.
-      </message>
-      <message name="IDS_FLAGS_ENABLE_MULTILINGUAL_SPELLCHECKER_NAME" desc="Title for the flag to turn on multilingual spellchecker.">
-        Enable Multilingual Spellchecker
-      </message>
-      <message name="IDS_FLAGS_ENABLE_MULTILINGUAL_SPELLCHECKER_DESCRIPTION" desc="Description for the flag to turn on multilingual spellchecker.">
-        Turn on support for spellchecking in multiple languages at the same time.
       </message>
       <if expr="use_ash">
         <message name="IDS_FLAGS_MINIMIZE_ON_SECOND_LAUNCHER_ITEM_CLICK_NAME" desc="Name for the flag which allows to minimize a window upon launcher item click under certain conditions.">
@@ -6389,11 +6397,11 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Enables synchronizing WiFi network settings across devices. When enabled, the WiFi credential datatype is registered with Chrome Sync, and WiFi credentials are synchronized subject to user preferences. (See also, chrome://settings/syncSetup.)
       </message>
       <if expr="is_win">
-        <message name="IDS_FLAGS_WINDOWS_DESKTOP_SEARCH_REDIRECTION_DESCRIPTION" desc="Description for the flag to enable a preference that allows redirection of Windows desktop searches to the default search engine.">
-          Enables a preference that allows redirection of Windows desktop searches to the default search engine.
+        <message name="IDS_FLAGS_WINDOWS_DESKTOP_SEARCH_REDIRECTION_DESCRIPTION" desc="Description for the flag to enable redirection of Windows desktop searches to the default search engine.">
+          Enables redirection of Windows desktop searches to the default search engine.
         </message>
-        <message name="IDS_FLAGS_WINDOWS_DESKTOP_SEARCH_REDIRECTION_NAME" desc="Title for the flag to enable a preference that allows redirection of Windows desktop searches to the default search engine.">
-          Windows desktop search redirection preference
+        <message name="IDS_FLAGS_WINDOWS_DESKTOP_SEARCH_REDIRECTION_NAME" desc="Title for the flag to enable redirection of Windows desktop searches to the default search engine.">
+          Windows desktop search redirection
         </message>
       </if>
       <message name="IDS_FLAGS_SYNC_SANDBOX_NAME" desc="Name for the flag that causes Chrome to use the sandbox (testing) server for Sync.">
@@ -10265,11 +10273,11 @@ I don't think this site should be blocked!
       <message name="IDS_COOKIES_COOKIE_SENDFOR_SECURE" desc="Send Cookie for any kind of connection">
         Secure connections only
       </message>
-      <message name="IDS_COOKIES_COOKIE_SENDFOR_FIRSTPARTY" desc="Send Cookie for any first-party connection">
-        First-party connections only
+      <message name="IDS_COOKIES_COOKIE_SENDFOR_SAME_SITE" desc="Send Cookie for any same-site connection">
+        Same-site connections only
       </message>
-      <message name="IDS_COOKIES_COOKIE_SENDFOR_SECURE_FIRSTPARTY" desc="Send Cookie for secure, first-party connections">
-        Secure first-party connections only
+      <message name="IDS_COOKIES_COOKIE_SENDFOR_SECURE_SAME_SITE" desc="Send Cookie for secure, same-site connections">
+        Secure same-site connections only
       </message>
       <message name="IDS_COOKIES_COOKIE_ACCESSIBLE_TO_SCRIPT_YES" desc="Accessible to Script">
         Yes
@@ -12345,9 +12353,34 @@ Some features may be unavailable.  Please check that the profile exists and you 
       <message name="IDS_MANAGE_PASSWORDS_AUTO_SIGNIN_DEFAULT_WELCOME" desc="A warm welcome in the auto-signin toast appearing for users with Google Smart Lock disabled.">
         <ph name="PASSWORD_MANAGER_BRAND">$1<ex>Google Chrome</ex></ph> remembers your passwords and signs you in to sites automatically on this device.
       </message>
-      <message name="IDS_MANAGE_PASSWORDS_DELETED_ACCOUNT" desc="The text that is used in the manage accounts bubble when an account is deleted.">
-        Account removed
+      <message name="IDS_AUTO_SIGNIN_FIRST_RUN_TITLE_MANY_DEVICES" desc="The title of the dialog during the autosign-in first run experience for the Chrome syncing users.">
+        Automatically sign in across your devices
       </message>
+      <message name="IDS_AUTO_SIGNIN_FIRST_RUN_TITLE_LOCAL_DEVICE" desc="The title of the dialog during the autosign-in first run experience for the Chrome signed out users.">
+        Automatically sign in to sites on this device
+      </message>
+      <message name="IDS_AUTO_SIGNIN_FIRST_RUN_SMART_LOCK_TEXT" desc="The text of the dialog during the autosign-in first run experience for the Chrome syncing users.">
+        <ph name="PASSWORD_MANAGER_BRAND">$1<ex>Google Smart Lock</ex></ph> automatically signs you in to eligible sites and apps with passwords you saved.
+      </message>
+      <message name="IDS_AUTO_SIGNIN_FIRST_RUN_TEXT" desc="The text of the dialog during the autosign-in first run experience for the Chrome signed out users.">
+        <ph name="PASSWORD_MANAGER_BRAND">$1<ex>Google Chrome</ex></ph> automatically signs you in to eligible sites with passwords you saved.
+      </message>
+      <if expr="use_titlecase">
+        <message name="IDS_AUTO_SIGNIN_FIRST_RUN_OK" desc="The text of the OK button in the dialog during the autosign-in first run experience.">
+          OK, Got It
+        </message>
+        <message name="IDS_AUTO_SIGNIN_FIRST_RUN_TURN_OFF" desc="The text of the 'turn off' button in the dialog during the autosign-in first run experience.">
+          Turn Off
+        </message>
+      </if>
+      <if expr="not use_titlecase">
+        <message name="IDS_AUTO_SIGNIN_FIRST_RUN_OK" desc="The text of the OK button in the dialog during the autosign-in first run experience.">
+          OK, got it
+        </message>
+        <message name="IDS_AUTO_SIGNIN_FIRST_RUN_TURN_OFF" desc="The text of the 'turn off' button in the dialog during the autosign-in first run experience.">
+          Turn off
+        </message>
+      </if>
 
       <message name="IDS_ALLOW_AUTOFILL_SYNC_CREDENTIAL" desc="The text for the choice to allow autofilling in about:flags">
         Allow
@@ -14604,6 +14637,24 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
     </if>
 
     <if expr="is_android">
+      <message name="IDS_FLAGS_HERB_PROTOTYPE_CHOICES_NAME" desc="Name for the flag to enable the new UI prototypes for tab management." translateable="false">
+        Switch preferred flavor of Herb
+      </message>
+      <message name="IDS_FLAGS_HERB_PROTOTYPE_CHOICES_DESCRIPTION" desc="Description for the flag to enable the new UI prototypes for tab management." translateable="false">
+        Switching this option changes which tab management prototype is being tested.
+      </message>
+      <message name="IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_ANISE" desc="CCT for View Intents, regular CTA" translateable="false">
+        ANISE: CCT for View Intents, regular CTA
+      </message>
+      <message name="IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_BASIL" desc="CCT for View Intents, CTA with X" translateable="false">
+        BASIL: CCT for View Intents, CTA with X
+      </message>
+      <message name="IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_CHIVE" desc="No CCT, CTA with X" translateable="false">
+        CHIVE: All View Intents go to CTA with X
+      </message>
+      <message name="IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_DILL" desc="CCT everywhere" translateable="false">
+        DILL: All View Intents in CCT
+      </message>
       <message name="IDS_FLAGS_TAB_SWITCHER_IN_DOCUMENT_MODE_NAME" desc="Name for the flag to enable tab switcher in document mode.">
         Enable tab switcher in document mode.
       </message>

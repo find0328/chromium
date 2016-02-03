@@ -292,8 +292,6 @@
       'browser/install_verification/win/install_verification.h',
       'browser/install_verification/win/loaded_module_verification.cc',
       'browser/install_verification/win/loaded_module_verification.h',
-      'browser/install_verification/win/loaded_modules_snapshot.cc',
-      'browser/install_verification/win/loaded_modules_snapshot.h',
       'browser/install_verification/win/module_ids.cc',
       'browser/install_verification/win/module_ids.h',
       'browser/install_verification/win/module_info.h',
@@ -652,8 +650,6 @@
       'browser/android/banners/app_banner_manager_android.h',
       'browser/android/bookmarks/bookmarks_bridge.cc',
       'browser/android/bookmarks/bookmarks_bridge.h',
-      'browser/android/bookmarks/edit_bookmark_helper.cc',
-      'browser/android/bookmarks/edit_bookmark_helper.h',
       'browser/android/bookmarks/partner_bookmarks_reader.cc',
       'browser/android/bookmarks/partner_bookmarks_reader.h',
       'browser/android/bookmarks/partner_bookmarks_shim.cc',
@@ -1455,8 +1451,6 @@
       'browser/bookmarks/bookmark_stats.h',
       'browser/bookmarks/chrome_bookmark_client.cc',
       'browser/bookmarks/chrome_bookmark_client.h',
-      'browser/bookmarks/chrome_bookmark_client_factory.cc',
-      'browser/bookmarks/chrome_bookmark_client_factory.h',
       'browser/bookmarks/managed_bookmark_service_factory.cc',
       'browser/bookmarks/managed_bookmark_service_factory.h',
       'browser/bookmarks/startup_task_runner_service_factory.cc',
@@ -1811,7 +1805,6 @@
       'android/java/src/org/chromium/chrome/browser/BackgroundSyncLauncher.java',
       'android/java/src/org/chromium/chrome/browser/BluetoothChooserDialog.java',
       'android/java/src/org/chromium/chrome/browser/bookmark/BookmarksBridge.java',
-      'android/java/src/org/chromium/chrome/browser/bookmark/EditBookmarkHelper.java',
       'android/java/src/org/chromium/chrome/browser/banners/AppBannerManager.java',
       'android/java/src/org/chromium/chrome/browser/childaccounts/ChildAccountService.java',
       'android/java/src/org/chromium/chrome/browser/childaccounts/ChildAccountFeedbackReporter.java',
@@ -2528,12 +2521,6 @@
     'chrome_browser_safe_browsing_mobile_sources': [
       'browser/renderer_host/safe_browsing_resource_throttle.cc',
       'browser/renderer_host/safe_browsing_resource_throttle.h',
-      'browser/safe_browsing/remote_database_manager.cc',
-      'browser/safe_browsing/remote_database_manager.h',
-      'browser/safe_browsing/safe_browsing_api_handler.cc',
-      'browser/safe_browsing/safe_browsing_api_handler.h',
-      'browser/safe_browsing/safe_browsing_api_handler_util.cc',
-      'browser/safe_browsing/safe_browsing_api_handler_util.h',
     ],
     # "Safe Browsing Full" files in addition to the "basic" ones to use for
     # full safe browsing. This has some in common with "mobile."
@@ -3187,6 +3174,9 @@
         '../components/components.gyp:signin_core_browser',
         '../components/components.gyp:startup_metric_utils_browser',
         '../components/components.gyp:startup_metric_utils_browser_message_filter',
+        # TODO(fdoray): Remove this once the PreRead field trial has expired.
+        # crbug.com/577698
+        '../components/components.gyp:startup_metric_utils_common',
         '../components/components.gyp:sync_bookmarks',
         '../components/components.gyp:sync_driver',
         '../components/components.gyp:sync_sessions',
@@ -3556,9 +3546,9 @@
           'sources': [ '<@(chrome_browser_safe_browsing_basic_sources)' ],
           'dependencies': [
             'safe_browsing_chunk_proto',
-            'safe_browsing_metadata_proto',
             'safe_browsing_proto',
             '../components/components.gyp:safe_browsing_db',
+            '../components/components.gyp:safe_browsing_metadata_proto',
           ],
           'conditions': [
             ['safe_browsing == 1', {
@@ -3578,6 +3568,7 @@
               'sources': [ '<@(chrome_browser_safe_browsing_mobile_sources)' ],
               'dependencies': [
                 'safe_browsing_proto',
+                '../components/components.gyp:safe_browsing_db_mobile',
               ],
             }],
           ],
@@ -3987,19 +3978,6 @@
       'includes': [ '../build/protoc.gypi' ]
     },
     {
-      # Protobuf compiler / generator for the safebrowsing full hash metadata
-      # protocol buffer.
-      # GN version: //chrome/browser/safe_browsing:metadata_proto
-      'target_name': 'safe_browsing_metadata_proto',
-      'type': 'static_library',
-      'sources': [ 'browser/safe_browsing/metadata.proto' ],
-      'variables': {
-        'proto_in_dir': 'browser/safe_browsing',
-        'proto_out_dir': 'chrome/browser/safe_browsing',
-      },
-      'includes': [ '../build/protoc.gypi' ]
-    },
-    {
       # Protobuf compiler / generator for the safebrowsing incident reporting
       # service state store data protocol buffer.
       # GN version: //chrome/browser/safe_browsing/incident_reporting:state_store_data_proto
@@ -4195,6 +4173,7 @@
             '../components/components.gyp:rlz',
             '../components/components.gyp:search_engines',
             '../rlz/rlz.gyp:rlz_lib',
+            'common',
           ],
         },
       ],

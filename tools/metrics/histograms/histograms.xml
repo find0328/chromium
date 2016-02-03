@@ -312,6 +312,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Android.StrictMode.CheckGooglePlayServicesTime" units="ms">
+  <owner>wnwen@chromium.org</owner>
+  <owner>yfriedman@chromium.org</owner>
+  <summary>
+    Measures the amount of time due to a StrictMode violation from checking for
+    whether play services is available.
+  </summary>
+</histogram>
+
 <histogram name="Android.StrictMode.DocumentModeSharedPrefs" units="ms">
   <owner>hartmanng@chromium.org</owner>
   <owner>yfriedman@chromium.org</owner>
@@ -372,6 +381,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     Measures the amount of time due to a StrictMode violation from fetching for
     the thumbnail cache directory.
+  </summary>
+</histogram>
+
+<histogram name="Android.StrictMode.WebappAuthenticatorMac" units="ms">
+  <owner>wnwen@chromium.org</owner>
+  <owner>yfriedman@chromium.org</owner>
+  <summary>
+    Measures the amount of time due to a StrictMode violation from looking up a
+    webapp's MAC on startup.
   </summary>
 </histogram>
 
@@ -3622,6 +3640,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="Bookmarks.OpenAction" enum="BookmarksOpenAction">
+  <obsolete>
+    Deprecated as of 1/2016.
+  </obsolete>
   <owner>kkimlabs@chromium.org</owner>
   <summary>
     Logs how user is opening a bookmark on Android. For example, user can long
@@ -3952,6 +3973,26 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
     Records the type of the remote playback device selected by the user. This
     will be recorded when the user has chosen the device from the media route
     chooser dialog.
+  </summary>
+</histogram>
+
+<histogram name="Cast.Sender.FullscreenControlsActionWithMediaElement"
+    enum="MediaCommand">
+  <owner>aberent@chromium.org</owner>
+  <owner>avayvod@chromium.org</owner>
+  <summary>
+    Record each interaction with the fullscreen remote playback controls in
+    cases when the corresponding media element on the page was present.
+  </summary>
+</histogram>
+
+<histogram name="Cast.Sender.FullscreenControlsActionWithoutMediaElement"
+    enum="MediaCommand">
+  <owner>aberent@chromium.org</owner>
+  <owner>avayvod@chromium.org</owner>
+  <summary>
+    Record each interaction with the fullscreen remote playback controls in
+    cases when the corresponding media element on the page was not present.
   </summary>
 </histogram>
 
@@ -9111,6 +9152,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 <histogram name="Download.DOMEvent" enum="DownloadDOMEvent">
   <owner>asanka@chromium.org</owner>
   <summary>User actions in chrome://downloads</summary>
+</histogram>
+
+<histogram name="Download.DownloadDangerPrompt"
+    enum="SBClientDownloadExtensions">
+  <owner>jialiul@chromium.org</owner>
+  <summary>
+    Records when user is shown the download danger prompt while attempting to
+    recover a blocked download from chrome://downloads, grouped by the type of
+    file.
+  </summary>
 </histogram>
 
 <histogram name="Download.DownloadSize" units="KB">
@@ -21162,6 +21213,22 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Mojo.System.Node.ConnectedPeers">
+  <owner>rockot@chromium.org</owner>
+  <summary>
+    Number of connected peer nodes tracked by a node. This is emitted any time a
+    peer is added to or dropped from a node.
+  </summary>
+</histogram>
+
+<histogram name="Mojo.System.Node.PendingChildren">
+  <owner>rockot@chromium.org</owner>
+  <summary>
+    Number of connected pending child node connections tracked by a node. This
+    is emitted any time a parent-child node connection is initiated or dropped.
+  </summary>
+</histogram>
+
 <histogram name="Mouse.PointerSensitivity.Changed" enum="PointerSensitivity">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <summary>
@@ -25713,6 +25780,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Net.QuicCloseConnection.NullVisitor" enum="BooleanNullVisitor">
+  <owner>rtenneti@chromium.org</owner>
+  <summary>
+    The number of times Connection's visitor is a nullptr when CloseConnection
+    is called.
+  </summary>
+</histogram>
+
 <histogram name="Net.QuicCryptoClientConfig.PopulatedFromCanonicalConfig"
     enum="BooleanPopulated">
   <owner>rtenneti@chromium.org</owner>
@@ -27263,6 +27338,18 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="Net.SpdyVersion2" enum="SpdyProtocolVersion">
+  <owner>bnc@chromium.org</owner>
+  <obsolete>
+    Deprecated on 2016-02-01, because the incorrect bucket count caused data
+    corruption.  Replaced by Net.SpdyVersion3.
+  </obsolete>
+  <summary>
+    The SPDY protocol version that is used to talk to SPDY servers.  Logged
+    every time a SPDY session is initialized.
+  </summary>
+</histogram>
+
+<histogram name="Net.SpdyVersion3" enum="SpdyProtocolVersion">
   <owner>bnc@chromium.org</owner>
   <summary>
     The SPDY protocol version that is used to talk to SPDY servers.  Logged
@@ -31411,6 +31498,12 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="OfflinePages.SharedPageWasOffline"
+    enum="OfflinePagesSharedPageWasOffline">
+  <owner>dewittj@chromium.org</owner>
+  <summary>Whether a shared page was an offline page or not.</summary>
+</histogram>
+
 <histogram name="OfflinePages.TotalPageSize" units="MB">
   <owner>fgorski@chromium.org</owner>
   <owner>jianli@chromium.org</owner>
@@ -31762,6 +31855,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     The provider and result type of the suggestion the user selected when the
     user used the omnibox to go somewhere.
+  </summary>
+</histogram>
+
+<histogram name="Omnibox.SuggestionUsed.SearchVsUrl"
+    enum="OmniboxSummarizedResultType">
+  <owner>mpearson@google.com</owner>
+  <summary>
+    The rough type of the suggestion the user selected when the user used the
+    omnibox to go somewhere.
   </summary>
 </histogram>
 
@@ -44029,6 +44131,23 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Search.DesktopSearch.RedirectionInfobarCloseAction"
+    enum="DesktopSearchRedirectionInfobarCloseAction">
+  <owner>fdoray@chromium.org</owner>
+  <summary>
+    The action performed by the user to close the infobar explaining that a
+    desktop search has been redirected to the default search engine.
+  </summary>
+</histogram>
+
+<histogram name="Search.DesktopSearch.URLAction" enum="DesktopSearchURLAction">
+  <owner>fdoray@chromium.org</owner>
+  <summary>
+    The action performed when a desktop search URL is passed to the browser
+    through the command line.
+  </summary>
+</histogram>
+
 <histogram name="Search.MigratedPrefToDictionaryValue" enum="BooleanHit">
   <owner>caitkp@chromium.org</owner>
   <summary>
@@ -51775,6 +51894,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="UMA.CreatePersistentHistogram.Result"
+    enum="CreatePersistentHistogramResult">
+  <owner>asvitkine@chromium.org</owner>
+  <owner>bcwhite@chromium.org</owner>
+  <summary>
+    Records attempts to create histograms in presistent space and any errors
+    encountered when doing so.
+  </summary>
+</histogram>
+
 <histogram name="UMA.Discarded Log Events">
   <owner>asvitkine@chromium.org</owner>
   <summary>
@@ -52839,6 +52968,11 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>jochen@chromium.org</owner>
   <owner>yangguo@chromium.org</owner>
   <summary>Time spent in V8 compiler (full codegen) for eval.</summary>
+</histogram>
+
+<histogram name="V8.CompileInlineScriptMicroSeconds" units="microseconds">
+  <owner>yangguo@chromium.org</owner>
+  <summary>Time spent compiling an inline script.</summary>
 </histogram>
 
 <histogram name="V8.CompileLazy" units="ms">
@@ -57945,6 +58079,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="106" label="ACI_WRONG_STORAGE_PARTITION"/>
   <int value="107" label="RDHI_WRONG_STORAGE_PARTITION"/>
   <int value="108" label="RDH_INVALID_REQUEST_ID"/>
+  <int value="109" label="BDH_SERVICE_NOT_ALLOWED_FOR_ORIGIN"/>
 </enum>
 
 <enum name="BadMessageReasonExtensions" type="int">
@@ -58415,6 +58550,11 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 <enum name="BooleanMissingFromDiskCache" type="int">
   <int value="0" label="Has data in disk cache"/>
   <int value="1" label="Missing data in disk cache"/>
+</enum>
+
+<enum name="BooleanNullVisitor" type="int">
+  <int value="0" label="Connection's visitor is not a nullptr"/>
+  <int value="1" label="Connection's visitor is a nullptr"/>
 </enum>
 
 <enum name="BooleanOrphan" type="int">
@@ -59943,6 +60083,17 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="2147483646" label="STATUS_DATATYPE_MISALIGNMENT"/>
 </enum>
 
+<enum name="CreatePersistentHistogramResult" type="int">
+  <int value="0" label="Histogram successfully created in persistent space."/>
+  <int value="1" label="Error: Invalid metadata pointer. (coding error)"/>
+  <int value="2" label="Error: Invalid metdata."/>
+  <int value="3" label="Error: Invalid 'ranges' array."/>
+  <int value="4" label="Error: Invalid 'counts' array."/>
+  <int value="5" label="Error: Allocator is corrupt."/>
+  <int value="6" label="Error: Allocator is full."/>
+  <int value="7" label="Error: Allocator failed (unknown error)."/>
+</enum>
+
 <enum name="CredentialFilteredType" type="int">
   <int value="0" label="No sync credentials present"/>
   <int value="1" label="Sync credentials were removed"/>
@@ -60501,6 +60652,19 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="3" label="First screen capture call failed."/>
   <int value="4" label="First window capture call succeeded."/>
   <int value="5" label="First window capture call failed."/>
+</enum>
+
+<enum name="DesktopSearchRedirectionInfobarCloseAction" type="int">
+  <int value="0" label="Clicked the 'Manage search settings' link"/>
+  <int value="1" label="Clicked the dismiss button"/>
+  <int value="2" label="InfoBar dismissed implicitly (no interaction)"/>
+</enum>
+
+<enum name="DesktopSearchURLAction" type="int">
+  <int value="0" label="No redirection - Feature disabled"/>
+  <int value="1" label="No redirection - Default search engine is Bing"/>
+  <int value="2" label="No redirection - Default search engine is invalid"/>
+  <int value="3" label="Redirection to the default search engine"/>
 </enum>
 
 <enum name="DeviceIdMismatch" type="int">
@@ -63039,6 +63203,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="390" label="EASY_UNLOCK_PRIVATE_ON_DATA_RECEIVED"/>
   <int value="391" label="EASY_UNLOCK_PRIVATE_ON_SEND_COMPLETED"/>
   <int value="392" label="DISPLAY_SOURCE_ON_SINKS_UPDATED"/>
+  <int value="393" label="INPUT_IME_ON_COMPOSITION_BOUNDS_CHANGED"/>
 </enum>
 
 <enum name="ExtensionFileWriteResult" type="int">
@@ -68326,6 +68491,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="59" label="UPGRADE_INFOBAR_DELEGATE"/>
   <int value="60" label="CHROME_WINDOW_ERROR"/>
   <int value="61" label="CONFIRM_DANGEROUS_DOWNLOAD"/>
+  <int value="62" label="WINDOWS_DESKTOP_SEARCH_INFOBAR_DELEGATE"/>
 </enum>
 
 <enum name="InfoBarResponse" type="int">
@@ -70374,6 +70540,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="939554480" label="enable-credit-card-scan"/>
   <int value="952558794" label="enable-remote-assistance"/>
   <int value="980396200" label="enable-new-korean-ime"/>
+  <int value="983311394" label="tab-management-experiment-type"/>
   <int value="1002585107" label="emphasize-titles-in-omnibox-dropdown"/>
   <int value="1007444341" label="enable-prefixed-encrypted-media"/>
   <int value="1019857902"
@@ -71437,6 +71604,12 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="0" label="Neutral"/>
   <int value="1" label="Dubious (deprecated August 2015)"/>
   <int value="2" label="Non-Secure"/>
+</enum>
+
+<enum name="MediaCommand" type="int">
+  <int value="0" label="Resume"/>
+  <int value="1" label="Pause"/>
+  <int value="2" label="Seek"/>
 </enum>
 
 <enum name="MediaContainers" type="int">
@@ -72976,6 +73149,11 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="7" label="Skipped"/>
 </enum>
 
+<enum name="OfflinePagesSharedPageWasOffline" type="int">
+  <int value="0" label="Online"/>
+  <int value="1" label="Offline"/>
+</enum>
+
 <enum name="OfflineStatus" type="int">
   <obsolete>
     Deprecated 4/2015.
@@ -73219,6 +73397,15 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="1" label="requests sent"/>
   <int value="2" label="requests invalidated"/>
   <int value="3" label="(non-invalidated) replies received"/>
+</enum>
+
+<enum name="OmniboxSummarizedResultType" type="int">
+  <int value="0" label="URL"/>
+  <int value="1" label="search"/>
+  <int value="2" label="app/extension"/>
+  <int value="3" label="contact"/>
+  <int value="4" label="on-device"/>
+  <int value="5" label="unknown"/>
 </enum>
 
 <enum name="OmniboxUserTextCleared" type="int">
@@ -78242,6 +78429,9 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="2" label="SPDY 3.1"/>
   <int value="3" label="HTTP/2 draft-14"/>
   <int value="4" label="HTTP/2 draft-15"/>
+  <int value="5" label="HTTP/2 draft-16"/>
+  <int value="6" label="HTTP/2 draft-17"/>
+  <int value="7" label="HTTP/2"/>
 </enum>
 
 <enum name="SpdySessionGet" type="int">
@@ -82896,6 +83086,28 @@ To add a new entry, add it with any value and run test to compute valid value.
   <affected-histogram name="Cookie.ReinstatedCookies"/>
 </histogram_suffixes>
 
+<histogram_suffixes name="DownloadDangerPromptResponse" separator=".">
+  <suffix name="Proceed"
+      label="The user clicked through and recovered the download."/>
+  <suffix name="Shown" label="The user was shown the prompt."/>
+  <affected-histogram name="Download.DownloadDangerPrompt.DangerousContent"/>
+  <affected-histogram name="Download.DownloadDangerPrompt.DangerousFile"/>
+  <affected-histogram name="Download.DownloadDangerPrompt.DangerousHost"/>
+  <affected-histogram name="Download.DownloadDangerPrompt.DangerousURL"/>
+  <affected-histogram name="Download.DownloadDangerPrompt.PotentiallyUnwanted"/>
+  <affected-histogram name="Download.DownloadDangerPrompt.UncommonContent"/>
+</histogram_suffixes>
+
+<histogram_suffixes name="DownloadDangerPromptType" separator=".">
+  <suffix name="DangerousContent" label="File marked DANGEROUS_CONTENT"/>
+  <suffix name="DangerousFile" label="File marked DANGEROUS_FILE"/>
+  <suffix name="DangerousHost" label="File marked DANGEROUS_HOST"/>
+  <suffix name="DangerousURL" label="File marked DANGEROUS_URL"/>
+  <suffix name="PotentiallyUnwanted" label="File marked POTENTIALLY_UNWANTED"/>
+  <suffix name="UncommonContent" label="File marked UNCOMMON_CONTENT"/>
+  <affected-histogram name="Download.DownloadDangerPrompt"/>
+</histogram_suffixes>
+
 <histogram_suffixes name="EmePromise" separator=".">
   <suffix name="CloseSession" label="CloseSession promises only."/>
   <suffix name="CreateSession" label="CreateSession promises only.">
@@ -86352,6 +86564,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <suffix name="Media"/>
   <suffix name="Manifest"/>
   <affected-histogram name="Blink.MemoryCache.RevalidationPolicy"/>
+  <affected-histogram name="Blink.MemoryCache.RevalidationPolicy.Preload"/>
 </histogram_suffixes>
 
 <histogram_suffixes name="SafeBrowsingLists" separator=".">
@@ -86451,6 +86664,13 @@ To add a new entry, add it with any value and run test to compute valid value.
       label="Interstitial for a resource classified as unsafe by the Safe
              Browsing database via either
              {Local,Remote}SafeBrowsingDatabaseManager."/>
+  <suffix name="from_device_v4"
+      label="Interstitial for a resource classified as unsafe by the Safe
+             Browsing database version 4 via either
+             {Local,Remote}SafeBrowsingDatabaseManager."/>
+  <suffix name="from_client_side_detection"
+      label="Interstitial for a resource classified as unsafe by the client
+             side detection."/>
   <affected-histogram name="interstitial.harmful.decision"/>
   <affected-histogram name="interstitial.harmful.decision.repeat_visit"/>
   <affected-histogram name="interstitial.harmful.interaction"/>

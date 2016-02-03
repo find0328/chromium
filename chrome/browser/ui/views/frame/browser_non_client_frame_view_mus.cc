@@ -487,16 +487,7 @@ void BrowserNonClientFrameViewMus::LayoutAvatar() {
 
 #if defined(FRAME_AVATAR_BUTTON)
 void BrowserNonClientFrameViewMus::LayoutNewStyleAvatar() {
-  DCHECK(new_avatar_button());
-
-  gfx::Size button_size = new_avatar_button()->GetPreferredSize();
-  int button_x = width() -
-                 caption_button_container_->GetPreferredSize().width() -
-                 kNewAvatarButtonOffset - button_size.width();
-
-  new_avatar_button()->SetBounds(
-      button_x, 0, button_size.width(),
-      caption_button_container_->GetPreferredSize().height());
+  NOTIMPLEMENTED();
 }
 #endif
 
@@ -528,7 +519,6 @@ void BrowserNonClientFrameViewMus::PaintToolbarBackground(gfx::Canvas* canvas) {
   int x = toolbar_bounds.x();
   int w = toolbar_bounds.width();
   int y = toolbar_bounds.y();
-  int h = toolbar_bounds.height();
   const ui::ThemeProvider* tp = GetThemeProvider();
 
   if (ui::MaterialDesignController::IsModeMaterial()) {
@@ -570,6 +560,10 @@ void BrowserNonClientFrameViewMus::PaintToolbarBackground(gfx::Canvas* canvas) {
         canvas, tp->GetColor(ThemeProperties::COLOR_TOOLBAR_BOTTOM_SEPARATOR),
         toolbar_bounds, true);
   } else {
+    // NOTE: this ifdef can't be OS_CHROMEOS as we want to see how it looks on
+    // windows as well.
+#if defined(USE_ASH)
+    int h = toolbar_bounds.height();
     // Gross hack: We split the toolbar images into two pieces, since sometimes
     // (popup mode) the toolbar isn't tall enough to show the whole image.  The
     // split happens between the top shadow section and the bottom gradient
@@ -619,6 +613,10 @@ void BrowserNonClientFrameViewMus::PaintToolbarBackground(gfx::Canvas* canvas) {
                   toolbar_bounds.bottom() - kClientEdgeThickness,
                   w - (2 * kClientEdgeThickness), kClientEdgeThickness),
         tp->GetColor(ThemeProperties::COLOR_TOOLBAR_BOTTOM_SEPARATOR));
+#else
+    // This is the case for running on non-chromeos. Decide how we want this to
+    // look.
+#endif
   }
 }
 

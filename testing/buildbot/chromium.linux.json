@@ -174,7 +174,13 @@
       },
       {
         "swarming": {
-          "can_use_on_swarming_builders": true
+          "can_use_on_swarming_builders": true,
+          "dimension_sets": [
+            {
+              "build.id": "KTU84P",
+              "product.board": "hammerhead"
+            }
+          ]
         },
         "test": "content_browsertests"
       },
@@ -259,13 +265,6 @@
       {
         "name": "telemetry_perf_unittests",
         "script": "telemetry_perf_unittests.py"
-      },
-      {
-        "args": [
-          "android_webview_unittests"
-        ],
-        "name": "android_webview_unittests",
-        "script": "android_gtest_test.py"
       }
     ]
   },
@@ -530,16 +529,12 @@
   },
   "Linux Builder": {
     "additional_compile_targets": [
-      "battor_agent",
-      "blimp",
-      "mandoline:all",
-      "mash:all",
-      "remoting_all"
+      "all"
     ]
   },
   "Linux Builder (dbg)": {
     "additional_compile_targets": [
-      "gn_all"
+      "all"
     ]
   },
   "Linux Tests": {

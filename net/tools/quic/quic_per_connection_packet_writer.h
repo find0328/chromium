@@ -13,7 +13,6 @@
 
 namespace net {
 
-namespace tools {
 
 // A connection-specific packet writer that wraps a shared writer.
 class QuicPerConnectionPacketWriter : public QuicPacketWriter {
@@ -29,7 +28,8 @@ class QuicPerConnectionPacketWriter : public QuicPacketWriter {
   WriteResult WritePacket(const char* buffer,
                           size_t buf_len,
                           const IPAddressNumber& self_address,
-                          const IPEndPoint& peer_address) override;
+                          const IPEndPoint& peer_address,
+                          PerPacketOptions* options) override;
   bool IsWriteBlockedDataBuffered() const override;
   bool IsWriteBlocked() const override;
   void SetWritable() override;
@@ -41,7 +41,6 @@ class QuicPerConnectionPacketWriter : public QuicPacketWriter {
   DISALLOW_COPY_AND_ASSIGN(QuicPerConnectionPacketWriter);
 };
 
-}  // namespace tools
 
 }  // namespace net
 

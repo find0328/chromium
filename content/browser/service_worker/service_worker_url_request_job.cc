@@ -119,6 +119,7 @@ ServiceWorkerURLRequestJob::ServiceWorkerURLRequestJob(
     RequestContextType request_context_type,
     RequestContextFrameType frame_type,
     scoped_refptr<ResourceRequestBody> body,
+    ServiceWorkerFetchType fetch_type,
     Delegate* delegate)
     : net::URLRequestJob(request, network_delegate),
       delegate_(delegate),
@@ -137,6 +138,7 @@ ServiceWorkerURLRequestJob::ServiceWorkerURLRequestJob(
       frame_type_(frame_type),
       fall_back_required_(false),
       body_(body),
+      fetch_type_(fetch_type),
       weak_factory_(this) {
   DCHECK(delegate_) << "ServiceWorkerURLRequestJob requires a delegate";
 }
@@ -481,6 +483,7 @@ ServiceWorkerURLRequestJob::CreateFetchRequest() {
     request->referrer =
         Referrer(GURL(request_->referrer()), blink::WebReferrerPolicyDefault);
   }
+  request->fetch_type = fetch_type_;
   return request;
 }
 
@@ -564,7 +567,7 @@ void ServiceWorkerURLRequestJob::DidDispatchFetchEvent(
     ServiceWorkerStatusCode status,
     ServiceWorkerFetchEventResult fetch_result,
     const ServiceWorkerResponse& response,
-    scoped_refptr<ServiceWorkerVersion> version) {
+    const scoped_refptr<ServiceWorkerVersion>& version) {
   fetch_dispatcher_.reset();
   ServiceWorkerMetrics::RecordFetchEventStatus(is_main_resource_load_, status);
 
@@ -604,7 +607,8 @@ void ServiceWorkerURLRequestJob::DidDispatchFetchEvent(
     // we returns a fall_back_required response to the renderer.
     if ((request_mode_ == FETCH_REQUEST_MODE_CORS ||
          request_mode_ == FETCH_REQUEST_MODE_CORS_WITH_FORCED_PREFLIGHT) &&
-        delegate_->GetRequestingOrigin() != request()->url().GetOrigin()) {
+        !request()->initiator().IsSameOriginWith(
+            url::Origin(request()->url()))) {
       fall_back_required_ = true;
       RecordResult(ServiceWorkerMetrics::REQUEST_JOB_FALLBACK_FOR_CORS);
       CreateResponseHeader(

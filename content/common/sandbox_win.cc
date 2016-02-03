@@ -681,11 +681,6 @@ base::Process StartSandboxedProcess(
 
   ProcessDebugFlags(cmd_line);
 
-  // Prefetch hints on windows:
-  // Using a different prefetch profile per process type will allow Windows
-  // to create separate pretetch settings for browser, renderer etc.
-  cmd_line->AppendArg(base::StringPrintf("/prefetch:%d", base::Hash(type_str)));
-
   if ((!delegate->ShouldSandbox()) ||
       browser_command_line.HasSwitch(switches::kNoSandbox) ||
       cmd_line->HasSwitch(switches::kNoSandbox)) {
@@ -698,11 +693,16 @@ base::Process StartSandboxedProcess(
 
   sandbox::TargetPolicy* policy = g_broker_services->CreatePolicy();
 
-  sandbox::MitigationFlags mitigations = sandbox::MITIGATION_HEAP_TERMINATE |
-                                         sandbox::MITIGATION_BOTTOM_UP_ASLR |
-                                         sandbox::MITIGATION_DEP |
-                                         sandbox::MITIGATION_DEP_NO_ATL_THUNK |
-                                         sandbox::MITIGATION_SEHOP;
+  // Pre-startup mitigations.
+  sandbox::MitigationFlags mitigations =
+      sandbox::MITIGATION_HEAP_TERMINATE |
+      sandbox::MITIGATION_BOTTOM_UP_ASLR |
+      sandbox::MITIGATION_DEP |
+      sandbox::MITIGATION_DEP_NO_ATL_THUNK |
+      sandbox::MITIGATION_SEHOP |
+      sandbox::MITIGATION_NONSYSTEM_FONT_DISABLE |
+      sandbox::MITIGATION_IMAGE_LOAD_NO_REMOTE |
+      sandbox::MITIGATION_IMAGE_LOAD_NO_LOW_LABEL;
 
   if (policy->SetProcessMitigations(mitigations) != sandbox::SBOX_ALL_OK)
     return base::Process();
@@ -715,6 +715,7 @@ base::Process StartSandboxedProcess(
   }
 #endif
 
+  // Post-startup mitigations.
   mitigations = sandbox::MITIGATION_STRICT_HANDLE_CHECKS |
                 sandbox::MITIGATION_DLL_SEARCH_ORDER;
 

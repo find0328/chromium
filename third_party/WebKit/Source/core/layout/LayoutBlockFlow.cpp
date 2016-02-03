@@ -375,16 +375,6 @@ inline bool LayoutBlockFlow::layoutBlockFlow(bool relayoutChildren, LayoutUnit &
     else
         layoutBlockChildren(relayoutChildren, layoutScope, beforeEdge, afterEdge);
 
-    if (needsRecalcLogicalWidthAfterLayoutChildren()) {
-        // In perpendicular writing-mode, min-content logicalWidth depends on the child's logicalHeight,
-        // so logicalWidth needs to be updated after children layout is done.
-        // Strictly speaking, children need re-layout if logicalWidth is changed, but in most cases,
-        // perpendicular children do not re-flow according to parent's logicalWidth.
-        clearNeedsRecalcLogicalWidthAfterLayoutChildren();
-        setPreferredLogicalWidthsDirty(MarkOnlyThis);
-        updateLogicalWidthAndColumnWidth();
-    }
-
     // Expand our intrinsic height to encompass floats.
     if (lowestFloatLogicalBottom() > (logicalHeight() - afterEdge) && createsNewFormattingContext())
         setLogicalHeight(lowestFloatLogicalBottom() + afterEdge);
@@ -1869,7 +1859,7 @@ LayoutUnit LayoutBlockFlow::getClearDelta(LayoutBox* child, LayoutUnit logicalTo
                 return newLogicalTop - logicalTop;
             }
 
-            newLogicalTop = nextFloatLogicalBottomBelow(newLogicalTop);
+            newLogicalTop = nextFloatLogicalBottomBelowForBlock(newLogicalTop);
             ASSERT(newLogicalTop >= logicalTop);
             if (newLogicalTop < logicalTop)
                 break;
@@ -2045,7 +2035,7 @@ void LayoutBlockFlow::invalidatePaintForOverhangingFloats(bool paintAllDescendan
         // Only issue paint invaldiations for the object if it is overhanging, is not in its own layer, and
         // is our responsibility to paint (m_shouldPaint is set). When paintAllDescendants is true, the latter
         // condition is replaced with being a descendant of us.
-        if (logicalBottomForFloat(floatingObject) > logicalHeight()
+        if (isOverhangingFloat(floatingObject)
             && !floatingObject.layoutObject()->hasSelfPaintingLayer()
             && (floatingObject.shouldPaint() || (paintAllDescendants && floatingObject.layoutObject()->isDescendantOf(this)))) {
 
@@ -2461,7 +2451,7 @@ bool LayoutBlockFlow::hasOverhangingFloat(LayoutBox* layoutBox)
     if (it == floatingObjectSet.end())
         return false;
 
-    return logicalBottomForFloat(*it->get()) > logicalHeight();
+    return isOverhangingFloat(**it);
 }
 
 void LayoutBlockFlow::addIntrudingFloats(LayoutBlockFlow* prev, LayoutUnit logicalLeftOffset, LayoutUnit logicalTopOffset)
@@ -2567,29 +2557,19 @@ LayoutUnit LayoutBlockFlow::lowestFloatLogicalBottom(FloatingObject::Type floatT
     return m_floatingObjects->lowestFloatLogicalBottom(floatType);
 }
 
-LayoutUnit LayoutBlockFlow::nextFloatLogicalBottomBelow(LayoutUnit logicalHeight, ShapeOutsideFloatOffsetMode offsetMode) const
+LayoutUnit LayoutBlockFlow::nextFloatLogicalBottomBelow(LayoutUnit logicalHeight) const
+{
+    if (!m_floatingObjects)
+        return logicalHeight;
+    return m_floatingObjects->findNextFloatLogicalBottomBelow(logicalHeight);
+}
+
+LayoutUnit LayoutBlockFlow::nextFloatLogicalBottomBelowForBlock(LayoutUnit logicalHeight) const
 {
     if (!m_floatingObjects)
         return logicalHeight;
 
-    LayoutUnit logicalBottom;
-    const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
-    FloatingObjectSetIterator end = floatingObjectSet.end();
-    for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it) {
-        const FloatingObject& floatingObject = *it->get();
-        LayoutUnit floatLogicalBottom = logicalBottomForFloat(floatingObject);
-        ShapeOutsideInfo* shapeOutside = floatingObject.layoutObject()->shapeOutsideInfo();
-        if (shapeOutside && (offsetMode == ShapeOutsideFloatShapeOffset)) {
-            LayoutUnit shapeLogicalBottom = logicalTopForFloat(floatingObject) + marginBeforeForChild(*floatingObject.layoutObject()) + shapeOutside->shapeLogicalBottom();
-            // Use the shapeLogicalBottom unless it extends outside of the margin box, in which case it is clipped.
-            if (shapeLogicalBottom < floatLogicalBottom)
-                floatLogicalBottom = shapeLogicalBottom;
-        }
-        if (floatLogicalBottom > logicalHeight)
-            logicalBottom = logicalBottom ? std::min(floatLogicalBottom, logicalBottom) : floatLogicalBottom;
-    }
-
-    return logicalBottom;
+    return m_floatingObjects->findNextFloatLogicalBottomBelowForBlock(logicalHeight);
 }
 
 bool LayoutBlockFlow::hitTestFloats(HitTestResult& result, const HitTestLocation& locationInContainer, const LayoutPoint& accumulatedOffset)
@@ -2636,6 +2616,39 @@ LayoutUnit LayoutBlockFlow::logicalRightFloatOffsetForLine(LayoutUnit logicalTop
         return m_floatingObjects->logicalRightOffset(fixedOffset, logicalTop, logicalHeight);
 
     return fixedOffset;
+}
+
+void LayoutBlockFlow::setAncestorShouldPaintFloatingObject(const LayoutBox& floatBox, bool shouldPaint)
+{
+    ASSERT(floatBox.isFloating());
+    ASSERT(!floatBox.hasSelfPaintingLayer());
+    for (LayoutObject* ancestor = floatBox.parent(); ancestor && ancestor->isLayoutBlockFlow(); ancestor = ancestor->parent()) {
+        LayoutBlockFlow* ancestorBlock = toLayoutBlockFlow(ancestor);
+        FloatingObjects* ancestorFloatingObjects = ancestorBlock->m_floatingObjects.get();
+        if (!ancestorFloatingObjects)
+            break;
+        FloatingObjectSet::iterator it = ancestorFloatingObjects->mutableSet().find<FloatingObjectHashTranslator>(const_cast<LayoutBox*>(&floatBox));
+        if (it == ancestorFloatingObjects->mutableSet().end())
+            break;
+
+        FloatingObject& floatingObject = **it;
+        if (shouldPaint) {
+            ASSERT(!floatingObject.shouldPaint());
+            // This repeats the logic in addOverhangingFloats() about shouldPaint flag:
+            // - The nearest enclosing block in which the float doesn't overhang paints the float;
+            // - Or even if the float overhangs, if the ancestor block has self-painting layer, it
+            //   paints the float.
+            if (ancestorBlock->hasSelfPaintingLayer() || !ancestorBlock->isOverhangingFloat(floatingObject)) {
+                floatingObject.setShouldPaint(true);
+                return;
+            }
+        } else if (floatingObject.shouldPaint()) {
+            floatingObject.setShouldPaint(false);
+            return;
+        }
+    }
+    // We should have found the ancestor to update shouldPaint flag.
+    ASSERT_NOT_REACHED();
 }
 
 IntRect alignSelectionRectToDevicePixels(LayoutRect& rect)

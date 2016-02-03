@@ -62,6 +62,7 @@ ContentSettingImageView::ContentSettingImageView(
   image()->EnableCanvasFlippingForRTLUI(true);
   image()->SetAccessibilityFocusable(true);
   label()->SetElideBehavior(gfx::NO_ELIDE);
+  label()->SetVisible(false);
 
   slide_animator_.SetSlideDuration(kAnimationDurationMS);
   slide_animator_.SetTweenType(gfx::Tween::LINEAR);
@@ -203,6 +204,15 @@ void ContentSettingImageView::OnMouseReleased(const ui::MouseEvent& event) {
   }
   if (activated)
     OnClick();
+}
+
+bool ContentSettingImageView::OnKeyPressed(const ui::KeyEvent& event) {
+  if (event.key_code() != ui::VKEY_SPACE && event.key_code() != ui::VKEY_RETURN)
+    return false;
+
+  ink_drop_delegate_->OnAction(views::InkDropState::ACTIVATED);
+  OnClick();
+  return true;
 }
 
 void ContentSettingImageView::OnGestureEvent(ui::GestureEvent* event) {

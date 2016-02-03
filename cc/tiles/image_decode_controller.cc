@@ -111,6 +111,14 @@ bool ImageDecodeController::GetTaskForImageAndRef(
   TRACE_EVENT1("disabled-by-default-cc.debug",
                "ImageDecodeController::GetTaskForImageAndRef", "key",
                key.ToString());
+
+  // If the target size is empty, we can skip this image during draw (and thus
+  // we don't need to decode it or ref it).
+  if (key.target_size().IsEmpty()) {
+    *task = nullptr;
+    return false;
+  }
+
   // If we're not going to do a scale, we will just create a task to preroll the
   // image the first time we see it. This doesn't need to account for memory.
   // TODO(vmpstr): We can also lock the original sized image, in which case it
@@ -197,7 +205,7 @@ void ImageDecodeController::UnrefImage(const DrawImage& image) {
   // 1. The ref did not reach 0, which means we have to keep the image locked.
   // 2. The ref reached 0, we should unlock it.
   //   2a. The image isn't in the locked cache because we didn't get to decode
-  //       it yet.
+  //       it yet (or failed to decode it).
   //   2b. Unlock the image but keep it in list.
   const ImageKey& key = ImageKey::FromDrawImage(image);
   DCHECK(CanHandleImage(key, image));
@@ -266,6 +274,10 @@ void ImageDecodeController::DecodeImage(const ImageKey& key,
   // needs to be decoded again, we have to create a new task.
   pending_image_tasks_.erase(key);
 
+  // Abort if we failed to decode the image.
+  if (!decoded_image)
+    return;
+
   // We could have finished all of the raster tasks (cancelled) while this image
   // decode task was running, which means that we now have a locked image but no
   // ref counts. Unlock it immediately in this case.
@@ -314,19 +326,18 @@ ImageDecodeController::DecodeImageInternal(const ImageKey& key,
     bool result = image->readPixels(
         decoded_info, decoded_pixels.get(), decoded_info.minRowBytes(),
         key.src_rect().x(), key.src_rect().y(), SkImage::kAllow_CachingHint);
-    DCHECK(result);
+
+    if (!result)
+      return nullptr;
   }
 
   SkPixmap decoded_pixmap(decoded_info, decoded_pixels.get(),
                           decoded_info.minRowBytes());
 
   // Now scale the pixels into the destination size.
-  // TODO(vmpstr): Once we support skipping images altogether, we can remove
-  // this and skip drawing images that are empty in size. crbug.com/581163
-  const gfx::Size& target_size =
-      key.target_size().IsEmpty() ? gfx::Size(1, 1) : key.target_size();
-  SkImageInfo scaled_info =
-      SkImageInfo::MakeN32Premul(target_size.width(), target_size.height());
+  DCHECK(!key.target_size().IsEmpty());
+  SkImageInfo scaled_info = SkImageInfo::MakeN32Premul(
+      key.target_size().width(), key.target_size().height());
   scoped_ptr<base::DiscardableMemory> scaled_pixels;
   {
     TRACE_EVENT0(
@@ -360,6 +371,10 @@ DecodedDrawImage ImageDecodeController::GetDecodedImageForDraw(
                key.ToString());
   if (!CanHandleImage(key, draw_image))
     return DecodedDrawImage(draw_image.image(), draw_image.filter_quality());
+
+  // If the target size is empty, we can skip this image draw.
+  if (key.target_size().IsEmpty())
+    return DecodedDrawImage(nullptr, kNone_SkFilterQuality);
 
   base::AutoLock lock(lock_);
   auto decoded_images_it = FindImage(&decoded_images_, key);
@@ -405,6 +420,10 @@ DecodedDrawImage ImageDecodeController::GetDecodedImageForDraw(
     // the compositor thread for the duration of the decode!
     base::AutoUnlock unlock(lock_);
     decoded_image = DecodeImageInternal(key, draw_image.image());
+
+    // Skip the image if we couldn't decode it.
+    if (!decoded_image)
+      return DecodedDrawImage(nullptr, kNone_SkFilterQuality);
     check_at_raster_cache = true;
   }
 
@@ -448,7 +467,7 @@ void ImageDecodeController::DrawWithImageFinished(
                "ImageDecodeController::DrawWithImageFinished", "key",
                ImageKey::FromDrawImage(image).ToString());
   ImageKey key = ImageKey::FromDrawImage(image);
-  if (!CanHandleImage(key, image))
+  if (!decoded_image.image() || !CanHandleImage(key, image))
     return;
 
   if (decoded_image.is_at_raster_decode())
@@ -624,13 +643,6 @@ ImageDecodeControllerKey ImageDecodeControllerKey::FromDrawImage(
 
   // Start with the quality that was requested.
   SkFilterQuality quality = image.filter_quality();
-
-  // Drop down immediately to low quality if this is a negative scale (Skia
-  // doesn't handle this right now).
-  // TODO(vmpstr): We should be able to handle this in the same way that we
-  // handle positive scale, except just flipped around. crbug.com/576389.
-  if (scale.width() < 0.f || scale.height() < 0.f)
-    quality = std::min(quality, kLow_SkFilterQuality);
 
   // If we're not going to do a scale, we can use low filter quality. Note that
   // checking if the sizes are the same is better than checking if scale is 1.f,

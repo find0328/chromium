@@ -628,6 +628,27 @@ float StyleBuilderConverter::convertNumberOrPercentage(StyleResolverState& state
     return primitiveValue.getFloatValue() / 100.0f;
 }
 
+StyleMotionRotation StyleBuilderConverter::convertMotionRotation(StyleResolverState&, const CSSValue& value)
+{
+    StyleMotionRotation result(0, MotionRotationFixed);
+
+    const CSSValueList& list = toCSSValueList(value);
+    ASSERT(list.length() == 1 || list.length() == 2);
+    for (const auto& item : list) {
+        const CSSPrimitiveValue& primitiveValue = toCSSPrimitiveValue(*item);
+        if (primitiveValue.getValueID() == CSSValueAuto) {
+            result.type = MotionRotationAuto;
+        } else if (primitiveValue.getValueID() == CSSValueReverse) {
+            result.type = MotionRotationAuto;
+            result.angle += 180;
+        } else {
+            result.angle += primitiveValue.computeDegrees();
+        }
+    }
+
+    return result;
+}
+
 template <CSSValueID cssValueFor0, CSSValueID cssValueFor100>
 static Length convertPositionLength(StyleResolverState& state, const CSSValue& value)
 {
@@ -748,11 +769,6 @@ LengthSize StyleBuilderConverter::convertRadius(StyleResolverState& state, const
     const CSSValuePair& pair = toCSSValuePair(value);
     Length radiusWidth = toCSSPrimitiveValue(pair.first()).convertToLength(state.cssToLengthConversionData());
     Length radiusHeight = toCSSPrimitiveValue(pair.second()).convertToLength(state.cssToLengthConversionData());
-    float width = radiusWidth.value();
-    float height = radiusHeight.value();
-    ASSERT(width >= 0 && height >= 0);
-    if (width <= 0 || height <= 0)
-        return LengthSize(Length(0, Fixed), Length(0, Fixed));
     return LengthSize(radiusWidth, radiusHeight);
 }
 
@@ -954,9 +970,17 @@ RespectImageOrientationEnum StyleBuilderConverter::convertImageOrientation(Style
     return primitiveValue.getValueID() == CSSValueFromImage ? RespectImageOrientation : DoNotRespectImageOrientation;
 }
 
-PassRefPtr<StylePath> StyleBuilderConverter::convertPath(StyleResolverState&, CSSValue& value)
+PassRefPtr<StylePath> StyleBuilderConverter::convertPath(StyleResolverState&, const CSSValue& value)
 {
     return toCSSPathValue(value).cachedPath();
+}
+
+PassRefPtr<StylePath> StyleBuilderConverter::convertPathOrNone(StyleResolverState& state, const CSSValue& value)
+{
+    if (value.isPathValue())
+        return convertPath(state, value);
+    ASSERT(value.isPrimitiveValue() && toCSSPrimitiveValue(value).getValueID() == CSSValueNone);
+    return nullptr;
 }
 
 } // namespace blink

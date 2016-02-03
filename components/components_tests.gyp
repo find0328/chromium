@@ -76,6 +76,7 @@
       'bookmarks/managed/managed_bookmarks_tracker_unittest.cc',
     ],
     'browser_sync_unittest_sources': [
+      'browser_sync/browser/profile_sync_service_startup_unittest.cc',
       'browser_sync/browser/profile_sync_service_unittest.cc',
     ],
     'browser_watcher_unittest_sources': [
@@ -410,12 +411,16 @@
       'omnibox/browser/history_quick_provider_unittest.cc',
       'omnibox/browser/history_url_provider_unittest.cc',
       'omnibox/browser/in_memory_url_index_types_unittest.cc',
+      'omnibox/browser/in_memory_url_index_unittest.cc',
       'omnibox/browser/keyword_provider_unittest.cc',
+      'omnibox/browser/omnibox_edit_unittest.cc',
       'omnibox/browser/omnibox_field_trial_unittest.cc',
       'omnibox/browser/omnibox_popup_model_unittest.cc',
       'omnibox/browser/omnibox_view_unittest.cc',
       'omnibox/browser/scored_history_match_unittest.cc',
+      'omnibox/browser/shortcuts_backend_unittest.cc',
       'omnibox/browser/shortcuts_database_unittest.cc',
+      'omnibox/browser/shortcuts_provider_unittest.cc',
       'omnibox/browser/suggestion_answer_unittest.cc',
       'omnibox/browser/zero_suggest_provider_unittest.cc',
     ],
@@ -615,9 +620,14 @@
     'rlz_unittest_sources': [
       'rlz/rlz_tracker_unittest.cc',
     ],
+    'safe_browsing_db_mobile_unittest_sources': [
+      'safe_browsing_db/remote_database_manager_unittest.cc',
+      'safe_browsing_db/safe_browsing_api_handler_unittest.cc',
+    ],
     'safe_browsing_db_unittest_sources': [
       'safe_browsing_db/prefix_set_unittest.cc',
       'safe_browsing_db/util_unittest.cc',
+      'safe_browsing_db/v4_protocol_manager_unittest.cc',
     ],
     'safe_json_unittest_sources': [
       'safe_json/json_sanitizer_unittest.cc',
@@ -639,9 +649,9 @@
       'scheduler/child/scheduler_tqm_delegate_for_test.cc',
       'scheduler/child/scheduler_tqm_delegate_for_test.h',
       'scheduler/child/scheduler_tqm_delegate_impl_unittest.cc',
-      'scheduler/child/virtual_time_tqm_delegate_unittest.cc',
       'scheduler/child/webthread_impl_for_worker_scheduler_unittest.cc',
       'scheduler/child/worker_scheduler_impl_unittest.cc',
+      'scheduler/renderer/auto_advancing_virtual_time_domain_unittest.cc',
       'scheduler/renderer/deadline_task_runner_unittest.cc',
       'scheduler/renderer/idle_time_estimator_unittest.cc',
       'scheduler/renderer/render_widget_signals_unittest.cpp',
@@ -659,7 +669,7 @@
     'search_engines_unittest_sources': [
       'search_engines/default_search_manager_unittest.cc',
       'search_engines/default_search_pref_migration_unittest.cc',
-      'search_engines/desktop_search_win_unittest.cc',
+      'search_engines/desktop_search_utils_unittest.cc',
       'search_engines/keyword_table_unittest.cc',
       'search_engines/search_engine_data_type_controller_unittest.cc',
       'search_engines/search_host_to_urls_map_unittest.cc',
@@ -788,6 +798,7 @@
     ],
     'update_client_unittest_sources': [
       'update_client/component_patcher_unittest.cc',
+      'update_client/client_update_protocol_ecdsa_unittest.cc',
       'update_client/crx_downloader_unittest.cc',
       'update_client/ping_manager_unittest.cc',
       'update_client/request_sender_unittest.cc',
@@ -1097,6 +1108,7 @@
         'components.gyp:sync_sessions',
         'components.gyp:sync_sessions_test_support',
         'components.gyp:syncable_prefs_test_support',
+        'components.gyp:toolbar_test_support',
         'components.gyp:translate_core_browser',
         'components.gyp:translate_core_common',
         'components.gyp:translate_core_language_detection',
@@ -1268,6 +1280,14 @@
                 }],
               ],
             }],
+            ['safe_browsing == 2 and OS != "ios"', {
+              'dependencies': [
+                'components.gyp:safe_browsing_db_mobile',
+              ],
+              'sources': [
+                '<@(safe_browsing_db_mobile_unittest_sources)',
+              ],
+            }],
           ],
         }, { # 'OS == "ios"'
           'sources': [
@@ -1283,7 +1303,6 @@
             '<(PRODUCT_DIR)/ui_test.pak',
           ],
           'dependencies': [
-            '../ios/ios_tests.gyp:test_support_ios',
             '../ios/web/ios_web.gyp:ios_web_test_support',
             '../third_party/ocmock/ocmock.gyp:ocmock',
             'components.gyp:autofill_ios_browser',
@@ -1725,6 +1744,7 @@
             '../content/content.gyp:content_gpu',
             '../content/content.gyp:content_plugin',
             '../content/content.gyp:content_renderer',
+            '../content/content_shell_and_tests.gyp:content_browser_test_base',
             '../content/content_shell_and_tests.gyp:content_browser_test_support',
             '../content/content_shell_and_tests.gyp:content_shell_lib',
             '../content/content_shell_and_tests.gyp:content_shell_pak',

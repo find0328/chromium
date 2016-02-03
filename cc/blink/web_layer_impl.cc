@@ -320,23 +320,13 @@ bool WebLayerImpl::userScrollableVertical() const {
   return layer_->user_scrollable_vertical();
 }
 
-void WebLayerImpl::setHaveScrollEventHandlers(bool have_scroll_event_handlers) {
-  layer_->SetHaveScrollEventHandlers(have_scroll_event_handlers);
-}
-
-bool WebLayerImpl::haveScrollEventHandlers() const {
-  return layer_->have_scroll_event_handlers();
-}
-
 void WebLayerImpl::addMainThreadScrollingReasons(
     uint32_t main_thread_scrolling_reasons) {
-  DCHECK(main_thread_scrolling_reasons);
   // WebLayerImpl should only know about non-transient scrolling
   // reasons. Transient scrolling reasons are computed per hit test.
-  // TODO(tdresser): This is comparing less than a bit flag but that's not valid
-  // if there is more than one reason given in |main_thread_scrolling_reasons|.
-  DCHECK_LE(main_thread_scrolling_reasons,
-            cc::MainThreadScrollingReason::kMaxNonTransientScrollingReasons);
+  DCHECK(main_thread_scrolling_reasons);
+  DCHECK(cc::MainThreadScrollingReason::MainThreadCanSetScrollReasons(
+      main_thread_scrolling_reasons));
   layer_->AddMainThreadScrollingReasons(main_thread_scrolling_reasons);
 }
 
@@ -466,10 +456,6 @@ void WebLayerImpl::setScrollClient(blink::WebLayerScrollClient* scroll_client) {
   } else {
     layer_->set_did_scroll_callback(base::Closure());
   }
-}
-
-bool WebLayerImpl::isOrphan() const {
-  return !layer_->layer_tree_host();
 }
 
 void WebLayerImpl::setLayerClient(cc::LayerClient* client) {

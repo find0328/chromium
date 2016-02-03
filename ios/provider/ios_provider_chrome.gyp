@@ -13,8 +13,6 @@
       'sources': [
         '../public/provider/chrome/browser/browser_constants.cc',
         '../public/provider/chrome/browser/browser_constants.h',
-        '../public/provider/chrome/browser/browser_state/chrome_browser_state.cc',
-        '../public/provider/chrome/browser/browser_state/chrome_browser_state.h',
         '../public/provider/chrome/browser/browser_state/chrome_browser_state_manager.h',
         '../public/provider/chrome/browser/chrome_browser_provider.cc',
         '../public/provider/chrome/browser/chrome_browser_provider.h',
@@ -42,6 +40,25 @@
         '../../net/net.gyp:net',
         '../web/ios_web.gyp:ios_web',
         'ios_provider_web.gyp:ios_provider_web',
+      ],
+    },
+    {
+      # GN version: //ios/public/provider/chrome/browser:test_support
+      'target_name': 'ios_provider_chrome_browser_test_support',
+      'type': 'static_library',
+      'sources': [
+        '../public/provider/chrome/browser/test_chrome_browser_provider.h',
+        '../public/provider/chrome/browser/test_chrome_browser_provider.mm',
+        '../public/provider/chrome/browser/test_chrome_provider_initializer.cc',
+        '../public/provider/chrome/browser/test_chrome_provider_initializer.h',
+        '../public/provider/chrome/browser/test_updatable_resource_provider.h',
+        '../public/provider/chrome/browser/test_updatable_resource_provider.mm',
+      ],
+      'dependencies': [
+        '../../base/base.gyp:base',
+        '../../components/components.gyp:signin_ios_browser_test_support',
+        '../../testing/gtest.gyp:gtest',
+        'ios_provider_chrome_browser',
       ],
     },
   ],

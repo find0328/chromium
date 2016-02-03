@@ -54,6 +54,7 @@
 }
 
 #first-run-cloud-checkbox,
+#first-run-flow-cloud-pref,
 #first-run-text {
   font-size: 1.0em;
   line-height: 1.5em;
@@ -66,6 +67,10 @@
   padding-bottom: 24px;
 }
 
+#first-run-cloud-checkbox::shadow #checkboxLabel {
+  -webkit-padding-start: 16px;
+}
+
 #first-run-flow {
   background-color: rgb(33, 150, 243);
   padding: 24px 16px 4px 16px;
@@ -73,17 +78,17 @@
   z-index: 1;
 }
 
+#first-run-flow a {
+  color: white;
+  text-decoration: none;
+}
+
 #first-run-flow-cloud-pref {
   color: white;
   display: flex;
 }
 
-#first-run-flow-cloud-pref a {
-  color: white;
-  text-decoration: none;
-}
-
-#first-run-learn-more {
+.first-run-learn-more {
   font-weight: bold;
   text-transform: uppercase;
 }
@@ -103,11 +108,9 @@
 }
 
 paper-checkbox {
-  --paper-checkbox-checked-color: rgb(33, 150, 243);
-  --paper-checkbox-checked-ink-color: rgb(33, 150, 243);
-  --paper-checkbox-label-color: white;
+  --paper-checkbox-checked-color: white;
+  --paper-checkbox-checkmark-color: rgb(33, 150, 243);
   --paper-checkbox-unchecked-color: white;
-  --paper-checkbox-unchecked-ink-color: white;
 }
 
 paper-item {

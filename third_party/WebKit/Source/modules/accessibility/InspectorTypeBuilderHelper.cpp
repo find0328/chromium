@@ -11,6 +11,7 @@
 
 namespace blink {
 
+using namespace HTMLNames;
 using TypeBuilder::Accessibility::AXValueNativeSourceType;
 using TypeBuilder::Accessibility::AXRelatedNode;
 using TypeBuilder::Accessibility::AXValueSourceType;
@@ -222,24 +223,26 @@ AXValueNativeSourceType::Enum nativeSourceType(AXTextFromNativeHTML nativeSource
     }
 }
 
-
 PassRefPtr<AXValueSource> createValueSource(NameSource& nameSource)
 {
-    String attribute = nameSource.attribute.toString();
     AXValueSourceType::Enum type = valueSourceType(nameSource.type);
     RefPtr<AXValueSource> valueSource = AXValueSource::create().setType(type);
     RefPtr<AXValue> value;
     if (!nameSource.relatedObjects.isEmpty()) {
-        AXValueType::Enum valueType = nameSource.attributeValue.isNull() ? AXValueType::NodeList : AXValueType::IdrefList;
-        value = createRelatedNodeListValue(nameSource.relatedObjects, valueType);
-        if (!nameSource.attributeValue.isNull())
-            value->setValue(JSONString::create(nameSource.attributeValue.string()));
-        valueSource->setValue(value);
-    } else if (!nameSource.text.isNull()) {
-        valueSource->setValue(createValue(nameSource.text));
+        if (nameSource.attribute == aria_labelledbyAttr || nameSource.attribute == aria_labeledbyAttr) {
+            RefPtr<AXValue> attributeValue = createRelatedNodeListValue(nameSource.relatedObjects, AXValueType::IdrefList);
+            if (!nameSource.attributeValue.isNull())
+                attributeValue->setValue(JSONString::create(nameSource.attributeValue.string()));
+            valueSource->setAttributeValue(attributeValue);
+        } else if (nameSource.attribute == QualifiedName::null()) {
+            RefPtr<AXValue> nativeSourceValue = createRelatedNodeListValue(nameSource.relatedObjects, AXValueType::NodeList);
+            valueSource->setNativeSourceValue(nativeSourceValue);
+        }
     } else if (!nameSource.attributeValue.isNull()) {
-        valueSource->setValue(createValue(nameSource.attributeValue));
+        valueSource->setAttributeValue(createValue(nameSource.attributeValue));
     }
+    if (!nameSource.text.isNull())
+        valueSource->setValue(createValue(nameSource.text, AXValueType::ComputedString));
     if (nameSource.attribute != QualifiedName::null())
         valueSource->setAttribute(nameSource.attribute.localName().string());
     if (nameSource.superseded)

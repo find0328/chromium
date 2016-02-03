@@ -40,17 +40,18 @@ public:
     LengthValue* multiply(double, ExceptionState&);
     LengthValue* divide(double, ExceptionState&);
 
+    virtual bool containsPercent() const = 0;
+
     static LengthValue* parse(const String& cssString, ExceptionState&);
     static LengthValue* fromValue(double value, const String& typeStr, ExceptionState&);
     static LengthValue* fromDictionary(const CalcDictionary&, ExceptionState&);
-
-    LengthValue* clone() const;
 
 protected:
     LengthValue() {}
 
     static LengthUnit lengthUnitFromName(const String&);
-    static const String& lengthTypeToString(LengthUnit type);
+    static const String& lengthTypeToString(LengthUnit);
+    static CSSPrimitiveValue::UnitType lengthTypeToPrimitiveType(LengthUnit);
 
     virtual LengthValue* addInternal(const LengthValue* other, ExceptionState&);
     virtual LengthValue* subtractInternal(const LengthValue* other, ExceptionState&);

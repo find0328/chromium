@@ -13,7 +13,6 @@
 using std::string;
 
 namespace net {
-namespace tools {
 
 QuicClientSession::QuicClientSession(const QuicConfig& config,
                                      QuicConnection* connection,
@@ -44,7 +43,7 @@ QuicSpdyClientStream* QuicClientSession::CreateOutgoingDynamicStream(
     DVLOG(1) << "Encryption not active so no outgoing stream created.";
     return nullptr;
   }
-  if (GetNumOpenOutgoingStreams() >= get_max_open_streams()) {
+  if (GetNumOpenOutgoingStreams() >= max_open_outgoing_streams()) {
     DVLOG(1) << "Failed to create a new outgoing stream. "
              << "Already " << GetNumOpenOutgoingStreams() << " open.";
     return nullptr;
@@ -110,6 +109,5 @@ QuicCryptoClientStreamBase* QuicClientSession::CreateQuicCryptoStream() {
       crypto_config_);
 }
 
-}  // namespace tools
 
 }  // namespace net

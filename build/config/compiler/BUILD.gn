@@ -843,9 +843,6 @@ config("default_warnings") {
 
   if (is_clang) {
     cflags += [
-      # TODO(thakis): Add -Wfor-loop-analysis to -Wall in clang, remove this:
-      "-Wfor-loop-analysis",
-
       # TODO(thakis): Consider -Wloop-analysis (turns on
       # -Wrange-loop-analysis too).
 
@@ -881,16 +878,6 @@ config("default_warnings") {
       cflags += [
         # TODO(thakis): Enable this, crbug.com/507717
         "-Wno-shift-negative-value",
-      ]
-    }
-
-    if (exec_script("//tools/clang/scripts/update.py",
-                    [ "--print-revision" ],
-                    "trim string") != "257955-1") {
-      cflags += [
-        # TODO(thakis): Remove once
-        # https://chromium-review.googlesource.com/#/c/324860/ is in.
-        "-Wno-constant-conversion",
       ]
     }
   }

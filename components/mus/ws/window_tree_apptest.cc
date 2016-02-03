@@ -397,6 +397,9 @@ class TestWindowTreeClientImpl : public mojom::WindowTreeClient,
       mojo::Map<mojo::String, mojo::Array<uint8_t>> properties) override {
     NOTIMPLEMENTED();
   }
+  void OnAccelerator(uint32_t id, mojom::EventPtr event) override {
+    NOTIMPLEMENTED();
+  }
 
   TestChangeTracker tracker_;
 
@@ -573,7 +576,6 @@ class WindowTreeAppTest : public mojo::test::ApplicationTestBase,
     ws_client1_->Bind(GetProxy(&tree_client_ptr));
 
     factory->CreateWindowTreeHost(GetProxy(&host_),
-                                  mojom::WindowTreeHostClientPtr(),
                                   std::move(tree_client_ptr));
 
     // Next we should get an embed call on the "window manager" client.

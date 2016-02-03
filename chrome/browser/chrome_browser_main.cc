@@ -23,11 +23,6 @@
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
-#include "base/prefs/json_pref_store.h"
-#include "base/prefs/pref_registry_simple.h"
-#include "base/prefs/pref_service.h"
-#include "base/prefs/pref_value_store.h"
-#include "base/prefs/scoped_user_pref_update.h"
 #include "base/profiler/scoped_profile.h"
 #include "base/profiler/scoped_tracker.h"
 #include "base/run_loop.h"
@@ -119,6 +114,11 @@
 #include "components/metrics/profiler/tracking_synchronizer.h"
 #include "components/metrics_services_manager/metrics_services_manager.h"
 #include "components/nacl/browser/nacl_browser.h"
+#include "components/prefs/json_pref_store.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/pref_value_store.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "components/rappor/rappor_service.h"
 #include "components/signin/core/common/profile_management_switches.h"
 #include "components/startup_metric_utils/browser/startup_metric_utils.h"
@@ -583,7 +583,10 @@ void SetupPreReadFieldTrial() {
       registry_path,
       base::Bind(&ChromeMetricsServiceAccessor::RegisterSyntheticFieldTrial));
 
-  // After startup is complete, update the pre-read group in the registry. The
+  // Initialize the PreRead options for the current process.
+  startup_metric_utils::InitializePreReadOptions(registry_path);
+
+  // After startup is complete, update the PreRead group in the registry. The
   // group written in the registry will be used for the next startup.
   BrowserThread::PostAfterStartupTask(
       FROM_HERE, content::BrowserThread::GetBlockingPool(),
@@ -1626,11 +1629,6 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
       BrowserThread::IO,
       FROM_HERE,
       base::Bind(nacl::NaClProcessHost::EarlyStartup));
-
-#if defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MACOSX)
-  BrowserThread::PostTask(BrowserThread::PROCESS_LAUNCHER, FROM_HERE,
-                          base::Bind(nacl::NaClProcessHost::EarlyZygoteLaunch));
-#endif  // defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MACOSX)
 #endif  // !defined(DISABLE_NACL)
 
   // Make sure initial prefs are recorded

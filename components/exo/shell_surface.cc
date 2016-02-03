@@ -17,6 +17,7 @@
 #include "ui/aura/window_property.h"
 #include "ui/base/hit_test.h"
 #include "ui/views/widget/widget.h"
+#include "ui/wm/public/activation_client.h"
 
 DECLARE_WINDOW_PROPERTY_TYPE(std::string*)
 
@@ -69,8 +70,10 @@ class ShellSurfaceWidget : public views::Widget {
 // ShellSurface, public:
 
 DEFINE_LOCAL_WINDOW_PROPERTY_KEY(std::string*, kApplicationIdKey, nullptr)
+DEFINE_LOCAL_WINDOW_PROPERTY_KEY(Surface*, kMainSurfaceKey, nullptr)
 
 ShellSurface::ShellSurface(Surface* surface) : surface_(surface) {
+  ash::Shell::GetInstance()->activation_client()->AddObserver(this);
   surface_->SetSurfaceDelegate(this);
   surface_->AddSurfaceObserver(this);
   surface_->Show();
@@ -78,12 +81,15 @@ ShellSurface::ShellSurface(Surface* surface) : surface_(surface) {
 }
 
 ShellSurface::~ShellSurface() {
+  ash::Shell::GetInstance()->activation_client()->RemoveObserver(this);
   if (surface_) {
     surface_->SetSurfaceDelegate(nullptr);
     surface_->RemoveSurfaceObserver(this);
   }
-  if (widget_)
+  if (widget_) {
+    ash::wm::GetWindowState(widget_->GetNativeWindow())->RemoveObserver(this);
     widget_->CloseNow();
+  }
 }
 
 void ShellSurface::Maximize() {
@@ -92,10 +98,28 @@ void ShellSurface::Maximize() {
   if (!widget_)
     CreateShellSurfaceWidget();
 
-  widget_->Maximize();
+  // Ask client to configure its surface if already maximized.
+  if (widget_->IsMaximized()) {
+    Configure();
+    return;
+  }
 
-  if (!configure_callback_.is_null())
-    configure_callback_.Run(widget_->GetWindowBoundsInScreen().size());
+  widget_->Maximize();
+}
+
+void ShellSurface::Restore() {
+  TRACE_EVENT0("exo", "ShellSurface::Restore");
+
+  if (!widget_)
+    return;
+
+  // Ask client to configure its surface if already restored.
+  if (!widget_->IsMaximized()) {
+    Configure();
+    return;
+  }
+
+  widget_->Restore();
 }
 
 void ShellSurface::SetFullscreen(bool fullscreen) {
@@ -104,10 +128,13 @@ void ShellSurface::SetFullscreen(bool fullscreen) {
   if (!widget_)
     CreateShellSurfaceWidget();
 
-  widget_->SetFullscreen(fullscreen);
+  // Ask client to configure its surface if fullscreen state is not changing.
+  if (widget_->IsFullscreen() == fullscreen) {
+    Configure();
+    return;
+  }
 
-  if (!configure_callback_.is_null())
-    configure_callback_.Run(widget_->GetWindowBoundsInScreen().size());
+  widget_->SetFullscreen(fullscreen);
 }
 
 void ShellSurface::SetTitle(const base::string16& title) {
@@ -164,6 +191,16 @@ void ShellSurface::SetGeometry(const gfx::Rect& geometry) {
   geometry_ = geometry;
 }
 
+// static
+void ShellSurface::SetMainSurface(aura::Window* window, Surface* surface) {
+  window->SetProperty(kMainSurfaceKey, surface);
+}
+
+// static
+Surface* ShellSurface::GetMainSurface(aura::Window* window) {
+  return window->GetProperty(kMainSurfaceKey);
+}
+
 scoped_refptr<base::trace_event::TracedValue> ShellSurface::AsTracedValue()
     const {
   scoped_refptr<base::trace_event::TracedValue> value =
@@ -205,8 +242,15 @@ bool ShellSurface::IsSurfaceSynchronized() const {
 // SurfaceObserver overrides:
 
 void ShellSurface::OnSurfaceDestroying(Surface* surface) {
+  if (widget_)
+    SetMainSurface(widget_->GetNativeWindow(), nullptr);
   surface->RemoveSurfaceObserver(this);
   surface_ = nullptr;
+
+  // Hide widget before surface is destroyed. This allows hide animations to
+  // run using the current surface contents.
+  if (widget_)
+    widget_->Hide();
 
   // Note: In its use in the Wayland server implementation, the surface
   // destroyed callback may destroy the ShellSurface instance. This call needs
@@ -250,6 +294,37 @@ gfx::Size ShellSurface::GetPreferredSize() const {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ash::wm::WindowStateObserver overrides:
+
+void ShellSurface::OnPostWindowStateTypeChange(
+    ash::wm::WindowState* window_state,
+    ash::wm::WindowStateType old_type) {
+  ash::wm::WindowStateType new_type = window_state->GetStateType();
+  if (old_type == ash::wm::WINDOW_STATE_TYPE_MAXIMIZED ||
+      new_type == ash::wm::WINDOW_STATE_TYPE_MAXIMIZED ||
+      old_type == ash::wm::WINDOW_STATE_TYPE_FULLSCREEN ||
+      new_type == ash::wm::WINDOW_STATE_TYPE_FULLSCREEN) {
+    Configure();
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// aura::client::ActivationChangeObserver overrides:
+
+void ShellSurface::OnWindowActivated(
+    aura::client::ActivationChangeObserver::ActivationReason reason,
+    aura::Window* gained_active,
+    aura::Window* lost_active) {
+  if (!widget_)
+    return;
+
+  if (gained_active == widget_->GetNativeWindow() ||
+      lost_active == widget_->GetNativeWindow()) {
+    Configure();
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // ShellSurface, private:
 
 void ShellSurface::CreateShellSurfaceWidget() {
@@ -271,10 +346,26 @@ void ShellSurface::CreateShellSurfaceWidget() {
   widget_->GetNativeWindow()->SetName("ExoShellSurface");
   widget_->GetNativeWindow()->AddChild(surface_);
   SetApplicationId(widget_->GetNativeWindow(), &application_id_);
+  SetMainSurface(widget_->GetNativeWindow(), surface_);
+
+  // Start tracking window state changes.
+  ash::wm::GetWindowState(widget_->GetNativeWindow())->AddObserver(this);
 
   // The position of a top-level shell surface is managed by Ash.
   ash::wm::GetWindowState(widget_->GetNativeWindow())
       ->set_window_position_managed(true);
+}
+
+void ShellSurface::Configure() {
+  DCHECK(widget_);
+
+  if (configure_callback_.is_null())
+    return;
+
+  configure_callback_.Run(
+      widget_->GetWindowBoundsInScreen().size(),
+      ash::wm::GetWindowState(widget_->GetNativeWindow())->GetStateType(),
+      widget_->IsActive());
 }
 
 }  // namespace exo

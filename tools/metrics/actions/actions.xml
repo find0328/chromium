@@ -2654,6 +2654,40 @@ should be able to be added at any place in this file.
   </description>
 </action>
 
+<action name="DesktopSearchRedirectionInfoBar_Dismiss">
+  <owner>fdoray@chromium.org</owner>
+  <description>
+    Recorded when the user clicks on the dismiss button in the infobar
+    explaining that a desktop search has been redirected to the default search
+    engine.
+  </description>
+</action>
+
+<action name="DesktopSearchRedirectionInfoBar_Ignore">
+  <owner>fdoray@chromium.org</owner>
+  <description>
+    Recorded when the infobar explaining that a desktop search has been
+    redirected to the default search engine is closed without user interaction.
+  </description>
+</action>
+
+<action name="DesktopSearchRedirectionInfoBar_ManageSearchSettings">
+  <owner>fdoray@chromium.org</owner>
+  <description>
+    Recorded when the user clicks on the 'Manage search settings' button in the
+    infobar explaining that a desktop search has been redirected to the default
+    search engine.
+  </description>
+</action>
+
+<action name="DesktopSearchRedirectionInfoBar_Shown">
+  <owner>fdoray@chromium.org</owner>
+  <description>
+    Recorded when the infobar explaining that a desktop search has been
+    redirected to the default search engine is shown.
+  </description>
+</action>
+
 <action name="Desktop_SwitchTask">
   <owner>bruthig@google.com</owner>
   <owner>tdanderson@google.com</owner>
@@ -3124,19 +3158,19 @@ should be able to be added at any place in this file.
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="FilterURLTermiate_About">
+<action name="FilterURLTermiate_About" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
   <obsolete>Removed in M44.</obsolete>
 </action>
 
-<action name="FilterURLTermiate_Blocked">
+<action name="FilterURLTermiate_Blocked" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
   <obsolete>Removed in M44.</obsolete>
 </action>
 
-<action name="FilterURLTermiate_Invalid">
+<action name="FilterURLTermiate_Invalid" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
   <obsolete>Removed in M44.</obsolete>
@@ -7869,23 +7903,23 @@ should be able to be added at any place in this file.
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="MobileBreakpadUploadAttempt">
+<action name="MobileBreakpadUploadAttempt" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="MobileBreakpadUploadFail">
+<action name="MobileBreakpadUploadFail" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of the metric.</description>
 </action>
 
-<action name="MobileBreakpadUploadFailure">
+<action name="MobileBreakpadUploadFailure" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
   <obsolete>Deprecated as of 5/2015</obsolete>
 </action>
 
-<action name="MobileBreakpadUploadSuccess">
+<action name="MobileBreakpadUploadSuccess" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
 </action>
@@ -8320,17 +8354,17 @@ should be able to be added at any place in this file.
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="MobilePageLoaded">
+<action name="MobilePageLoaded" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="MobilePageLoadedDesktopUserAgent">
+<action name="MobilePageLoadedDesktopUserAgent" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="MobilePageLoadedWithKeyboard">
+<action name="MobilePageLoadedWithKeyboard" not_user_triggered="true">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <description>Please enter the description of this user action.</description>
 </action>
@@ -9339,6 +9373,20 @@ should be able to be added at any place in this file.
 <action name="Options_AllowAllUsers_Enable">
   <owner>stevenjb@chromium.org</owner>
   <description>Settings: Users: Enable allowing all users</description>
+</action>
+
+<action name="Options_AndroidApps_Disable">
+  <owner>khmel@chromium.org</owner>
+  <description>
+    User changed setting to disable Android apps from running on the Chromebook.
+  </description>
+</action>
+
+<action name="Options_AndroidApps_Enable">
+  <owner>khmel@chromium.org</owner>
+  <description>
+    User changed setting to enable Android apps to run on the Chromebook.
+  </description>
 </action>
 
 <action name="Options_AppLanguage">
@@ -11945,7 +11993,7 @@ should be able to be added at any place in this file.
   <description>Please enter the description of this user action.</description>
 </action>
 
-<action name="ServiceWorker.ControlledPageLoad">
+<action name="ServiceWorker.ControlledPageLoad" not_user_triggered="true">
   <owner>nhiroki@chromium.org</owner>
   <description>
     Counts the number of page loads controlled by a Service Worker.

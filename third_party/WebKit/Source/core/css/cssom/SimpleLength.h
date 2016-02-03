@@ -31,6 +31,8 @@ public:
         return new SimpleLength(value, type);
     }
 
+    bool containsPercent() const override;
+
     double value() const { return m_value; }
     String unit() const { return LengthValue::lengthTypeToString(m_unit); }
     LengthUnit lengthUnit() const { return m_unit; }
@@ -39,7 +41,6 @@ public:
 
     StyleValueType type() const override { return StyleValueType::SimpleLengthType; }
 
-    String cssString() const override;
     PassRefPtrWillBeRawPtr<CSSValue> toCSSValue() const override;
 
 protected:

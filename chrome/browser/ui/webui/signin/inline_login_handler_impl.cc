@@ -14,7 +14,6 @@
 #include "base/macros.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/user_metrics_action.h"
-#include "base/prefs/pref_service.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -48,6 +47,7 @@
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/browser_sync/browser/profile_sync_service.h"
+#include "components/prefs/pref_service.h"
 #include "components/signin/core/browser/about_signin_internals.h"
 #include "components/signin/core/browser/account_tracker_service.h"
 #include "components/signin/core/browser/profile_oauth2_token_service.h"
@@ -386,8 +386,7 @@ bool InlineSigninHelper::HandleCrossAccountError(
     return false;
   }
 
-  Browser* browser = chrome::FindLastActiveWithProfile(
-      profile_, chrome::GetActiveDesktop());
+  Browser* browser = chrome::FindLastActiveWithProfile(profile_);
   content::WebContents* web_contents =
       browser->tab_strip_model()->GetActiveWebContents();
 
@@ -410,8 +409,7 @@ void InlineSigninHelper::ConfirmEmailAction(
     OneClickSigninSyncStarter::ConfirmationRequired confirmation_required,
     OneClickSigninSyncStarter::StartSyncMode start_mode,
     InlineSigninHelper::Action action) {
-  Browser* browser = chrome::FindLastActiveWithProfile(
-      profile_, chrome::GetActiveDesktop());
+  Browser* browser = chrome::FindLastActiveWithProfile(profile_);
   switch (action) {
     case InlineSigninHelper::CREATE_NEW_USER:
       content::RecordAction(
@@ -859,10 +857,8 @@ void InlineLoginHandlerImpl::HandleLoginError(const std::string& error_msg) {
 Browser* InlineLoginHandlerImpl::GetDesktopBrowser() {
   Browser* browser = chrome::FindBrowserWithWebContents(
       web_ui()->GetWebContents());
-  if (!browser) {
-    browser = chrome::FindLastActiveWithProfile(
-        Profile::FromWebUI(web_ui()), chrome::GetActiveDesktop());
-  }
+  if (!browser)
+    browser = chrome::FindLastActiveWithProfile(Profile::FromWebUI(web_ui()));
   return browser;
 }
 

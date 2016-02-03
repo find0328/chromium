@@ -2,15 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_PREFS_PREF_STORE_OBSERVER_MOCK_H_
-#define BASE_PREFS_PREF_STORE_OBSERVER_MOCK_H_
+#ifndef COMPONENTS_PREFS_PREF_STORE_OBSERVER_MOCK_H_
+#define COMPONENTS_PREFS_PREF_STORE_OBSERVER_MOCK_H_
 
 #include <string>
 #include <vector>
 
 #include "base/compiler_specific.h"
 #include "base/macros.h"
-#include "base/prefs/pref_store.h"
+#include "components/prefs/pref_store.h"
 
 // A mock implementation of PrefStore::Observer.
 class PrefStoreObserverMock : public PrefStore::Observer {
@@ -32,4 +32,4 @@ class PrefStoreObserverMock : public PrefStore::Observer {
   DISALLOW_COPY_AND_ASSIGN(PrefStoreObserverMock);
 };
 
-#endif  // BASE_PREFS_PREF_STORE_OBSERVER_MOCK_H_
+#endif  // COMPONENTS_PREFS_PREF_STORE_OBSERVER_MOCK_H_

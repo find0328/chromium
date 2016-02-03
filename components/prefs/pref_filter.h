@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_PREFS_PREF_FILTER_H_
-#define BASE_PREFS_PREF_FILTER_H_
+#ifndef COMPONENTS_PREFS_PREF_FILTER_H_
+#define COMPONENTS_PREFS_PREF_FILTER_H_
 
 #include <string>
 
 #include "base/callback_forward.h"
 #include "base/memory/scoped_ptr.h"
-#include "base/prefs/base_prefs_export.h"
+#include "components/prefs/base_prefs_export.h"
 
 namespace base {
 class DictionaryValue;
@@ -18,7 +18,7 @@ class Value;
 
 // Filters preferences as they are loaded from disk or updated at runtime.
 // Currently supported only by JsonPrefStore.
-class BASE_PREFS_EXPORT PrefFilter {
+class COMPONENTS_PREFS_EXPORT PrefFilter {
  public:
   // A callback to be invoked when |prefs| have been read (and possibly
   // pre-modified) and are now ready to be handed back to this callback's
@@ -52,4 +52,4 @@ class BASE_PREFS_EXPORT PrefFilter {
       base::DictionaryValue* pref_store_contents) = 0;
 };
 
-#endif  // BASE_PREFS_PREF_FILTER_H_
+#endif  // COMPONENTS_PREFS_PREF_FILTER_H_

@@ -8,11 +8,14 @@ the src/testing/buildbot directory. Maintaining these files by hand is
 too unwieldy.
 """
 
-import argparse
 import copy
 import json
+import os
 import string
 import sys
+
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.dirname(os.path.dirname(os.path.dirname(THIS_DIR)))
 
 WATERFALL = {
   'builders': [
@@ -50,6 +53,17 @@ WATERFALL = {
       },
       'build_config': 'Release',
       'swarming': True,
+      'os_type': 'win',
+    },
+    'Win7 Release (Intel)': {
+      'swarming_dimensions': {
+        'gpu': '8086:041a',
+        'os': 'Windows-2008ServerR2-SP1'
+      },
+      'build_config': 'Release',
+      # This bot is a one-off and doesn't have similar slaves in the
+      # swarming pool.
+      'swarming': False,
       'os_type': 'win',
     },
     'Mac 10.10 Release (Intel)': {
@@ -135,6 +149,7 @@ FYI_WATERFALL = {
   'builders': [
     'GPU Win Builder',
     'GPU Win Builder (dbg)',
+    'GPU Win x64 Builder',
     'GPU Mac Builder',
     'GPU Mac Builder (dbg)',
     'GPU Linux Builder',
@@ -197,6 +212,15 @@ FYI_WATERFALL = {
       'swarming': True,
       'os_type': 'win',
     },
+    'Win7 x64 Release (NVIDIA)': {
+      'swarming_dimensions': {
+        'gpu': '10de:104a',
+        'os': 'Windows-2008ServerR2-SP1'
+      },
+      'build_config': 'Release_x64',
+      'swarming': True,
+      'os_type': 'win',
+    },
     'Mac 10.10 Release (Intel)': {
       'swarming_dimensions': {
         'gpu': '8086:0a2e',
@@ -235,6 +259,26 @@ FYI_WATERFALL = {
       # This bot is a one-off and doesn't have similar slaves in the
       # swarming pool.
       'swarming': False,
+      'os_type': 'mac',
+    },
+    'Mac Retina Release': {
+      'swarming_dimensions': {
+        'gpu': '10de:0fe9',
+        'hidpi': '1',
+        'os': 'Mac'
+      },
+      'build_config': 'Release',
+      'swarming': True,
+      'os_type': 'mac',
+    },
+    'Mac Retina Debug': {
+      'swarming_dimensions': {
+        'gpu': '10de:0fe9',
+        'hidpi': '1',
+        'os': 'Mac'
+      },
+      'build_config': 'Debug',
+      'swarming': True,
       'os_type': 'mac',
     },
     'Mac 10.10 Retina Release (AMD)': {
@@ -325,14 +369,106 @@ FYI_WATERFALL = {
 }
 
 COMMON_GTESTS = {
+  # TODO(kbr): re-enable angle_deqp_gles2_tests on Linux. Currently
+  # the target is disabled in the ANGLE workspace for the GN builds.
+  'angle_deqp_gles2_tests': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+        'os_types': ['win'],
+        # Run only on the Win7 Release NVIDIA 32- and 64-bit bots (and
+        # trybots) for the time being, at least until more capacity is
+        # added.
+        'build_configs': ['Release', 'Release_x64'],
+        'swarming_dimension_sets': [
+          {
+            'gpu': '10de:104a',
+            'os': 'Windows-2008ServerR2-SP1'
+          },
+        ],
+      }
+    ],
+    'swarming_shards': 4
+  },
+  # Until we have more capacity, run angle_end2end_tests only on the
+  # FYI waterfall and the ANGLE trybots (which mirror the FYI
+  # waterfall).
+  'angle_end2end_tests': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+      }
+    ],
+    'args': ['--use-gpu-in-tests']
+  },
   'angle_unittests': {'args': ['--use-gpu-in-tests']},
+  # Until the media-only tests are extracted from content_unittests,
+  # and audio_unittests and content_unittests can be run on the commit
+  # queue with --require-audio-hardware-for-testing, run them only on
+  # the FYI waterfall.
+  #
+  # Note that the transition to the Chromium recipe has forced the
+  # removal of the --require-audio-hardware-for-testing flag for the
+  # time being. See crbug.com/574942.
+  'audio_unittests': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+      }
+    ],
+    'args': ['--use-gpu-in-tests']
+  },
   'content_gl_tests': {'args': ['--use-gpu-in-tests']},
+  # TODO(kbr): content_unittests is killing the Linux GPU swarming
+  # bots. crbug.com/582094 . It's not useful now anyway until audio
+  # hardware is deployed on the swarming bots, so stop running it
+  # everywhere.
+  # 'content_unittests': {},
   'gl_tests': {'args': ['--use-gpu-in-tests']},
   'gl_unittests': {'args': ['--use-gpu-in-tests']},
-}
-
-RELEASE_ONLY_GTESTS = {
+  # The gles2_conform_tests are closed-source and deliberately only run
+  # on the FYI waterfall.
+  'gles2_conform_test': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+      }
+    ],
+    'args': ['--use-gpu-in-tests']
+  },
+  'gles2_conform_d3d9_test': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+        'os_types': ['win']
+      }
+    ],
+    'args': [
+      '--use-gpu-in-tests',
+      '--use-angle=d3d9',
+    ],
+    'test': 'gles2_conform_test',
+  },
+  'gles2_conform_gl_test': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+        'os_types': ['win']
+      }
+    ],
+    'args': [
+      '--use-gpu-in-tests',
+      '--use-angle=gl',
+      '--disable-gpu-sandbox',
+    ],
+    'test': 'gles2_conform_test',
+  },
   'tab_capture_end2end_tests': {
+    'tester_configs': [
+      {
+        'build_configs': ['Release', 'Release_x64'],
+      }
+    ],
     'override_compile_targets': [
       'tab_capture_end2end_tests_run',
     ],
@@ -356,52 +492,15 @@ NON_SWARMED_GTESTS = {
   }
 }
 
-# Until the media-only tests are extracted from content_unittests and
-# these both can be run on the commit queue with
-# --require-audio-hardware-for-testing, run them only on the FYI
-# waterfall.
-#
-# Note that the transition to the Chromium recipe has forced the
-# removal of the --require-audio-hardware-for-testing flag for the
-# time being. See crbug.com/574942.
-FYI_ONLY_GTESTS = {
-  # Until we have more capacity, run angle_end2end_tests only on the
-  # FYI waterfall and the ANGLE trybots (which mirror the FYI
-  # waterfall).
-  'angle_end2end_tests': {'args': ['--use-gpu-in-tests']},
-  'audio_unittests': {'args': ['--use-gpu-in-tests']},
-  # TODO(kbr): content_unittests is killing the Linux GPU swarming
-  # bots. crbug.com/582094 . It's not useful now anyway until audio
-  # hardware is deployed on the swarming bots, so stop running it
-  # everywhere.
-  # 'content_unittests': {},
-  # The gles2_conform_tests are closed-source and deliberately only run
-  # on the FYI waterfall.
-  'gles2_conform_test': {'args': ['--use-gpu-in-tests']},
-  'gles2_conform_d3d9_test': {
-    'win_only': True,
-    'args': [
-      '--use-gpu-in-tests',
-      '--use-angle=d3d9',
-    ],
-    'test': 'gles2_conform_test',
-  },
-  'gles2_conform_gl_test': {
-    'win_only': True,
-    'args': [
-      '--use-gpu-in-tests',
-      '--use-angle=gl',
-      '--disable-gpu-sandbox',
-    ],
-    'test': 'gles2_conform_test',
-  }
-}
-
 DEQP_GTESTS = {
-  # TODO(kbr): re-enable angle_deqp_gles2_tests on Linux. Currently
-  # the target is disabled in the ANGLE workspace for the GN builds.
-  'angle_deqp_gles2_tests': {'win_only': True, 'swarming_shards': 4},
-  'angle_deqp_gles3_tests': {'win_only': True, 'swarming_shards': 12},
+  'angle_deqp_gles3_tests': {
+    'tester_configs': [
+      {
+        'os_types': ['win']
+      }
+    ],
+    'swarming_shards': 12
+  },
 }
 
 TELEMETRY_TESTS = {
@@ -433,24 +532,36 @@ TELEMETRY_TESTS = {
   'screenshot_sync': {},
   'trace_test': {},
   'webgl_conformance': {},
-}
-
-FYI_ONLY_TELEMETRY_TESTS = {
   'webgl_conformance_d3d9_tests': {
-    'win_only': True,
+    'tester_configs': [
+      {
+        'fyi_only': True,
+        'os_types': ['win']
+      }
+    ],
     'target_name': 'webgl_conformance',
     'extra_browser_args': [
       '--use-angle=d3d9',
     ],
   },
   'webgl_conformance_gl_tests': {
-    'win_only': True,
+    'tester_configs': [
+      {
+        'fyi_only': True,
+        'os_types': ['win']
+      }
+    ],
     'target_name': 'webgl_conformance',
     'extra_browser_args': [
       '--use-angle=gl',
     ],
   },
   'webgl2_conformance_tests': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+      },
+    ],
     'target_name': 'webgl_conformance',
     'args': [
       '--webgl-conformance-version=2.0.0',
@@ -468,13 +579,47 @@ def substitute_args(tester_config, args):
   }
   return [string.Template(arg).safe_substitute(substitutions) for arg in args]
 
-def generate_gtest(tester_config, test, test_config):
+def matches_swarming_dimensions(tester_config, dimension_sets):
+  for dimensions in dimension_sets:
+    if set(dimensions.items()).issubset(
+        tester_config['swarming_dimensions'].items()):
+      return True
+  return False
+
+def should_run_on_tester_impl(tester_name, tester_config, tc, is_fyi):
+  if tc.get('fyi_only', False) and not is_fyi:
+    return False
+  if 'names' in tc:
+    if not tester_name in tc['names']:
+      return False
+  if 'os_types' in tc:
+    if not tester_config['os_type'] in tc['os_types']:
+      return False
+  if 'build_configs' in tc:
+    if not tester_config['build_config'] in tc['build_configs']:
+      return False
+  if 'swarming_dimension_sets' in tc:
+    if not matches_swarming_dimensions(tester_config,
+                                       tc['swarming_dimension_sets']):
+      return False
+  return True
+
+def should_run_on_tester(tester_name, tester_config, test_config, is_fyi):
+  if not 'tester_configs' in test_config:
+    # If unspecified, run on all testers.
+    return True
+  for tc in test_config['tester_configs']:
+    if should_run_on_tester_impl(tester_name, tester_config, tc, is_fyi):
+      return True
+  return False
+
+def generate_gtest(tester_name, tester_config, test, test_config, is_fyi):
+  if not should_run_on_tester(tester_name, tester_config, test_config, is_fyi):
+    return None
   result = copy.deepcopy(test_config)
-  if result.get('win_only'):
-    if tester_config['os_type'] != 'win':
-      return None
-    # Don't print this in the JSON.
-    result.pop('win_only')
+  if 'tester_configs' in result:
+    # Don't print the tester_configs in the JSON.
+    result.pop('tester_configs')
   if 'test' in result:
     result['name'] = test
   else:
@@ -498,10 +643,10 @@ def generate_gtest(tester_config, test, test_config):
   # print "generating " + test
   return result
 
-def generate_telemetry_test(tester_config, test, test_config):
-  if test_config.get('win_only'):
-    if tester_config['os_type'] != 'win':
-      return None
+def generate_telemetry_test(tester_name, tester_config,
+                            test, test_config, is_fyi):
+  if not should_run_on_tester(tester_name, tester_config, test_config, is_fyi):
+    return None
   test_args = ['-v']
   # --expose-gc allows the WebGL conformance tests to more reliably
   # reproduce GC-related bugs in the V8 bindings.
@@ -510,8 +655,7 @@ def generate_telemetry_test(tester_config, test, test_config):
   if 'extra_browser_args' in test_config:
     extra_browser_args_string += ' ' + ' '.join(
         test_config['extra_browser_args'])
-  test_args.append('--extra-browser-args=\"' + extra_browser_args_string +
-                   '\"')
+  test_args.append('--extra-browser-args=' + extra_browser_args_string)
   if 'args' in test_config:
     test_args.extend(substitute_args(tester_config, test_config['args']))
   # The step name must end in 'test' or 'tests' in order for the
@@ -550,7 +694,7 @@ def generate_telemetry_test(tester_config, test, test_config):
     result['precommit_args'] = test_config['precommit_args']
   return result
 
-def generate_gtests(tester_config, test_dictionary):
+def generate_gtests(tester_name, tester_config, test_dictionary, is_fyi):
   # The relative ordering of some of the tests is important to
   # minimize differences compared to the handwritten JSON files, since
   # Python's sorts are stable and there are some tests with the same
@@ -558,16 +702,19 @@ def generate_gtests(tester_config, test_dictionary):
   # losing the order by avoiding coalescing the dictionaries into one.
   gtests = []
   for test_name, test_config in sorted(test_dictionary.iteritems()):
-    test = generate_gtest(tester_config, test_name, test_config)
+    test = generate_gtest(tester_name, tester_config,
+                          test_name, test_config, is_fyi)
     if test:
       # generate_gtest may veto the test generation on this platform.
       gtests.append(test)
   return gtests
 
-def generate_telemetry_tests(tester_config, test_dictionary):
+def generate_telemetry_tests(tester_name, tester_config,
+                             test_dictionary, is_fyi):
   isolated_scripts = []
   for test_name, test_config in sorted(test_dictionary.iteritems()):
-    test = generate_telemetry_test(tester_config, test_name, test_config)
+    test = generate_telemetry_test(
+        tester_name, tester_config, test_name, test_config, is_fyi)
     if test:
       isolated_scripts.append(test)
   return isolated_scripts
@@ -579,19 +726,13 @@ def generate_all_tests(waterfall, is_fyi):
   for name, config in waterfall['testers'].iteritems():
     gtests = []
     if config.get('deqp'):
-      gtests.extend(generate_gtests(config, DEQP_GTESTS))
+      gtests.extend(generate_gtests(name, config, DEQP_GTESTS, is_fyi))
     else:
-      gtests.extend(generate_gtests(config, COMMON_GTESTS))
-      if config['build_config'] == 'Release':
-        gtests.extend(generate_gtests(config, RELEASE_ONLY_GTESTS))
-      if is_fyi:
-        gtests.extend(generate_gtests(config, FYI_ONLY_GTESTS))
+      gtests.extend(generate_gtests(name, config, COMMON_GTESTS, is_fyi))
     isolated_scripts = []
     if not config.get('deqp'):
-      isolated_scripts.extend(generate_telemetry_tests(config, TELEMETRY_TESTS))
-      if is_fyi:
-        isolated_scripts.extend(generate_telemetry_tests(
-            config, FYI_ONLY_TELEMETRY_TESTS))
+      isolated_scripts.extend(generate_telemetry_tests(
+          name, config, TELEMETRY_TESTS, is_fyi))
     cur_tests = {}
     if gtests:
       cur_tests['gtest_tests'] = sorted(gtests, key=lambda x: x['test'])
@@ -601,18 +742,15 @@ def generate_all_tests(waterfall, is_fyi):
     tests[name] = cur_tests
   tests['AAAAA1 AUTOGENERATED FILE DO NOT EDIT'] = {}
   tests['AAAAA2 See generate_buildbot_json.py to make changes'] = {}
-  print json.dumps(tests, indent=2, separators=(',', ': '), sort_keys=True)
+  filename = 'chromium.gpu.fyi.json' if is_fyi else 'chromium.gpu.json'
+  with open(os.path.join(SRC_DIR, 'testing', 'buildbot', filename), 'w') as fp:
+    json.dump(tests, fp, indent=2, separators=(',', ': '), sort_keys=True)
+    fp.write('\n')
 
 def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--fyi', help='Generate FYI waterfall',
-                      action='store_true')
-  args = parser.parse_args()
-
-  if args.fyi:
-    sys.exit(generate_all_tests(FYI_WATERFALL, True))
-  else:
-    sys.exit(generate_all_tests(WATERFALL, False))
+  generate_all_tests(FYI_WATERFALL, True)
+  generate_all_tests(WATERFALL, False)
+  return 0
 
 if __name__ == "__main__":
   sys.exit(main())

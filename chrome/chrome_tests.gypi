@@ -551,8 +551,6 @@
       'browser/ui/webui/options/options_browsertest.cc',
       'browser/ui/webui/options/options_ui_browsertest.cc',
       'browser/ui/webui/options/options_ui_browsertest.h',
-      'browser/ui/webui/options/single_language_options_browsertest.cc',
-      'browser/ui/webui/options/single_language_options_browsertest.h',
       'browser/ui/webui/password_manager_internals/password_manager_internals_ui_browsertest.cc',
       'browser/ui/webui/print_preview/print_preview_ui_browsertest.cc',
       'browser/ui/webui/signin/inline_login_ui_browsertest.cc',
@@ -883,7 +881,7 @@
       'test/remoting/unauthenticated_browsertest.cc',
       'test/remoting/waiter.cc',
       'test/remoting/waiter.h',
-      'test/remoting/webapp_javascript_unittest.cc',
+      'test/remoting/webapp_javascript_browsertest.cc',
     ],
     'chrome_browser_tests_supervised_user_sources': [
       'browser/supervised_user/supervised_user_browsertest.cc',
@@ -971,6 +969,7 @@
       'test/data/webui/extensions/cr_extensions_browsertest.js',
       'test/data/webui/history_browsertest.js',
       'test/data/webui/md_downloads/downloads_browsertest.js',
+      'test/data/webui/md_history/md_history_browsertest.js',
       'test/data/webui/mock4js_browsertest.js',
       'test/data/webui/net_internals/bandwidth_view.js',
       'test/data/webui/net_internals/chromeos_view.js',
@@ -1583,6 +1582,7 @@
         '../components/components.gyp:password_manager_core_browser_test_support',
         '../skia/skia.gyp:skia',
         '../testing/gtest.gyp:gtest',
+        'common',
       ],
       'include_dirs': [
         '..',
@@ -1627,6 +1627,7 @@
         '../components/components.gyp:guest_view_test_support',
         '../components/components_resources.gyp:components_resources',
         '../content/app/resources/content_resources.gyp:content_resources',
+        '../content/content_shell_and_tests.gyp:content_browser_test_base',
         '../crypto/crypto.gyp:crypto_test_support',
         '../google_apis/google_apis.gyp:google_apis_test_support',
         '../net/net.gyp:net',
@@ -2128,6 +2129,7 @@
         '../components/components.gyp:ui_zoom_test_support',
         '../components/components_resources.gyp:components_resources',
         '../components/components_strings.gyp:components_strings',
+        '../content/content_shell_and_tests.gyp:content_browser_test_base',
         '../crypto/crypto.gyp:crypto_test_support',
         '../device/bluetooth/bluetooth.gyp:device_bluetooth_mocks',
         '../device/serial/serial.gyp:device_serial_test_util',
@@ -2388,6 +2390,9 @@
         # TODO(nparker) enable tests for safe_browsing==2.
         ['safe_browsing==1', {
           'sources': [ '<@(chrome_browser_tests_full_safe_browsing_sources)' ],
+          'dependencies': [
+            '../components/components.gyp:safe_browsing_metadata_proto',
+          ],
         }],
         ['enable_captive_portal_detection==1', {
           'sources': [ 'browser/captive_portal/captive_portal_browsertest.cc' ],
@@ -2647,6 +2652,7 @@
         '../base/base.gyp:base_i18n',
         '../base/base.gyp:test_support_base',
         '../components/components.gyp:autofill_content_test_support',
+        '../content/content_shell_and_tests.gyp:content_browser_test_base',
         '../media/cast/cast.gyp:cast_test_utility',
         '../net/net.gyp:net',
         '../net/net.gyp:net_test_support',
@@ -2787,11 +2793,12 @@
         '../base/base.gyp:base',
         '../components/components.gyp:invalidation_impl',
         '../components/components.gyp:invalidation_test_support',
+        '../content/content_shell_and_tests.gyp:content_browser_test_base',
         '../net/net.gyp:net',
         '../skia/skia.gyp:skia',
         '../sync/sync.gyp:sync',
-        '../sync/sync.gyp:test_support_sync_testserver',
         '../sync/sync.gyp:test_support_sync_fake_server',
+        '../sync/sync.gyp:test_support_sync_testserver',
         '../ui/app_list/app_list.gyp:app_list_test_support',
       ],
       'include_dirs': [

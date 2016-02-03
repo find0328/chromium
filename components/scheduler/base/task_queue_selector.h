@@ -34,12 +34,14 @@ class SCHEDULER_EXPORT TaskQueueSelector {
   // function is called on the main thread.
   void RemoveQueue(internal::TaskQueueImpl* queue);
 
-  // Make |queue| eligible for selection.
+  // Make |queue| eligible for selection. This function is called on the main
+  // thread. Must only be called if |queue| is disabled.
   void EnableQueue(internal::TaskQueueImpl* queue);
 
   // Disable selection from |queue|. If task blocking is enabled for the queue,
   // Observer::OnTriedToSelectBlockedWorkQueue will be emitted if the
   // SelectWorkQueueToService tries to select this disabled queue for execution.
+  // Must only be called if |queue| is enabled.
   void DisableQueue(internal::TaskQueueImpl* queue);
 
   // Called get or set the priority of |queue|.
@@ -160,9 +162,14 @@ class SCHEDULER_EXPORT TaskQueueSelector {
   void DidSelectQueueWithPriority(TaskQueue::QueuePriority priority,
                                   bool chose_delayed_over_immediate);
 
+  // No enabled queue could be selected, check if we could have chosen a
+  // disabled (blocked) work queue instead.
+  void TrySelectingBlockedQueue();
+
   // Check if we could have chosen a disabled (blocked) work queue instead.
-  // |chosen_enabled_queue| is the enabled queue that got chosen (or null).
-  void TrySelectingBlockedQueue(WorkQueue* chosen_enabled_queue);
+  // |chosen_enabled_queue| is the enabled queue that got chosen.
+  void TrySelectingBlockedQueueOverEnabledQueue(
+      const WorkQueue& chosen_enabled_queue);
 
   // Number of high priority tasks which can be run before a normal priority
   // task should be selected to prevent starvation.

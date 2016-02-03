@@ -15,7 +15,6 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram.h"
-#include "base/prefs/pref_service.h"
 #include "base/profiler/scoped_tracker.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
@@ -69,6 +68,7 @@
 #include "chrome/browser/ui/views/download/download_shelf_view.h"
 #include "chrome/browser/ui/views/exclusive_access_bubble_views.h"
 #include "chrome/browser/ui/views/extensions/bookmark_app_bubble_view.h"
+#include "chrome/browser/ui/views/extensions/extension_keybinding_registry_views.h"
 #include "chrome/browser/ui/views/frame/browser_view_layout.h"
 #include "chrome/browser/ui/views/frame/browser_view_layout_delegate.h"
 #include "chrome/browser/ui/views/frame/contents_layout_manager.h"
@@ -99,6 +99,7 @@
 #include "chrome/browser/ui/website_settings/permission_bubble_manager.h"
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/common/extensions/command.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/chromium_strings.h"
@@ -110,6 +111,7 @@
 #include "components/omnibox/browser/omnibox_popup_model.h"
 #include "components/omnibox/browser/omnibox_popup_view.h"
 #include "components/omnibox/browser/omnibox_view.h"
+#include "components/prefs/pref_service.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "components/signin/core/common/profile_management_switches.h"
 #include "components/translate/core/browser/language_state.h"
@@ -965,6 +967,11 @@ gfx::Rect BrowserView::GetBounds() const {
   return frame_->GetWindowBoundsInScreen();
 }
 
+gfx::Size BrowserView::GetContentsSize() const {
+  DCHECK(initialized_);
+  return GetTabContentsContainerView()->size();
+}
+
 bool BrowserView::IsMaximized() const {
   return frame_->IsMaximized();
 }
@@ -1040,28 +1047,6 @@ bool BrowserView::IsFullscreenBubbleVisible() const {
   return exclusive_access_bubble_ != nullptr;
 }
 
-bool BrowserView::SupportsFullscreenWithToolbar() const {
-  return false;
-}
-
-void BrowserView::UpdateFullscreenWithToolbar(bool with_toolbar) {
-  // This is currently a Mac only feature.
-  NOTIMPLEMENTED();
-}
-
-void BrowserView::ToggleFullscreenToolbar() {
-  // This is currently a Mac only feature.
-  NOTIMPLEMENTED();
-}
-
-bool BrowserView::IsFullscreenWithToolbar() const {
-  return false;
-}
-
-bool BrowserView::ShouldHideFullscreenToolbar() const {
-  return false;
-}
-
 #if defined(OS_WIN)
 void BrowserView::SetMetroSnapMode(bool enable) {
   LOCAL_HISTOGRAM_COUNTS("Metro.SnapModeToggle", enable);
@@ -1123,8 +1108,11 @@ void BrowserView::SetFocusToLocationBar(bool select_all) {
 }
 
 void BrowserView::UpdateReloadStopState(bool is_loading, bool force) {
-  toolbar_->reload_button()->ChangeMode(
-      is_loading ? ReloadButton::MODE_STOP : ReloadButton::MODE_RELOAD, force);
+  if (toolbar_->reload_button()) {
+    toolbar_->reload_button()->ChangeMode(
+        is_loading ? ReloadButton::MODE_STOP : ReloadButton::MODE_RELOAD,
+        force);
+  }
 }
 
 void BrowserView::UpdateToolbar(content::WebContents* contents) {
@@ -1270,8 +1258,12 @@ bool BrowserView::IsTabStripEditable() const {
 bool BrowserView::IsToolbarVisible() const {
   if (immersive_mode_controller_->ShouldHideTopViews())
     return false;
-  return browser_->SupportsWindowFeature(Browser::FEATURE_TOOLBAR) ||
-         browser_->SupportsWindowFeature(Browser::FEATURE_LOCATIONBAR);
+  // It's possible to reach here before we've been notified of being added to a
+  // widget, so |toolbar_| is still null.  Return false in this case so callers
+  // don't assume they can access the toolbar yet.
+  return (browser_->SupportsWindowFeature(Browser::FEATURE_TOOLBAR) ||
+          browser_->SupportsWindowFeature(Browser::FEATURE_LOCATIONBAR)) &&
+         toolbar_;
 }
 
 gfx::Rect BrowserView::GetRootWindowResizerRect() const {
@@ -1371,16 +1363,7 @@ void BrowserView::ShowOneClickSigninBubble(
 #endif
 
 void BrowserView::SetDownloadShelfVisible(bool visible) {
-  // This can be called from the superclass destructor, when it destroys our
-  // child views. At that point, browser_ is already gone.
-  if (!browser_)
-    return;
-
-  if (visible && IsDownloadShelfVisible() != visible) {
-    // Invoke GetDownloadShelf to force the shelf to be created.
-    GetDownloadShelf();
-  }
-
+  DCHECK(download_shelf_);
   browser_->UpdateDownloadShelfVisibility(visible);
 
   // SetDownloadShelfVisible can force-close the shelf, so make sure we lay out
@@ -1394,6 +1377,7 @@ bool BrowserView::IsDownloadShelfVisible() const {
 }
 
 DownloadShelf* BrowserView::GetDownloadShelf() {
+  DCHECK(browser_->SupportsWindowFeature(Browser::FEATURE_DOWNLOADSHELF));
   if (!download_shelf_.get()) {
     download_shelf_.reset(new DownloadShelfView(browser_.get(), this));
     download_shelf_->set_owned_by_client();
@@ -1842,9 +1826,7 @@ bool BrowserView::GetSavedWindowPlacement(
     // assume none were given by the window.open() command.
     if (window_rect.x() == 0 && window_rect.y() == 0) {
       gfx::Size size = window_rect.size();
-      window_rect.set_origin(
-          WindowSizer::GetDefaultPopupOrigin(size,
-                                             browser_->host_desktop_type()));
+      window_rect.set_origin(WindowSizer::GetDefaultPopupOrigin(size));
     }
 
     *bounds = window_rect;
@@ -1870,6 +1852,23 @@ void BrowserView::OnWidgetActivationChanged(views::Widget* widget,
                                             bool active) {
   if (active)
     BrowserList::SetLastActive(browser_.get());
+
+  if (!extension_keybinding_registry_ &&
+      GetFocusManager()) {  // focus manager can be null in tests.
+    extension_keybinding_registry_.reset(new ExtensionKeybindingRegistryViews(
+        browser_->profile(), GetFocusManager(),
+        extensions::ExtensionKeybindingRegistry::ALL_EXTENSIONS, this));
+  }
+
+  extensions::ExtensionCommandsGlobalRegistry* registry =
+      extensions::ExtensionCommandsGlobalRegistry::Get(browser_->profile());
+  if (active) {
+    registry->set_registry_for_active_window(
+        extension_keybinding_registry_.get());
+  } else if (registry->registry_for_active_window() ==
+             extension_keybinding_registry_.get()) {
+    registry->set_registry_for_active_window(nullptr);
+  }
 }
 
 void BrowserView::OnWindowBeginUserBoundsChange() {
@@ -2633,7 +2632,8 @@ int BrowserView::GetRenderViewHeightInsetWithDetachedBookmarkBar() {
 void BrowserView::ExecuteExtensionCommand(
     const extensions::Extension* extension,
     const extensions::Command& command) {
-  toolbar_->ExecuteExtensionCommand(extension, command);
+  extension_keybinding_registry_->ExecuteCommand(extension->id(),
+                                                 command.accelerator());
 }
 
 ExclusiveAccessContext* BrowserView::GetExclusiveAccessContext() {
@@ -2698,14 +2698,17 @@ WebContents* BrowserView::GetActiveWebContents() {
 }
 
 void BrowserView::UnhideDownloadShelf() {
-  GetDownloadShelf()->Unhide();
+  if (download_shelf_)
+    download_shelf_->Unhide();
 }
 
 void BrowserView::HideDownloadShelf() {
-  GetDownloadShelf()->Hide();
-  StatusBubble* statusBubble = GetStatusBubble();
-  if (statusBubble)
-    statusBubble->Hide();
+  if (download_shelf_)
+    download_shelf_->Hide();
+
+  StatusBubble* status_bubble = GetStatusBubble();
+  if (status_bubble)
+    status_bubble->Hide();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2724,4 +2727,13 @@ views::Widget* BrowserView::GetBubbleAssociatedWidget() {
 
 gfx::Rect BrowserView::GetTopContainerBoundsInScreen() {
   return top_container_->GetBoundsInScreen();
+}
+
+extensions::ActiveTabPermissionGranter*
+BrowserView::GetActiveTabPermissionGranter() {
+  content::WebContents* web_contents = GetActiveWebContents();
+  if (!web_contents)
+    return nullptr;
+  return extensions::TabHelper::FromWebContents(web_contents)
+      ->active_tab_permission_granter();
 }

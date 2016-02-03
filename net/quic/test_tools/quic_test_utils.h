@@ -302,6 +302,7 @@ class MockConnectionVisitor : public QuicConnectionVisitorInterface {
   MOCK_METHOD1(OnSuccessfulVersionNegotiation,
                void(const QuicVersion& version));
   MOCK_METHOD0(OnConfigNegotiated, void());
+  MOCK_METHOD0(PostProcessAfterData, void());
 
  private:
   DISALLOW_COPY_AND_ASSIGN(MockConnectionVisitor);
@@ -507,7 +508,7 @@ class MockQuicSpdySession : public QuicSpdySession {
   DISALLOW_COPY_AND_ASSIGN(MockQuicSpdySession);
 };
 
-class TestQuicSpdyServerSession : public net::tools::QuicServerSessionBase {
+class TestQuicSpdyServerSession : public QuicServerSessionBase {
  public:
   TestQuicSpdyServerSession(QuicConnection* connection,
                             const QuicConfig& config,
@@ -523,7 +524,7 @@ class TestQuicSpdyServerSession : public net::tools::QuicServerSessionBase {
   QuicCryptoServerStream* GetCryptoStream() override;
 
  private:
-  net::tools::test::MockQuicServerSessionVisitor visitor_;
+  MockQuicServerSessionVisitor visitor_;
 
   DISALLOW_COPY_AND_ASSIGN(TestQuicSpdyServerSession);
 };
@@ -561,11 +562,12 @@ class MockPacketWriter : public QuicPacketWriter {
   MockPacketWriter();
   ~MockPacketWriter() override;
 
-  MOCK_METHOD4(WritePacket,
+  MOCK_METHOD5(WritePacket,
                WriteResult(const char* buffer,
                            size_t buf_len,
                            const IPAddressNumber& self_address,
-                           const IPEndPoint& peer_address));
+                           const IPEndPoint& peer_address,
+                           PerPacketOptions* options));
   MOCK_CONST_METHOD0(IsWriteBlockedDataBuffered, bool());
   MOCK_CONST_METHOD0(IsWriteBlocked, bool());
   MOCK_METHOD0(SetWritable, void());

@@ -54,6 +54,7 @@
 #include "modules/push_messaging/PushEvent.h"
 #include "modules/push_messaging/PushMessageData.h"
 #include "modules/serviceworkers/ExtendableEvent.h"
+#include "modules/serviceworkers/ExtendableMessageEvent.h"
 #include "modules/serviceworkers/FetchEvent.h"
 #include "modules/serviceworkers/InstallEvent.h"
 #include "modules/serviceworkers/ServiceWorkerGlobalScope.h"
@@ -102,20 +103,25 @@ void ServiceWorkerGlobalScopeProxy::dispatchActivateEvent(int eventID)
     workerGlobalScope()->dispatchExtendableEvent(event.release(), observer);
 }
 
+void ServiceWorkerGlobalScopeProxy::dispatchExtendableMessageEvent(int eventID, const WebString& message, const WebMessagePortChannelArray& webChannels)
+{
+    ASSERT(RuntimeEnabledFeatures::serviceWorkerExtendableMessageEventEnabled());
+
+    ExtendableMessageEventInit initializer;
+    WaitUntilObserver* observer = WaitUntilObserver::create(workerGlobalScope(), WaitUntilObserver::Message, eventID);
+
+    RefPtrWillBeRawPtr<Event> event(ExtendableMessageEvent::create(EventTypeNames::message, initializer, observer));
+    workerGlobalScope()->dispatchExtendableEvent(event.release(), observer);
+}
+
 void ServiceWorkerGlobalScopeProxy::dispatchFetchEvent(int eventID, const WebServiceWorkerRequest& webRequest)
 {
-    RespondWithObserver* observer = RespondWithObserver::create(workerGlobalScope(), eventID, webRequest.url(), webRequest.mode(), webRequest.frameType(), webRequest.requestContext());
-    bool defaultPrevented = false;
-    Request* request = Request::create(workerGlobalScope(), webRequest);
-    request->headers()->setGuard(Headers::ImmutableGuard);
-    FetchEventInit eventInit;
-    eventInit.setCancelable(true);
-    eventInit.setRequest(request);
-    eventInit.setClientId(webRequest.isMainResourceLoad() ? WebString() : webRequest.clientId());
-    eventInit.setIsReload(webRequest.isReload());
-    RefPtrWillBeRawPtr<FetchEvent> fetchEvent(FetchEvent::create(EventTypeNames::fetch, eventInit, observer));
-    defaultPrevented = !workerGlobalScope()->dispatchEvent(fetchEvent.release());
-    observer->didDispatchEvent(defaultPrevented);
+    dispatchFetchEventImpl(eventID, webRequest, EventTypeNames::fetch);
+}
+
+void ServiceWorkerGlobalScopeProxy::dispatchForeignFetchEvent(int eventID, const WebServiceWorkerRequest& webRequest)
+{
+    dispatchFetchEventImpl(eventID, webRequest, EventTypeNames::foreignfetch);
 }
 
 void ServiceWorkerGlobalScopeProxy::dispatchGeofencingEvent(int eventID, WebGeofencingEventType eventType, const WebString& regionID, const WebCircularGeofencingRegion& region)
@@ -273,6 +279,22 @@ ServiceWorkerGlobalScope* ServiceWorkerGlobalScopeProxy::workerGlobalScope() con
 {
     ASSERT(m_workerGlobalScope);
     return m_workerGlobalScope;
+}
+
+void ServiceWorkerGlobalScopeProxy::dispatchFetchEventImpl(int eventID, const WebServiceWorkerRequest& webRequest, const AtomicString& eventTypeName)
+{
+    RespondWithObserver* observer = RespondWithObserver::create(workerGlobalScope(), eventID, webRequest.url(), webRequest.mode(), webRequest.frameType(), webRequest.requestContext());
+    bool defaultPrevented = false;
+    Request* request = Request::create(workerGlobalScope(), webRequest);
+    request->headers()->setGuard(Headers::ImmutableGuard);
+    FetchEventInit eventInit;
+    eventInit.setCancelable(true);
+    eventInit.setRequest(request);
+    eventInit.setClientId(webRequest.isMainResourceLoad() ? WebString() : webRequest.clientId());
+    eventInit.setIsReload(webRequest.isReload());
+    RefPtrWillBeRawPtr<FetchEvent> fetchEvent(FetchEvent::create(eventTypeName, eventInit, observer));
+    defaultPrevented = !workerGlobalScope()->dispatchEvent(fetchEvent.release());
+    observer->didDispatchEvent(defaultPrevented);
 }
 
 } // namespace blink

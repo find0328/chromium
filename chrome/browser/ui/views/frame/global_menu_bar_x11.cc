@@ -11,7 +11,6 @@
 #include "base/debug/leak_annotations.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/prefs/pref_service.h"
 #include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
@@ -34,6 +33,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/history/core/browser/top_sites.h"
+#include "components/prefs/pref_service.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "grit/components_strings.h"
 #include "ui/base/accelerators/menu_label_accelerator_util_linux.h"
@@ -129,7 +129,7 @@ const unsigned int kMostVisitedCount = 8;
 const unsigned int kRecentlyClosedCount = 8;
 
 // Menus more than this many chars long will get trimmed.
-const int kMaximumMenuWidthInChars = 50;
+const size_t kMaximumMenuWidthInChars = 50;
 
 // Constants used in menu definitions.
 const int MENU_SEPARATOR =-1;

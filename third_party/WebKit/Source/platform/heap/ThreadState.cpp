@@ -597,16 +597,8 @@ void ThreadState::scheduleV8FollowupGCIfNeeded(BlinkGC::V8GCType gcType)
     ASSERT(!isSweepingInProgress());
     ASSERT(!sweepForbidden());
 
-    // TODO(haraken): Consider if we should trigger a memory pressure GC
-    // for V8 minor GCs as well.
-    if (gcType == BlinkGC::V8MajorGC && shouldForceMemoryPressureGC()) {
-#if PRINT_HEAP_STATS
-        dataLogF("Scheduled MemoryPressureGC\n");
-#endif
-        Heap::collectGarbage(BlinkGC::HeapPointersOnStack, BlinkGC::GCWithoutSweep, BlinkGC::MemoryPressureGC);
-        return;
-    }
-    if (shouldScheduleV8FollowupGC()) {
+    if ((gcType == BlinkGC::V8MajorGC && shouldForceMemoryPressureGC())
+        || shouldScheduleV8FollowupGC()) {
 #if PRINT_HEAP_STATS
         dataLogF("Scheduled PreciseGC\n");
 #endif
@@ -622,16 +614,17 @@ void ThreadState::scheduleV8FollowupGCIfNeeded(BlinkGC::V8GCType gcType)
     }
 }
 
-void ThreadState::willStartV8GC()
+void ThreadState::willStartV8GC(BlinkGC::V8GCType gcType)
 {
-    // Finish Oilpan's complete sweeping before running a V8 GC.
+    // Finish Oilpan's complete sweeping before running a V8 major GC.
     // This will let the GC collect more V8 objects.
     //
     // TODO(haraken): It's a bit too late for a major GC to schedule
     // completeSweep() here, because gcPrologue for a major GC is called
     // not at the point where the major GC started but at the point where
     // the major GC requests object grouping.
-    completeSweep();
+    if (gcType == BlinkGC::V8MajorGC)
+        completeSweep();
 
     // The fact that the PageNavigation GC is scheduled means that there is
     // a dead frame. In common cases, a sequence of Oilpan's GC => V8 GC =>
@@ -884,7 +877,7 @@ void ThreadState::setGCState(GCState gcState)
     case FullGCScheduled:
     case PageNavigationGCScheduled:
         ASSERT(checkThread());
-        VERIFY_STATE_TRANSITION(m_gcState == NoGCScheduled || m_gcState == IdleGCScheduled || m_gcState == PreciseGCScheduled || m_gcState == FullGCScheduled || m_gcState == PageNavigationGCScheduled || m_gcState == SweepingAndIdleGCScheduled || m_gcState == SweepingAndPreciseGCScheduled);
+        VERIFY_STATE_TRANSITION(m_gcState == NoGCScheduled || m_gcState == IdleGCScheduled || m_gcState == PreciseGCScheduled || m_gcState == FullGCScheduled || m_gcState == PageNavigationGCScheduled || m_gcState == Sweeping || m_gcState == SweepingAndIdleGCScheduled || m_gcState == SweepingAndPreciseGCScheduled);
         completeSweep();
         break;
     case GCRunning:

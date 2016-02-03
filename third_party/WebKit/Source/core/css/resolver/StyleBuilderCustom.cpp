@@ -69,7 +69,6 @@
 #include "core/style/CounterContent.h"
 #include "core/style/ComputedStyle.h"
 #include "core/style/ComputedStyleConstants.h"
-#include "core/style/PathStyleMotionPath.h"
 #include "core/style/QuotesData.h"
 #include "core/style/SVGComputedStyle.h"
 #include "core/style/StyleGeneratedImage.h"
@@ -431,69 +430,6 @@ void StyleBuilderFunctions::applyValueCSSPropertyTransform(StyleResolverState& s
     TransformOperations operations;
     TransformBuilder::createTransformOperations(*value, state.cssToLengthConversionData(), operations);
     state.style()->setTransform(operations);
-}
-
-void StyleBuilderFunctions::applyInheritCSSPropertyMotionPath(StyleResolverState& state)
-{
-    if (state.parentStyle()->motionPath())
-        state.style()->setMotionPath(state.parentStyle()->motionPath());
-    else
-        state.style()->resetMotionPath();
-}
-
-void StyleBuilderFunctions::applyValueCSSPropertyMotionPath(StyleResolverState& state, CSSValue* value)
-{
-    if (value->isPathValue()) {
-        const String& pathString = toCSSPathValue(value)->pathString();
-        state.style()->setMotionPath(PathStyleMotionPath::create(pathString));
-        return;
-    }
-
-    ASSERT(value->isPrimitiveValue() && toCSSPrimitiveValue(value)->getValueID() == CSSValueNone);
-    state.style()->resetMotionPath();
-}
-
-void StyleBuilderFunctions::applyInitialCSSPropertyMotionPath(StyleResolverState& state)
-{
-    state.style()->resetMotionPath();
-}
-
-void StyleBuilderFunctions::applyInheritCSSPropertyMotionRotation(StyleResolverState& state)
-{
-    state.style()->setMotionRotation(state.parentStyle()->motionRotation());
-    state.style()->setMotionRotationType(state.parentStyle()->motionRotationType());
-}
-
-void StyleBuilderFunctions::applyInitialCSSPropertyMotionRotation(StyleResolverState& state)
-{
-    state.style()->setMotionRotation(ComputedStyle::initialMotionRotation());
-    state.style()->setMotionRotationType(ComputedStyle::initialMotionRotationType());
-}
-
-void StyleBuilderFunctions::applyValueCSSPropertyMotionRotation(StyleResolverState& state, CSSValue* value)
-{
-    float rotation = 0;
-    MotionRotationType rotationType = MotionRotationFixed;
-
-    ASSERT(value->isValueList());
-    CSSValueList* list = toCSSValueList(value);
-    int len = list->length();
-    for (int i = 0; i < len; i++) {
-        CSSValue* item = list->item(i);
-        ASSERT(item->isPrimitiveValue());
-        CSSPrimitiveValue* primitiveValue = toCSSPrimitiveValue(item);
-        if (primitiveValue->getValueID() == CSSValueAuto) {
-            rotationType = MotionRotationAuto;
-        } else if (primitiveValue->getValueID() == CSSValueReverse) {
-            rotationType = MotionRotationAuto;
-            rotation += 180;
-        } else {
-            rotation += primitiveValue->computeDegrees();
-        }
-    }
-
-    state.style()->setMotionRotation(rotation);
-    state.style()->setMotionRotationType(rotationType);
 }
 
 void StyleBuilderFunctions::applyInheritCSSPropertyVerticalAlign(StyleResolverState& state)

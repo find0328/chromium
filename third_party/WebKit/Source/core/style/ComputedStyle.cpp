@@ -30,7 +30,6 @@
 #include "core/style/ContentData.h"
 #include "core/style/DataEquivalency.h"
 #include "core/style/ComputedStyleConstants.h"
-#include "core/style/PathStyleMotionPath.h"
 #include "core/style/QuotesData.h"
 #include "core/style/ShadowList.h"
 #include "core/style/StyleImage.h"
@@ -183,8 +182,7 @@ StyleRecalcChange ComputedStyle::stylePropagationDiff(const ComputedStyle* oldSt
         || oldStyle->hasPseudoStyle(FIRST_LETTER) != newStyle->hasPseudoStyle(FIRST_LETTER)
         || !oldStyle->contentDataEquivalent(newStyle)
         || oldStyle->hasTextCombine() != newStyle->hasTextCombine()
-        || oldStyle->justifyItems() != newStyle->justifyItems()
-        || oldStyle->alignItems() != newStyle->alignItems())
+        || oldStyle->justifyItems() != newStyle->justifyItems()) // TODO (lajava): We must avoid this Reattach.
         return Reattach;
 
     if (oldStyle->inheritedNotEqual(*newStyle))
@@ -205,6 +203,17 @@ ItemPosition ComputedStyle::resolveAlignment(const ComputedStyle& parentStyle, c
     if (childStyle.alignSelfPosition() == ItemPositionAuto)
         return (parentStyle.alignItemsPosition() == ItemPositionAuto) ? resolvedAutoPositionForLayoutObject : parentStyle.alignItemsPosition();
     return childStyle.alignSelfPosition();
+}
+
+const StyleSelfAlignmentData ComputedStyle::resolvedAlignment(const ComputedStyle& parentStyle, ItemPosition resolvedAutoPositionForLayoutObject) const
+{
+    // The auto keyword computes to the parent's align-items computed value, or to "stretch", if not set or "auto".
+    if (alignSelfPosition() == ItemPositionAuto) {
+        if (parentStyle.alignItemsPosition() == ItemPositionAuto)
+            return {resolvedAutoPositionForLayoutObject, OverflowAlignmentDefault};
+        return parentStyle.alignItems();
+    }
+    return alignSelf();
 }
 
 ItemPosition ComputedStyle::resolveJustification(const ComputedStyle& parentStyle, const ComputedStyle& childStyle, ItemPosition resolvedAutoPositionForLayoutObject)
@@ -992,8 +1001,8 @@ void ComputedStyle::applyTransform(TransformationMatrix& result, const FloatRect
 void ComputedStyle::applyMotionPathTransform(float originX, float originY, TransformationMatrix& transform) const
 {
     const StyleMotionData& motionData = rareNonInheritedData->m_transform->m_motion;
-    ASSERT(motionData.m_path && motionData.m_path->isPathStyleMotionPath());
-    const PathStyleMotionPath& motionPath = toPathStyleMotionPath(*motionData.m_path);
+    ASSERT(motionData.m_path);
+    const StylePath& motionPath = *motionData.m_path;
     float pathLength = motionPath.length();
     float distance = floatValueForLength(motionData.m_offset, pathLength);
     float computedDistance;
@@ -1009,11 +1018,11 @@ void ComputedStyle::applyMotionPathTransform(float originX, float originY, Trans
     float angle;
     motionPath.path().pointAndNormalAtLength(computedDistance, point, angle);
 
-    if (motionData.m_rotationType == MotionRotationFixed)
+    if (motionData.m_rotation.type == MotionRotationFixed)
         angle = 0;
 
     transform.translate(point.x() - originX, point.y() - originY);
-    transform.rotate(angle + motionData.m_rotation);
+    transform.rotate(angle + motionData.m_rotation.angle);
 }
 
 void ComputedStyle::setTextShadow(PassRefPtr<ShadowList> s)
@@ -1681,15 +1690,9 @@ void ComputedStyle::setMarginEnd(const Length& margin)
     }
 }
 
-void ComputedStyle::setMotionPath(PassRefPtr<StyleMotionPath> path)
+void ComputedStyle::setMotionPath(PassRefPtr<StylePath> path)
 {
-    ASSERT(path);
     rareNonInheritedData.access()->m_transform.access()->m_motion.m_path = path;
-}
-
-void ComputedStyle::resetMotionPath()
-{
-    rareNonInheritedData.access()->m_transform.access()->m_motion.m_path = nullptr;
 }
 
 int ComputedStyle::outlineOutsetExtent() const

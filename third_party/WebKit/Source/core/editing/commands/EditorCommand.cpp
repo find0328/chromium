@@ -59,6 +59,7 @@
 #include "core/layout/LayoutBox.h"
 #include "core/page/ChromeClient.h"
 #include "core/page/EditorClient.h"
+#include "platform/Histogram.h"
 #include "platform/KillRing.h"
 #include "platform/UserGestureIndicator.h"
 #include "platform/scroll/Scrollbar.h"
@@ -1273,6 +1274,9 @@ static bool enabledCut(LocalFrame& frame, Event*, EditorCommandSource source)
 
 static bool enabledInEditableText(LocalFrame& frame, Event* event, EditorCommandSource)
 {
+    // We should update selection to canonicalize with current layout and style,
+    // before accessing |FrameSelection::selection()|.
+    frame.selection().updateIfNeeded();
     return frame.editor().selectionForCommand(event).rootEditableElement();
 }
 
@@ -1313,11 +1317,17 @@ static bool enabledPaste(LocalFrame& frame, Event*, EditorCommandSource source)
 
 static bool enabledRangeInEditableText(LocalFrame& frame, Event*, EditorCommandSource)
 {
+    // We should update selection to canonicalize with current layout and style,
+    // before accessing |FrameSelection::selection()|.
+    frame.selection().updateIfNeeded();
     return frame.selection().isRange() && frame.selection().isContentEditable();
 }
 
 static bool enabledRangeInRichlyEditableText(LocalFrame& frame, Event*, EditorCommandSource)
 {
+    // We should update selection to canonicalize with current layout and style,
+    // before accessing |FrameSelection::selection()|.
+    frame.selection().updateIfNeeded();
     return frame.selection().isRange() && frame.selection().isContentRichlyEditable();
 }
 
@@ -1777,7 +1787,8 @@ bool Editor::Command::execute(const String& parameter, Event* triggeringEvent) c
             return false;
     }
     frame().document()->updateLayoutIgnorePendingStylesheets();
-    Platform::current()->histogramSparse("WebCore.Editing.Commands", m_command->idForUserMetrics);
+    DEFINE_STATIC_LOCAL(SparseHistogram, commandHistogram, ("WebCore.Editing.Commands"));
+    commandHistogram.sample(m_command->idForUserMetrics);
     return m_command->execute(*m_frame, triggeringEvent, m_source, parameter);
 }
 

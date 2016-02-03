@@ -43,7 +43,6 @@ using testing::WithoutArgs;
 using testing::_;
 
 namespace net {
-namespace tools {
 namespace test {
 namespace {
 
@@ -580,7 +579,8 @@ class BlockingWriter : public QuicPacketWriterWrapper {
   WriteResult WritePacket(const char* buffer,
                           size_t buf_len,
                           const IPAddressNumber& self_client_address,
-                          const IPEndPoint& peer_client_address) override {
+                          const IPEndPoint& peer_client_address,
+                          PerPacketOptions* options) override {
     // It would be quite possible to actually implement this method here with
     // the fake blocked status, but it would be significantly more work in
     // Chromium, and since it's not called anyway, don't bother.
@@ -768,5 +768,4 @@ TEST_F(QuicDispatcherWriteBlockedListTest, TestWriteLimits) {
 
 }  // namespace
 }  // namespace test
-}  // namespace tools
 }  // namespace net

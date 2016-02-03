@@ -11,7 +11,6 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram.h"
-#include "base/prefs/pref_service.h"
 #include "base/sequenced_task_runner_helpers.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
@@ -22,6 +21,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/safe_browsing/csd.pb.h"
 #include "chrome/common/safe_browsing/safebrowsing_messages.h"
+#include "components/prefs/pref_service.h"
 #include "components/safe_browsing_db/database_manager.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
@@ -555,6 +555,8 @@ void ClientSideDetectionHost::MaybeShowPhishingWarning(GURL phishing_url,
       resource.original_url = phishing_url;
       resource.is_subresource = false;
       resource.threat_type = SB_THREAT_TYPE_CLIENT_SIDE_PHISHING_URL;
+      resource.threat_source =
+          safe_browsing::ThreatSource::CLIENT_SIDE_DETECTION;
       resource.render_process_host_id =
           web_contents()->GetRenderProcessHost()->GetID();
       resource.render_frame_id = web_contents()->GetMainFrame()->GetRoutingID();
@@ -585,6 +587,8 @@ void ClientSideDetectionHost::MaybeShowMalwareWarning(GURL original_url,
       resource.original_url = original_url;
       resource.is_subresource = (malware_url.host() != original_url.host());
       resource.threat_type = SB_THREAT_TYPE_CLIENT_SIDE_MALWARE_URL;
+      resource.threat_source =
+          safe_browsing::ThreatSource::CLIENT_SIDE_DETECTION;
       resource.render_process_host_id =
           web_contents()->GetRenderProcessHost()->GetID();
       resource.render_frame_id = web_contents()->GetMainFrame()->GetRoutingID();

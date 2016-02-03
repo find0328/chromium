@@ -15,7 +15,7 @@
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/webcrypto/webcrypto_impl.h"
-#include "content/child/experiments/api_key_validator.h"
+#include "content/child/origin_trials/trial_token_validator.h"
 #include "content/child/webfallbackthemeengine_impl.h"
 #include "content/common/content_export.h"
 #include "third_party/WebKit/public/platform/Platform.h"
@@ -109,8 +109,6 @@ class CONTENT_EXPORT BlinkPlatformImpl
       blink::WebWaitableEvent::InitialState state) override;
   blink::WebWaitableEvent* waitMultipleEvents(
       const blink::WebVector<blink::WebWaitableEvent*>& events) override;
-  void decrementStatsCounter(const char* name) override;
-  void incrementStatsCounter(const char* name) override;
   void histogramCustomCounts(const char* name,
                              int sample,
                              int min,
@@ -119,7 +117,6 @@ class CONTENT_EXPORT BlinkPlatformImpl
   void histogramEnumeration(const char* name,
                             int sample,
                             int boundary_value) override;
-  void histogramSparse(const char* name, int sample) override;
   void registerMemoryDumpProvider(blink::WebMemoryDumpProvider* wmdp,
                                   const char* name) override;
   void unregisterMemoryDumpProvider(
@@ -162,7 +159,7 @@ class CONTENT_EXPORT BlinkPlatformImpl
       blink::WebServicePortProviderClient*) override;
   blink::WebPermissionClient* permissionClient() override;
   blink::WebSyncProvider* backgroundSyncProvider() override;
-  blink::WebApiKeyValidator* apiKeyValidator() override;
+  blink::WebTrialTokenValidator* trialTokenValidator() override;
 
   blink::WebString domCodeStringFromEnum(int dom_code) override;
   int domEnumFromCodeString(const blink::WebString& codeString) override;
@@ -200,7 +197,7 @@ class CONTENT_EXPORT BlinkPlatformImpl
   scoped_ptr<PermissionDispatcher> permission_client_;
   scoped_ptr<BackgroundSyncProvider> main_thread_sync_provider_;
 
-  ApiKeyValidator api_key_validator_;
+  TrialTokenValidator trial_token_validator_;
 
   scheduler::WebThreadBase* compositor_thread_;
 };
