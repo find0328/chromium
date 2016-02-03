@@ -8,7 +8,6 @@
 #include "base/command_line.h"
 #include "base/macros.h"
 #include "base/path_service.h"
-#include "base/prefs/pref_service.h"
 #include "base/synchronization/waitable_event.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/spellchecker/spellcheck_factory.h"
@@ -19,6 +18,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/spellcheck_common.h"
 #include "chrome/test/base/in_process_browser_test.h"
+#include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/test/test_utils.h"
 #include "url/gurl.h"
@@ -132,12 +132,10 @@ IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest, PreferencesNotMigrated) {
   EXPECT_TRUE(prefs->GetString(prefs::kSpellCheckDictionary).empty());
 }
 
-// Checks that if a user starts multilingual mode with spellchecking disabled
-// that all languages get deselected and spellchecking gets enabled.
+// Checks that, if a user has spellchecking disabled, nothing changes
+// during migration.
 IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest,
                        SpellcheckingDisabledPreferenceMigration) {
-  ASSERT_TRUE(chrome::spellcheck_common::IsMultilingualSpellcheckEnabled());
-
   PrefService* prefs = user_prefs::UserPrefs::Get(GetContext());
   base::ListValue dictionaries;
   dictionaries.AppendString("en-US");
@@ -147,40 +145,13 @@ IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest,
   // Migrate the preferences.
   SpellcheckServiceFactory::GetForContext(GetContext());
 
-  EXPECT_TRUE(prefs->GetBoolean(prefs::kEnableContinuousSpellcheck));
-  EXPECT_EQ(0U, prefs->GetList(prefs::kSpellCheckDictionaries)->GetSize());
-}
-
-// Make sure that there is only one language in the preference when not using
-// multilingual spellchecking.
-IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest,
-                       MultilingualToSingleLanguagePreferenceMigration) {
-  base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      switches::kDisableMultilingualSpellChecker);
-  ASSERT_FALSE(chrome::spellcheck_common::IsMultilingualSpellcheckEnabled());
-
-  PrefService* prefs = user_prefs::UserPrefs::Get(GetContext());
-  base::ListValue dictionaries;
-  dictionaries.AppendString("en-US");
-  dictionaries.AppendString("fr");
-  prefs->Set(prefs::kSpellCheckDictionaries, dictionaries);
-
-  // Migrate the preference.
-  SpellcheckServiceFactory::GetForContext(GetContext());
-
+  EXPECT_FALSE(prefs->GetBoolean(prefs::kEnableContinuousSpellcheck));
   EXPECT_EQ(1U, prefs->GetList(prefs::kSpellCheckDictionaries)->GetSize());
-  std::string new_pref;
-  ASSERT_TRUE(
-      prefs->GetList(prefs::kSpellCheckDictionaries)->GetString(0, &new_pref));
-  EXPECT_EQ("en-US", new_pref);
 }
 
-// If using multilingual spellchecking with spellchecking enabled, make sure the
-// preference stays the same and spellchecking stays enabled.
+// Make sure preferences get preserved and spellchecking stays enabled.
 IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest,
                        MultilingualPreferenceNotMigrated) {
-  ASSERT_TRUE(chrome::spellcheck_common::IsMultilingualSpellcheckEnabled());
-
   PrefService* prefs = user_prefs::UserPrefs::Get(GetContext());
   base::ListValue dictionaries;
   dictionaries.AppendString("en-US");
@@ -200,27 +171,4 @@ IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest,
   ASSERT_TRUE(
       prefs->GetList(prefs::kSpellCheckDictionaries)->GetString(1, &pref));
   EXPECT_EQ("fr", pref);
-}
-
-// If not using multilingual spellchecking and only one language is selected,
-// the preference should not change.
-IN_PROC_BROWSER_TEST_F(SpellcheckServiceBrowserTest,
-                       SingleLanguagePreferenceNotMigrated) {
-  base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      switches::kDisableMultilingualSpellChecker);
-  ASSERT_FALSE(chrome::spellcheck_common::IsMultilingualSpellcheckEnabled());
-
-  PrefService* prefs = user_prefs::UserPrefs::Get(GetContext());
-  base::ListValue dictionaries;
-  dictionaries.AppendString("en-US");
-  prefs->Set(prefs::kSpellCheckDictionaries, dictionaries);
-
-  // Should not migrate any preferences.
-  SpellcheckServiceFactory::GetForContext(GetContext());
-
-  EXPECT_EQ(1U, prefs->GetList(prefs::kSpellCheckDictionaries)->GetSize());
-  std::string pref;
-  ASSERT_TRUE(
-      prefs->GetList(prefs::kSpellCheckDictionaries)->GetString(0, &pref));
-  EXPECT_EQ("en-US", pref);
 }

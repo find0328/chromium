@@ -199,6 +199,7 @@
 #include "core/xml/parser/XMLDocumentParser.h"
 #include "platform/DateComponents.h"
 #include "platform/EventDispatchForbiddenScope.h"
+#include "platform/Histogram.h"
 #include "platform/Language.h"
 #include "platform/LengthFunctions.h"
 #include "platform/Logging.h"
@@ -2001,9 +2002,8 @@ void Document::clearFocusedElementTimerFired(Timer<Document>*)
 // stylesheets are loaded. Doing a layout ignoring the pending stylesheets
 // lets us get reasonable answers. The long term solution to this problem is
 // to instead suspend JavaScript execution.
-void Document::updateLayoutIgnorePendingStylesheets(Document::RunPostLayoutTasks runPostLayoutTasks)
+void Document::updateLayoutTreeIgnorePendingStylesheets()
 {
-    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
     StyleEngine::IgnoringPendingStylesheet ignoring(styleEngine());
 
     if (styleEngine().hasPendingSheets()) {
@@ -2025,7 +2025,14 @@ void Document::updateLayoutIgnorePendingStylesheets(Document::RunPostLayoutTasks
             updateLayoutTree(Force);
         }
     }
+    updateLayoutTreeIfNeeded();
+}
 
+void Document::updateLayoutIgnorePendingStylesheets(Document::RunPostLayoutTasks runPostLayoutTasks)
+{
+    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
+
+    updateLayoutTreeIgnorePendingStylesheets();
     updateLayout();
 
     if (runPostLayoutTasks == RunPostLayoutTasksSynchronously && view())
@@ -3617,7 +3624,8 @@ bool Document::setFocusedElement(PassRefPtrWillBeRawPtr<Element> prpNewFocusedEl
                 newFocusedElement = nullptr;
             }
             // Event handlers might make newFocusedElement dirty.
-            updateLayoutIgnorePendingStylesheets();
+            if (newFocusedElement)
+                updateLayoutTreeIgnorePendingStylesheets();
         }
 
         if (view()) {
@@ -4467,7 +4475,9 @@ bool Document::execCommand(const String& commandName, bool, const String& value,
     EventQueueScope eventQueueScope;
     Editor::tidyUpHTMLStructure(*this);
     Editor::Command editorCommand = command(this, commandName);
-    Platform::current()->histogramSparse("WebCore.Document.execCommand", editorCommand.idForHistogram());
+
+    DEFINE_STATIC_LOCAL(SparseHistogram, editorCommandHistogram, ("WebCore.Document.execCommand"));
+    editorCommandHistogram.sample(editorCommand.idForHistogram());
     return editorCommand.execute(value);
 }
 

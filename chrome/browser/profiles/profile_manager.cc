@@ -16,8 +16,6 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/prefs/pref_service.h"
-#include "base/prefs/scoped_user_pref_update.h"
 #include "base/profiler/scoped_profile.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -72,6 +70,8 @@
 #include "components/invalidation/public/invalidation_service.h"
 #include "components/password_manager/core/browser/password_store.h"
 #include "components/password_manager/sync/browser/password_manager_setting_migrator_service.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "components/search_engines/default_search_manager.h"
 #include "components/signin/core/browser/account_fetcher_service.h"
 #include "components/signin/core/browser/account_tracker_service.h"
@@ -1060,6 +1060,7 @@ void ProfileManager::DoFinalInit(Profile* profile, bool go_off_the_record) {
   AddProfileToCache(profile);
   DoFinalInitLogging(profile);
 
+  ProfileMetrics::LogNumberOfProfiles(this);
   content::NotificationService::current()->Notify(
       chrome::NOTIFICATION_PROFILE_ADDED,
       content::Source<Profile>(profile),

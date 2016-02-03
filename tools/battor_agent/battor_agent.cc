@@ -66,6 +66,7 @@ scoped_ptr<BattOrEEPROM> ParseEEPROM(BattOrMessageType message_type,
 // and samples paramaters.
 bool ParseSampleFrame(BattOrMessageType type,
                       const vector<char>& msg,
+                      uint32_t expected_sequence_number,
                       BattOrFrameHeader* frame_header,
                       vector<RawBattOrSample>* samples) {
   if (type != BATTOR_MESSAGE_TYPE_SAMPLES)
@@ -79,6 +80,13 @@ bool ParseSampleFrame(BattOrMessageType type,
   const char* frame_ptr = reinterpret_cast<const char*>(msg.data());
   memcpy(frame_header, frame_ptr, sizeof(BattOrFrameHeader));
   frame_ptr += sizeof(BattOrFrameHeader);
+
+  if (frame_header->sequence_number != expected_sequence_number) {
+    LOG(WARNING) << "Unexpected sequence number: wanted "
+                 << expected_sequence_number << ", but got "
+                 << frame_header->sequence_number << ".";
+    return false;
+  }
 
   size_t remaining_bytes = msg.size() - sizeof(BattOrFrameHeader);
   if (remaining_bytes != frame_header->length)
@@ -255,7 +263,8 @@ void BattOrAgent::OnMessageRead(bool success,
 
     case Action::READ_CALIBRATION_FRAME: {
       BattOrFrameHeader frame_header;
-      if (!ParseSampleFrame(type, *bytes, &frame_header, &calibration_frame_)) {
+      if (!ParseSampleFrame(type, *bytes, next_sequence_number_++,
+                            &frame_header, &calibration_frame_)) {
         CompleteCommand(BATTOR_ERROR_UNEXPECTED_MESSAGE);
         return;
       }
@@ -274,7 +283,8 @@ void BattOrAgent::OnMessageRead(bool success,
     case Action::READ_DATA_FRAME: {
       BattOrFrameHeader frame_header;
       vector<RawBattOrSample> frame;
-      if (!ParseSampleFrame(type, *bytes, &frame_header, &frame)) {
+      if (!ParseSampleFrame(type, *bytes, next_sequence_number_++,
+                            &frame_header, &frame)) {
         CompleteCommand(BATTOR_ERROR_UNEXPECTED_MESSAGE);
         return;
       }
@@ -357,6 +367,10 @@ void BattOrAgent::PerformAction(Action action) {
       SendControlMessage(BATTOR_CONTROL_MESSAGE_TYPE_READ_SD_UART, 0, 0);
       return;
     case Action::READ_CALIBRATION_FRAME:
+      // Data frames are numbered starting at zero and counting up by one each
+      // data frame. We keep track of the next frame sequence number we expect
+      // to see to ensure we don't miss any data.
+      next_sequence_number_ = 0;
     case Action::READ_DATA_FRAME:
       // The first frame sent back from the BattOr contains voltage and current
       // data that excludes whatever device is being measured from the
@@ -411,6 +425,7 @@ void BattOrAgent::CompleteCommand(BattOrError error) {
   battor_eeprom_.reset();
   calibration_frame_.clear();
   samples_.clear();
+  next_sequence_number_ = 0;
 }
 
 std::string BattOrAgent::SamplesToString() {
@@ -421,6 +436,20 @@ std::string BattOrAgent::SamplesToString() {
 
   std::stringstream trace_stream;
   trace_stream << std::fixed;
+
+  // Create a header that indicates the BattOr's parameters for these samples.
+  BattOrSample min_sample = converter.MinSample();
+  BattOrSample max_sample = converter.MaxSample();
+  trace_stream << "# BattOr" << std::endl
+               << std::setprecision(1)
+               << "# voltage_range [" <<  min_sample.voltage_mV << ", "
+               << max_sample.voltage_mV << "] mV" << std::endl
+               << "# current_range [" << min_sample.current_mA << ", "
+               << max_sample.current_mA << "] mA" << std::endl
+               << "# sample_rate " << battor_eeprom_->sd_sample_rate << " Hz"
+               << ", gain " << battor_eeprom_->low_gain << "x" << std::endl;
+
+  // Create a string representation of the BattOr samples.
   for (size_t i = 0; i < samples_.size(); i++) {
     BattOrSample sample = converter.ToSample(samples_[i], i);
     trace_stream << std::setprecision(2) << sample.time_ms << " "

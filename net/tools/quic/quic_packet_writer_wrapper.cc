@@ -7,7 +7,6 @@
 #include "net/quic/quic_types.h"
 
 namespace net {
-namespace tools {
 
 QuicPacketWriterWrapper::QuicPacketWriterWrapper() {}
 
@@ -20,8 +19,10 @@ WriteResult QuicPacketWriterWrapper::WritePacket(
     const char* buffer,
     size_t buf_len,
     const IPAddressNumber& self_address,
-    const IPEndPoint& peer_address) {
-  return writer_->WritePacket(buffer, buf_len, self_address, peer_address);
+    const IPEndPoint& peer_address,
+    PerPacketOptions* options) {
+  return writer_->WritePacket(buffer, buf_len, self_address, peer_address,
+                              options);
 }
 
 bool QuicPacketWriterWrapper::IsWriteBlockedDataBuffered() const {
@@ -45,5 +46,4 @@ void QuicPacketWriterWrapper::set_writer(QuicPacketWriter* writer) {
   writer_.reset(writer);
 }
 
-}  // namespace tools
 }  // namespace net

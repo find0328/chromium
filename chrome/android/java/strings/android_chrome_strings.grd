@@ -137,6 +137,9 @@ CHAR-LIMIT guidelines:
       <message name="IDS_DELETE" desc="Label for a delete button. Used in multiple contexts. [CHAR-LIMIT=20]">
         Delete
       </message>
+      <message name="IDS_REMOVE" desc="Label for a button to remove an item (e.g. a bookmark) from a list. [CHAR-LIMIT=20]">
+        Remove
+      </message>
       <message name="IDS_RESET" desc="Label for a button to reset information you are editing to a default.">
         Reset
       </message>
@@ -415,6 +418,12 @@ For example, some websites may respond to this request by showing you ads that a
       <message name="IDS_CLEAR_BROWSING_DATA_TITLE" desc="Button to Clear Browsing Data [CHAR-LIMIT=24]">
         Clear browsing data
       </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_FOOTNOTE" desc="A summary string at the bottom of the Clear Browsing Data dialog, informing the user that not all data can be cleared through this dialog.">
+        Some settings that may reflect browsing habits will not be cleared.
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_FOOTNOTE_SYNCED" desc="A summary string at the bottom of the Clear Browsing Data dialog, informing the user that synced data types are deleted across devices, and that not all data can be cleared through this dialog.">
+        This clears synced data from all devices. Some settings that may reflect browsing habits will not be cleared.
+      </message>
       <message name="IDS_CLEAR_CACHE_TITLE" desc="Title for Clear Cache in Clear Browsing Data dialog">
         Cache
       </message>
@@ -430,7 +439,7 @@ For example, some websites may respond to this request by showing you ads that a
       <message name="IDS_CLEAR_PASSWORDS_TITLE" desc="Title for Clear Passwords in Clear Browsing Data preference">
         Saved passwords
       </message>
-      <message name="IDS_CLEAR_FORMDATA_TITLE" desc="Title for Clear Form Data in Clear Browsing Data preference">
+      <message name="IDS_CLEAR_FORM_DATA_TITLE" desc="Title for Clear Form Data in Clear Browsing Data preference">
         Autofill data
       </message>
       <message name="IDS_CLEAR_BOOKMARKS_TITLE" desc="Title for Clear Bookmarks data in Clear Synced Data dialog">
@@ -1047,8 +1056,11 @@ To obtain new licenses, connect to the internet and play your downloaded content
       <message name="IDS_BLUETOOTH_CONFIRM_BUTTON" desc="The button to confirm association of a website with a Bluetooth device. Use the same term as in 'Pair this Bluetooth headset with your phone.'">
         Pair
       </message>
-      <message name="IDS_BLUETOOTH_NOT_SEEING_IT" desc="The message to show at the bottom of the dialog when Bluetooth scanning has uncovered some items. Allows the user to restart the scan, in case their device is not listed.">
-        Not seeing your device? <ph name="BEGIN_LINK1">&lt;link1&gt;</ph>Search again<ph name="END_LINK1">&lt;/link1&gt;</ph> or <ph name="BEGIN_LINK2">&lt;link2&gt;</ph>Get help<ph name="END_LINK2">&lt;/link2&gt;</ph>.
+      <message name="IDS_BLUETOOTH_NOT_SEEING_IT" desc="The message to show at the bottom of the dialog when Bluetooth scanning has uncovered some items but is still scanning for others.">
+        Not seeing your device? <ph name="BEGIN_LINK">&lt;link&gt;</ph>Get help<ph name="END_LINK">&lt;/link&gt;</ph>.
+      </message>
+      <message name="IDS_BLUETOOTH_NOT_SEEING_IT_IDLE" desc="The message to show at the bottom of the dialog when Bluetooth scanning has uncovered some items but is no longer discovering devices. Allows the user to restart the scan, in case their device is not listed.">
+        Not seeing your device? <ph name="BEGIN_LINK1">&lt;link1&gt;</ph>Get help<ph name="END_LINK1">&lt;/link1&gt;</ph> or <ph name="BEGIN_LINK2">&lt;link2&gt;</ph>search again<ph name="END_LINK2">&lt;/link2&gt;</ph>.
       </message>
       <message name="IDS_BLUETOOTH_NOT_FOUND" desc="The message to show when no items were found during Bluetooth device scanning.">
         No bluetooth devices found. <ph name="BEGIN_LINK">&lt;link&gt;</ph>Search again<ph name="END_LINK">&lt;/link&gt;</ph>.
@@ -1835,27 +1847,13 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
         Close incognito tabs
       </message>
 
-      <!-- Bookmarks page -->
-      <message name="IDS_BOOKMARKS" desc="Title of the bookmarks widget, which shows the user's bookmarks on their homescreen. [CHAR-LIMIT=18]">
+      <!-- Bookmarks strings -->
+      <message name="IDS_BOOKMARKS" desc="Title of the bookmarks page, which shows a list of the user's bookmarks. [CHAR-LIMIT=18]">
         Bookmarks
       </message>
       <message name="IDS_BOOKMARKS_FOLDER_EMPTY" desc="Text explaining that the currently selected bookmarks folder is empty.">
         No bookmarks here
       </message>
-      <message name="IDS_CONTEXTMENU_DELETE_BOOKMARK" desc="Context menu action to delete a bookmark. [CHAR-LIMIT=30]">
-        Delete bookmark
-      </message>
-      <message name="IDS_CONTEXTMENU_EDIT_FOLDER" desc="Context menu action to edit a bookmark folder. [CHAR-LIMIT=30]">
-        Edit folder
-      </message>
-      <message name="IDS_CONTEXTMENU_DELETE_FOLDER" desc="Context menu action to delete a bookmark folder. [CHAR-LIMIT=30]">
-        Delete folder
-      </message>
-      <message name="IDS_ACCESSIBILITY_BOOKMARK_FOLDER" desc="Accessible content description of a bookmark folder">
-        <ph name="FOLDER_NAME">%1$s<ex>Mobile bookmarks</ex></ph> folder
-      </message>
-
-      <!-- Enhanced bookmark strings -->
       <message name="IDS_ENHANCED_BOOKMARK_SIGN_IN_PROMO_TITLE" desc="Promo title encouraging the user to sign in to Chrome to improve their bookmarks experience. It means that after signing-in, bookmarks will become synced across devices and possible to search.">
         Sync your bookmarks
       </message>
@@ -1928,6 +1926,39 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       <message name="IDS_ENHANCED_BOOKMARK_NO_RESULT" desc="Text explaining that no bookmarks are found to match a search query">
         No bookmarks found
       </message>
+      <message name="IDS_EDIT_BOOKMARK" desc='The string prompting the user to edit the content of a bookmark. [CHAR-LIMIT=30]'>
+        Edit bookmark
+      </message>
+      <message name="IDS_ADD_FOLDER" desc='Title of the "Add Folder" form dialog. [CHAR-LIMIT=30]'>
+        Add folder
+      </message>
+      <message name="IDS_EDIT_FOLDER" desc='Title of the "Edit Folder" form dialog. [CHAR-LIMIT=30]'>
+        Edit folder
+      </message>
+      <message name="IDS_BOOKMARK_NAME" desc="Label specifying the title of the bookmark. [CHAR-LIMIT=32]">
+        Name
+      </message>
+      <message name="IDS_BOOKMARK_URL" desc="Label specifying the url of the bookmark. [CHAR-LIMIT=32]">
+        URL
+      </message>
+      <message name="IDS_BOOKMARK_FOLDER" desc="Label specifying what folder a bookmark is in. [CHAR-LIMIT=32]">
+        Folder
+      </message>
+      <message name="IDS_BOOKMARK_OFFLINE_PAGE_NONE" desc="Label specifying that given saved page does not have an offline copy, but user has the page open.">
+        Not saved offline
+      </message>
+      <message name="IDS_BOOKMARK_OFFLINE_PAGE_SIZE" desc="Label specifying that given saved page has an offline copy of a specific size.">
+        <ph name="PAGE_SIZE_STRING">%1$s<ex>1.32 MB</ex></ph> page saved offline
+      </message>
+      <message name="IDS_BOOKMARK_BTN_OFFLINE_PAGE_VISIT" desc="Label for a button to visit an offline page. [CHAR-LIMIT=20]">
+        Visit
+      </message>
+      <message name="IDS_BOOKMARK_MISSING_TITLE" desc="Error message appearing when a user tries to create/edit a bookmark or a folder without a title. [CHAR-LIMIT=32]">
+        Title required
+      </message>
+      <message name="IDS_BOOKMARK_MISSING_URL" desc="Error message appearing when a user tries to create a bookmark without a url. [CHAR-LIMIT=32]">
+        URL required
+      </message>
       <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_DRAWER_TOGGLE_BTN_OPEN" desc="Content description for the button to show the navigation drawer.">
         Open navigation drawer
       </message>
@@ -1972,7 +2003,7 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       <message name="IDS_OFFLINE_PAGES_PAGE_SAVED" desc="Message shown after user adds a new offline page.">
         Page saved offline
       </message>
-      <message name="IDS_OFFLINE_PAGES_PAGE_SAVED_FOLDER" desc="Message shown after user saves a new offline page. Also specifies in which folder the bookmark was added. [CHAR-LIMIT=32]">
+      <message name="IDS_OFFLINE_PAGES_PAGE_SAVED_FOLDER" desc="Message shown after user saves a new offline page. Also specifies in which folder the bookmark was added.">
         Page saved offline to <ph name="FOLDER_NAME">%1$s<ex>Mobile bookmarks</ex></ph>
       </message>
       <message name="IDS_OFFLINE_PAGES_PAGE_SKIPPED" desc="Message shown after a page was saved as a bookmark, but an offline copy was not created due to that the page is not HTTP or HTTPS page.">
@@ -2038,7 +2069,6 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
         Viewing an offline copy of this bookmark
       </message>
 
-
       <!-- Find in page -->
       <message name="IDS_HINT_FIND_IN_PAGE" desc="Hint text to show for the find in page search field when the search field is empty.">
         Find in page
@@ -2056,80 +2086,6 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       <!-- Omnibox -->
       <message name="IDS_SEARCH_OR_TYPE_URL" desc="Prompt to enter text into the text field that will either perform web searches or navigate to a URL. [CHAR-LIMIT=38]">
         Search or type URL
-      </message>
-
-      <!-- Add bookmark activity -->
-      <message name="IDS_REMOVE" desc="Button for removing an item (e.g. a bookmark) from a list. [CHAR-LIMIT=12]">
-        Remove
-      </message>
-      <message name="IDS_SAVE_BOOKMARK" desc="Label of the Add/Edit Bookmark activity. [CHAR-LIMIT=45]">
-        Save bookmark
-      </message>
-      <message name="IDS_ADD_BOOKMARK" desc='Title of the "Add Bookmark" form dialog. [CHAR-LIMIT=30]'>
-        Add bookmark
-      </message>
-      <message name="IDS_EDIT_BOOKMARK" desc='The string prompting the user to edit the content of a bookmark. [CHAR-LIMIT=30]'>
-        Edit bookmark
-      </message>
-      <message name="IDS_ADD_FOLDER" desc='Title of the "Add Folderk" form dialog. [CHAR-LIMIT=30]'>
-        Add folder
-      </message>
-      <message name="IDS_EDIT_FOLDER" desc='Title of the "Edit Folder" form dialog. [CHAR-LIMIT=30]'>
-        Edit folder
-      </message>
-      <message name="IDS_BOOKMARK_NAME" desc="Label specifying the title of the bookmark. [CHAR-LIMIT=32]">
-        Name
-      </message>
-      <message name="IDS_BOOKMARK_URL" desc="Label specifying the url of the bookmark. [CHAR-LIMIT=32]">
-        URL
-      </message>
-      <message name="IDS_BOOKMARK_FOLDER" desc="Label specifying what folder a bookmark is in. [CHAR-LIMIT=32]">
-        Folder
-      </message>
-      <message name="IDS_BOOKMARK_OFFLINE_PAGE_NONE" desc="Label specifying that given saved page does not have an offline copy, but user has the page open.">
-        Not saved offline
-      </message>
-      <message name="IDS_BOOKMARK_OFFLINE_PAGE_SIZE" desc="Label specifying that given saved page has an offline copy of a specific size.">
-        <ph name="PAGE_SIZE_STRING">%1$s<ex>1.32 MB</ex></ph> page saved offline
-      </message>
-      <message name="IDS_BOOKMARK_OFFLINE_PAGE_VISIT" desc="Label specifying that given saved page does not have an offline copy, and user does not have that page open.">
-        Visit page to save offline
-      </message>
-      <message name="IDS_BOOKMARK_BTN_OFFLINE_PAGE_VISIT" desc="Label for a button to visit an offline page. [CHAR-LIMIT=20]">
-        Visit
-      </message>
-      <message name="IDS_BOOKMARK_MISSING_TITLE" desc="Error message appearing when a user tries to create/edit a bookmark or a folder without a title. [CHAR-LIMIT=32]">
-        Title required
-      </message>
-      <message name="IDS_BOOKMARK_MISSING_URL" desc="Error message appearing when a user tries to create a bookmark without a url. [CHAR-LIMIT=32]">
-        URL required
-      </message>
-      <message name="IDS_CHOOSE_FOLDER" desc="Label shown when specifying a folder to place a bookmark or existing into. [CHAR-LIMIT=30]">
-        Choose a folder
-      </message>
-      <message name="IDS_NEW_FOLDER" desc="Label for the button that allows users to create new bookmark folders. [CHAR-LIMIT=15]">
-        New folder
-      </message>
-      <message name="IDS_DEFAULT_FOLDER_ERROR" desc="Error shown when loading the default bookmark folder fails. [CHAR-LIMIT=45]">
-        Error loading default
-      </message>
-      <message name="IDS_LOADING_BOOKMARK" desc="Label shown while loading data from a bookmark [CHAR-LIMIT=30]">
-        Loading…
-      </message>
-      <message name="IDS_SAVING_BOOKMARK" desc="Label shown while saving or updating a bookmark. [CHAR-LIMIT=30]">
-        Saving…
-      </message>
-      <message name="IDS_REMOVING_BOOKMARK" desc="Label shown while removing a bookmark. [CHAR-LIMIT=30]">
-        Removing…
-      </message>
-      <message name="IDS_BOOKMARK_FOLDER_TREE_ERROR" desc="Error shown when loading the bookmark folder hierarchy fails. [CHAR-LIMIT=45]">
-        Error loading folders
-      </message>
-      <message name="IDS_NO_BOOKMARK_FOLDERS" desc="Label shown when no bookmark folders exist. [CHAR-LIMIT=45]">
-        No bookmark folders
-      </message>
-      <message name="IDS_INVALID_BOOKMARK" desc="Error shown when attempting to edit a bookmark that no longer exist.">
-        Bookmark no longer exists. Please refresh.
       </message>
 
       <!-- Voice search -->
@@ -2231,15 +2187,6 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       </message>
       <message name="IDS_ACCESSIBILITY_NTP_TOOLBAR_BTN_RECENT_TABS" desc="Content description for the recent tabs section of the new tab page.">
         Recent tabs
-      </message>
-      <message name="IDS_ACCESSIBILITY_BOOKMARK_TITLE_TEXTBOX" desc="Content description for the bookmark title input text box.">
-        Bookmark title
-      </message>
-      <message name="IDS_ACCESSIBILITY_BOOKMARK_FOLDER_NAME_TEXTBOX" desc="Content description for the bookmark add folder input text box.">
-        Folder name
-      </message>
-      <message name="IDS_ACCESSIBILITY_BOOKMARK_URL_TEXTBOX" desc="Content description for the bookmark url input text box.">
-        Bookmark URL
       </message>
       <message name="IDS_ACCESSIBILITY_OMNIBOX_BTN_REFINE" desc="Content description for the omnibox refine button.">
         Refine
@@ -2359,12 +2306,14 @@ However, you aren’t invisible. Going incognito doesn’t hide your browsing fr
 You must have Bluetooth and Location turned on in order to use the Physical Web.
       </message>
       <message name="IDS_PHYSICAL_WEB_OPTIN_TITLE" desc="The title for a dialog inviting the user to opt-in to the Physical Web.">
-        The Physical Web
+        Chrome + Physical Web
       </message>
       <message name="IDS_PHYSICAL_WEB_OPTIN_DESCRIPTION" desc="Description of the Physical Web displayed in the opt-in dialog">
-        Discover web pages sent by nearby objects.
+        Chrome can now find and show you nearby web pages using Bluetooth.
 
 Chrome will scan for nearby pages when your device is unlocked. These pages will go through a Google service to improve the quality of page results.
+
+You can control Physical Web settings in Chrome privacy settings.
       </message>
       <message name="IDS_PHYSICAL_WEB_LIST_URLS_ACTIVITY_TITLE" desc="The title for a dialog that shows a list of URLs broadcasted from nearby devices.">
         The Physical Web
@@ -2383,6 +2332,9 @@ Chrome will scan for nearby pages when your device is unlocked. These pages will
       </message>
       <message name="IDS_PHYSICAL_WEB_REFRESH" desc="The label for a button that initiates a scan for nearby URLs">
         Refresh
+      </message>
+      <message name="IDS_PHYSICAL_WEB_LAUNCH_BUTTON" desc="The label for a button that opens a list of nearby URLs">
+        See what's nearby
       </message>
     </messages>
   </release>

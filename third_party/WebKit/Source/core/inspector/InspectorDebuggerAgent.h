@@ -73,7 +73,6 @@ public:
     void setVariableValue(ErrorString*, int inScopeNumber, const String& inVariableName, const RefPtr<JSONObject>& inNewValue, const String* inCallFrameId, const String* inFunctionObjectId) override;
     void getStepInPositions(ErrorString*, const String& inCallFrameId, RefPtr<TypeBuilder::Array<TypeBuilder::Debugger::Location>>& optOutStepInPositions) override;
     void getBacktrace(ErrorString*, RefPtr<TypeBuilder::Array<TypeBuilder::Debugger::CallFrame>>& outCallFrames, RefPtr<TypeBuilder::Debugger::StackTrace>& optOutAsyncStackTrace) override;
-    void skipStackFrames(ErrorString*, const String* inScript, const bool* inSkipContentScripts) override;
     void setAsyncCallStackDepth(ErrorString*, int inMaxDepth) override;
     void enablePromiseTracker(ErrorString*, const bool* inCaptureStacks) override;
     void disablePromiseTracker(ErrorString*) override;
@@ -81,6 +80,7 @@ public:
     void flushAsyncOperationEvents(ErrorString*) override;
     void setAsyncOperationBreakpoint(ErrorString*, int inOperationId) override;
     void removeAsyncOperationBreakpoint(ErrorString*, int inOperationId) override;
+    void setBlackboxedRanges(ErrorString*, const String& inScriptId, const RefPtr<JSONArray>& inPositions) override;
 
     // Called by InspectorInstrumentation.
     bool isPaused();

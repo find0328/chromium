@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.IBinder;
+import android.os.StrictMode;
 import android.support.customtabs.CustomTabsCallback;
 import android.support.customtabs.CustomTabsIntent;
 import android.text.TextUtils;
@@ -41,7 +42,6 @@ import org.chromium.chrome.browser.datausage.DataUseTabUIManager;
 import org.chromium.chrome.browser.rappor.RapporServiceBridge;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabIdManager;
-import org.chromium.chrome.browser.tab.TopControlsVisibilityDelegate;
 import org.chromium.chrome.browser.tabmodel.EmptyTabModelObserver;
 import org.chromium.chrome.browser.tabmodel.TabModel.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabModel.TabSelectionType;
@@ -300,19 +300,8 @@ public class CustomTabActivity extends ChromeActivity {
             webContents = WebContentsFactory.createWebContents(false, false);
         }
         tab.initialize(webContents, getTabContentManager(),
-                new CustomTabDelegateFactory() {
-                    @Override
-                    public TopControlsVisibilityDelegate createTopControlsVisibilityDelegate(
-                            Tab tab) {
-                        return new TopControlsVisibilityDelegate(tab) {
-                            @Override
-                            public boolean isHidingTopControlsEnabled() {
-                                return mIntentDataProvider.shouldEnableUrlBarHiding()
-                                        && super.isHidingTopControlsEnabled();
-                            }
-                        };
-                    }
-            }, false, false);
+                new CustomTabDelegateFactory(mIntentDataProvider.shouldEnableUrlBarHiding()), false,
+                false);
         tab.getTabRedirectHandler().updateIntent(getIntent());
         tab.getView().requestFocus();
         return tab;
@@ -578,7 +567,16 @@ public class CustomTabActivity extends ChromeActivity {
             }
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
+
+            // Temporarily allowing disk access while fixing. TODO: http://crbug.com/581860
+            StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
+            StrictMode.allowThreadDiskWrites();
+            try {
+                startActivity(intent);
+            } finally {
+                StrictMode.setThreadPolicy(oldPolicy);
+            }
+
             RecordUserAction.record("CustomTabsMenuOpenInChrome");
             return true;
         } else if (id == R.id.find_in_page_id) {

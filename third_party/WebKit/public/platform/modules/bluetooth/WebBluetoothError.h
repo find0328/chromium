@@ -55,12 +55,13 @@ enum class WebBluetoothError {
     GATTUntranslatedErrorCode,
     // SecurityError:
     GATTNotAuthorized,
+    NotAllowedToAccessService,
     RequestDeviceWithBlacklistedUUID,
     RequestDeviceWithUniqueOrigin,
     RequestDeviceWithoutFrame,
     // SyntaxError:
 
-    ENUM_MAX_VALUE = GATTNotAuthorized,
+    ENUM_MAX_VALUE = RequestDeviceWithoutFrame,
 };
 
 } // namespace blink

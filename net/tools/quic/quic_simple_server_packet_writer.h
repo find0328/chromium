@@ -21,7 +21,6 @@ class QuicBlockedWriterInterface;
 class UDPServerSocket;
 struct WriteResult;
 
-namespace tools {
 
 // Chrome specific packet writer which uses a UDPServerSocket for writing
 // data.
@@ -41,6 +40,7 @@ class QuicSimpleServerPacketWriter : public QuicPacketWriter {
       size_t buf_len,
       const IPAddressNumber& self_address,
       const IPEndPoint& peer_address,
+      PerPacketOptions* options,
       WriteCallback callback);
 
   void OnWriteComplete(int rv);
@@ -56,7 +56,8 @@ class QuicSimpleServerPacketWriter : public QuicPacketWriter {
   WriteResult WritePacket(const char* buffer,
                           size_t buf_len,
                           const IPAddressNumber& self_address,
-                          const IPEndPoint& peer_address) override;
+                          const IPEndPoint& peer_address,
+                          PerPacketOptions* options) override;
 
  private:
   UDPServerSocket* socket_;
@@ -75,7 +76,6 @@ class QuicSimpleServerPacketWriter : public QuicPacketWriter {
   DISALLOW_COPY_AND_ASSIGN(QuicSimpleServerPacketWriter);
 };
 
-}  // namespace tools
 }  // namespace net
 
 #endif  // NET_QUIC_TOOLS_QUIC_SIMPLE_SERVER_PACKET_WRITER_H_

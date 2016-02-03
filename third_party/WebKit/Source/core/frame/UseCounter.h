@@ -1007,6 +1007,7 @@ public:
         MediaStreamConstraintsFromDictionary = 1151,
         MediaStreamConstraintsConformant = 1152,
         CSSSelectorIndirectAdjacent = 1153,
+        NodeTreeRoot = 1154,
 
         // Add new features immediately above this line. Don't change assigned
         // numbers of any item, and don't reuse removed slots.
@@ -1052,6 +1053,9 @@ public:
     // Count only features if they're being used in an iframe which does not
     // have script access into the top level document.
     static void countCrossOriginIframe(const Document&, Feature);
+
+    // TODO (nainar): Migrate all console message functions to Deprecation
+    static String willBeRemoved(const char* feature, int milestone, const char* details);
 
     // Return whether the Feature was previously counted for this document.
     // NOTE: only for use in testing.

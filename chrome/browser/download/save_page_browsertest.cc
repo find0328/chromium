@@ -16,8 +16,6 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/macros.h"
 #include "base/path_service.h"
-#include "base/prefs/pref_member.h"
-#include "base/prefs/pref_service.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -44,6 +42,8 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/history/core/browser/download_constants.h"
 #include "components/history/core/browser/download_row.h"
+#include "components/prefs/pref_member.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/download_item.h"
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/notification_service.h"
@@ -1118,23 +1118,6 @@ IN_PROC_BROWSER_TEST_P(SavePageMultiFrameBrowserTest, RuntimeChanges) {
       "subframe4: e0ea9289-7467-4d32-ba5c-c604e8d84cb7",
   };
   std::vector<std::string> expected_substrings(std::begin(arr), std::end(arr));
-
-  if (save_page_type == content::SAVE_PAGE_TYPE_AS_COMPLETE_HTML) {
-    // TODO(lukasza): crbug.com/106364: Expand complete-html test to cover all
-    // test frames.  In particular, the |complete_html_arr| below should be the
-    // same as the |arr| above (and at this point the special-casing of
-    // complete-html can be removed).
-    // Draft CLs with fix proposals that should accomplish this:
-    // - crrev.com/1502563004
-    // - crrev.com/1500103002
-    std::string complete_html_arr[] = {
-        "frames-runtime-changes.htm: 4388232f-8d45-4d2e-9807-721b381be153",
-        "subframe1: 21595339-61fc-4854-b6df-0668328ea263",
-        "subframe2: adf55719-15e7-45be-9eda-d12fe782a1bd",
-    };
-    expected_substrings = std::vector<std::string>(
-        std::begin(complete_html_arr), std::end(complete_html_arr));
-  }
 
   GURL url(embedded_test_server()->GetURL(
       "a.com", "/save_page/frames-runtime-changes.htm?do_runtime_changes=1"));

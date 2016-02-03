@@ -53,10 +53,11 @@
 #include "extensions/grit/extensions_browser_resources.h"
 #include "third_party/skia/include/core/SkRegion.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/screen.h"
 
 #if !defined(OS_MACOSX)
-#include "base/prefs/pref_service.h"
+#include "components/prefs/pref_service.h"
 #include "extensions/browser/pref_names.h"
 #endif
 

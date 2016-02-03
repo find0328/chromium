@@ -120,6 +120,10 @@ public:
     bool isInPerformLayout() const;
 
     void clearLayoutSubtreeRoot(const LayoutObject&);
+    void addOrthogonalWritingModeRoot(LayoutBox&);
+    void removeOrthogonalWritingModeRoot(LayoutBox&);
+    bool hasOrthogonalWritingModeRoots() const;
+    void layoutOrthogonalWritingModeRoots();
     int layoutCount() const { return m_layoutCount; }
 
     void countObjectsNeedingLayout(unsigned& needsLayoutObjects, unsigned& totalObjects, bool& isPartial);
@@ -254,7 +258,12 @@ public:
         UrlFragmentScroll,
         UrlFragmentDontScroll
     };
-    bool processUrlFragment(const KURL&, UrlFragmentBehavior = UrlFragmentScroll);
+    // Updates the fragment anchor element based on URL's fragment identifier.
+    // Updates corresponding ':target' CSS pseudo class on the anchor element.
+    // If |UrlFragmentScroll| is passed in then makes the anchor element
+    // focused and also visible by scrolling to it. The scroll position is
+    // maintained during the frame loading process.
+    void processUrlFragment(const KURL&, UrlFragmentBehavior = UrlFragmentScroll);
     void clearFragmentAnchor();
 
     // Methods to convert points and rects between the coordinate space of the layoutObject, and this view.
@@ -781,6 +790,7 @@ private:
 
     bool m_hasPendingLayout;
     LayoutSubtreeRootList m_layoutSubtreeRootList;
+    DepthOrderedLayoutObjectList m_orthogonalWritingModeRootList;
 
     bool m_layoutSchedulingEnabled;
     bool m_inSynchronousPostLayout;

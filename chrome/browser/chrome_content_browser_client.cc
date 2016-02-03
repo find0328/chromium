@@ -17,8 +17,6 @@
 #include "base/lazy_instance.h"
 #include "base/macros.h"
 #include "base/path_service.h"
-#include "base/prefs/pref_service.h"
-#include "base/prefs/scoped_user_pref_update.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -120,6 +118,8 @@
 #include "components/metrics/client_info.h"
 #include "components/net_log/chrome_net_log.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "components/rappor/rappor_utils.h"
 #include "components/security_interstitials/core/ssl_error_ui.h"
 #include "components/signin/core/common/profile_management_switches.h"
@@ -168,6 +168,7 @@
 #include "base/strings/string_tokenizer.h"
 #include "base/win/windows_version.h"
 #include "chrome/browser/chrome_browser_main_win.h"
+#include "components/startup_metric_utils/common/pre_read_field_trial_utils_win.h"
 #include "sandbox/win/src/sandbox_policy.h"
 #elif defined(OS_MACOSX)
 #include "chrome/browser/chrome_browser_main_mac.h"
@@ -1808,7 +1809,6 @@ bool ChromeContentBrowserClient::AllowWorkerDatabase(
     const GURL& url,
     const base::string16& name,
     const base::string16& display_name,
-    unsigned long estimated_size,
     content::ResourceContext* context,
     const std::vector<std::pair<int, int> >& render_frames) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
@@ -2692,6 +2692,10 @@ bool ChromeContentBrowserClient::IsWin32kLockdownEnabledForMimeType(
   }
 
   return false;
+}
+
+bool ChromeContentBrowserClient::ShouldUseWindowsPrefetchArgument() const {
+  return startup_metric_utils::GetPreReadOptions().use_prefetch_argument;
 }
 #endif  // defined(OS_WIN)
 

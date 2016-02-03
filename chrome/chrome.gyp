@@ -551,6 +551,7 @@
             '../base/base.gyp:base',
             '../build/android/java_google_api_keys.gyp:google_api_keys_java',
             '../chrome/android/chrome_apk.gyp:custom_tabs_service_aidl',
+            '../components/components.gyp:autocomplete_match_java',
             '../components/components.gyp:autocomplete_match_type_java',
             '../components/components.gyp:bookmarks_java',
             '../components/components.gyp:dom_distiller_core_java',
@@ -745,8 +746,6 @@
             'service/service_process.h',
             'service/service_process_prefs.cc',
             'service/service_process_prefs.h',
-            'service/service_utility_process_host.cc',
-            'service/service_utility_process_host.h',
           ],
           'include_dirs': [
             '..',
@@ -765,10 +764,15 @@
                 'service/cloud_print/print_system_dummy.cc',
               ],
             }],
-            ['OS!="win"', {
-              'sources!': [
+            ['OS=="win"', {
+              'sources': [
                 'service/service_utility_process_host.cc',
                 'service/service_utility_process_host.h',
+              ],
+              'deps': [
+                # TODO(fdoray): Remove this once the PreRead field trial has
+                # expired. crbug.com/577698
+                '../components/components.gyp:startup_metric_utils_common',
               ],
             }],
           ],

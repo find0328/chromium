@@ -1014,7 +1014,6 @@ Array.prototype.keys;
  */
 Array.prototype.entries;
 
-
 /** @return {!Array<symbol>} */
 Object.getOwnPropertySymbols;
 

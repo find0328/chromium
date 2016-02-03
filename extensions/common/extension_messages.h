@@ -41,6 +41,9 @@ IPC_ENUM_TRAITS_MAX_VALUE(content::SocketPermissionRequest::OperationType,
 IPC_ENUM_TRAITS_MAX_VALUE(extensions::UserScript::InjectionType,
                           extensions::UserScript::INJECTION_TYPE_LAST)
 
+IPC_ENUM_TRAITS_MAX_VALUE(extensions::UserScript::RunLocation,
+                          extensions::UserScript::RUN_LOCATION_LAST - 1)
+
 IPC_ENUM_TRAITS_MAX_VALUE(HostID::HostType, HostID::HOST_TYPE_LAST)
 
 // Parameters structure for ExtensionHostMsg_AddAPIActionToActivityLog and
@@ -301,64 +304,80 @@ namespace IPC {
 template <>
 struct ParamTraits<URLPattern> {
   typedef URLPattern param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* p);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* p);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<extensions::URLPatternSet> {
   typedef extensions::URLPatternSet param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* p);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* p);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<extensions::APIPermission::ID> {
   typedef extensions::APIPermission::ID param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* p);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* p);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<extensions::APIPermissionSet> {
   typedef extensions::APIPermissionSet param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* r);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* r);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<extensions::ManifestPermissionSet> {
   typedef extensions::ManifestPermissionSet param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* r);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* r);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<HostID> {
   typedef HostID param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* r);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* r);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<ExtensionMsg_PermissionSetStruct> {
   typedef ExtensionMsg_PermissionSetStruct param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* p);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* p);
   static void Log(const param_type& p, std::string* l);
 };
 
 template <>
 struct ParamTraits<ExtensionMsg_Loaded_Params> {
   typedef ExtensionMsg_Loaded_Params param_type;
-  static void Write(Message* m, const param_type& p);
-  static bool Read(const Message* m, base::PickleIterator* iter, param_type* p);
+  static void Write(base::Pickle* m, const param_type& p);
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* p);
   static void Log(const param_type& p, std::string* l);
 };
 
@@ -698,9 +717,10 @@ IPC_MESSAGE_ROUTED2(ExtensionHostMsg_ContentScriptsExecuting,
 // If request id is -1, this signals that the request has already ran, and this
 // merely serves as a notification. This happens when the feature to disable
 // scripts running without user consent is not enabled.
-IPC_MESSAGE_ROUTED3(ExtensionHostMsg_RequestScriptInjectionPermission,
+IPC_MESSAGE_ROUTED4(ExtensionHostMsg_RequestScriptInjectionPermission,
                     std::string /* extension id */,
                     extensions::UserScript::InjectionType /* script type */,
+                    extensions::UserScript::RunLocation /* run location */,
                     int64_t /* request id */)
 
 // Sent from the browser to the renderer in reply to a

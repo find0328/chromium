@@ -13,7 +13,6 @@
 
 #include "base/i18n/case_conversion.h"
 #include "base/i18n/timezone.h"
-#include "base/prefs/pref_service.h"
 #include "base/profiler/scoped_tracker.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -35,6 +34,7 @@
 #include "components/autofill/core/common/autofill_pref_names.h"
 #include "components/autofill/core/common/autofill_switches.h"
 #include "components/autofill/core/common/autofill_util.h"
+#include "components/prefs/pref_service.h"
 #include "components/signin/core/browser/account_tracker_service.h"
 #include "components/signin/core/browser/signin_manager.h"
 #include "components/signin/core/common/signin_pref_names.h"
@@ -1345,13 +1345,26 @@ bool PersonalDataManager::ImportCreditCard(
     types_seen.insert(server_field_type);
 
     // If |field| is an HTML5 month input, handle it as a special case.
-    // Otherwise, CreditCard handles storing the |value| according to
-    // |field_type|.
     if (base::LowerCaseEqualsASCII(field->form_control_type, "month")) {
       DCHECK_EQ(CREDIT_CARD_EXP_DATE_4_DIGIT_YEAR, server_field_type);
       candidate_credit_card.SetInfoForMonthInputType(value);
-    } else {
-      candidate_credit_card.SetInfo(field_type, value, app_locale_);
+      continue;
+    }
+
+    // CreditCard handles storing the |value| according to |field_type|.
+    bool saved = candidate_credit_card.SetInfo(field_type, value, app_locale_);
+
+    // Saving with the option text (here |value|) may fail for the expiration
+    // month. Attempt to save with the option value. First find the index of the
+    // option text in the select options and try the corresponding value.
+    if (!saved && server_field_type == CREDIT_CARD_EXP_MONTH) {
+      for (size_t i = 0; i < field->option_contents.size(); ++i) {
+        if (value == field->option_contents[i]) {
+          candidate_credit_card.SetInfo(field_type, field->option_values[i],
+                                        app_locale_);
+          break;
+        }
+      }
     }
   }
 

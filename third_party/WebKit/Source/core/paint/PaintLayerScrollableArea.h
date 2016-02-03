@@ -262,6 +262,7 @@ public:
     bool updateAfterCompositingChange() override;
 
     bool hasScrollbar() const { return hasHorizontalScrollbar() || hasVerticalScrollbar(); }
+    bool hasOverflowControls() const { return hasScrollbar() || scrollCorner() || resizer(); }
 
     LayoutScrollbarPart* scrollCorner() const override { return m_scrollCorner; }
 
@@ -352,8 +353,8 @@ private:
     void setScrollOffset(const IntPoint&, ScrollType) override;
     void setScrollOffset(const DoublePoint&, ScrollType) override;
 
-    LayoutUnit verticalScrollbarStart(int minX, int maxX) const;
-    LayoutUnit horizontalScrollbarStart(int minX) const;
+    int verticalScrollbarStart(int minX, int maxX) const;
+    int horizontalScrollbarStart(int minX) const;
     IntSize scrollbarOffset(const Scrollbar&) const;
 
     void setHasHorizontalScrollbar(bool hasScrollbar);

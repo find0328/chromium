@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_PREFS_TESTING_PREF_STORE_H_
-#define BASE_PREFS_TESTING_PREF_STORE_H_
+#ifndef COMPONENTS_PREFS_TESTING_PREF_STORE_H_
+#define COMPONENTS_PREFS_TESTING_PREF_STORE_H_
 
 #include <stdint.h>
 
@@ -12,8 +12,8 @@
 #include "base/compiler_specific.h"
 #include "base/macros.h"
 #include "base/observer_list.h"
-#include "base/prefs/persistent_pref_store.h"
-#include "base/prefs/pref_value_map.h"
+#include "components/prefs/persistent_pref_store.h"
+#include "components/prefs/pref_value_map.h"
 
 // |TestingPrefStore| is a preference store implementation that allows tests to
 // explicitly manipulate the contents of the store, triggering notifications
@@ -111,4 +111,4 @@ class TestingPrefStore : public PersistentPrefStore {
   DISALLOW_COPY_AND_ASSIGN(TestingPrefStore);
 };
 
-#endif  // BASE_PREFS_TESTING_PREF_STORE_H_
+#endif  // COMPONENTS_PREFS_TESTING_PREF_STORE_H_

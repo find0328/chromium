@@ -197,9 +197,6 @@ public:
     virtual bool userScrollableHorizontal() const = 0;
     virtual bool userScrollableVertical() const = 0;
 
-    virtual void setHaveScrollEventHandlers(bool) = 0;
-    virtual bool haveScrollEventHandlers() const = 0;
-
     // Indicates that this layer will always scroll on the main thread for the provided reason.
     virtual void addMainThreadScrollingReasons(uint32_t) = 0;
     // Indicates that the layer could scroll on the compositor thread.
@@ -235,9 +232,6 @@ public:
     // Forces this layer to use a render surface. There is no benefit in doing
     // so, but this is to facilitate benchmarks and tests.
     virtual void setForceRenderSurface(bool) = 0;
-
-    // True if the layer is not part of a tree attached to a WebLayerTreeView.
-    virtual bool isOrphan() const = 0;
 
     // Sets the cc-side layer client.
     virtual void setLayerClient(cc::LayerClient*) = 0;

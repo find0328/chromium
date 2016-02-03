@@ -44,6 +44,9 @@ source_set("lib") {
     "non_client_frame_controller.h",
     "property_util.cc",
     "property_util.h",
+    "root_window_controller.cc",
+    "root_window_controller.h",
+    "root_windows_observer.h",
     "screenlock_layout.cc",
     "screenlock_layout.h",
     "shadow.cc",
@@ -56,10 +59,10 @@ source_set("lib") {
     "user_window_controller_impl.h",
     "window_layout.cc",
     "window_layout.h",
+    "window_manager.cc",
+    "window_manager.h",
     "window_manager_application.cc",
     "window_manager_application.h",
-    "window_manager_impl.cc",
-    "window_manager_impl.h",
   ]
 
   deps = [
@@ -67,6 +70,7 @@ source_set("lib") {
     "//components/mus/common",
     "//components/mus/public/cpp",
     "//components/mus/public/interfaces",
+    "//mash/shell/public/interfaces",
     "//mash/wm/public/interfaces",
     "//mash/wm/resources",
     "//mojo/common:common_base",
@@ -89,6 +93,7 @@ source_set("lib") {
 
 mojo_native_application("wm") {
   output_name = "desktop_wm"
+  manifest = [ "manifest.json" ]
 
   sources = [
     "main.cc",
@@ -100,6 +105,8 @@ mojo_native_application("wm") {
     "//mojo/shell/public/cpp",
   ]
 
+  # TODO(beng): This target relies on //mash/shell, but there is a cycle so we
+  #             can't state that dependency here.
   data_deps = [
     "//components/mus",
   ]

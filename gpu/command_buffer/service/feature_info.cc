@@ -127,9 +127,7 @@ void StringToWorkarounds(
 }  // anonymous namespace.
 
 FeatureInfo::FeatureFlags::FeatureFlags()
-    : chromium_color_buffer_float_rgba(false),
-      chromium_color_buffer_float_rgb(false),
-      chromium_framebuffer_multisample(false),
+    : chromium_framebuffer_multisample(false),
       chromium_sync_query(false),
       use_core_framebuffer_multisample(false),
       multisampled_render_to_texture(false),
@@ -240,6 +238,11 @@ void FeatureInfo::InitializeBasicState(const base::CommandLine* command_line) {
 
   // Default context_type_ to a GLES2 Context.
   context_type_ = CONTEXT_TYPE_OPENGLES2;
+
+  chromium_color_buffer_float_rgba_available_ = false;
+  chromium_color_buffer_float_rgb_available_ = false;
+  ext_color_buffer_float_available_ = false;
+  oes_texture_float_linear_available_ = false;
 }
 
 bool FeatureInfo::Initialize(ContextType context_type,
@@ -248,6 +251,11 @@ bool FeatureInfo::Initialize(ContextType context_type,
   context_type_ = context_type;
   InitializeFeatures();
   return true;
+}
+
+bool FeatureInfo::InitializeForTesting(
+    const DisallowedFeatures& disallowed_features) {
+  return Initialize(CONTEXT_TYPE_OPENGLES2, disallowed_features);
 }
 
 bool FeatureInfo::InitializeForTesting() {
@@ -285,6 +293,61 @@ bool IsGL_REDSupportedOnFBOs() {
   DCHECK(glGetError() == GL_NO_ERROR);
 
   return result;
+}
+
+void FeatureInfo::EnableEXTColorBufferFloat() {
+  if (!ext_color_buffer_float_available_)
+    return;
+  AddExtensionString("GL_EXT_color_buffer_float");
+  validators_.render_buffer_format.AddValue(GL_R16F);
+  validators_.render_buffer_format.AddValue(GL_RG16F);
+  validators_.render_buffer_format.AddValue(GL_RGBA16F);
+  validators_.render_buffer_format.AddValue(GL_R32F);
+  validators_.render_buffer_format.AddValue(GL_RG32F);
+  validators_.render_buffer_format.AddValue(GL_RGBA32F);
+  validators_.render_buffer_format.AddValue(GL_R11F_G11F_B10F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(GL_R16F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(GL_RG16F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(
+      GL_RGBA16F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(GL_R32F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(GL_RG32F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(
+      GL_RGBA32F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(
+      GL_R11F_G11F_B10F);
+}
+
+void FeatureInfo::EnableCHROMIUMColorBufferFloatRGBA() {
+  if (!chromium_color_buffer_float_rgba_available_)
+    return;
+  validators_.texture_internal_format.AddValue(GL_RGBA32F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(
+      GL_RGBA32F);
+  AddExtensionString("GL_CHROMIUM_color_buffer_float_rgba");
+}
+
+void FeatureInfo::EnableCHROMIUMColorBufferFloatRGB() {
+  if (!chromium_color_buffer_float_rgb_available_)
+    return;
+  validators_.texture_internal_format.AddValue(GL_RGB32F);
+  validators_.texture_sized_color_renderable_internal_format.AddValue(
+      GL_RGB32F);
+  AddExtensionString("GL_CHROMIUM_color_buffer_float_rgb");
+}
+
+void FeatureInfo::EnableOESTextureFloatLinear() {
+  if (!oes_texture_float_linear_available_)
+    return;
+  AddExtensionString("GL_OES_texture_float_linear");
+  validators_.texture_sized_texture_filterable_internal_format.AddValue(
+      GL_R32F);
+  validators_.texture_sized_texture_filterable_internal_format.AddValue(
+      GL_RG32F);
+  validators_.texture_sized_texture_filterable_internal_format.AddValue(
+      GL_RGB32F);
+  validators_.texture_sized_texture_filterable_internal_format.AddValue(
+      GL_RGBA32F);
 }
 
 void FeatureInfo::InitializeFeatures() {
@@ -522,10 +585,9 @@ void FeatureInfo::InitializeFeatures() {
   // sized formats GL_SRGB8 and GL_SRGB8_ALPHA8. Also, SRGB_EXT isn't a valid
   // <format> in this case. So, even with GLES3 explicitly check for
   // GL_EXT_sRGB.
-  if (!workarounds_.disable_ext_srgb &&
-      (((gl_version_info_->is_es3 ||
-         extensions.Contains("GL_OES_rgb8_rgba8")) &&
-        extensions.Contains("GL_EXT_sRGB")) || gfx::HasDesktopGLFeatures())) {
+  if (((gl_version_info_->is_es3 || extensions.Contains("GL_OES_rgb8_rgba8")) &&
+       extensions.Contains("GL_EXT_sRGB")) ||
+      gfx::HasDesktopGLFeatures()) {
     AddExtensionString("GL_EXT_sRGB");
     validators_.texture_internal_format.AddValue(GL_SRGB_EXT);
     validators_.texture_internal_format.AddValue(GL_SRGB_ALPHA_EXT);
@@ -657,15 +719,9 @@ void FeatureInfo::InitializeFeatures() {
     validators_.read_pixel_type.AddValue(GL_FLOAT);
     AddExtensionString("GL_OES_texture_float");
     if (enable_texture_float_linear) {
-      AddExtensionString("GL_OES_texture_float_linear");
-      validators_.texture_sized_texture_filterable_internal_format.AddValue(
-          GL_R32F);
-      validators_.texture_sized_texture_filterable_internal_format.AddValue(
-          GL_RG32F);
-      validators_.texture_sized_texture_filterable_internal_format.AddValue(
-          GL_RGB32F);
-      validators_.texture_sized_texture_filterable_internal_format.AddValue(
-          GL_RGBA32F);
+      oes_texture_float_linear_available_ = true;
+      if (!disallowed_features_.oes_texture_float_linear)
+        EnableOESTextureFloatLinear();
     }
   }
 
@@ -757,45 +813,22 @@ void FeatureInfo::InitializeFeatures() {
     DCHECK(glGetError() == GL_NO_ERROR);
 
     if (status_rgba == GL_FRAMEBUFFER_COMPLETE) {
-      validators_.texture_internal_format.AddValue(GL_RGBA32F);
-      validators_.texture_sized_color_renderable_internal_format.AddValue(
-          GL_RGBA32F);
-      feature_flags_.chromium_color_buffer_float_rgba = true;
-      AddExtensionString("GL_CHROMIUM_color_buffer_float_rgba");
+      chromium_color_buffer_float_rgba_available_ = true;
+      if (!disallowed_features_.chromium_color_buffer_float_rgba)
+        EnableCHROMIUMColorBufferFloatRGBA();
     }
     if (status_rgb == GL_FRAMEBUFFER_COMPLETE) {
-      validators_.texture_internal_format.AddValue(GL_RGB32F);
-      validators_.texture_sized_color_renderable_internal_format.AddValue(
-          GL_RGB32F);
-      feature_flags_.chromium_color_buffer_float_rgb = true;
-      AddExtensionString("GL_CHROMIUM_color_buffer_float_rgb");
+      chromium_color_buffer_float_rgb_available_ = true;
+      if (!disallowed_features_.chromium_color_buffer_float_rgb)
+        EnableCHROMIUMColorBufferFloatRGB();
     }
   }
 
   // Enable the GL_EXT_color_buffer_float extension for WebGL 2.0
   if (enable_ext_color_buffer_float && IsES3Capable()) {
-    AddExtensionString("GL_EXT_color_buffer_float");
-    validators_.render_buffer_format.AddValue(GL_R16F);
-    validators_.render_buffer_format.AddValue(GL_RG16F);
-    validators_.render_buffer_format.AddValue(GL_RGBA16F);
-    validators_.render_buffer_format.AddValue(GL_R32F);
-    validators_.render_buffer_format.AddValue(GL_RG32F);
-    validators_.render_buffer_format.AddValue(GL_RGBA32F);
-    validators_.render_buffer_format.AddValue(GL_R11F_G11F_B10F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_R16F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_RG16F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_RGBA16F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_R32F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_RG32F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_RGBA32F);
-    validators_.texture_sized_color_renderable_internal_format.AddValue(
-        GL_R11F_G11F_B10F);
+    ext_color_buffer_float_available_ = true;
+    if (!disallowed_features_.ext_color_buffer_float)
+      EnableEXTColorBufferFloat();
   }
 
   // Check for multisample support
@@ -1188,7 +1221,6 @@ void FeatureInfo::InitializeFeatures() {
   }
 
   if (enable_gl_path_rendering_switch_ &&
-      !workarounds_.disable_gl_path_rendering &&
       extensions.Contains("GL_NV_path_rendering")) {
     bool has_dsa = gl_version_info_->IsAtLeastGL(4, 5) ||
                    extensions.Contains("GL_EXT_direct_state_access");
@@ -1207,7 +1239,6 @@ void FeatureInfo::InitializeFeatures() {
   }
 
   if (enable_gl_path_rendering_switch_ &&
-      !workarounds_.disable_gl_path_rendering &&
       extensions.Contains("GL_NV_framebuffer_mixed_samples")) {
     AddExtensionString("GL_CHROMIUM_framebuffer_mixed_samples");
     feature_flags_.chromium_framebuffer_mixed_samples = true;

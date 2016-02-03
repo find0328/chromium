@@ -6,7 +6,9 @@
 
 #include "core/StylePropertyShorthand.h"
 #include "core/css/CSSBasicShapeValues.h"
+#include "core/css/CSSBorderImage.h"
 #include "core/css/CSSCalculationValue.h"
+#include "core/css/CSSContentDistributionValue.h"
 #include "core/css/CSSCounterValue.h"
 #include "core/css/CSSCrossfadeValue.h"
 #include "core/css/CSSCursorImageValue.h"
@@ -3005,16 +3007,16 @@ static PassRefPtrWillBeRawPtr<CSSBasicShapePolygonValue> consumeBasicShapePolygo
     return shape.release();
 }
 
-static void completeBorderRadii(RefPtrWillBeRawPtr<CSSPrimitiveValue> radii[4])
+static void complete4Sides(RefPtrWillBeRawPtr<CSSPrimitiveValue> side[4])
 {
-    if (radii[3])
+    if (side[3])
         return;
-    if (!radii[2]) {
-        if (!radii[1])
-            radii[1] = radii[0];
-        radii[2] = radii[0];
+    if (!side[2]) {
+        if (!side[1])
+            side[1] = side[0];
+        side[2] = side[0];
     }
-    radii[3] = radii[1];
+    side[3] = side[1];
 }
 
 static bool consumeRadii(RefPtrWillBeRawPtr<CSSPrimitiveValue> horizontalRadii[4], RefPtrWillBeRawPtr<CSSPrimitiveValue> verticalRadii[4], CSSParserTokenRange& range, CSSParserMode cssParserMode, bool useLegacyParsing)
@@ -3038,7 +3040,7 @@ static bool consumeRadii(RefPtrWillBeRawPtr<CSSPrimitiveValue> horizontalRadii[4
             verticalRadii[0] = horizontalRadii[1];
             horizontalRadii[1] = nullptr;
         } else {
-            completeBorderRadii(horizontalRadii);
+            complete4Sides(horizontalRadii);
             for (unsigned i = 0; i < 4; ++i)
                 verticalRadii[i] = horizontalRadii[i];
             return true;
@@ -3055,8 +3057,8 @@ static bool consumeRadii(RefPtrWillBeRawPtr<CSSPrimitiveValue> horizontalRadii[4
         if (!verticalRadii[0] || !range.atEnd())
             return false;
     }
-    completeBorderRadii(horizontalRadii);
-    completeBorderRadii(verticalRadii);
+    complete4Sides(horizontalRadii);
+    complete4Sides(verticalRadii);
     return true;
 }
 
@@ -3146,6 +3148,138 @@ static PassRefPtrWillBeRawPtr<CSSValue> consumeShapeOutside(CSSParserTokenRange&
     if (!list->length())
         return nullptr;
     return list.release();
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeContentDistributionOverflowPosition(CSSParserTokenRange& range)
+{
+    if (identMatches<CSSValueAuto, CSSValueBaseline, CSSValueLastBaseline>(range.peek().id()))
+        return CSSContentDistributionValue::create(CSSValueInvalid, range.consumeIncludingWhitespace().id(), CSSValueInvalid);
+
+    CSSValueID distribution = CSSValueInvalid;
+    CSSValueID position = CSSValueInvalid;
+    CSSValueID overflow = CSSValueInvalid;
+    do {
+        CSSValueID id = range.peek().id();
+        if (identMatches<CSSValueSpaceBetween, CSSValueSpaceAround, CSSValueSpaceEvenly, CSSValueStretch>(id)) {
+            if (distribution != CSSValueInvalid)
+                return nullptr;
+            distribution = id;
+        } else if (identMatches<CSSValueStart, CSSValueEnd, CSSValueCenter, CSSValueFlexStart, CSSValueFlexEnd, CSSValueLeft, CSSValueRight>(id)) {
+            if (position != CSSValueInvalid)
+                return nullptr;
+            position = id;
+        } else if (identMatches<CSSValueUnsafe, CSSValueSafe>(id)) {
+            if (overflow != CSSValueInvalid)
+                return nullptr;
+            overflow = id;
+        } else {
+            return nullptr;
+        }
+        range.consumeIncludingWhitespace();
+    } while (!range.atEnd());
+
+    // The grammar states that we should have at least <content-distribution> or <content-position>.
+    if (position == CSSValueInvalid && distribution == CSSValueInvalid)
+        return nullptr;
+
+    // The grammar states that <overflow-position> must be associated to <content-position>.
+    if (overflow != CSSValueInvalid && position == CSSValueInvalid)
+        return nullptr;
+
+    return CSSContentDistributionValue::create(distribution, position, overflow);
+}
+
+static RefPtrWillBeRawPtr<CSSPrimitiveValue> consumeBorderImageRepeatKeyword(CSSParserTokenRange& range)
+{
+    return consumeIdent<CSSValueStretch, CSSValueRepeat, CSSValueSpace, CSSValueRound>(range);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBorderImageRepeat(CSSParserTokenRange& range)
+{
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> horizontal = consumeBorderImageRepeatKeyword(range);
+    if (!horizontal)
+        return nullptr;
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> vertical = consumeBorderImageRepeatKeyword(range);
+    if (!vertical)
+        vertical = horizontal;
+    return CSSValuePair::create(horizontal.release(), vertical.release(), CSSValuePair::DropIdenticalValues);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBorderImageSlice(CSSPropertyID property, CSSParserTokenRange& range, CSSParserMode cssParserMode)
+{
+    bool fill = consumeIdent<CSSValueFill>(range);
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> slices[4];
+#if ENABLE(OILPAN)
+    // Unconditionally zero initialize the arrays of raw pointers.
+    memset(slices, 0, 4 * sizeof(slices[0]));
+#endif
+    for (size_t index = 0; index < 4; ++index) {
+        RefPtrWillBeRawPtr<CSSPrimitiveValue> value = consumePercent(range, ValueRangeNonNegative);
+        if (!value)
+            value = consumeNumber(range, ValueRangeNonNegative);
+        if (!value)
+            break;
+        slices[index] = value;
+    }
+    if (!slices[0])
+        return nullptr;
+    if (consumeIdent<CSSValueFill>(range)) {
+        if (fill)
+            return nullptr;
+        fill = true;
+    }
+    complete4Sides(slices);
+    // FIXME: For backwards compatibility, -webkit-border-image, -webkit-mask-box-image and -webkit-box-reflect have to do a fill by default.
+    // FIXME: What do we do with -webkit-box-reflect and -webkit-mask-box-image? Probably just have to leave them filling...
+    if (property == CSSPropertyWebkitBorderImage || property == CSSPropertyWebkitMaskBoxImage || property == CSSPropertyWebkitBoxReflect)
+        fill = true;
+    return CSSBorderImageSliceValue::create(CSSQuadValue::create(slices[0].release(), slices[1].release(), slices[2].release(), slices[3].release(), CSSQuadValue::SerializeAsQuad), fill);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBorderImageOutset(CSSParserTokenRange& range)
+{
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> outsets[4];
+#if ENABLE(OILPAN)
+    // Unconditionally zero initialize the arrays of raw pointers.
+    memset(outsets, 0, 4 * sizeof(outsets[0]));
+#endif
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> value = nullptr;
+    for (size_t index = 0; index < 4; ++index) {
+        value = consumeNumber(range, ValueRangeNonNegative);
+        if (!value)
+            value = consumeLength(range, HTMLStandardMode, ValueRangeNonNegative);
+        if (!value)
+            break;
+        outsets[index] = value;
+    }
+    if (!outsets[0])
+        return nullptr;
+    complete4Sides(outsets);
+    return CSSQuadValue::create(outsets[0].release(), outsets[1].release(), outsets[2].release(), outsets[3].release(), CSSQuadValue::SerializeAsQuad);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBorderImageWidth(CSSParserTokenRange& range)
+{
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> widths[4];
+#if ENABLE(OILPAN)
+    // Unconditionally zero initialize the arrays of raw pointers.
+    memset(widths, 0, 4 * sizeof(widths[0]));
+#endif
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> value = nullptr;
+    for (size_t index = 0; index < 4; ++index) {
+        value = consumeNumber(range, ValueRangeNonNegative);
+        if (!value)
+            value = consumeLengthOrPercent(range, HTMLStandardMode, ValueRangeNonNegative, UnitlessQuirk::Forbid);
+        if (!value)
+            value = consumeIdent<CSSValueAuto>(range);
+        if (!value)
+            break;
+        widths[index] = value;
+    }
+    if (!widths[0])
+        return nullptr;
+    complete4Sides(widths);
+    return CSSQuadValue::create(widths[0].release(), widths[1].release(), widths[2].release(), widths[3].release(), CSSQuadValue::SerializeAsQuad);
 }
 
 PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSPropertyID unresolvedProperty)
@@ -3448,6 +3582,22 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSProperty
         return consumeShapeOutside(m_range, m_context);
     case CSSPropertyWebkitClipPath:
         return consumeClipPath(m_range, m_context);
+    case CSSPropertyJustifyContent:
+    case CSSPropertyAlignContent:
+        ASSERT(RuntimeEnabledFeatures::cssGridLayoutEnabled());
+        return consumeContentDistributionOverflowPosition(m_range);
+    case CSSPropertyBorderImageRepeat:
+    case CSSPropertyWebkitMaskBoxImageRepeat:
+        return consumeBorderImageRepeat(m_range);
+    case CSSPropertyBorderImageSlice:
+    case CSSPropertyWebkitMaskBoxImageSlice:
+        return consumeBorderImageSlice(property, m_range, m_context.mode());
+    case CSSPropertyBorderImageOutset:
+    case CSSPropertyWebkitMaskBoxImageOutset:
+        return consumeBorderImageOutset(m_range);
+    case CSSPropertyBorderImageWidth:
+    case CSSPropertyWebkitMaskBoxImageWidth:
+        return consumeBorderImageWidth(m_range);
     default:
         CSSParserValueList valueList(m_range);
         if (valueList.size()) {

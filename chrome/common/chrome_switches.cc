@@ -545,9 +545,6 @@ const char kEnableTabAudioMuting[]  = "enable-tab-audio-muting";
 // instant-extended-api, where thumbnails are generally smaller.
 const char kEnableThumbnailRetargeting[]   = "enable-thumbnail-retargeting";
 
-// Enables token binding (draft-ietf-tokbind-protocol-02).
-const char kEnableTokenBinding[] = "enable-token-binding";
-
 // Enables Alternate-Protocol when the port is user controlled (> 1024).
 const char kEnableUserAlternateProtocolPorts[] =
     "enable-user-controlled-alternate-protocol-ports";
@@ -998,14 +995,6 @@ const char kSpeculativeResourcePrefetchingEnabled[] = "enabled";
 const char kEnableAndroidSpellChecker[] = "enable-android-spellchecker";
 #endif
 
-// Disables the multilingual spellchecker.
-const char kDisableMultilingualSpellChecker[] =
-    "disable-multilingual-spellchecker";
-
-// Enables the multilingual spellchecker.
-const char kEnableMultilingualSpellChecker[] =
-    "enable-multilingual-spellchecker";
-
 // Enables participation in the field trial for user feedback to spelling
 // service.
 const char kEnableSpellingFeedbackFieldTrial[] =
@@ -1257,6 +1246,14 @@ const char kForceImmersive[]                = "force-immersive";
 // This flag is only relevant for Windows currently.
 const char kNoNetworkProfileWarning[]       = "no-network-profile-warning";
 
+// /prefetch:# arguments for the browser process launched in background mode and
+// for the watcher process. Use profiles 5, 6 and 7 as documented on
+// kPrefetchArgument* in content_switches.cc.
+const char kPrefetchArgumentBrowserBackground[] = "/prefetch:5";
+const char kPrefetchArgumentWatcher[] = "/prefetch:6";
+// /prefetch:7 is used by crashpad, which can't depend on constants defined
+// here. See crashpad_win.cc for more details.
+
 // For the DelegateExecute verb handler to launch Chrome in desktop mode on
 // Windows 8 and higher.  Used when relaunching metro Chrome.
 const char kForceDesktop[]                  = "force-desktop";
@@ -1338,7 +1335,10 @@ const char kForceShowUpdateMenuBadge[] = "force-show-update-menu-badge";
 
 // Sets the market URL for Chrome for use in testing.
 const char kMarketUrlForTesting[] = "market-url-for-testing";
-#endif // defined(OS_ANDROID)
+
+// Specifies a particular tab management experiment to enable.
+const char kTabManagementExperimentType[] = "tab-management-experiment-type";
+#endif  // defined(OS_ANDROID)
 
 #if defined(OS_WIN) || defined(OS_LINUX)
 extern const char kEnableInputImeAPI[] = "enable-input-ime-api";

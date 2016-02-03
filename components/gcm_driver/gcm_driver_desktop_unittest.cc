@@ -12,13 +12,12 @@
 #include "base/location.h"
 #include "base/macros.h"
 #include "base/metrics/field_trial.h"
-#include "base/prefs/pref_registry_simple.h"
-#include "base/prefs/testing_pref_service.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/test/test_simple_task_runner.h"
 #include "base/thread_task_runner_handle.h"
 #include "base/threading/thread.h"
+#include "components/gcm_driver/crypto/gcm_encryption_provider.h"
 #include "components/gcm_driver/fake_gcm_app_handler.h"
 #include "components/gcm_driver/fake_gcm_client.h"
 #include "components/gcm_driver/fake_gcm_client_factory.h"
@@ -27,6 +26,8 @@
 #include "components/gcm_driver/gcm_channel_status_syncer.h"
 #include "components/gcm_driver/gcm_client_factory.h"
 #include "components/gcm_driver/gcm_connection_observer.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/testing_pref_service.h"
 #include "net/url_request/test_url_fetcher_factory.h"
 #include "net/url_request/url_fetcher_delegate.h"
 #include "net/url_request/url_request_context_getter.h"
@@ -808,6 +809,32 @@ TEST_F(GCMDriverFunctionalTest, MessageWithCollapseKeyReceived) {
   EXPECT_EQ(message.data, gcm_app_handler()->message().data);
   EXPECT_EQ(message.collapse_key,
             gcm_app_handler()->message().collapse_key);
+}
+
+TEST_F(GCMDriverFunctionalTest, EncryptedMessageReceivedError) {
+  // GCM registration has to be performed otherwise GCM will not be started.
+  Register(kTestAppID1, ToSenderList("sender"), GCMDriverTest::WAIT);
+
+  IncomingMessage message;
+
+  // All required information to trigger the encryption path, but with an
+  // invalid Crypto-Key header value to trigger an error.
+  message.data["encryption"] = "salt=ysyxqlYTgE0WvcZrmHbUbg";
+  message.data["crypto-key"] = "hey=thereisnopublickey";
+  message.sender_id = "sender";
+  message.raw_data = "foobar";
+
+  GetGCMClient()->SetRecording(true);
+  GetGCMClient()->ReceiveMessage(kTestAppID1, message);
+
+  PumpIOLoop();
+  PumpUILoop();
+  PumpIOLoop();
+
+  GCMClient::GCMStatistics statistics = GetGCMClient()->GetStatistics();
+  EXPECT_TRUE(statistics.is_recording);
+  EXPECT_EQ(
+      1u, statistics.recorded_activities.decryption_failure_activities.size());
 }
 
 TEST_F(GCMDriverFunctionalTest, MessagesDeleted) {

@@ -374,6 +374,7 @@ Starting worker: resources/global-interface-listing.js
 [Worker] interface ImageBitmap
 [Worker]     getter height
 [Worker]     getter width
+[Worker]     method close
 [Worker]     method constructor
 [Worker] interface ImageData
 [Worker]     getter height
@@ -423,6 +424,7 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     getter requireInteraction
 [Worker]     getter silent
 [Worker]     getter tag
+[Worker]     getter timestamp
 [Worker]     getter title
 [Worker]     getter vibrate
 [Worker]     method close

@@ -63,6 +63,15 @@ SelectionEditor::~SelectionEditor()
 #endif
 }
 
+void SelectionEditor::dispose()
+{
+    stopObservingVisibleSelectionChangeIfNecessary();
+    if (m_logicalRange) {
+        m_logicalRange->dispose();
+        m_logicalRange = nullptr;
+    }
+}
+
 LocalFrame* SelectionEditor::frame() const
 {
     return m_frameSelection->frame();
@@ -756,15 +765,15 @@ bool SelectionEditor::modify(EAlteration alter, unsigned verticalDistance, Verti
 
 // Abs x/y position of the caret ignoring transforms.
 // TODO(yosin) navigation with transforms should be smarter.
-static int lineDirectionPointForBlockDirectionNavigationOf(const VisiblePosition& visiblePosition)
+static LayoutUnit lineDirectionPointForBlockDirectionNavigationOf(const VisiblePosition& visiblePosition)
 {
     if (visiblePosition.isNull())
-        return 0;
+        return LayoutUnit();
 
     LayoutObject* layoutObject;
     LayoutRect localRect = localCaretRectOfPosition(visiblePosition.toPositionWithAffinity(), layoutObject);
     if (localRect.isEmpty() || !layoutObject)
-        return 0;
+        return LayoutUnit();
 
     // This ignores transforms on purpose, for now. Vertical navigation is done
     // without consulting transforms, so that 'up' in transformed text is 'up'
@@ -773,7 +782,7 @@ static int lineDirectionPointForBlockDirectionNavigationOf(const VisiblePosition
     LayoutObject* containingBlock = layoutObject->containingBlock();
     if (!containingBlock)
         containingBlock = layoutObject; // Just use ourselves to determine the writing mode if we have no containing block.
-    return containingBlock->isHorizontalWritingMode() ? caretPoint.x() : caretPoint.y();
+    return LayoutUnit(containingBlock->isHorizontalWritingMode() ? caretPoint.x() : caretPoint.y());
 }
 
 LayoutUnit SelectionEditor::lineDirectionPointForBlockDirectionNavigation(EPositionType type)
@@ -823,7 +832,10 @@ bool SelectionEditor::setSelectedRange(const EphemeralRange& range, TextAffinity
 
     // Non-collapsed ranges are not allowed to start at the end of a line that is wrapped,
     // they start at the beginning of the next line instead
-    m_logicalRange = nullptr;
+    if (m_logicalRange) {
+        m_logicalRange->dispose();
+        m_logicalRange = nullptr;
+    }
     stopObservingVisibleSelectionChangeIfNecessary();
 
     // Since |FrameSeleciton::setSelection()| dispatches events and DOM tree
@@ -857,7 +869,10 @@ void SelectionEditor::didChangeVisibleSelection()
 {
     ASSERT(m_observingVisibleSelection);
     // Invalidate the logical range when the underlying VisibleSelection has changed.
-    m_logicalRange = nullptr;
+    if (m_logicalRange) {
+        m_logicalRange->dispose();
+        m_logicalRange = nullptr;
+    }
     m_selection.clearChangeObserver();
     m_observingVisibleSelection = false;
 }

@@ -43,6 +43,7 @@
 #include "core/paint/PaintLayer.h"
 #include "core/paint/ViewPainter.h"
 #include "core/svg/SVGDocumentExtensions.h"
+#include "platform/Histogram.h"
 #include "platform/TraceEvent.h"
 #include "platform/TracedValue.h"
 #include "platform/geometry/FloatQuad.h"
@@ -66,7 +67,14 @@ public:
     ~HitTestLatencyRecorder()
     {
         int duration = static_cast<int>((WTF::monotonicallyIncreasingTime() - m_start) * 1000000);
-        Platform::current()->histogramCustomCounts(m_allowsChildFrameContent ? "Event.Latency.HitTestRecursive" : "Event.Latency.HitTest", duration, 0, 10000000, 100);
+
+        if (m_allowsChildFrameContent) {
+            DEFINE_STATIC_LOCAL(CustomCountHistogram, recursiveLatencyHistogram, ("Event.Latency.HitTestRecursive", 0, 10000000, 100));
+            recursiveLatencyHistogram.count(duration);
+        } else {
+            DEFINE_STATIC_LOCAL(CustomCountHistogram, latencyHistogram, ("Event.Latency.HitTest", 0, 10000000, 100));
+            latencyHistogram.count(duration);
+        }
     }
 
 private:
@@ -95,8 +103,8 @@ LayoutView::LayoutView(Document* document)
     // init LayoutObject attributes
     setInline(false);
 
-    m_minPreferredLogicalWidth = 0;
-    m_maxPreferredLogicalWidth = 0;
+    m_minPreferredLogicalWidth = LayoutUnit();
+    m_maxPreferredLogicalWidth = LayoutUnit();
 
     setPreferredLogicalWidthsDirty(MarkOnlyThis);
 
@@ -163,12 +171,12 @@ void LayoutView::clearHitTestCache()
 
 void LayoutView::computeLogicalHeight(LayoutUnit logicalHeight, LayoutUnit, LogicalExtentComputedValues& computedValues) const
 {
-    computedValues.m_extent = viewLogicalHeightForBoxSizing();
+    computedValues.m_extent = LayoutUnit(viewLogicalHeightForBoxSizing());
 }
 
 void LayoutView::updateLogicalWidth()
 {
-    setLogicalWidth(viewLogicalWidthForBoxSizing());
+    setLogicalWidth(LayoutUnit(viewLogicalWidthForBoxSizing()));
 }
 
 bool LayoutView::isChildAllowed(LayoutObject* child, const ComputedStyle&) const
@@ -237,7 +245,7 @@ bool LayoutView::doingFullPaintInvalidation() const
 void LayoutView::layout()
 {
     if (!document().paginated())
-        setPageLogicalHeight(0);
+        setPageLogicalHeight(LayoutUnit());
 
     if (pageLogicalHeight() && shouldUsePrintingLayout()) {
         m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = logicalWidth();
@@ -904,7 +912,7 @@ LayoutUnit LayoutView::viewLogicalHeightForPercentages() const
 {
     if (shouldUsePrintingLayout())
         return pageLogicalHeight();
-    return viewLogicalHeight();
+    return LayoutUnit(viewLogicalHeight());
 }
 
 float LayoutView::zoomFactor() const

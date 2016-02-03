@@ -257,8 +257,9 @@
             'enable_hidpi%': 1,
           }],
 
-          # Enable Top Chrome Material Design on Chrome OS, Windows, and Linux.
-          ['chromeos==1 or OS=="win" or OS=="linux"', {
+          # Enable Top Chrome Material Design on Chrome OS, Windows, and Linux,
+          # and Mac.
+          ['chromeos==1 or OS=="win" or OS=="linux" or OS=="mac"', {
             'enable_topchrome_md%': 1,
           }],
 
@@ -1579,6 +1580,7 @@
     'ozone_platform_gbm%': 0,
     'ozone_platform_ozonex%': 0,
     'ozone_platform_headless%': 0,
+    'ozone_platform_wayland%': 0,
 
     # Experiment: http://crbug.com/426914
     'envoy%': 0,
@@ -1587,6 +1589,10 @@
     # for robust login screen decoding.
     'libjpeg_ijg_gyp_path': '<(DEPTH)/third_party/libjpeg/libjpeg.gyp',
     'libjpeg_turbo_gyp_path': '<(DEPTH)/third_party/libjpeg_turbo/libjpeg.gyp',
+
+    # Whether to disable handle verifier hooks.
+    # Hookless parts of the handle verifier will still function.
+    'win_disable_handle_verifier_hooks%': '0',
 
     'conditions': [
       ['buildtype=="Official"', {
@@ -1880,7 +1886,6 @@
         'use_system_fontconfig%': 1,
       }],
       ['chromecast==1', {
-        'use_custom_freetype%': 0,
         'use_playready%': 0,
         'conditions': [
           ['target_arch=="arm"', {
@@ -2236,7 +2241,8 @@
               'clang_dynlib_flags%': '',
             }],
           ],
-          'clang_plugin_args%': '-Xclang -plugin-arg-find-bad-constructs -Xclang check-templates',
+          'clang_plugin_args%': '-Xclang -plugin-arg-find-bad-constructs -Xclang check-templates '
+          '-Xclang -plugin-arg-find-bad-constructs -Xclang follow-macro-expansion ',
         },
         # If you change these, also change build/config/clang/BUILD.gn.
         'clang_chrome_plugins_flags%':
@@ -2313,6 +2319,8 @@
       # TODO(rnk): Combine with tsan config to share the builder.
       # http://crbug.com/108155
       ['build_for_tool=="drmemory"', {
+        # Disable the hook based handle verifier, as DrMemory does this job.
+        'win_disable_handle_verifier_hooks': '1',
         # These runtime checks force initialization of stack vars which blocks
         # DrMemory's uninit detection.
         'win_debug_RuntimeChecks': '0',
@@ -2621,9 +2629,6 @@
       ],
       'clang_warning_flags': [
         '-Wheader-hygiene',
-
-        # TODO(thakis): Add -Wfor-loop-analysis to -Wall in clang, remove this:
-        '-Wfor-loop-analysis',
 
         # TODO(thakis): Consider -Wloop-analysis (turns on
         # -Wrange-loop-analysis too).
@@ -3111,11 +3116,6 @@
       ['enable_wexit_time_destructors==1 and OS!="win"', {
         # TODO: Enable on Windows too, http://crbug.com/404525
         'variables': { 'clang_warning_flags': ['-Wexit-time-destructors']},
-      }],
-      ['"<!(python <(DEPTH)/tools/clang/scripts/update.py --print-revision)"!="257955-1"', {
-        # TODO(thakis): Remove once
-        # https://chromium-review.googlesource.com/#/c/324860/ is in.
-        'variables': { 'clang_warning_flags': ['-Wno-constant-conversion']},
       }],
       ['chromium_code==0', {
         'variables': {

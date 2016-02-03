@@ -53,11 +53,9 @@
 #include "core/layout/LayoutObject.h"
 #include "core/style/ComputedStyle.h"
 #include "core/style/ContentData.h"
-#include "core/style/PathStyleMotionPath.h"
 #include "core/style/QuotesData.h"
 #include "core/style/ShadowList.h"
 #include "core/style/StyleVariableData.h"
-#include "core/svg/SVGPathUtilities.h"
 #include "platform/LengthFunctions.h"
 
 namespace blink {
@@ -1609,8 +1607,13 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
     case CSSPropertyAlignItems:
         return valueForItemPositionWithOverflowAlignment(resolveAlignmentAuto(style.alignItemsPosition(), &style), style.alignItemsOverflowAlignment(), NonLegacyPosition);
     case CSSPropertyAlignSelf: {
-        Node* parent = styledNode->parentNode();
-        return valueForItemPositionWithOverflowAlignment(resolveAlignmentAuto(style.alignSelfPosition(), parent ? parent->ensureComputedStyle() : nullptr), style.alignSelfOverflowAlignment(), NonLegacyPosition);
+        ItemPosition position = style.alignSelfPosition();
+        if (position == ItemPositionAuto) {
+            // TODO(lajava): This code doesn't work for ShadowDOM (see Node::parentComputedStyle)
+            const ComputedStyle* parentStyle = styledNode->parentNode() ? styledNode->parentNode()->ensureComputedStyle() : nullptr;
+            position = parentStyle ? ComputedStyle::resolveAlignment(*parentStyle, style, resolveAlignmentAuto(parentStyle->alignItemsPosition(), parentStyle)) : ItemPositionStart;
+        }
+        return valueForItemPositionWithOverflowAlignment(position, style.alignSelfOverflowAlignment(), NonLegacyPosition);
     }
     case CSSPropertyFlex:
         return valuesForShorthandProperty(flexShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
@@ -2452,23 +2455,19 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
     case CSSPropertyMotion:
         return valuesForShorthandProperty(motionShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
 
-    case CSSPropertyMotionPath: {
-        const StyleMotionPath* styleMotionPath = style.motionPath();
-        if (!styleMotionPath)
-            return cssValuePool().createIdentifierValue(CSSValueNone);
-
-        ASSERT(styleMotionPath->isPathStyleMotionPath());
-        return CSSPathValue::create(toPathStyleMotionPath(styleMotionPath)->pathString());
-    }
+    case CSSPropertyMotionPath:
+        if (const StylePath* styleMotionPath = style.motionPath())
+            return styleMotionPath->computedCSSValue();
+        return cssValuePool().createIdentifierValue(CSSValueNone);
 
     case CSSPropertyMotionOffset:
         return zoomAdjustedPixelValueForLength(style.motionOffset(), style);
 
     case CSSPropertyMotionRotation: {
         RefPtrWillBeRawPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
-        if (style.motionRotationType() == MotionRotationAuto)
+        if (style.motionRotation().type == MotionRotationAuto)
             list->append(cssValuePool().createIdentifierValue(CSSValueAuto));
-        list->append(cssValuePool().createValue(style.motionRotation(), CSSPrimitiveValue::UnitType::Degrees));
+        list->append(cssValuePool().createValue(style.motionRotation().angle, CSSPrimitiveValue::UnitType::Degrees));
         return list.release();
     }
 

@@ -46,6 +46,9 @@ class WindowServerTestBase
   static bool QuitRunLoop() WARN_UNUSED_RESULT;
 
   WindowTreeConnection* window_manager() { return window_manager_; }
+  WindowManagerClient* window_manager_client() {
+    return window_manager_client_;
+  }
 
  protected:
   mojom::WindowTreeHost* host() { return host_.get(); }
@@ -59,7 +62,6 @@ class WindowServerTestBase
 
   // testing::Test:
   void SetUp() override;
-  void TearDown() override;
 
   // test::ApplicationTestBase:
   mojo::ApplicationDelegate* GetApplicationDelegate() override;
@@ -80,6 +82,7 @@ class WindowServerTestBase
                        scoped_ptr<std::vector<uint8_t>>* new_data) override;
   Window* OnWmCreateTopLevelWindow(
       std::map<std::string, std::vector<uint8_t>>* properties) override;
+  void OnAccelerator(uint32_t id, mojom::EventPtr event) override;
 
   // InterfaceFactory<WindowTreeClient>:
   void Create(mojo::ApplicationConnection* connection,
@@ -99,6 +102,8 @@ class WindowServerTestBase
   // A test can override the WM-related behaviour by installing its own
   // WindowManagerDelegate during the test.
   WindowManagerDelegate* window_manager_delegate_;
+
+  WindowManagerClient* window_manager_client_;
 
   bool window_tree_connection_destroyed_;
 

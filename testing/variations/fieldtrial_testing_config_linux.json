@@ -71,7 +71,17 @@
             "group_name": "Enabled"
         }
     ],
+    "LocalNTPSuggestionsService": [
+        {
+            "group_name": "Enabled"
+        }
+    ],
     "MaterialDesignDownloads": [
+        {
+            "group_name": "Enabled"
+        }
+    ],
+    "PageRevisitInstrumentation": [
         {
             "group_name": "Enabled"
         }

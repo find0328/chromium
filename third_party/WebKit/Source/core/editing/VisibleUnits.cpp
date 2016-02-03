@@ -39,7 +39,9 @@
 #include "core/editing/TextAffinity.h"
 #include "core/editing/VisiblePosition.h"
 #include "core/editing/iterators/BackwardsCharacterIterator.h"
+#include "core/editing/iterators/BackwardsTextBuffer.h"
 #include "core/editing/iterators/CharacterIterator.h"
+#include "core/editing/iterators/ForwardsTextBuffer.h"
 #include "core/editing/iterators/SimplifiedBackwardsTextIterator.h"
 #include "core/editing/iterators/TextIterator.h"
 #include "core/frame/LocalFrame.h"
@@ -666,22 +668,26 @@ static VisiblePositionTemplate<Strategy> previousBoundary(const VisiblePositionT
     const PositionTemplate<Strategy> start = PositionTemplate<Strategy>::editingPositionOf(boundary, 0).parentAnchoredEquivalent();
     const PositionTemplate<Strategy> end = pos.parentAnchoredEquivalent();
 
-    Vector<UChar, 1024> string;
+    ForwardsTextBuffer suffixString;
     unsigned suffixLength = 0;
 
     if (requiresContextForWordBoundary(characterBefore(c))) {
         TextIteratorAlgorithm<Strategy> forwardsIterator(end, PositionTemplate<Strategy>::afterNode(boundary));
         while (!forwardsIterator.atEnd()) {
-            Vector<UChar, 1024> characters;
-            forwardsIterator.copyTextTo(characters);
+            // TODO(xiaochengh): Eliminate this intermediate buffer.
+            ForwardsTextBuffer characters;
+            forwardsIterator.copyTextTo(&characters);
             int i = endOfFirstWordBoundaryContext(characters.data(), characters.size());
-            string.append(characters.data(), i);
+            suffixString.pushRange(characters.data(), i);
             suffixLength += i;
             if (static_cast<unsigned>(i) < characters.size())
                 break;
             forwardsIterator.advance();
         }
     }
+
+    BackwardsTextBuffer string;
+    string.pushRange(suffixString.data(), suffixString.size());
 
     SimplifiedBackwardsTextIteratorAlgorithm<Strategy> it(start, end);
     unsigned next = 0;
@@ -690,16 +696,12 @@ static VisiblePositionTemplate<Strategy> previousBoundary(const VisiblePositionT
         bool inTextSecurityMode = it.isInTextSecurityMode();
         // iterate to get chunks until the searchFunction returns a non-zero
         // value.
-        // TODO(xiaochengh): Iterative prepending has quadratic running time
-        // in the worst case. Should improve it to linear.
         if (!inTextSecurityMode) {
-            it.copyTextTo(string);
+            it.copyTextTo(&string);
         } else {
             // Treat bullets used in the text security mode as regular
             // characters when looking for boundaries
-            Vector<UChar, 1024> iteratorString;
-            iteratorString.fill('x', it.length());
-            string.prepend(iteratorString.data(), iteratorString.size());
+            string.pushCharacters('x', it.length());
         }
         // TODO(xiaochengh): The following line takes O(string.size()) time,
         // which makes the while loop take quadratic time in the worst case.
@@ -746,25 +748,27 @@ static VisiblePositionTemplate<Strategy> nextBoundary(const VisiblePositionTempl
     Document& d = boundary->document();
     const PositionTemplate<Strategy> start(pos.parentAnchoredEquivalent());
 
-    Vector<UChar, 1024> string;
+    BackwardsTextBuffer prefixString;
     unsigned prefixLength = 0;
 
     if (requiresContextForWordBoundary(characterAfter(c))) {
         SimplifiedBackwardsTextIteratorAlgorithm<Strategy> backwardsIterator(PositionTemplate<Strategy>::firstPositionInNode(&d), start);
         while (!backwardsIterator.atEnd()) {
-            Vector<UChar, 1024> characters;
-            backwardsIterator.copyTextTo(characters);
+            // TODO(xiaochengh): Eliminate this intermediate buffer.
+            BackwardsTextBuffer characters;
+            backwardsIterator.copyTextTo(&characters);
             int length = characters.size();
             int i = startOfLastWordBoundaryContext(characters.data(), length);
-            // TODO(xiaochengh): Iterative prepending has quadratic running
-            // time in the worst case. Should improve it to linear.
-            string.prepend(characters.data() + i, length - i);
+            prefixString.pushRange(characters.data() + i, length - i);
             prefixLength += length - i;
             if (i > 0)
                 break;
             backwardsIterator.advance();
         }
     }
+
+    ForwardsTextBuffer string;
+    string.pushRange(prefixString.data(), prefixString.size());
 
     const PositionTemplate<Strategy> searchStart = PositionTemplate<Strategy>::editingPositionOf(start.anchorNode(), start.offsetInContainerNode());
     const PositionTemplate<Strategy> searchEnd = PositionTemplate<Strategy>::lastPositionInNode(boundary);
@@ -779,13 +783,11 @@ static VisiblePositionTemplate<Strategy> nextBoundary(const VisiblePositionTempl
         // it.
         bool inTextSecurityMode = it.isInTextSecurityMode();
         if (!inTextSecurityMode) {
-            it.copyTextTo(string);
+            it.copyTextTo(&string);
         } else {
             // Treat bullets used in the text security mode as regular
             // characters when looking for boundaries
-            Vector<UChar, 1024> iteratorString;
-            iteratorString.fill('x', it.length());
-            string.append(iteratorString.data(), iteratorString.size());
+            string.pushCharacters('x', it.length());
         }
         next = searchFunction(string.data(), string.size(), offset, MayHaveMoreContext, needMoreContext);
         if (next != string.size())
@@ -1602,16 +1604,16 @@ static VisiblePositionTemplate<Strategy> endOfParagraphAlgorithm(const VisiblePo
             ASSERT_WITH_SECURITY_IMPLICATION(n->isTextNode());
             int length = toLayoutText(r)->textLength();
             type = PositionAnchorType::OffsetInAnchor;
+            LayoutText* text = toLayoutText(r);
             if (style.preserveNewline()) {
-                LayoutText* text = toLayoutText(r);
                 int o = n == startNode ? offset : 0;
                 for (int i = o; i < length; ++i) {
                     if ((*text)[i] == '\n')
-                        return createVisiblePosition(PositionTemplate<Strategy>(toText(n), i));
+                        return createVisiblePosition(PositionTemplate<Strategy>(toText(n), i + text->textStartOffset()));
                 }
             }
             node = n;
-            offset = r->caretMaxOffset();
+            offset = r->caretMaxOffset() + text->textStartOffset();
             n = Strategy::next(*n, stayInsideBlock);
         } else if (Strategy::editingIgnoresContent(n) || isDisplayInsideTable(n)) {
             node = n;
@@ -2789,7 +2791,7 @@ static bool isVisuallyEquivalentCandidateAlgorithm(const PositionTemplate<Strate
         return parent->layoutObject() && parent->layoutObject()->isSelectable();
     }
 
-    if (anchorNode->document().documentElement() == anchorNode)
+    if (anchorNode->document().documentElement() == anchorNode || anchorNode->isDocumentNode())
         return false;
 
     if (!layoutObject->isSelectable())

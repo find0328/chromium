@@ -159,6 +159,8 @@ public:
     void needTouchEvents(bool) override {}
     void setHaveWheelEventHandlers(bool) override {}
     bool haveWheelEventHandlers() const override { return false; }
+    void setHaveScrollEventHandlers(bool) override {}
+    bool haveScrollEventHandlers() const override { return false; }
 
     void setTouchAction(TouchAction) override {}
 
@@ -215,7 +217,7 @@ public:
     void dispatchDidFinishLoad() override {}
     void dispatchDidChangeThemeColor() override {}
 
-    NavigationPolicy decidePolicyForNavigation(const ResourceRequest&, DocumentLoader*, NavigationType, NavigationPolicy, bool) override;
+    NavigationPolicy decidePolicyForNavigation(const ResourceRequest&, DocumentLoader*, NavigationType, NavigationPolicy, bool, bool) override;
     bool hasPendingNavigation() override;
 
     void dispatchWillSendSubmitEvent(HTMLFormElement*) override;

@@ -81,7 +81,7 @@
 #endif
 
 #if defined(OS_WIN)
-#include "components/search_engines/desktop_search_win.h"
+#include "components/search_engines/desktop_search_utils.h"
 #endif  // defined(OS_WIN)
 
 #if defined(ENABLE_APP_LIST)
@@ -521,6 +521,18 @@ const FeatureEntry::Choice kEnableOfflinePagesChoices[] = {
     {IDS_GENERIC_EXPERIMENT_CHOICE_DISABLED, switches::kDisableOfflinePages,
      ""},
 };
+
+const FeatureEntry::Choice kHerbPrototypeChoices[] = {
+    {IDS_GENERIC_EXPERIMENT_CHOICE_DISABLED, "", ""},
+    {IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_ANISE,
+     switches::kTabManagementExperimentType, "anise"},
+    {IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_BASIL,
+     switches::kTabManagementExperimentType, "basil"},
+    {IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_CHIVE,
+     switches::kTabManagementExperimentType, "chive"},
+    {IDS_FLAGS_HERB_PROTOTYPE_FLAVOR_DILL,
+     switches::kTabManagementExperimentType, "dill"},
+};
 #endif  // defined(OS_ANDROID)
 
 // RECORDING USER METRICS FOR FLAGS:
@@ -797,15 +809,6 @@ const FeatureEntry kFeatureEntries[] = {
      kOsAndroid,
      SINGLE_VALUE_TYPE(switches::kEnableAndroidSpellChecker)},
 #endif
-#if defined(ENABLE_SPELLCHECK) && \
-    (defined(OS_LINUX) || defined(OS_WIN) || defined(OS_CHROMEOS))
-    {"enable-multilingual-spellchecker",
-     IDS_FLAGS_ENABLE_MULTILINGUAL_SPELLCHECKER_NAME,
-     IDS_FLAGS_ENABLE_MULTILINGUAL_SPELLCHECKER_DESCRIPTION,
-     kOsWin | kOsLinux | kOsCrOS,
-     ENABLE_DISABLE_VALUE_TYPE(switches::kEnableMultilingualSpellChecker,
-                               switches::kDisableMultilingualSpellChecker)},
-#endif
     {"enable-scroll-prediction",
      IDS_FLAGS_SCROLL_PREDICTION_NAME,
      IDS_FLAGS_SCROLL_PREDICTION_DESCRIPTION,
@@ -815,7 +818,7 @@ const FeatureEntry kFeatureEntries[] = {
     {"top-chrome-md",
      IDS_FLAGS_TOP_CHROME_MD,
      IDS_FLAGS_TOP_CHROME_MD_DESCRIPTION,
-     kOsWin | kOsLinux | kOsCrOS,
+     kOsWin | kOsLinux | kOsCrOS | kOsMac,
      MULTI_VALUE_TYPE(kTopChromeMaterialDesignChoices)},
 #endif
     {"touch-events",
@@ -2052,6 +2055,10 @@ const FeatureEntry kFeatureEntries[] = {
          autofill::switches::kDisableOfferUploadCreditCards)},
 #endif  // defined(TOOLKIT_VIEWS) || defined(OS_ANDROID)
 #if defined(OS_ANDROID)
+    {"tab-management-experiment-type",
+     IDS_FLAGS_HERB_PROTOTYPE_CHOICES_NAME,
+     IDS_FLAGS_HERB_PROTOTYPE_CHOICES_DESCRIPTION, kOsAndroid,
+     MULTI_VALUE_TYPE(kHerbPrototypeChoices)},
     {"enable-tab-switcher-in-document-mode",
      IDS_FLAGS_TAB_SWITCHER_IN_DOCUMENT_MODE_NAME,
      IDS_FLAGS_TAB_SWITCHER_IN_DOCUMENT_MODE_DESCRIPTION, kOsAndroid,
@@ -2067,7 +2074,7 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAGS_WINDOWS_DESKTOP_SEARCH_REDIRECTION_NAME,
      IDS_FLAGS_WINDOWS_DESKTOP_SEARCH_REDIRECTION_DESCRIPTION,
      kOsWin,
-     FEATURE_VALUE_TYPE(kWindowsDesktopSearchRedirectionFeature)},
+     FEATURE_VALUE_TYPE(kDesktopSearchRedirectionFeature)},
 #endif  // defined(OS_WIN)
     {"force-ui-direction",
      IDS_FLAGS_FORCE_UI_DIRECTION_NAME,
@@ -2087,7 +2094,7 @@ const FeatureEntry kFeatureEntries[] = {
       kOsWin | kOsLinux,
       ENABLE_DISABLE_VALUE_TYPE(switches::kEnableInputImeAPI,
                                 switches::kDisableInputImeAPI)},
-#endif // defined(OS_WIN) || defined(OS_LINUX)
+#endif  // defined(OS_WIN) || defined(OS_LINUX)
     {"enable-experimental-framework",
      IDS_FLAGS_EXPERIMENTAL_FRAMEWORK_NAME,
      IDS_FLAGS_EXPERIMENTAL_FRAMEWORK_DESCRIPTION,
@@ -2148,6 +2155,11 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAGS_ENABLE_GROUPED_HISTORY_DESCRIPTION,
      kOsDesktop,
      SINGLE_VALUE_TYPE(switches::kHistoryEnableGroupByDomain)},
+    {"enable-token-binding",
+      IDS_FLAGS_ENABLE_TOKEN_BINDING_NAME,
+      IDS_FLAGS_ENABLE_TOKEN_BINDING_DESCRIPTION,
+      kOsAll,
+      FEATURE_VALUE_TYPE(features::kTokenBinding)},
     // NOTE: Adding new command-line switches requires adding corresponding
     // entries to enum "LoginCustomFlags" in histograms.xml. See note in
     // histograms.xml and don't forget to run AboutFlagsHistogramTest unit test.
@@ -2191,6 +2203,14 @@ bool SkipConditionalFeatureEntry(const FeatureEntry& entry) {
   // builds and the Canary/Dev channel.
   if (!strcmp("enable-data-reduction-proxy-carrier-test",
               entry.internal_name) &&
+      channel != version_info::Channel::DEV &&
+      channel != version_info::Channel::CANARY &&
+      channel != version_info::Channel::UNKNOWN) {
+    return true;
+  }
+  // Tab management prototypes are only available for local, Canary, and Dev
+  // channel builds.
+  if (!strcmp("tab-management-experiment-type", entry.internal_name) &&
       channel != version_info::Channel::DEV &&
       channel != version_info::Channel::CANARY &&
       channel != version_info::Channel::UNKNOWN) {

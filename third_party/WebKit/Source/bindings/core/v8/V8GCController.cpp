@@ -291,12 +291,13 @@ void V8GCController::gcPrologue(v8::Isolate* isolate, v8::GCType type, v8::GCCal
     // run finalizers that call into V8. To avoid the risk, we should post
     // a task to schedule the Oilpan's GC.
     // (In practice, there is no finalizer that calls into V8 and thus is safe.)
-    if (ThreadState::current())
-        ThreadState::current()->willStartV8GC();
 
     v8::HandleScope scope(isolate);
     switch (type) {
     case v8::kGCTypeScavenge:
+        if (ThreadState::current())
+            ThreadState::current()->willStartV8GC(BlinkGC::V8MinorGC);
+
         TRACE_EVENT_BEGIN1("devtools.timeline,v8", "MinorGC", "usedHeapSizeBefore", usedHeapSize(isolate));
         if (isMainThread()) {
             TRACE_EVENT_SCOPED_SAMPLING_STATE("blink", "DOMMinorGC");
@@ -308,10 +309,16 @@ void V8GCController::gcPrologue(v8::Isolate* isolate, v8::GCType type, v8::GCCal
         }
         break;
     case v8::kGCTypeMarkSweepCompact:
+        if (ThreadState::current())
+            ThreadState::current()->willStartV8GC(BlinkGC::V8MajorGC);
+
         TRACE_EVENT_BEGIN2("devtools.timeline,v8", "MajorGC", "usedHeapSizeBefore", usedHeapSize(isolate), "type", "atomic pause");
         gcPrologueForMajorGC(isolate, flags & v8::kGCCallbackFlagConstructRetainedObjectInfos);
         break;
     case v8::kGCTypeIncrementalMarking:
+        if (ThreadState::current())
+            ThreadState::current()->willStartV8GC(BlinkGC::V8MajorGC);
+
         TRACE_EVENT_BEGIN2("devtools.timeline,v8", "MajorGC", "usedHeapSizeBefore", usedHeapSize(isolate), "type", "incremental marking");
         gcPrologueForMajorGC(isolate, flags & v8::kGCCallbackFlagConstructRetainedObjectInfos);
         break;
@@ -344,6 +351,8 @@ void V8GCController::gcEpilogue(v8::Isolate* isolate, v8::GCType type, v8::GCCal
         if (isMainThread()) {
             TRACE_EVENT_SET_NONCONST_SAMPLING_STATE(V8PerIsolateData::from(isolate)->previousSamplingState());
         }
+        if (ThreadState::current())
+            ThreadState::current()->scheduleV8FollowupGCIfNeeded(BlinkGC::V8MajorGC);
         break;
     case v8::kGCTypeIncrementalMarking:
         TRACE_EVENT_END1("devtools.timeline,v8", "MajorGC", "usedHeapSizeAfter", usedHeapSize(isolate));
@@ -356,9 +365,6 @@ void V8GCController::gcEpilogue(v8::Isolate* isolate, v8::GCType type, v8::GCCal
         if (isMainThread()) {
             TRACE_EVENT_SET_NONCONST_SAMPLING_STATE(V8PerIsolateData::from(isolate)->previousSamplingState());
         }
-        // TODO(haraken): Remove this. See the comment in gcPrologue.
-        if (ThreadState::current())
-            ThreadState::current()->scheduleV8FollowupGCIfNeeded(BlinkGC::V8MajorGC);
         break;
     default:
         ASSERT_NOT_REACHED();
@@ -386,9 +392,6 @@ void V8GCController::gcEpilogue(v8::Isolate* isolate, v8::GCType type, v8::GCCal
 
         // Forces a precise GC at the end of the current event loop.
         if (ThreadState::current()) {
-            // Temporary asserts to diagnose crbug.com/571207's failure to transition
-            // to FullGCScheduled.
-            RELEASE_ASSERT(!ThreadState::current()->isSweepingInProgress());
             RELEASE_ASSERT(!ThreadState::current()->isInGC());
             ThreadState::current()->setGCState(ThreadState::FullGCScheduled);
         }

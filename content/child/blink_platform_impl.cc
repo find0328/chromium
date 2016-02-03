@@ -15,7 +15,6 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/singleton.h"
 #include "base/metrics/histogram.h"
-#include "base/metrics/sparse_histogram.h"
 #include "base/rand_util.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
@@ -580,12 +579,6 @@ blink::WebWaitableEvent* BlinkPlatformImpl::waitMultipleEvents(
   return web_events[idx];
 }
 
-void BlinkPlatformImpl::decrementStatsCounter(const char* name) {
-}
-
-void BlinkPlatformImpl::incrementStatsCounter(const char* name) {
-}
-
 void BlinkPlatformImpl::histogramCustomCounts(
     const char* name, int sample, int min, int max, int bucket_count) {
   // Copied from histogram macro, but without the static variable caching
@@ -606,12 +599,6 @@ void BlinkPlatformImpl::histogramEnumeration(
           boundary_value + 1, base::HistogramBase::kUmaTargetedHistogramFlag);
   DCHECK_EQ(name, counter->histogram_name());
   counter->Add(sample);
-}
-
-void BlinkPlatformImpl::histogramSparse(const char* name, int sample) {
-  // For sparse histograms, we can use the macro, as it does not incorporate a
-  // static.
-  UMA_HISTOGRAM_SPARSE_SLOWLY(name, sample);
 }
 
 void BlinkPlatformImpl::registerMemoryDumpProvider(
@@ -1075,8 +1062,8 @@ blink::WebSyncProvider* BlinkPlatformImpl::backgroundSyncProvider() {
       main_thread_task_runner_.get());
 }
 
-blink::WebApiKeyValidator* BlinkPlatformImpl::apiKeyValidator() {
-  return &api_key_validator_;
+blink::WebTrialTokenValidator* BlinkPlatformImpl::trialTokenValidator() {
+  return &trial_token_validator_;
 }
 
 WebThemeEngine* BlinkPlatformImpl::themeEngine() {

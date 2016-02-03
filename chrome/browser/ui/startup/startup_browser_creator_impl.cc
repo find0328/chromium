@@ -21,7 +21,6 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/statistics_recorder.h"
-#include "base/prefs/pref_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
@@ -85,6 +84,7 @@
 #include "chrome/grit/locale_settings.h"
 #include "chrome/installer/util/browser_distribution.h"
 #include "components/google/core/browser/google_util.h"
+#include "components/prefs/pref_service.h"
 #include "components/rappor/rappor_utils.h"
 #include "content/public/browser/child_process_security_policy.h"
 #include "content/public/browser/dom_storage_context.h"
@@ -109,6 +109,10 @@
 #if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #include "chrome/browser/apps/app_launch_for_metro_restart_win.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "components/search_engines/desktop_search_redirection_infobar_delegate.h"
+#include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_service.h"
 #endif
 
 #if defined(ENABLE_RLZ)
@@ -561,8 +565,7 @@ void StartupBrowserCreatorImpl::ProcessLaunchURLs(
     AddStartupURLs(&adjusted_urls);
   } else if (!command_line_.HasSwitch(switches::kOpenInNewWindow)) {
     // Always open a list of urls in a window on the native desktop.
-    browser = chrome::FindTabbedBrowser(profile_, false,
-                                        chrome::HOST_DESKTOP_TYPE_NATIVE);
+    browser = chrome::FindTabbedBrowser(profile_, false);
   }
   // This will launch a browser; prevent session restore.
   StartupBrowserCreator::in_synchronous_profile_launch_ = true;
@@ -831,6 +834,21 @@ void StartupBrowserCreatorImpl::AddInfoBarsIfNecessary(
       }
     }
 #endif
+
+#if defined(OS_WIN)
+    if (browser_creator_ &&
+        browser_creator_->show_desktop_search_redirection_infobar()) {
+      DesktopSearchRedirectionInfobarDelegate::Show(
+          InfoBarService::FromWebContents(
+              browser->tab_strip_model()->GetActiveWebContents()),
+          TemplateURLServiceFactory::GetForProfile(profile_)
+              ->GetDefaultSearchProvider()
+              ->AdjustedShortNameForLocaleDirection(),
+          base::Bind(&chrome::ShowSettingsSubPage, base::Unretained(browser),
+                     chrome::kSearchEnginesSubPage),
+          profile_->GetPrefs());
+    }
+#endif  // defined(OS_WIN)
   }
 }
 

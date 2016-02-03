@@ -189,7 +189,7 @@ void Context::EnsureEmbedderIsInitialized() {
   setup.Get();
 }
 
-bool Context::Init(const base::FilePath& shell_file_root) {
+void Context::Init(const base::FilePath& shell_file_root) {
   TRACE_EVENT0("mojo_shell", "Context::Init");
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
@@ -215,8 +215,8 @@ bool Context::Init(const base::FilePath& shell_file_root) {
                            task_runners_->io_runner(),
                            embedder::ScopedPlatformHandle());
 
-  package_manager_ =
-      new PackageManagerImpl(shell_file_root, task_runners_->blocking_pool());
+  package_manager_ = new PackageManagerImpl(
+      shell_file_root, task_runners_->blocking_pool(), nullptr);
   InitContentHandlers(package_manager_, command_line);
 
   RegisterLocalAliases(package_manager_);
@@ -275,8 +275,6 @@ bool Context::Init(const base::FilePath& shell_file_root) {
   }
 
   InitDevToolsServiceIfNeeded(application_manager_.get(), command_line);
-
-  return true;
 }
 
 void Context::Shutdown() {

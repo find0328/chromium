@@ -160,6 +160,7 @@ PaintLayer::PaintLayer(LayoutBoxModelObject* layoutObject, PaintLayerType type)
     , m_previousPaintResult(PaintLayerPainter::FullyPainted)
     , m_needsPaintPhaseDescendantOutlines(false)
     , m_needsPaintPhaseFloat(false)
+    , m_needsPaintPhaseDescendantBlockBackgrounds(false)
     , m_hasDescendantWithClipPath(false)
     , m_hasNonIsolatedDescendantWithBlendMode(false)
     , m_hasAncestorWithClipPath(false)
@@ -202,9 +203,6 @@ PaintLayer::~PaintLayer()
     // we don't need to delete them ourselves.
 
     clearCompositedLayerMapping(true);
-
-    if (PaintLayerReflectionInfo* reflectionInfo = this->reflectionInfo())
-        reflectionInfo->destroy();
 
     if (m_scrollableArea)
         m_scrollableArea->dispose();
@@ -1409,7 +1407,13 @@ LayoutPoint PaintLayer::visualOffsetFromAncestor(const PaintLayer* ancestorLayer
 
 void PaintLayer::didUpdateNeedsCompositedScrolling()
 {
+    bool wasSelfPaintingLayer = isSelfPaintingLayer();
     updateSelfPaintingLayer();
+
+    // If the floating object becomes non-self-painting, so some ancestor should paint it;
+    // if it becomes self-painting, it should paint itself and no ancestor should paint it.
+    if (wasSelfPaintingLayer != isSelfPaintingLayer() && m_layoutObject->isFloating())
+        LayoutBlockFlow::setAncestorShouldPaintFloatingObject(*layoutBox(), wasSelfPaintingLayer);
 }
 
 void PaintLayer::updateReflectionInfo(const ComputedStyle* oldStyle)
@@ -1419,7 +1423,6 @@ void PaintLayer::updateReflectionInfo(const ComputedStyle* oldStyle)
         ensureRareData().reflectionInfo = adoptPtr(new PaintLayerReflectionInfo(*layoutBox()));
         m_rareData->reflectionInfo->updateAfterStyleChange(oldStyle);
     } else if (m_rareData && m_rareData->reflectionInfo) {
-        m_rareData->reflectionInfo->destroy();
         m_rareData->reflectionInfo = nullptr;
     }
 }
@@ -2671,9 +2674,13 @@ void PaintLayer::filterNeedsPaintInvalidation()
     {
         DeprecatedScheduleStyleRecalcDuringLayout marker(layoutObject()->document().lifecycle());
         // It's possible for scheduleSVGFilterLayerUpdateHack to schedule a style recalc, which
-        // is a problem because this function can be called while performing layout.
-        // Presumably this represents an illegal data flow of layout or compositing
-        // information into the style system.
+        // is a problem because this function can be called right before performing layout but
+        // after style recalc.
+        //
+        // See LayoutView::layout() and the call to
+        // invalidateSVGRootsWithRelativeLengthDescendents(). This violation is worked around
+        // in FrameView::updateStyleAndLayoutIfNeededRecursive() by doing an extra style recalc
+        // and layout in case it's needed.
         toElement(layoutObject()->node())->scheduleSVGFilterLayerUpdateHack();
     }
 

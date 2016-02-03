@@ -51,6 +51,9 @@ IPC_ENUM_TRAITS_MAX_VALUE(blink::WebServiceWorkerClientType,
 IPC_ENUM_TRAITS_MAX_VALUE(content::ServiceWorkerProviderType,
                           content::SERVICE_WORKER_PROVIDER_TYPE_LAST)
 
+IPC_ENUM_TRAITS_MAX_VALUE(content::ServiceWorkerFetchType,
+                          content::ServiceWorkerFetchType::LAST)
+
 IPC_STRUCT_TRAITS_BEGIN(content::ServiceWorkerFetchRequest)
   IPC_STRUCT_TRAITS_MEMBER(mode)
   IPC_STRUCT_TRAITS_MEMBER(is_main_resource_load)
@@ -66,6 +69,7 @@ IPC_STRUCT_TRAITS_BEGIN(content::ServiceWorkerFetchRequest)
   IPC_STRUCT_TRAITS_MEMBER(redirect_mode)
   IPC_STRUCT_TRAITS_MEMBER(client_id)
   IPC_STRUCT_TRAITS_MEMBER(is_reload)
+  IPC_STRUCT_TRAITS_MEMBER(fetch_type)
 IPC_STRUCT_TRAITS_END()
 
 IPC_ENUM_TRAITS_MAX_VALUE(content::ServiceWorkerFetchEventResult,
@@ -177,9 +181,18 @@ IPC_MESSAGE_CONTROL3(ServiceWorkerHostMsg_GetRegistrationForReady,
                      int /* request_id */,
                      int /* provider_id */)
 
-// Sends a 'message' event to a service worker (renderer->browser).
+// Sends ExtendableMessageEvent to a service worker (renderer->browser).
 IPC_MESSAGE_CONTROL3(
     ServiceWorkerHostMsg_PostMessageToWorker,
+    int /* handle_id */,
+    base::string16 /* message */,
+    std::vector<content::TransferredMessagePort> /* sent_message_ports */)
+
+// Sends MessageEvent to a service worker (renderer->browser).
+// TODO(nhiroki): Remove this after ExtendableMessageEvent is enabled by
+// default (crbug.com/543198).
+IPC_MESSAGE_CONTROL3(
+    ServiceWorkerHostMsg_DeprecatedPostMessageToWorker,
     int /* handle_id */,
     base::string16 /* message */,
     std::vector<content::TransferredMessagePort> /* sent_message_ports */)
@@ -237,6 +250,9 @@ IPC_MESSAGE_ROUTED2(ServiceWorkerHostMsg_InstallEventFinished,
 IPC_MESSAGE_ROUTED2(ServiceWorkerHostMsg_ActivateEventFinished,
                     int /* request_id */,
                     blink::WebServiceWorkerEventResult)
+IPC_MESSAGE_ROUTED2(ServiceWorkerHostMsg_ExtendableMessageEventFinished,
+                    int /* request_id */,
+                    blink::WebServiceWorkerEventResult)
 IPC_MESSAGE_ROUTED3(ServiceWorkerHostMsg_FetchEventFinished,
                     int /* request_id */,
                     content::ServiceWorkerFetchEventResult,
@@ -260,7 +276,7 @@ IPC_MESSAGE_ROUTED2(ServiceWorkerHostMsg_GetClients,
                     int /* request_id */,
                     content::ServiceWorkerClientQueryOptions)
 
-// Sends a 'message' event to a client (renderer->browser).
+// Sends MessageEvent to a client (renderer->browser).
 IPC_MESSAGE_ROUTED3(
     ServiceWorkerHostMsg_PostMessageToClient,
     std::string /* uuid */,
@@ -432,7 +448,7 @@ IPC_MESSAGE_CONTROL4(ServiceWorkerMsg_SetControllerServiceWorker,
                      content::ServiceWorkerObjectInfo,
                      bool /* should_notify_controllerchange */)
 
-// Sends a 'message' event to a client document (browser->renderer).
+// Sends MessageEvent to a client document (browser->renderer).
 IPC_MESSAGE_CONTROL1(ServiceWorkerMsg_MessageToDocument,
                      ServiceWorkerMsg_MessageToDocument_Params)
 
@@ -441,6 +457,12 @@ IPC_MESSAGE_CONTROL1(ServiceWorkerMsg_InstallEvent,
                      int /* request_id */)
 IPC_MESSAGE_CONTROL1(ServiceWorkerMsg_ActivateEvent,
                      int /* request_id */)
+IPC_MESSAGE_CONTROL4(
+    ServiceWorkerMsg_ExtendableMessageEvent,
+    int /* request_id */,
+    base::string16 /* message */,
+    std::vector<content::TransferredMessagePort> /* sent_message_ports */,
+    std::vector<int> /* new_routing_ids */)
 IPC_MESSAGE_CONTROL2(ServiceWorkerMsg_FetchEvent,
                      int /* request_id */,
                      content::ServiceWorkerFetchRequest)
@@ -457,11 +479,15 @@ IPC_MESSAGE_CONTROL4(ServiceWorkerMsg_GeofencingEvent,
                      blink::WebGeofencingEventType /* event_type */,
                      std::string /* region_id */,
                      blink::WebCircularGeofencingRegion /* region */)
+
+// TODO(nhiroki): Remove this after ExtendableMessageEvent is enabled by
+// default (crbug.com/543198).
 IPC_MESSAGE_CONTROL3(
     ServiceWorkerMsg_MessageToWorker,
     base::string16 /* message */,
     std::vector<content::TransferredMessagePort> /* sent_message_ports */,
     std::vector<int> /* new_routing_ids */)
+
 IPC_MESSAGE_CONTROL4(
     ServiceWorkerMsg_CrossOriginMessageToWorker,
     content::NavigatorConnectClient /* client */,

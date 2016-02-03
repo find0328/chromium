@@ -21,9 +21,6 @@
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
-#include "base/prefs/json_pref_store.h"
-#include "base/prefs/pref_registry_simple.h"
-#include "base/prefs/pref_service.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/thread.h"
 #include "base/threading/thread_restrictions.h"
@@ -87,6 +84,9 @@
 #include "components/net_log/chrome_net_log.h"
 #include "components/network_time/network_time_tracker.h"
 #include "components/policy/core/common/policy_service.h"
+#include "components/prefs/json_pref_store.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/pref_service.h"
 #include "components/safe_json/safe_json_parser.h"
 #include "components/signin/core/common/profile_management_switches.h"
 #include "components/translate/core/browser/translate_download_manager.h"
@@ -111,6 +111,7 @@
 
 #if defined(OS_WIN)
 #include "base/win/windows_version.h"
+#include "components/startup_metric_utils/common/pre_read_field_trial_utils_win.h"
 #include "ui/views/focus/view_storage.h"
 #elif defined(OS_MACOSX)
 #include "chrome/browser/chrome_browser_main_mac.h"
@@ -1267,6 +1268,11 @@ void BrowserProcessImpl::RestartBackgroundInstance() {
     if (!new_cl->HasSwitch(kSwitchesToAddOnAutorestart[i]))
       new_cl->AppendSwitch(kSwitchesToAddOnAutorestart[i]);
   }
+
+#if defined(OS_WIN)
+  if (startup_metric_utils::GetPreReadOptions().use_prefetch_argument)
+    new_cl->AppendArg(switches::kPrefetchArgumentBrowserBackground);
+#endif  // defined(OS_WIN)
 
   DLOG(WARNING) << "Shutting down current instance of the browser.";
   chrome::AttemptExit();

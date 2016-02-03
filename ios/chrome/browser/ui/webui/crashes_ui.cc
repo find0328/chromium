@@ -11,6 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/sys_info.h"
 #include "base/values.h"
 #include "components/crash/core/browser/crashes_ui_util.h"
 #include "components/version_info/version_info.h"
@@ -19,11 +20,11 @@
 #include "grit/components_resources.h"
 #include "grit/components_scaled_resources.h"
 #include "grit/components_strings.h"
+#include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #include "ios/chrome/browser/chrome_url_constants.h"
 #include "ios/chrome/browser/crash_report/crash_upload_list.h"
 #include "ios/chrome/browser/metrics/ios_chrome_metrics_service_accessor.h"
 #include "ios/chrome/grit/ios_chromium_strings.h"
-#include "ios/public/provider/chrome/browser/browser_state/chrome_browser_state.h"
 #include "ios/public/provider/web/web_ui_ios.h"
 #include "ios/public/provider/web/web_ui_ios_message_handler.h"
 #include "ios/web/public/web_ui_ios_data_source.h"
@@ -126,9 +127,16 @@ void CrashesDOMHandler::UpdateUI() {
   base::FundamentalValue enabled(crash_reporting_enabled);
   base::FundamentalValue dynamic_backend(false);
   base::StringValue version(version_info::GetVersionNumber());
+  base::StringValue os_string(base::SysInfo::OperatingSystemName() + " " +
+                              base::SysInfo::OperatingSystemVersion());
 
-  web_ui()->CallJavascriptFunction(crash::kCrashesUIUpdateCrashList, enabled,
-                                   dynamic_backend, crash_list, version);
+  std::vector<const base::Value*> args;
+  args.push_back(&enabled);
+  args.push_back(&dynamic_backend);
+  args.push_back(&crash_list);
+  args.push_back(&version);
+  args.push_back(&os_string);
+  web_ui()->CallJavascriptFunction(crash::kCrashesUIUpdateCrashList, args);
 }
 
 }  // namespace

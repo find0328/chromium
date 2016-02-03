@@ -216,14 +216,22 @@
             '../base/base.gyp:base',
             '../third_party/kasko/kasko.gyp:kasko',
           ],
-          'defines': ['CRASH_IMPLEMENTATION'],
           'conditions': [
+            ['OS=="win"', {
+              'dependencies': [
+                # TODO(fdoray): Remove this once the PreRead field trial has
+                # expired. crbug.com/577698
+                '<(DEPTH)/components/components.gyp:startup_metric_utils_common',
+              ],
+            }],
             ['OS=="mac" or OS=="win"', {
               'dependencies': [
                 '../third_party/crashpad/crashpad/client/client.gyp:crashpad_client',
+                '../third_party/crashpad/crashpad/snapshot/snapshot.gyp:crashpad_snapshot_api',
               ],
             }],
           ],
+          'defines': ['CRASH_IMPLEMENTATION'],
         },
         {
           # TODO(mark): https://crbug.com/466890: remove this target.

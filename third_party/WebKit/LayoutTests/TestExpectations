@@ -139,7 +139,9 @@ crbug.com/463358 [ Mac Linux Debug ] svg/W3C-SVG-1.1/paths-data-02-t.svg [ Failu
 
 crbug.com/267206 [ Mac ] virtual/rootlayerscrolls/fast/scrolling/scrollbar-tickmarks-hittest.html [ Timeout ]
 
-crbug.com/465126 imported/gecko/variables/variable-external-font-face-01.html [ Failure ]
+crbug.com/582836 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/variables/variable-external-font-face-01.html [ Failure ]
+crbug.com/582836 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/variables/variable-font-face-01.html [ Failure ]
+crbug.com/582836 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/variables/variable-font-face-02.html [ Failure ]
 
 crbug.com/280342 [ Linux Win ] http/tests/media/progress-events-generated-correctly.html [ Failure ]
 
@@ -375,8 +377,6 @@ crbug.com/581661 svg/hixie/perf/002.xml [ NeedsManualRebaseline ]
 crbug.com/581661 svg/batik/text/textOnPath.svg [ NeedsManualRebaseline ]
 crbug.com/581661 svg/hixie/perf/001.xml [ NeedsManualRebaseline ]
 
-crbug.com/441840 [ Mac ] cssom/ahem-ex-units.html [ Failure ]
-
 crbug.com/530044 transforms/2d/transform-borderbox.html [ NeedsManualRebaseline ]
 
 # This directly has manual tests that don't have to run with run-webkit-tests
@@ -410,6 +410,10 @@ crbug.com/518005 crbug.com/463358 [ Mac ] svg/W3C-SVG-1.1/struct-frag-02-t.svg [
 crbug.com/510337 inspector/elements/edit/edit-dom-actions.html [ Timeout ]
 
 # SPv2 paint properties are still being implemented.
+#
+# These tests should not be rebaselined automatically, as our goal is to exactly match
+# existing tests. We have skipped the entire spv2 directory and are adding [ Pass ] lines
+# as we go. Please remove [ Pass ] lines instead of rebaselining these tests.
 crbug.com/537409 virtual/spv2/ [ Skip ]
 crbug.com/563667 virtual/spv2/fast/block/basic/001.html [ Pass ]
 crbug.com/563667 virtual/spv2/fast/block/positioning/static-distance-with-positioned-ancestor.html [ Pass ]
@@ -418,7 +422,6 @@ crbug.com/563667 virtual/spv2/fast/borders/border-image-scale-transform.html [ P
 crbug.com/580355 virtual/spv2/fast/block/basic/018.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/basic/adding-near-anonymous-block.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/basic/text-indent-rtl.html [ Pass ]
-crbug.com/580355 virtual/spv2/fast/block/basic/truncation-rtl.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/basic/white-space-pre-wraps.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/float/001.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/float/002.html [ Pass ]
@@ -454,6 +457,7 @@ crbug.com/580355 virtual/spv2/fast/block/margin-collapse/block-inside-inline/019
 crbug.com/580355 virtual/spv2/fast/block/margin-collapse/block-inside-inline/020.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/positioning/height-change.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/positioning/relayout-on-position-change.html [ Pass ]
+crbug.com/537409 virtual/spv2/svg/as-image/svg-image-with-data-uri.html [ Pass ]
 
 # In imported/web-platform-tests/html/, we prefer checking in failure
 # expectation files. The following tests with [ Failure ] don't have failure
@@ -699,14 +703,6 @@ crbug.com/571531 imported/csswg-test/css-flexbox-1/css-flexbox-height-animation-
 
 # Either "combo" or split should run: http://testthewebforward.org/docs/css-naming.html
 crbug.com/410320 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001.html [ Skip ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001q.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001r.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001s.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001t.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001u.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001v.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001w.html [ Failure ]
-crbug.com/492664 imported/csswg-test/css-writing-modes-3/orthogonal-parent-shrink-to-fit-001x.html [ Failure ]
 crbug.com/492664 imported/csswg-test/css-writing-modes-3/text-orientation-script-001.html [ Skip ]
 crbug.com/492664 imported/csswg-test/css-writing-modes-3/text-orientation-script-001e.html [ Failure ]
 
@@ -1043,6 +1039,10 @@ crbug.com/474798 fast/repaint/align-self-change-keeping-geometry-grid.html [ Fai
 crbug.com/474798 fast/repaint/justify-self-change-keeping-geometry.html [ Failure ]
 crbug.com/474798 virtual/spv2/paint/invalidation/spv2/align-self-change-keeping-geometry-grid-as-text.html [ Skip ]
 crbug.com/474798 virtual/spv2/paint/invalidation/spv2/justify-self-change-keeping-geometry-as-text.html [ Skip ]
+
+crbug.com/582230 fast/css-grid-layout/relayout-align-items-changed.html [ Skip ]
+crbug.com/582230 fast/repaint/align-items-change.html [ Skip ]
+crbug.com/582230 fast/repaint/align-items-overflow-change.html [ Skip ]
 
 crbug.com/548695 fast/forms/datalist/update-range-with-datalist.html [ Failure ]
 
@@ -1386,6 +1386,14 @@ crbug.com/577746 [ Linux Debug ] compositing/iframes/iframe-in-composited-layer.
 
 crbug.com/581038 fast/text/first-letter-bad-line-boxes-crash.html [ Crash Pass ]
 
-crbug.com/581203 [ Linux ] web-animations-api/player-finish-sample-only.html [ Failure Pass ]
+# No baselines, but this js test is also showing FAIL
+crbug.com/583675 fast/dom/shadow/scoped-events-by-ua-stopped.html [ Failure ]
 
-crbug.com/582155 fast/regex/non-pattern-characters.html [ NeedsManualRebaseline ]
+crbug.com/583651 [ Win7 ] svg/W3C-SVG-1.1/pservers-grad-06-b.svg [ NeedsRebaseline ]
+crbug.com/583651 [ Win7 ] svg/custom/nested-pattern-boundingBoxModeContent.svg [ NeedsRebaseline ]
+crbug.com/583651 [ Win7 ] svg/custom/non-scaling-stroke.svg [ NeedsRebaseline ]
+crbug.com/583651 [ Win7 ] svg/custom/pattern-skew-transformed.svg [ NeedsRebaseline ]
+crbug.com/583651 [ Win7 ] svg/custom/pattern-with-transformation.svg [ NeedsRebaseline ]
+crbug.com/583651 [ Win7 ] svg/transforms/text-with-pattern-inside-transformed-html.xhtml [ NeedsRebaseline ]
+
+crbug.com/581203 [ Linux ] web-animations-api/player-finish-sample-only.html [ Failure Pass ]

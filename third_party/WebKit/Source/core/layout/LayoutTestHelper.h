@@ -50,9 +50,16 @@ protected:
         document().view()->updateAllLifecyclePhases();
     }
 
+    LayoutObject* getLayoutObjectByElementId(const char* id) const
+    {
+        Node* node = document().getElementById(id);
+        return node ? node->layoutObject() : nullptr;
+    }
+
 private:
     RefPtrWillBePersistent<LocalFrame> m_subframe;
     OwnPtrWillBePersistent<FrameLoaderClient> m_frameLoaderClient;
+    OwnPtrWillBePersistent<FrameLoaderClient> m_childFrameLoaderClient;
     OwnPtr<DummyPageHolder> m_pageHolder;
 };
 

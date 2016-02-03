@@ -5,6 +5,12 @@
 #include "core/inspector/ThreadDebugger.h"
 
 #include "bindings/core/v8/V8Binding.h"
+#include "bindings/core/v8/V8DOMException.h"
+#include "bindings/core/v8/V8DOMTokenList.h"
+#include "bindings/core/v8/V8HTMLAllCollection.h"
+#include "bindings/core/v8/V8HTMLCollection.h"
+#include "bindings/core/v8/V8Node.h"
+#include "bindings/core/v8/V8NodeList.h"
 #include "bindings/core/v8/V8ScriptRunner.h"
 #include "core/inspector/InspectorDOMDebuggerAgent.h"
 
@@ -30,12 +36,6 @@ v8::MaybeLocal<v8::Object> ThreadDebugger::instantiateObject(v8::Local<v8::Funct
     return V8ScriptRunner::instantiateObject(m_isolate, function);
 }
 
-v8::MaybeLocal<v8::Script> ThreadDebugger::compileScript(v8::Local<v8::Context> context, v8::Local<v8::String> script, const String& fileName)
-{
-    v8::Context::Scope scope(context);
-    return V8ScriptRunner::compileScript(script, fileName, "", TextPosition(), m_isolate);
-}
-
 v8::MaybeLocal<v8::Value> ThreadDebugger::runCompiledScript(v8::Local<v8::Context> context, v8::Local<v8::Script> script)
 {
     return V8ScriptRunner::runCompiledScript(m_isolate, script, toExecutionContext(context));
@@ -54,6 +54,26 @@ v8::MaybeLocal<v8::Value> ThreadDebugger::callFunction(v8::Local<v8::Function> f
 v8::MaybeLocal<v8::Value> ThreadDebugger::callInternalFunction(v8::Local<v8::Function> function, v8::Local<v8::Value> receiver, int argc, v8::Local<v8::Value> info[])
 {
     return V8ScriptRunner::callInternalFunction(function, receiver, argc, info, m_isolate);
+}
+
+String ThreadDebugger::valueSubtype(v8::Local<v8::Value> value)
+{
+    if (V8Node::hasInstance(value, m_isolate))
+        return "node";
+    if (V8NodeList::hasInstance(value, m_isolate)
+        || V8DOMTokenList::hasInstance(value, m_isolate)
+        || V8HTMLCollection::hasInstance(value, m_isolate)
+        || V8HTMLAllCollection::hasInstance(value, m_isolate)) {
+        return "array";
+    }
+    if (V8DOMException::hasInstance(value, m_isolate))
+        return "error";
+    return String();
+}
+
+bool ThreadDebugger::formatAccessorsAsProperties(v8::Local<v8::Value> value)
+{
+    return V8DOMWrapper::isWrapper(m_isolate, value);
 }
 
 } // namespace blink

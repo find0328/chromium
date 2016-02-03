@@ -6,15 +6,13 @@
 
 #include "bindings/core/v8/ScriptCallStackFactory.h"
 #include "bindings/core/v8/ScriptRegexp.h"
-#include "bindings/core/v8/V8Binding.h"
 #include "bindings/core/v8/V8RecursionScope.h"
 #include "core/dom/Microtask.h"
-#include "core/inspector/AsyncCallChain.h"
 #include "core/inspector/ContentSearchUtils.h"
-#include "core/inspector/InstrumentingAgents.h"
 #include "core/inspector/ScriptAsyncCallStack.h"
 #include "core/inspector/ScriptCallFrame.h"
 #include "core/inspector/ScriptCallStack.h"
+#include "core/inspector/v8/AsyncCallChain.h"
 #include "core/inspector/v8/IgnoreExceptionsScope.h"
 #include "core/inspector/v8/InjectedScript.h"
 #include "core/inspector/v8/InjectedScriptHost.h"
@@ -25,10 +23,8 @@
 #include "core/inspector/v8/V8Debugger.h"
 #include "core/inspector/v8/V8DebuggerClient.h"
 #include "core/inspector/v8/V8JavaScriptCallFrame.h"
+#include "core/inspector/v8/V8StringUtil.h"
 #include "platform/JSONValues.h"
-#include "platform/SharedBuffer.h"
-#include "platform/weborigin/KURL.h"
-#include "public/platform/Platform.h"
 #include "wtf/Optional.h"
 #include "wtf/text/StringBuilder.h"
 #include "wtf/text/WTFString.h"
@@ -62,11 +58,14 @@ static const char isRegex[] = "isRegex";
 static const char lineNumber[] = "lineNumber";
 static const char columnNumber[] = "columnNumber";
 static const char condition[] = "condition";
-static const char skipStackPattern[] = "skipStackPattern";
-static const char skipContentScripts[] = "skipContentScripts";
 static const char skipAllPauses[] = "skipAllPauses";
 
 } // namespace DebuggerAgentState;
+
+inline static bool asBool(const bool* const b)
+{
+    return b ? *b : false;
+}
 
 static const int maxSkipStepFrameCount = 128;
 
@@ -122,17 +121,11 @@ static PassRefPtr<ScriptCallStack> toScriptCallStack(v8::Local<v8::Context> cont
     return jsCallFrame ? toScriptCallStack(jsCallFrame.get()) : nullptr;
 }
 
-static PassOwnPtr<SourceMap> parseSourceMapFromDataUrl(const String& url)
+static bool positionComparator(const std::pair<int, int>& a, const std::pair<int, int>& b)
 {
-    KURL sourceMapURL(KURL(), url);
-    if (sourceMapURL.isEmpty() || !sourceMapURL.isValid())
-        return nullptr;
-    WebString mimetype;
-    WebString charset;
-    RefPtr<SharedBuffer> data = PassRefPtr<SharedBuffer>(Platform::current()->parseDataURL(sourceMapURL, mimetype, charset));
-    if (!data)
-        return nullptr;
-    return SourceMap::parse(String(data->data(), data->size()), String());
+    if (a.first != b.first)
+        return a.first < b.first;
+    return a.second < b.second;
 }
 
 PassOwnPtr<V8DebuggerAgent> V8DebuggerAgent::create(InjectedScriptManager* injectedScriptManager, V8Debugger* debugger, int contextGroupId)
@@ -159,8 +152,6 @@ V8DebuggerAgentImpl::V8DebuggerAgentImpl(InjectedScriptManager* injectedScriptMa
     , m_recursionLevelForStepOut(0)
     , m_recursionLevelForStepFrame(0)
     , m_skipAllPauses(false)
-    , m_skipContentScripts(false)
-    , m_cachedSkipStackGeneration(0)
     , m_lastAsyncOperationId(0)
     , m_maxAsyncCallStackDepth(0)
     , m_currentAsyncCallChain(nullptr)
@@ -168,7 +159,6 @@ V8DebuggerAgentImpl::V8DebuggerAgentImpl(InjectedScriptManager* injectedScriptMa
     , m_currentAsyncOperationId(unknownAsyncOperationId)
     , m_pendingTraceAsyncOperationCompleted(false)
     , m_startingStepIntoAsync(false)
-    , m_compiledScripts(debugger->isolate())
 {
     ASSERT(contextGroupId);
     m_injectedScriptManager->injectedScriptHost()->setDebugger(this, m_debugger);
@@ -223,8 +213,6 @@ void V8DebuggerAgentImpl::disable(ErrorString*)
 
     m_state->setObject(DebuggerAgentState::javaScriptBreakpoints, JSONObject::create());
     m_state->setNumber(DebuggerAgentState::pauseOnExceptionsState, V8DebuggerImpl::DontPauseOnExceptions);
-    m_state->setString(DebuggerAgentState::skipStackPattern, "");
-    m_state->setBoolean(DebuggerAgentState::skipContentScripts, false);
     m_state->setNumber(DebuggerAgentState::asyncCallStackDepth, 0);
     m_state->setBoolean(DebuggerAgentState::promiseTrackerEnabled, false);
     m_state->setBoolean(DebuggerAgentState::promiseTrackerCaptureStacks, false);
@@ -233,7 +221,7 @@ void V8DebuggerAgentImpl::disable(ErrorString*)
     m_pausedContext.Reset();
     m_currentCallStack.Reset();
     m_scripts.clear();
-    m_sourceMaps.clear();
+    m_blackboxedPositions.clear();
     m_breakpointIdToDebuggerBreakpointIds.clear();
     internalSetAsyncCallStackDepth(0);
     m_promiseTracker->setEnabled(false, false);
@@ -247,27 +235,10 @@ void V8DebuggerAgentImpl::disable(ErrorString*)
     m_skippedStepFrameCount = 0;
     m_recursionLevelForStepFrame = 0;
     m_asyncOperationNotifications.clear();
-    m_compiledScripts.Clear();
+    m_compiledScripts.clear();
     clearStepIntoAsync();
     m_skipAllPauses = false;
     m_enabled = false;
-}
-
-static PassOwnPtr<ScriptRegexp> compileSkipCallFramePattern(String patternText)
-{
-    if (patternText.isEmpty())
-        return nullptr;
-    OwnPtr<ScriptRegexp> result = adoptPtr(new ScriptRegexp(patternText, TextCaseSensitive));
-    if (!result->isValid())
-        result.clear();
-    return result.release();
-}
-
-void V8DebuggerAgentImpl::increaseCachedSkipStackGeneration()
-{
-    ++m_cachedSkipStackGeneration;
-    if (!m_cachedSkipStackGeneration)
-        m_cachedSkipStackGeneration = 1;
 }
 
 void V8DebuggerAgentImpl::internalSetAsyncCallStackDepth(int depth)
@@ -305,12 +276,6 @@ void V8DebuggerAgentImpl::restore()
     m_state->getNumber(DebuggerAgentState::pauseOnExceptionsState, &pauseState);
     setPauseOnExceptionsImpl(&error, pauseState);
 
-    String skipStackPattern;
-    m_state->getString(DebuggerAgentState::skipStackPattern, &skipStackPattern);
-    m_cachedSkipStackRegExp = compileSkipCallFramePattern(skipStackPattern);
-    increaseCachedSkipStackGeneration();
-
-    m_skipContentScripts = m_state->booleanProperty(DebuggerAgentState::skipContentScripts, false);
     m_skipAllPauses = m_state->booleanProperty(DebuggerAgentState::skipAllPauses, false);
 
     int asyncCallStackDepth = 0;
@@ -546,25 +511,15 @@ bool V8DebuggerAgentImpl::isCallFrameWithUnknownScriptOrBlackboxed(PassRefPtr<Ja
         // Unknown scripts are blackboxed.
         return true;
     }
-    if (m_skipContentScripts && it->value.isContentScript())
-        return true;
-    bool isBlackboxed = false;
-    String scriptURL = it->value.sourceURL();
-    String sourceMappedScriptURL;
-    auto itSourceMap = m_sourceMaps.find(String::number(frame->sourceID()));
-    if (itSourceMap != m_sourceMaps.end()) {
-        const SourceMap::Entry* entry = itSourceMap->value->findEntry(frame->line(), frame->column());
-        if (entry)
-            sourceMappedScriptURL = entry->sourceURL;
-    }
-    if (m_cachedSkipStackRegExp && (!scriptURL.isEmpty() || !sourceMappedScriptURL.isEmpty())) {
-        if (!it->value.getBlackboxedState(m_cachedSkipStackGeneration, &isBlackboxed)) {
-            isBlackboxed = !scriptURL.isEmpty() && m_cachedSkipStackRegExp->match(scriptURL) != -1;
-            isBlackboxed = isBlackboxed || (!sourceMappedScriptURL.isEmpty() && m_cachedSkipStackRegExp->match(sourceMappedScriptURL) != -1);
-            it->value.setBlackboxedState(m_cachedSkipStackGeneration, isBlackboxed);
-        }
-    }
-    return isBlackboxed;
+    auto itBlackboxedPositions = m_blackboxedPositions.find(String::number(frame->sourceID()));
+    if (itBlackboxedPositions == m_blackboxedPositions.end())
+        return false;
+
+    const Vector<std::pair<int, int>>& ranges = itBlackboxedPositions->value;
+    auto itRange = std::lower_bound(ranges.begin(), ranges.end(), std::make_pair(frame->line(), frame->column()), positionComparator);
+    // Ranges array contains positions in script where blackbox state is changed.
+    // [(0,0) ... ranges[0]) isn't blackboxed, [ranges[0] ... ranges[1]) is blackboxed...
+    return std::distance(ranges.begin(), itRange) % 2;
 }
 
 V8DebuggerAgentImpl::SkipPauseRequest V8DebuggerAgentImpl::shouldSkipExceptionPause()
@@ -986,9 +941,8 @@ void V8DebuggerAgentImpl::compileScript(ErrorString* errorString, const String& 
     v8::HandleScope handles(injectedScript->isolate());
     v8::Context::Scope scope(injectedScript->context());
     v8::TryCatch tryCatch(m_isolate);
-    v8::Local<v8::String> expressionValue = v8::String::NewFromUtf8(m_isolate, expression.utf8().data(), v8::NewStringType::kNormal).ToLocalChecked();
-    v8::Local<v8::Script> script;
-    if (!m_debugger->client()->compileScript(injectedScript->context(), expressionValue, sourceURL).ToLocal(&script)) {
+    v8::Local<v8::Script> script = m_debugger->compileInternalScript(injectedScript->context(), toV8String(m_isolate, expression), sourceURL);
+    if (script.IsEmpty()) {
         v8::Local<v8::Message> message = tryCatch.Message();
         if (!message.IsEmpty())
             exceptionDetails = createExceptionDetails(m_isolate, message);
@@ -1001,7 +955,8 @@ void V8DebuggerAgentImpl::compileScript(ErrorString* errorString, const String& 
         return;
 
     String scriptValueId = String::number(script->GetUnboundScript()->GetId());
-    m_compiledScripts.Set(scriptValueId, script);
+    OwnPtr<v8::Global<v8::Script>> global = adoptPtr(new v8::Global<v8::Script>(m_isolate, script));
+    m_compiledScripts.set(scriptValueId, global.release());
     *scriptId = scriptValueId;
 }
 
@@ -1019,7 +974,7 @@ void V8DebuggerAgentImpl::runScript(ErrorString* errorString, const ScriptId& sc
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         ignoreExceptionsScope.emplace(m_debugger);
 
-    if (!m_compiledScripts.Contains(scriptId)) {
+    if (!m_compiledScripts.contains(scriptId)) {
         *errorString = "Script execution failed";
         return;
     }
@@ -1027,7 +982,8 @@ void V8DebuggerAgentImpl::runScript(ErrorString* errorString, const ScriptId& sc
     v8::HandleScope handles(m_isolate);
     v8::Local<v8::Context> context = injectedScript->context();
     v8::Context::Scope scope(context);
-    v8::Local<v8::Script> script = v8::Local<v8::Script>::New(m_isolate, m_compiledScripts.Remove(scriptId));
+    OwnPtr<v8::Global<v8::Script>> scriptWrapper = m_compiledScripts.take(scriptId);
+    v8::Local<v8::Script> script = scriptWrapper->Get(m_isolate);
 
     if (script.IsEmpty()) {
         *errorString = "Script execution failed";
@@ -1093,26 +1049,6 @@ void V8DebuggerAgentImpl::setVariableValue(ErrorString* errorString, int scopeNu
     v8::HandleScope scope(m_isolate);
     v8::Local<v8::Object> currentCallStack = m_currentCallStack.Get(m_isolate);
     injectedScript->setVariableValue(errorString, currentCallStack, callFrameId, functionObjectId, scopeNumber, variableName, newValueString);
-}
-
-void V8DebuggerAgentImpl::skipStackFrames(ErrorString* errorString, const String* pattern, const bool* skipContentScripts)
-{
-    if (!checkEnabled(errorString))
-        return;
-    OwnPtr<ScriptRegexp> compiled;
-    String patternValue = pattern ? *pattern : "";
-    if (!patternValue.isEmpty()) {
-        compiled = compileSkipCallFramePattern(patternValue);
-        if (!compiled) {
-            *errorString = "Invalid regular expression";
-            return;
-        }
-    }
-    m_state->setString(DebuggerAgentState::skipStackPattern, patternValue);
-    m_cachedSkipStackRegExp = compiled.release();
-    increaseCachedSkipStackGeneration();
-    m_skipContentScripts = asBool(skipContentScripts);
-    m_state->setBoolean(DebuggerAgentState::skipContentScripts, m_skipContentScripts);
 }
 
 void V8DebuggerAgentImpl::setAsyncCallStackDepth(ErrorString* errorString, int depth)
@@ -1381,6 +1317,48 @@ void V8DebuggerAgentImpl::removeAsyncOperationBreakpoint(ErrorString* errorStrin
     m_asyncOperationBreakpoints.remove(operationId);
 }
 
+void V8DebuggerAgentImpl::setBlackboxedRanges(ErrorString* error, const String& scriptId, const RefPtr<JSONArray>& inPositions)
+{
+    ScriptsMap::iterator it = m_scripts.find(scriptId);
+    if (it == m_scripts.end()) {
+        *error = "No script with passed id.";
+        return;
+    }
+
+    if (!inPositions->length()) {
+        m_blackboxedPositions.remove(scriptId);
+        return;
+    }
+
+    Vector<std::pair<int, int>> positions(inPositions->length());
+    for (size_t i = 0; i < positions.size(); ++i) {
+        RefPtr<JSONObject> positionObj;
+        int line = 0;
+        int column = 0;
+        inPositions->get(i)->asObject(&positionObj);
+        if (!positionObj->getNumber("line", &line) || line < 0) {
+            *error = "Position missing 'line' or 'line' < 0.";
+            return;
+        }
+        if (!positionObj->getNumber("column", &column) || column < 0) {
+            *error = "Position missing 'column' or 'column' < 0.";
+            return;
+        }
+        positions[i] = std::make_pair(line, column);
+    }
+
+    for (size_t i = 1; i < positions.size(); ++i) {
+        if (positions[i - 1].first < positions[i].first)
+            continue;
+        if (positions[i - 1].first == positions[i].first && positions[i - 1].second < positions[i].second)
+            continue;
+        *error = "Input positions array is not sorted or contains duplicate values.";
+        return;
+    }
+
+    m_blackboxedPositions.set(scriptId, positions);
+}
+
 void V8DebuggerAgentImpl::willExecuteScript(int scriptId)
 {
     changeJavaScriptRecursionLevel(+1);
@@ -1519,9 +1497,6 @@ void V8DebuggerAgentImpl::didParseSource(const V8DebuggerParsedScript& parsedScr
     bool hasSourceURL = script.hasSourceURL();
     String scriptURL = script.sourceURL();
     String sourceMapURL = sourceMapURLForScript(script, parsedScript.success);
-    OwnPtr<SourceMap> sourceMap = parseSourceMapFromDataUrl(sourceMapURL);
-    if (sourceMap)
-        m_sourceMaps.set(parsedScript.scriptId, sourceMap.release());
 
     const String* sourceMapURLParam = sourceMapURL.isNull() ? nullptr : &sourceMapURL;
     const bool* isContentScriptParam = isContentScript ? &isContentScript : nullptr;
@@ -1708,7 +1683,7 @@ void V8DebuggerAgentImpl::reset()
 {
     m_scheduledDebuggerStep = NoStep;
     m_scripts.clear();
-    m_sourceMaps.clear();
+    m_blackboxedPositions.clear();
     m_breakpointIdToDebuggerBreakpointIds.clear();
     resetAsyncCallTracker();
     m_promiseTracker->clear();
@@ -1718,7 +1693,7 @@ void V8DebuggerAgentImpl::reset()
 
 PassRefPtr<TypeBuilder::Debugger::ExceptionDetails> V8DebuggerAgentImpl::createExceptionDetails(v8::Isolate* isolate, v8::Local<v8::Message> message)
 {
-    RefPtr<ExceptionDetails> exceptionDetails = ExceptionDetails::create().setText(toCoreStringWithUndefinedOrNullCheck(message->Get()));
+    RefPtr<ExceptionDetails> exceptionDetails = ExceptionDetails::create().setText(toWTFStringWithTypeCheck(message->Get()));
     exceptionDetails->setLine(message->GetLineNumber());
     exceptionDetails->setColumn(message->GetStartColumn());
     v8::Local<v8::StackTrace> messageStackTrace = message->GetStackTrace();

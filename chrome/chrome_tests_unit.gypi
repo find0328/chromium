@@ -32,10 +32,8 @@
       'browser/android/thumbnail/scoped_ptr_expiring_cache_unittest.cc',
       'browser/app_controller_mac_unittest.mm',
       'browser/autocomplete/builtin_provider_unittest.cc',
-      'browser/autocomplete/in_memory_url_index_unittest.cc',
       'browser/autocomplete/search_provider_unittest.cc',
-      'browser/autocomplete/shortcuts_backend_unittest.cc',
-      'browser/autocomplete/shortcuts_provider_unittest.cc',
+      'browser/autocomplete/shortcuts_provider_extension_unittest.cc',
       'browser/background_sync/background_sync_controller_impl_unittest.cc',
       'browser/banners/app_banner_data_fetcher_unittest.cc',
       'browser/banners/app_banner_settings_helper_unittest.cc',
@@ -118,7 +116,6 @@
       'browser/history/web_history_service_unittest.cc',
       'browser/image_holder_unittest.cc',
       'browser/install_verification/win/loaded_module_verification_unittest.cc',
-      'browser/install_verification/win/loaded_modules_snapshot_unittest.cc',
       'browser/install_verification/win/module_ids_unittest.cc',
       'browser/install_verification/win/module_info_unittest.cc',
       'browser/install_verification/win/module_list_unittest.cc',
@@ -208,6 +205,14 @@
       'browser/search/iframe_source_unittest.cc',
       'browser/search/thumbnail_source_unittest.cc',
       'browser/search_engines/search_provider_install_data_unittest.cc',
+
+      # TODO(hashimoto): those tests should be componentized and moved to
+      # //components:components_unittests, http://crbug.com/527882.
+      'browser/search_engines/template_url_fetcher_unittest.cc',
+      'browser/search_engines/template_url_parser_unittest.cc',
+      'browser/search_engines/template_url_service_sync_unittest.cc',
+      'browser/search_engines/template_url_service_unittest.cc',
+
       'browser/service_process/service_process_control_mac_unittest.mm',
       'browser/services/gcm/fake_gcm_profile_service.cc',
       'browser/services/gcm/fake_gcm_profile_service.h',
@@ -232,7 +237,6 @@
       'browser/sync/profile_sync_service_autofill_unittest.cc',
       'browser/sync/profile_sync_service_bookmark_unittest.cc',
       'browser/sync/profile_sync_service_factory_unittest.cc',
-      'browser/sync/profile_sync_service_startup_unittest.cc',
       'browser/sync/profile_sync_service_typed_url_unittest.cc',
       'browser/sync/sync_startup_tracker_unittest.cc',
       'browser/sync/test/test_http_bridge_factory.cc',
@@ -262,7 +266,6 @@
       'browser/ui/passwords/password_bubble_experiment_unittest.cc',
       'browser/ui/passwords/password_manager_presenter_unittest.cc',
       'browser/ui/search_engines/keyword_editor_controller_unittest.cc',
-      'browser/ui/startup/startup_browser_creator_win_unittest.cc',
       'browser/ui/sync/profile_signin_confirmation_helper_unittest.cc',
       'browser/ui/sync/sync_promo_ui_unittest.cc',
       'browser/ui/tests/ui_gfx_image_unittest.cc',
@@ -309,13 +312,6 @@
       # Duplicate these tests here because PathService has more items in
       # unit_tests than in base_unittests.
       '../base/path_service_unittest.cc',
-
-      # TODO(hashimoto): those tests should be componentized and moved to
-      # //components:components_unittests, http://crbug.com/527882.
-      '../components/search_engines/template_url_fetcher_unittest.cc',
-      '../components/search_engines/template_url_parser_unittest.cc',
-      '../components/search_engines/template_url_service_sync_unittest.cc',
-      '../components/search_engines/template_url_service_unittest.cc',
 
       '../testing/gtest_mac_unittest.mm',
       '../third_party/zlib/google/compression_utils_unittest.cc',
@@ -364,7 +360,6 @@
       'browser/spellchecker/spellcheck_service_unittest.cc',
       'browser/spellchecker/spelling_service_client_unittest.cc',
       'browser/spellchecker/word_trimmer_unittest.cc',
-      'common/spellcheck_common_unittest.cc',
       'renderer/spellchecker/custom_dictionary_engine_unittest.cc',
       'renderer/spellchecker/spellcheck_multilingual_unittest.cc',
       'renderer/spellchecker/spellcheck_provider_hunspell_unittest.cc',
@@ -767,10 +762,6 @@
       'browser/safe_browsing/threat_details_unittest.cc',
       'browser/safe_browsing/ui_manager_unittest.cc',
      ],
-    'chrome_unit_tests_mobile_safe_browsing_sources': [
-      'browser/safe_browsing/remote_database_manager_unittest.cc',
-      'browser/safe_browsing/safe_browsing_api_handler_unittest.cc',
-     ],
     'chrome_unit_tests_full_safe_browsing_sources': [
       'browser/safe_browsing/browser_feature_extractor_unittest.cc',
       'browser/safe_browsing/chunk_range_unittest.cc',
@@ -808,7 +799,6 @@
       'browser/safe_browsing/local_database_manager_unittest.cc',
       'browser/safe_browsing/local_two_phase_testserver.cc',
       'browser/safe_browsing/path_sanitizer_unittest.cc',
-      'browser/safe_browsing/protocol_manager_helper_unittest.cc',
       'browser/safe_browsing/protocol_manager_unittest.cc',
       'browser/safe_browsing/protocol_parser_unittest.cc',
       'browser/safe_browsing/safe_browsing_database_unittest.cc',
@@ -1537,7 +1527,6 @@
       'browser/ui/global_error/global_error_service_unittest.cc',
       'browser/ui/omnibox/clipboard_utils_unittest.cc',
       'browser/ui/omnibox/omnibox_controller_unittest.cc',
-      'browser/ui/omnibox/omnibox_edit_unittest.cc',
       'browser/ui/panels/panel_mouse_watcher_unittest.cc',
       'browser/ui/passwords/manage_passwords_bubble_model_unittest.cc',
       'browser/ui/passwords/manage_passwords_view_utils_desktop_unittest.cc',
@@ -1701,6 +1690,7 @@
         '../components/components.gyp:user_prefs_tracked_test_support',
         '../components/prefs/prefs.gyp:prefs_test_support',
         '../content/content.gyp:content_app_both',
+        '../content/content_shell_and_tests.gyp:content_browser_test_base',
         '../content/content_shell_and_tests.gyp:test_support_content',
         '../net/net.gyp:net',
         '../net/net.gyp:net_test_support',
@@ -2366,7 +2356,6 @@
             }],
             ['OS=="android"', {
               'sources!': [
-                'common/spellcheck_common_unittest.cc',
                 'renderer/spellchecker/spellcheck_multilingual_unittest.cc',
                 'renderer/spellchecker/spellcheck_provider_hunspell_unittest.cc',
                 'renderer/spellchecker/spellcheck_unittest.cc',
@@ -2506,9 +2495,7 @@
           ],
         }],
         ['safe_browsing==2', {
-          'sources': [ '<@(chrome_unit_tests_mobile_safe_browsing_sources)',
-                       '<@(chrome_unit_tests_shared_safe_browsing_sources)',
-                     ],
+          'sources': [ '<@(chrome_unit_tests_shared_safe_browsing_sources)' ],
         }],
         ['enable_autofill_dialog==1 and OS!="android"', {
           'sources': [ '<@(chrome_unit_tests_autofill_dialog_sources)' ],

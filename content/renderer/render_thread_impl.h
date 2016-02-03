@@ -26,7 +26,6 @@
 #include "content/common/content_export.h"
 #include "content/common/frame_replication_state.h"
 #include "content/common/gpu/client/gpu_channel_host.h"
-#include "content/common/gpu/gpu_result_codes.h"
 #include "content/public/renderer/render_thread.h"
 #include "content/renderer/gpu/compositor_dependencies.h"
 #include "net/base/network_change_notifier.h"
@@ -467,10 +466,7 @@ class CONTENT_EXPORT RenderThreadImpl
   bool IsMainThread() override;
   scoped_refptr<base::SingleThreadTaskRunner> GetIOThreadTaskRunner() override;
   scoped_ptr<base::SharedMemory> AllocateSharedMemory(size_t size) override;
-  CreateCommandBufferResult CreateViewCommandBuffer(
-      int32_t surface_id,
-      const GPUCreateCommandBufferConfig& init_params,
-      int32_t route_id) override;
+  gfx::GLSurfaceHandle GetSurfaceHandle(int32_t surface_id) override;
 
   void Init();
 
@@ -603,7 +599,10 @@ class CONTENT_EXPORT RenderThreadImpl
   scoped_ptr<scheduler::WebThreadBase> compositor_thread_;
 
   // Utility class to provide GPU functionalities to media.
-  scoped_ptr<content::RendererGpuVideoAcceleratorFactories> gpu_factories_;
+  // TODO(dcastagna): This should be just one scoped_ptr once
+  // http://crbug.com/580386 is fixed.
+  // NOTE(dcastagna): At worst this accumulates a few bytes per context lost.
+  ScopedVector<content::RendererGpuVideoAcceleratorFactories> gpu_factories_;
 
   // Thread for running multimedia operations (e.g., video decoding).
   scoped_ptr<base::Thread> media_thread_;

@@ -24,7 +24,7 @@ CONTENT_EXPORT extern const char kBlinkSettings[];
 CONTENT_EXPORT extern const char kBlinkPlatformLogChannels[];
 CONTENT_EXPORT extern const char kBrowserCrashTest[];
 CONTENT_EXPORT extern const char kBrowserSubprocessPath[];
-extern const char kUseCrossProcessFramesForGuests[];
+CONTENT_EXPORT extern const char kUseCrossProcessFramesForGuests[];
 extern const char kDebugPluginLoading[];
 CONTENT_EXPORT extern const char kDefaultTileWidth[];
 CONTENT_EXPORT extern const char kDefaultTileHeight[];
@@ -291,6 +291,11 @@ extern const char kDisableThreadedEventHandlingMac[];
 #endif
 
 #if defined(OS_WIN)
+CONTENT_EXPORT extern const char kPrefetchArgumentRenderer[];
+CONTENT_EXPORT extern const char kPrefetchArgumentGpu[];
+CONTENT_EXPORT extern const char kPrefetchArgumentPpapi[];
+CONTENT_EXPORT extern const char kPrefetchArgumentPpapiBroker[];
+CONTENT_EXPORT extern const char kPrefetchArgumentOther[];
 // This switch contains the device scale factor passed to certain processes
 // like renderers, etc.
 CONTENT_EXPORT extern const char kDeviceScaleFactor[];

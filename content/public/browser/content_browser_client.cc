@@ -188,7 +188,6 @@ bool ContentBrowserClient::AllowWorkerDatabase(
     const GURL& url,
     const base::string16& name,
     const base::string16& display_name,
-    unsigned long estimated_size,
     ResourceContext* context,
     const std::vector<std::pair<int, int> >& render_frames) {
   return true;
@@ -418,7 +417,11 @@ bool ContentBrowserClient::IsWin32kLockdownEnabledForMimeType(
   // is enabled by default in Chrome. See crbug.com/523278.
   return false;
 }
-#endif
+
+bool ContentBrowserClient::ShouldUseWindowsPrefetchArgument() const {
+  return true;
+}
+#endif  // defined(OS_WIN)
 
 #if defined(VIDEO_HOLE)
 ExternalVideoSurfaceContainer*

@@ -10,8 +10,21 @@ for more details about the presubmit API built into depot_tools.
 import re
 
 
+def _GetTryMasters(project, change):
+  return {
+    'tryserver.chromium.linux': {
+      'linux_site_isolation': [],
+     },
+  }
+
+
 def GetPreferredTryMasters(project, change):
-  return {'tryserver.chromium.linux': ['linux_site_isolation'],}
+  # TODO(nick, dcheng): Using the value of _GetTryMasters() instead of an empty
+  # value here would cause 'git cl try' to include the site isolation trybots,
+  # which would be nice. But it has the side effect of replacing, rather than
+  # augmenting, the default set of try servers. Re-enable this when we figure
+  # out a way to augment the default set.
+  return {}
 
 
 def PostUploadHook(cl, change, output_api):
@@ -26,7 +39,7 @@ def PostUploadHook(cl, change, output_api):
   if re.search(r'^CQ_INCLUDE_TRYBOTS=.*', description, re.M | re.I):
     return []
 
-  masters = GetPreferredTryMasters(None, change)
+  masters = _GetTryMasters(None, change)
   results = []
   new_description = description
   new_description += '\nCQ_INCLUDE_TRYBOTS=%s' % ';'.join(

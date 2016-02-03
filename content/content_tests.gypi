@@ -26,11 +26,6 @@
       'public/test/async_file_test_helper.h',
       'public/test/background_sync_test_util.cc',
       'public/test/background_sync_test_util.h',
-      'public/test/browser_test.h',
-      'public/test/browser_test_base.cc',
-      'public/test/browser_test_base.h',
-      'public/test/browser_test_utils.cc',
-      'public/test/browser_test_utils.h',
       'public/test/content_test_suite_base.cc',
       'public/test/content_test_suite_base.h',
       'public/test/download_test_observer.cc',
@@ -203,7 +198,6 @@
       'browser/background_sync/background_sync_browsertest.cc',
       'browser/battery_status/battery_monitor_impl_browsertest.cc',
       'browser/battery_status/battery_monitor_integration_browsertest.cc',
-      'browser/bluetooth/bluetooth_allowed_devices_map_unittest.cc',
       'browser/bookmarklet_browsertest.cc',
       'browser/browser_side_navigation_browsertest.cc',
       'browser/child_process_launcher_browsertest.cc',
@@ -223,6 +217,7 @@
       'browser/frame_host/frame_tree_browsertest.cc',
       'browser/frame_host/interstitial_page_impl_browsertest.cc',
       'browser/frame_host/navigation_controller_impl_browsertest.cc',
+      'browser/frame_host/navigation_handle_impl_browsertest.cc',
       'browser/frame_host/render_frame_host_impl_browsertest.cc',
       'browser/frame_host/render_frame_host_manager_browsertest.cc',
       'browser/frame_host/render_frame_message_filter_browsertest.cc',
@@ -368,6 +363,7 @@
       'browser/blob_storage/blob_async_builder_host_unittest.cc',
       'browser/blob_storage/blob_async_transport_strategy_unittest.cc',
       'browser/blob_storage/blob_storage_registry_unittest.cc',
+      'browser/bluetooth/bluetooth_allowed_devices_map_unittest.cc',
       'browser/bluetooth/bluetooth_blacklist_unittest.cc',
       'browser/browser_thread_unittest.cc',
       'browser/browser_url_handler_impl_unittest.cc',
@@ -663,7 +659,6 @@
       'common/discardable_shared_memory_heap_unittest.cc',
       'common/dom_storage/dom_storage_map_unittest.cc',
       'common/dwrite_font_platform_win_unittest.cc',
-      'common/experiments/api_key_unittest.cc',
       'common/fileapi/file_system_util_unittest.cc',
       'common/gpu/client/gpu_memory_buffer_impl_shared_memory_unittest.cc',
       'common/gpu/gpu_channel_manager_unittest.cc',
@@ -683,6 +678,7 @@
       'common/mac/attributed_string_coder_unittest.mm',
       'common/mac/font_descriptor_unittest.mm',
       'common/one_writer_seqlock_unittest.cc',
+      'common/origin_trials/trial_token_unittest.cc',
       'common/origin_util_unittest.cc',
       'common/page_state_serialization_unittest.cc',
       'common/page_zoom_unittest.cc',
@@ -1365,7 +1361,9 @@
           ],
         },
         {
-          # GN version: //content/tests:browsertest_support
+          # GN version: //content/test:browsertest_support
+          # content_browser_test_support can be used by targets that run
+          # content_shell based browser tests.
           'target_name': 'content_browser_test_support',
           'type': 'static_library',
           'dependencies': [
@@ -1405,6 +1403,42 @@
           ],
         },
         {
+          # GN version: //content/test:browsertest_base
+          # content_browser_test_base can be used by any browser test target.
+          'target_name': 'content_browser_test_base',
+          'type': 'static_library',
+          'dependencies': [
+            '../base/base.gyp:base',
+            '../net/net.gyp:net_test_support',
+            '../testing/gtest.gyp:gtest',
+            '../ui/base/ime/ui_base_ime.gyp:ui_base_ime',
+            '../ui/base/ui_base.gyp:ui_base',
+            '../ui/base/ui_base.gyp:ui_base_test_support',
+            '../ui/events/events.gyp:events_test_support',
+            'content.gyp:content_browser',
+            'content.gyp:content_common',
+          ],
+          'export_dependent_settings': [
+            'content.gyp:content_browser',
+          ],
+          'sources': [
+            # Source list duplicated in GN build.
+            'public/test/browser_test.h',
+            'public/test/browser_test_base.cc',
+            'public/test/browser_test_base.h',
+            'public/test/browser_test_utils.cc',
+            'public/test/browser_test_utils.h',
+          ],
+          'conditions': [
+            ['OS != "ios"', {
+              'dependencies': [ '../third_party/WebKit/public/blink.gyp:blink' ],
+              'export_dependent_settings': [
+                '../third_party/WebKit/public/blink.gyp:blink',
+              ],
+            }],
+          ],
+        },
+        {
           # GN version: //content/test:test_mojo_bindings
           'target_name': 'content_test_mojo_bindings',
           'type': 'static_library',
@@ -1439,6 +1473,7 @@
             'content.gyp:content_plugin',
             'content.gyp:content_renderer',
             'content.gyp:content_resources',
+            'content_browser_test_base',
             'content_browser_test_support',
             'content_common_mojo_bindings.gyp:content_common_mojo_bindings',
             'content_shell_lib',

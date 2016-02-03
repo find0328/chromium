@@ -13,7 +13,6 @@
 #include "base/guid.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/field_trial.h"
-#include "base/prefs/pref_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/thread_task_runner_handle.h"
@@ -31,6 +30,7 @@
 #include "components/autofill/core/common/autofill_pref_names.h"
 #include "components/autofill/core/common/autofill_switches.h"
 #include "components/autofill/core/common/form_data.h"
+#include "components/prefs/pref_service.h"
 #include "components/signin/core/browser/account_tracker_service.h"
 #include "components/signin/core/browser/fake_signin_manager.h"
 #include "components/signin/core/browser/test_signin_client.h"
@@ -1787,6 +1787,47 @@ TEST_F(PersonalDataManagerTest, ImportCreditCard_Invalid) {
 
   const std::vector<CreditCard*>& results = personal_data_->GetCreditCards();
   ASSERT_EQ(0U, results.size());
+}
+
+// Tests that a valid credit card is extracted when the option text for month
+// select can't be parsed but its value can.
+TEST_F(PersonalDataManagerTest, ImportCreditCard_MonthSelectInvalidText) {
+  // Add a single valid credit card form with an invalid option value.
+  FormData form;
+  AddFullCreditCardForm(&form, "Biggie Smalls", "4111-1111-1111-1111",
+                        "Feb (2)", "2011");
+  // Add option values and contents to the expiration month field.
+  ASSERT_EQ(ASCIIToUTF16("exp_month"), form.fields[2].name);
+  std::vector<base::string16> values;
+  values.push_back(ASCIIToUTF16("1"));
+  values.push_back(ASCIIToUTF16("2"));
+  values.push_back(ASCIIToUTF16("3"));
+  std::vector<base::string16> contents;
+  contents.push_back(ASCIIToUTF16("Jan (1)"));
+  contents.push_back(ASCIIToUTF16("Feb (2)"));
+  contents.push_back(ASCIIToUTF16("Mar (3)"));
+  form.fields[2].option_values = values;
+  form.fields[2].option_contents = contents;
+
+  FormStructure form_structure(form);
+  form_structure.DetermineHeuristicTypes();
+  scoped_ptr<CreditCard> imported_credit_card;
+  EXPECT_TRUE(ImportCreditCard(form_structure, false, &imported_credit_card));
+  ASSERT_TRUE(imported_credit_card);
+  personal_data_->SaveImportedCreditCard(*imported_credit_card);
+
+  // Verify that the web database has been updated and the notification sent.
+  EXPECT_CALL(personal_data_observer_, OnPersonalDataChanged())
+      .WillOnce(QuitMainMessageLoop());
+  base::MessageLoop::current()->Run();
+
+  // See that the invalid option text was converted to the right value.
+  CreditCard expected(base::GenerateGUID(), "https://www.example.com");
+  test::SetCreditCardInfo(&expected, "Biggie Smalls", "4111111111111111", "02",
+                          "2011");
+  const std::vector<CreditCard*>& results = personal_data_->GetCreditCards();
+  ASSERT_EQ(1U, results.size());
+  EXPECT_EQ(0, expected.Compare(*results[0]));
 }
 
 TEST_F(PersonalDataManagerTest, ImportCreditCard_TwoValidCards) {

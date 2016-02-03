@@ -24,6 +24,12 @@ import("//build/config/ui.gni")
 import("//build/nocompile.gni")
 import("//testing/test.gni")
 
+declare_args() {
+  # Whether to disable the handle verifier hooks.
+  # Hookless parts of the handle verifier will still function.
+  win_disable_handle_verifier_hooks = false
+}
+
 if (is_android) {
   import("//build/config/android/rules.gni")
 }
@@ -501,6 +507,8 @@ component("base") {
     "metrics/histogram_delta_serialization.h",
     "metrics/histogram_flattener.h",
     "metrics/histogram_macros.h",
+    "metrics/histogram_persistence.cc",
+    "metrics/histogram_persistence.h",
     "metrics/histogram_samples.cc",
     "metrics/histogram_samples.h",
     "metrics/histogram_snapshot_manager.cc",
@@ -625,8 +633,6 @@ component("base") {
     "process/process_metrics_win.cc",
     "process/process_posix.cc",
     "process/process_win.cc",
-    "profiler/alternate_timer.cc",
-    "profiler/alternate_timer.h",
     "profiler/native_stack_sampler.cc",
     "profiler/native_stack_sampler.h",
     "profiler/native_stack_sampler_posix.cc",
@@ -1112,6 +1118,10 @@ component("base") {
     data += [ "$root_build_dir/dbghelp.dll" ]
 
     deps += [ "//base/trace_event/etw_manifest:chrome_events_win" ]
+
+    if (is_win && win_disable_handle_verifier_hooks) {
+      defines += [ "DISABLE_HANDLE_VERIFIER_HOOKS" ]
+    }
 
     if (is_component_build) {
       # Copy the VS runtime DLLs into the isolate so that they don't have to be
@@ -1881,6 +1891,11 @@ test("base_unittests") {
     } else if (is_mac) {
       data += [ "$root_out_dir/base_unittests.dSYM/" ]
     }
+  }
+
+  # This disables one of the handle verifier tests.
+  if (is_win && win_disable_handle_verifier_hooks) {
+    defines = [ "DISABLE_HANDLE_VERIFIER_HOOKS" ]
   }
 }
 

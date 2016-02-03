@@ -18,7 +18,6 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/metrics/field_trial.h"
-#include "base/prefs/pref_service.h"
 #include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
@@ -31,6 +30,7 @@
 #include "base/trace_event/trace_event.h"
 #include "components/data_reduction_proxy/core/common/data_reduction_proxy_params.h"
 #include "components/net_log/chrome_net_log.h"
+#include "components/prefs/pref_service.h"
 #include "components/proxy_config/pref_proxy_config_tracker.h"
 #include "components/variations/variations_associated_data.h"
 #include "components/version_info/version_info.h"
@@ -528,47 +528,45 @@ void IOSChromeIOThread::ConfigureSpdyGlobals(
     base::StringPiece spdy_trial_group,
     const VariationParameters& spdy_trial_params,
     IOSChromeIOThread::Globals* globals) {
-  globals->next_protos.clear();
-
-  bool enable_quic = false;
-  globals->enable_quic.CopyToIfSet(&enable_quic);
-  if (enable_quic) {
-    globals->next_protos.push_back(net::kProtoQUIC1SPDY3);
-  }
-
   // No SPDY command-line flags have been specified. Examine trial groups.
   if (spdy_trial_group.starts_with(kSpdyFieldTrialHoldbackGroupNamePrefix)) {
     net::HttpStreamFactory::set_spdy_enabled(false);
-  } else if (spdy_trial_group.starts_with(
-                 kSpdyFieldTrialSpdy31GroupNamePrefix)) {
-    globals->next_protos.push_back(net::kProtoSPDY31);
-  } else if (spdy_trial_group.starts_with(
-                 kSpdyFieldTrialSpdy4GroupNamePrefix)) {
-    globals->next_protos.push_back(net::kProtoHTTP2);
-    globals->next_protos.push_back(net::kProtoSPDY31);
-  } else if (spdy_trial_group.starts_with(kSpdyFieldTrialParametrizedPrefix)) {
+    return;
+  }
+  if (spdy_trial_group.starts_with(kSpdyFieldTrialSpdy31GroupNamePrefix)) {
+    globals->enable_spdy31.set(true);
+    globals->enable_http2.set(false);
+    return;
+  }
+  if (spdy_trial_group.starts_with(kSpdyFieldTrialSpdy4GroupNamePrefix)) {
+    globals->enable_spdy31.set(true);
+    globals->enable_http2.set(true);
+    return;
+  }
+  if (spdy_trial_group.starts_with(kSpdyFieldTrialParametrizedPrefix)) {
     bool spdy_enabled = false;
+    globals->enable_spdy31.set(false);
+    globals->enable_http2.set(false);
     if (base::LowerCaseEqualsASCII(
             GetVariationParam(spdy_trial_params, "enable_http2"), "true")) {
-      globals->next_protos.push_back(net::kProtoHTTP2);
       spdy_enabled = true;
+      globals->enable_http2.set(true);
     }
     if (base::LowerCaseEqualsASCII(
             GetVariationParam(spdy_trial_params, "enable_spdy31"), "true")) {
-      globals->next_protos.push_back(net::kProtoSPDY31);
       spdy_enabled = true;
+      globals->enable_spdy31.set(true);
     }
-    // TODO(bnc): HttpStreamFactory::spdy_enabled_ is redundant with
-    // globals->next_protos, can it be eliminated?
+    // TODO(bnc): https://crbug.com/521597
+    // HttpStreamFactory::spdy_enabled_ is redundant with globals->enable_http2
+    // and enable_spdy31, can it be eliminated?
     net::HttpStreamFactory::set_spdy_enabled(spdy_enabled);
-  } else {
-    // By default, enable HTTP/2.
-    globals->next_protos.push_back(net::kProtoHTTP2);
-    globals->next_protos.push_back(net::kProtoSPDY31);
+    return;
   }
 
-  // Enable HTTP/1.1 in all cases as the last protocol.
-  globals->next_protos.push_back(net::kProtoHTTP11);
+  // By default, enable HTTP/2.
+  globals->enable_spdy31.set(true);
+  globals->enable_http2.set(true);
 }
 
 // static
@@ -637,7 +635,8 @@ void IOSChromeIOThread::InitializeNetworkSessionParamsFromGlobals(
   globals.enable_spdy_compression.CopyToIfSet(&params->enable_spdy_compression);
   globals.enable_spdy_ping_based_connection_checking.CopyToIfSet(
       &params->enable_spdy_ping_based_connection_checking);
-  params->next_protos = globals.next_protos;
+  globals.enable_spdy31.CopyToIfSet(&params->enable_spdy31);
+  globals.enable_http2.CopyToIfSet(&params->enable_http2);
   params->forced_spdy_exclusions = globals.forced_spdy_exclusions;
   globals.parse_alternative_services.CopyToIfSet(
       &params->parse_alternative_services);

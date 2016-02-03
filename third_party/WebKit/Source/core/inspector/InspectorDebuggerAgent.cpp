@@ -218,11 +218,6 @@ void InspectorDebuggerAgent::getBacktrace(ErrorString* errorString, RefPtr<TypeB
     m_v8DebuggerAgent->getBacktrace(errorString, outCallFrames, optOutAsyncStackTrace);
 }
 
-void InspectorDebuggerAgent::skipStackFrames(ErrorString* errorString, const String* inScript, const bool* inSkipContentScripts)
-{
-    m_v8DebuggerAgent->skipStackFrames(errorString, inScript, inSkipContentScripts);
-}
-
 void InspectorDebuggerAgent::setAsyncCallStackDepth(ErrorString* errorString, int inMaxDepth)
 {
     m_v8DebuggerAgent->setAsyncCallStackDepth(errorString, inMaxDepth);
@@ -257,6 +252,11 @@ void InspectorDebuggerAgent::setAsyncOperationBreakpoint(ErrorString* errorStrin
 void InspectorDebuggerAgent::removeAsyncOperationBreakpoint(ErrorString* errorString, int inOperationId)
 {
     m_v8DebuggerAgent->removeAsyncOperationBreakpoint(errorString, inOperationId);
+}
+
+void InspectorDebuggerAgent::setBlackboxedRanges(ErrorString* errorString, const String& inScriptId, const RefPtr<JSONArray>& inPositions)
+{
+    m_v8DebuggerAgent->setBlackboxedRanges(errorString, inScriptId, inPositions);
 }
 
 bool InspectorDebuggerAgent::isPaused()

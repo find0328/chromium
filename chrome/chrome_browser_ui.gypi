@@ -870,6 +870,8 @@
       'browser/ui/cocoa/bookmarks/bookmark_tree_browser_cell.mm',
       'browser/ui/cocoa/browser/edit_search_engine_cocoa_controller.h',
       'browser/ui/cocoa/browser/edit_search_engine_cocoa_controller.mm',
+      'browser/ui/cocoa/browser/exclusive_access_controller_views.h',
+      'browser/ui/cocoa/browser/exclusive_access_controller_views.mm',
       'browser/ui/cocoa/browser/zoom_bubble_controller.h',
       'browser/ui/cocoa/browser/zoom_bubble_controller.mm',
       'browser/ui/cocoa/browser_window_cocoa.h',
@@ -2809,6 +2811,8 @@
       'browser/ui/webui/local_discovery/local_discovery_ui_handler.h',
     ],
     'chrome_browser_ui_toolbar_model_sources': [
+      'browser/ui/toolbar/chrome_toolbar_model_delegate.cc',
+      'browser/ui/toolbar/chrome_toolbar_model_delegate.h',
       'browser/ui/toolbar/toolbar_model_delegate.h',
       'browser/ui/toolbar/toolbar_model_impl.cc',
       'browser/ui/toolbar/toolbar_model_impl.h',

@@ -280,13 +280,11 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
 
   void AddMainThreadScrollingReasons(uint32_t main_thread_scrolling_reasons);
   void ClearMainThreadScrollingReasons();
+  uint32_t main_thread_scrolling_reasons() const {
+    return main_thread_scrolling_reasons_;
+  }
   bool should_scroll_on_main_thread() const {
     return !!main_thread_scrolling_reasons_;
-  }
-
-  void SetHaveScrollEventHandlers(bool have_scroll_event_handlers);
-  bool have_scroll_event_handlers() const {
-    return have_scroll_event_handlers_;
   }
 
   void SetNonFastScrollableRegion(const Region& non_fast_scrollable_region);
@@ -720,7 +718,6 @@ class CC_EXPORT Layer : public base::RefCounted<Layer>,
   gfx::Vector2dF offset_to_transform_parent_;
   uint32_t main_thread_scrolling_reasons_;
   bool should_flatten_transform_from_property_tree_ : 1;
-  bool have_scroll_event_handlers_ : 1;
   bool user_scrollable_horizontal_ : 1;
   bool user_scrollable_vertical_ : 1;
   bool is_root_for_isolated_group_ : 1;

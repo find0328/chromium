@@ -409,7 +409,7 @@ class RendererSandboxedProcessLauncherDelegate
         browser_command_line.GetSwitchValueNative(switches::kRendererCmdPrefix);
     if (!renderer_prefix.empty())
       return nullptr;
-    return &g_render_zygote;
+    return GetGenericZygote();
   }
 #endif  // !defined(OS_MACOSX) && !defined(OS_ANDROID)
   base::ScopedFD TakeIpcFd() override { return std::move(ipc_fd_); }
@@ -545,12 +545,11 @@ void RenderProcessHost::SetMaxRendererProcessCount(size_t count) {
 // static
 void RenderProcessHostImpl::EarlyZygoteLaunch() {
   DCHECK(!g_render_zygote);
-  g_render_zygote = CreateZygote();
   // TODO(kerrnel): Investigate doing this without the ZygoteHostImpl as a
   // proxy. It is currently done this way due to concerns about race
   // conditions.
   ZygoteHostImpl::GetInstance()->SetRendererSandboxStatus(
-      g_render_zygote->GetSandboxStatus());
+      (*GetGenericZygote())->GetSandboxStatus());
 }
 #endif  // defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MACOSX)
 
@@ -1323,6 +1322,11 @@ void RenderProcessHostImpl::AppendRendererCommandLine(
   command_line->AppendSwitchASCII(switches::kProcessType,
                                   switches::kRendererProcess);
 
+#if defined(OS_WIN)
+  if (GetContentClient()->browser()->ShouldUseWindowsPrefetchArgument())
+    command_line->AppendArg(switches::kPrefetchArgumentRenderer);
+#endif  // defined(OS_WIN)
+
   // Now send any options from our own command line we want to propagate.
   const base::CommandLine& browser_command_line =
       *base::CommandLine::ForCurrentProcess();
@@ -1523,7 +1527,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     cc::switches::kTopControlsHideThreshold,
     cc::switches::kTopControlsShowThreshold,
 
-    scheduler::switches::kEnableVirtualizedTime,
     scheduler::switches::kDisableBackgroundTimerThrottling,
 
 #if defined(ENABLE_PLUGINS)

@@ -4,20 +4,26 @@
 # found in the LICENSE file.
 
 {
-  'includes': [
-    'plugin.gypi',
-  ],
+  'variables': {
+    'chromium_code': 1,  # Use higher warning level.
+  },
   'targets': [
     {
       'target_name': 'nacl_trusted_plugin',
       'type': 'static_library',
       'sources': [
-        '<@(common_sources)',
+        'module_ppapi.cc',
+        'nacl_subprocess.cc',
+        'plugin.cc',
+        'pnacl_coordinator.cc',
+        'pnacl_resources.cc',
+        'pnacl_translate_thread.cc',
+        'ppapi_entrypoints.cc',
+        'service_runtime.cc',
+        'utility.cc',
       ],
       'dependencies': [
         '<(DEPTH)/media/media.gyp:shared_memory_support',
-        '<(DEPTH)/native_client/src/shared/platform/platform.gyp:platform',
-        '<(DEPTH)/native_client/src/trusted/desc/desc.gyp:nrd_xfer',
         '<(DEPTH)/ppapi/ppapi.gyp:ppapi_cpp_objects',
         '<(DEPTH)/ppapi/ppapi.gyp:ppapi_internal_module',
       ],

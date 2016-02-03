@@ -211,14 +211,6 @@ void InputMethodWin::OnTextInputTypeChanged(const TextInputClient* client) {
     return;
   imm32_manager_.CancelIME(toplevel_window_handle_);
   UpdateIMEState();
-
-  ui::IMEEngineHandlerInterface* engine = GetEngine();
-  if (engine) {
-    engine->FocusOut();
-    ui::IMEEngineHandlerInterface::InputContext context(
-        GetTextInputType(), GetTextInputMode(), GetTextInputFlags());
-    engine->FocusIn(context);
-  }
 }
 
 void InputMethodWin::OnCaretBoundsChanged(const TextInputClient* client) {
@@ -243,6 +235,10 @@ void InputMethodWin::OnCaretBoundsChanged(const TextInputClient* client) {
   gfx::Rect caret_rect(gfx::Point(window_point.x, window_point.y),
                        screen_bounds.size());
   imm32_manager_.UpdateCaretRect(attached_window, caret_rect);
+
+  if (client == GetTextInputClient() &&
+      GetTextInputType() != ui::TEXT_INPUT_TYPE_PASSWORD && GetEngine())
+    GetEngine()->SetCompositionBounds(GetCompositionBounds(client));
 }
 
 void InputMethodWin::CancelComposition(const TextInputClient* client) {
@@ -265,12 +261,8 @@ bool InputMethodWin::IsCandidatePopupOpen() const {
 
 void InputMethodWin::OnWillChangeFocusedClient(TextInputClient* focused_before,
                                                TextInputClient* focused) {
-  if (IsWindowFocused(focused_before)) {
+  if (IsWindowFocused(focused_before))
     ConfirmCompositionText();
-
-    if (GetEngine())
-      GetEngine()->FocusOut();
-  }
 }
 
 void InputMethodWin::OnDidChangeFocusedClient(
@@ -642,12 +634,14 @@ void InputMethodWin::ConfirmCompositionText() {
   if (composing_window_handle_)
     imm32_manager_.CleanupComposition(composing_window_handle_);
 
-  if (!IsTextInputTypeNone()) {
-    // Though above line should confirm the client's composition text by sending
-    // a result text to us, in case the input method and the client are in
-    // inconsistent states, we check the client's composition state again.
-    if (GetTextInputClient()->HasCompositionText())
-      GetTextInputClient()->ConfirmCompositionText();
+  // Though above line should confirm the client's composition text by sending a
+  // result text to us, in case the input method and the client are in
+  // inconsistent states, we check the client's composition state again.
+  if (!IsTextInputTypeNone() && GetTextInputClient()->HasCompositionText()) {
+    GetTextInputClient()->ConfirmCompositionText();
+
+    if (GetEngine())
+      GetEngine()->Reset();
   }
 }
 
@@ -672,6 +666,22 @@ void InputMethodWin::UpdateIMEState() {
   imm32_manager_.SetTextInputMode(window_handle, text_input_mode);
   tsf_inputscope::SetInputScopeForTsfUnawareWindow(
       window_handle, text_input_type, text_input_mode);
+
+  ui::IMEEngineHandlerInterface* engine = GetEngine();
+  if (engine) {
+    const TextInputType old_text_input_type =
+        ui::IMEBridge::Get()->GetCurrentInputContext().type;
+
+    ui::IMEEngineHandlerInterface::InputContext context(
+        GetTextInputType(), GetTextInputMode(), GetTextInputFlags());
+
+    if (old_text_input_type != ui::TEXT_INPUT_TYPE_NONE)
+      engine->FocusOut();
+    if (text_input_type != ui::TEXT_INPUT_TYPE_NONE)
+      engine->FocusIn(context);
+
+    ui::IMEBridge::Get()->SetCurrentInputContext(context);
+  }
 }
 
 }  // namespace ui

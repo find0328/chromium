@@ -84,10 +84,6 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     # Note that this test fails on ['win', 'intel'] with bug=483282
     self.Fail('conformance2/buffers/uniform-buffers.html', bug=577368)
 
-    # Temporarily disable this test until command buffer can turn this
-    # extension on/off on demand.
-    self.Fail('conformance2/extensions/ext-color-buffer-float.html', bug=570453)
-
     # Windows only.
     self.Fail('conformance2/textures/canvas/tex-image-and-sub-image-2d' +
         '-with-canvas-r8-red-unsigned_byte.html',
@@ -329,6 +325,12 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         ['mac'], bug=565438)
     self.Fail('conformance2/textures/misc/tex-mipmap-levels.html',
         ['mac'], bug=483282)
+
+    # Mac Retina NVIDIA
+    self.Fail('conformance2/rendering/draw-buffers.html',
+        ['mac', ('nvidia', 0xfe9)], bug=483282)
+    self.Fail('conformance2/textures/misc/tex-input-validation.html',
+        ['mac', ('nvidia', 0xfe9)], bug=483282)
 
     # Linux only.
     self.Skip('deqp/functional/gles3/shaderswitch.html',

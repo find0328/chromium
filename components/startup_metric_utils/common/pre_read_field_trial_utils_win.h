@@ -21,17 +21,17 @@ using RegisterPreReadSyntheticFieldTrialCallback =
 
 // The options controlled by the PreRead field trial.
 struct PreReadOptions {
-  // No explicit DLL pre-reading.
-  bool no_pre_read;
+  // Pre-read DLLs explicitly.
+  bool pre_read;
 
   // Pre-read DLLs with a high thread priority.
   bool high_priority;
 
-  // Pre-read DLLs only when they are cold.
-  bool only_if_cold;
-
   // Pre-read DLLs using the ::PrefetchVirtualMemory function, if available.
   bool prefetch_virtual_memory;
+
+  // Use a /prefetch argument when launching a process.
+  bool use_prefetch_argument;
 };
 
 // Initializes DLL pre-reading options from the registry.

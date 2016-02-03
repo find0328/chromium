@@ -3,7 +3,6 @@
 # found in the LICENSE file.
 
 import("//chromecast/chromecast.gni")
-import("//media/media_options.gni")
 import("//testing/test.gni")
 import("//build/config/ui.gni")
 
@@ -132,14 +131,6 @@ source_set("browser") {
     ]
   }
 
-  if (enable_mojo_media != "none") {
-    configs += [ "//media/mojo/services:enable_mojo_media_config" ]
-  }
-
-  if (enable_mojo_media == "utility") {
-    deps += [ "//media/mojo/services:application" ]
-  }
-
   if (use_ozone) {
     deps += [ "//ui/ozone" ]
   }
@@ -157,6 +148,7 @@ source_set("test_support") {
   public_deps = [
     ":browser",
     "//chromecast:cast_shell_common",
+    "//content/test:browsertest_base",
   ]
 
   deps = [
@@ -184,6 +176,7 @@ test("cast_shell_browser_test") {
   deps = [
     ":test_support",
     "//base",
+    "//content/test:browsertest_base",
     "//content/test:test_support",
     "//media/base:test_support",
     "//testing/gtest",

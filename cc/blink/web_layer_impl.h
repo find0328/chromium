@@ -121,8 +121,6 @@ class WebLayerImpl : public blink::WebLayer {
   void setUserScrollable(bool horizontal, bool vertical) override;
   bool userScrollableHorizontal() const override;
   bool userScrollableVertical() const override;
-  void setHaveScrollEventHandlers(bool have_scroll_event_handlers) override;
-  bool haveScrollEventHandlers() const override;
   void addMainThreadScrollingReasons(
       uint32_t main_thread_scrolling_reasons) override;
   void clearMainThreadScrollingReasons() override;
@@ -144,7 +142,6 @@ class WebLayerImpl : public blink::WebLayer {
       const blink::WebLayerPositionConstraint& constraint) override;
   blink::WebLayerPositionConstraint positionConstraint() const override;
   void setScrollClient(blink::WebLayerScrollClient* client) override;
-  bool isOrphan() const override;
   void setLayerClient(cc::LayerClient* client) override;
   const cc::Layer* ccLayer() const override;
   void setElementId(uint64_t id) override;

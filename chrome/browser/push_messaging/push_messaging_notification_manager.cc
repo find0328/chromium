@@ -9,7 +9,6 @@
 #include <bitset>
 
 #include "base/metrics/histogram_macros.h"
-#include "base/prefs/pref_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/notifications/platform_notification_service_impl.h"
@@ -18,6 +17,7 @@
 #include "chrome/common/features.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/prefs/pref_service.h"
 #include "components/rappor/rappor_utils.h"
 #include "components/url_formatter/elide_url.h"
 #include "content/public/browser/browser_context.h"
@@ -28,6 +28,7 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/notification_resources.h"
+#include "content/public/common/url_constants.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
@@ -230,7 +231,15 @@ bool PushMessagingNotificationManager::IsTabVisible(
 
   // Use the visible URL since that's the one the user is aware of (and it
   // doesn't matter whether the page loaded successfully).
-  return origin == active_web_contents->GetVisibleURL().GetOrigin();
+  GURL visible_url = active_web_contents->GetVisibleURL();
+
+  // view-source: pages are considered to be controlled Service Worker clients
+  // and thus should be considered when checking the visible URL. However, the
+  // prefix has to be removed before the origins can be compared.
+  if (visible_url.SchemeIs(content::kViewSourceScheme))
+    visible_url = GURL(visible_url.GetContent());
+
+  return visible_url.GetOrigin() == origin;
 }
 
 void PushMessagingNotificationManager::DidGetNotificationsShownAndNeeded(

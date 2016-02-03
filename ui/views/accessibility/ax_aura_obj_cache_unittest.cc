@@ -51,6 +51,10 @@ TEST_F(AXAuraObjCacheTest, TestViewRemoval) {
   ASSERT_GT(cache->GetID(widget.get()), 0);
   ASSERT_EQ(-1, cache->GetID(parent));
   ASSERT_EQ(-1, cache->GetID(child));
+
+  // Explicitly delete |parent| to prevent a memory leak, since calling
+  // RemoveChildView() doesn't delete it.
+  delete parent;
 }
 
 }  // namespace test

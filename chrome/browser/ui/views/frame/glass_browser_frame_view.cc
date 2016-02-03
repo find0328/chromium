@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ui/views/frame/glass_browser_frame_view.h"
 
-#include "base/prefs/pref_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/windows_version.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -17,6 +16,7 @@
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "components/prefs/pref_service.h"
 #include "components/signin/core/browser/signin_header_helper.h"
 #include "components/signin/core/common/profile_management_switches.h"
 #include "grit/theme_resources.h"
@@ -563,7 +563,7 @@ void GlassBrowserFrameView::LayoutIncognitoIcon() {
     x = width() - frame()->GetMinimizeButtonOffset() +
         (new_avatar_button() ?
             (new_avatar_button()->width() + kNewAvatarButtonOffset) : 0);
-  } else if (!md && !avatar_button() &&
+  } else if (!md && !avatar_button() && IsToolbarVisible() &&
              (base::win::GetVersion() < base::win::VERSION_WIN10)) {
     // In non-MD before Win 10, the toolbar has a rounded corner that we don't
     // want the tabstrip to overlap.

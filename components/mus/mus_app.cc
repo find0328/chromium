@@ -94,6 +94,7 @@ bool MandolineUIServicesApp::ConfigureIncomingConnection(
     ApplicationConnection* connection) {
   connection->AddService<Gpu>(this);
   connection->AddService<mojom::DisplayManager>(this);
+  connection->AddService<mojom::WindowManagerFactoryService>(this);
   connection->AddService<mojom::WindowTreeFactory>(this);
   connection->AddService<WindowTreeHostFactory>(this);
   return true;
@@ -142,6 +143,12 @@ void MandolineUIServicesApp::Create(
 }
 
 void MandolineUIServicesApp::Create(
+    mojo::ApplicationConnection* connection,
+    mojo::InterfaceRequest<mojom::WindowManagerFactoryService> request) {
+  connection_manager_->CreateWindowManagerFactoryService(std::move(request));
+}
+
+void MandolineUIServicesApp::Create(
     ApplicationConnection* connection,
     InterfaceRequest<mojom::WindowTreeFactory> request) {
   if (!connection_manager_->has_tree_host_connections()) {
@@ -173,15 +180,13 @@ void MandolineUIServicesApp::Create(mojo::ApplicationConnection* connection,
 
 void MandolineUIServicesApp::CreateWindowTreeHost(
     mojo::InterfaceRequest<mojom::WindowTreeHost> host,
-    mojom::WindowTreeHostClientPtr host_client,
     mojom::WindowTreeClientPtr tree_client) {
   DCHECK(connection_manager_);
 
   // TODO(fsamuel): We need to make sure that only the window manager can create
   // new roots.
   ws::WindowTreeHostImpl* host_impl = new ws::WindowTreeHostImpl(
-      std::move(host_client), connection_manager_.get(), app_impl_, gpu_state_,
-      surfaces_state_);
+      connection_manager_.get(), app_impl_, gpu_state_, surfaces_state_);
 
   // WindowTreeHostConnection manages its own lifetime.
   host_impl->Init(new ws::WindowTreeHostConnectionImpl(

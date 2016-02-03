@@ -224,6 +224,7 @@ void FrameView::reset()
     clearFragmentAnchor();
     m_viewportConstrainedObjects.clear();
     m_layoutSubtreeRootList.clear();
+    m_orthogonalWritingModeRootList.clear();
 }
 
 // Call function for each non-throttled frame view in pre tree order.
@@ -844,10 +845,13 @@ void FrameView::performLayout(bool inSubtreeLayout)
 
     forceLayoutParentViewIfNeeded();
 
+    if (hasOrthogonalWritingModeRoots())
+        layoutOrthogonalWritingModeRoots();
+
     if (inSubtreeLayout) {
         if (m_analyzer)
             m_analyzer->increment(LayoutAnalyzer::PerformLayoutRootLayoutObjects, m_layoutSubtreeRootList.size());
-        while (LayoutObject* root = m_layoutSubtreeRootList.takeDeepestRoot()) {
+        for (auto& root : m_layoutSubtreeRootList.ordered()) {
             if (!root->needsLayout())
                 continue;
             layoutFromRootObject(*root);
@@ -858,6 +862,7 @@ void FrameView::performLayout(bool inSubtreeLayout)
             if (LayoutObject* container = root->container())
                 container->setMayNeedPaintInvalidation();
         }
+        m_layoutSubtreeRootList.clear();
     } else {
         layoutFromRootObject(*layoutView());
     }
@@ -1432,7 +1437,7 @@ void FrameView::restoreScrollbar()
     setScrollbarsSuppressed(false);
 }
 
-bool FrameView::processUrlFragment(const KURL& url, UrlFragmentBehavior behavior)
+void FrameView::processUrlFragment(const KURL& url, UrlFragmentBehavior behavior)
 {
     // If our URL has no ref, then we have no place we need to jump to.
     // OTOH If CSS target was set previously, we want to set it to 0, recalc
@@ -1441,17 +1446,16 @@ bool FrameView::processUrlFragment(const KURL& url, UrlFragmentBehavior behavior
     // Similarly for svg, if we had a previous svgView() then we need to reset
     // the initial view if we don't have a fragment.
     if (!url.hasFragmentIdentifier() && !m_frame->document()->cssTarget() && !m_frame->document()->isSVGDocument())
-        return false;
+        return;
 
     String fragmentIdentifier = url.fragmentIdentifier();
     if (processUrlFragmentHelper(fragmentIdentifier, behavior))
-        return true;
+        return;
 
     // Try again after decoding the ref, based on the document's encoding.
     if (m_frame->document()->encoding().isValid())
-        return processUrlFragmentHelper(decodeURLEscapeSequences(fragmentIdentifier, m_frame->document()->encoding()), behavior);
+        processUrlFragmentHelper(decodeURLEscapeSequences(fragmentIdentifier, m_frame->document()->encoding()), behavior);
 
-    return false;
 }
 
 bool FrameView::processUrlFragmentHelper(const String& name, UrlFragmentBehavior behavior)
@@ -1485,13 +1489,13 @@ bool FrameView::processUrlFragmentHelper(const String& name, UrlFragmentBehavior
     if (behavior == UrlFragmentScroll)
         setFragmentAnchor(anchorNode ? static_cast<Node*>(anchorNode) : m_frame->document());
 
-    // If the anchor accepts keyboard focus, move focus there to aid users
-    // relying on keyboard navigation.
-    // If anchorNode is not focusable, clear focus, which matches the behavior
-    // of other browsers.
+    // If the anchor accepts keyboard focus and fragment scrolling is allowed,
+    // move focus there to aid users relying on keyboard navigation.
+    // If anchorNode is not focusable or fragment scrolling is not allowed,
+    // clear focus, which matches the behavior of other browsers.
     if (anchorNode) {
         m_frame->document()->updateLayoutIgnorePendingStylesheets();
-        if (anchorNode->isFocusable())
+        if (behavior == UrlFragmentScroll && anchorNode->isFocusable())
             anchorNode->focus();
         else
             m_frame->document()->clearFocusedElement();
@@ -1728,12 +1732,42 @@ void FrameView::handleLoadCompleted()
 
 void FrameView::clearLayoutSubtreeRoot(const LayoutObject& root)
 {
-    m_layoutSubtreeRootList.removeRoot(const_cast<LayoutObject&>(root));
+    m_layoutSubtreeRootList.remove(const_cast<LayoutObject&>(root));
 }
 
 void FrameView::clearLayoutSubtreeRootsAndMarkContainingBlocks()
 {
     m_layoutSubtreeRootList.clearAndMarkContainingBlocksForLayout();
+}
+
+void FrameView::addOrthogonalWritingModeRoot(LayoutBox& root)
+{
+    m_orthogonalWritingModeRootList.add(root);
+}
+
+void FrameView::removeOrthogonalWritingModeRoot(LayoutBox& root)
+{
+    m_orthogonalWritingModeRootList.remove(root);
+}
+
+bool FrameView::hasOrthogonalWritingModeRoots() const
+{
+    return !m_orthogonalWritingModeRootList.isEmpty();
+}
+
+void FrameView::layoutOrthogonalWritingModeRoots()
+{
+    for (auto& root : m_orthogonalWritingModeRootList.ordered()) {
+        ASSERT(root->isBox() && toLayoutBox(*root).isOrthogonalWritingModeRoot());
+        if (!root->needsLayout()
+            || root->isOutOfFlowPositioned()
+            || root->isColumnSpanAll()
+            || !root->styleRef().logicalHeight().isIntrinsicOrAuto()) {
+            continue;
+        }
+        LayoutState layoutState(*root);
+        root->layout();
+    }
 }
 
 void FrameView::scheduleRelayout()
@@ -1777,7 +1811,7 @@ void FrameView::scheduleRelayoutOfSubtree(LayoutObject* relayoutRoot)
     if (relayoutRoot == layoutView)
         m_layoutSubtreeRootList.clearAndMarkContainingBlocksForLayout();
     else
-        m_layoutSubtreeRootList.addRoot(*relayoutRoot);
+        m_layoutSubtreeRootList.add(*relayoutRoot);
 
     if (m_layoutSchedulingEnabled) {
         m_hasPendingLayout = true;
@@ -2584,10 +2618,8 @@ void FrameView::updateStyleAndLayoutIfNeededRecursive()
     for (const auto& frameView : frameViews)
         frameView->updateStyleAndLayoutIfNeededRecursive();
 
-    // When an <iframe> gets composited, it triggers an extra style recalc in its containing FrameView.
-    // To avoid pushing an invalid tree for display, we have to check for this case and do another
-    // style recalc. The extra style recalc needs to happen after our child <iframes> were updated.
-    // FIXME: We shouldn't be triggering an extra style recalc in the first place.
+    // When SVG filters are invalidated using Document::scheduleSVGFilterLayerUpdateHack() they may trigger an
+    // extra style recalc. See PaintLayer::filterNeedsPaintInvalidation().
     if (m_frame->document()->hasSVGFilterElementsRequiringLayerUpdate()) {
         m_frame->document()->updateLayoutTreeIfNeeded();
 

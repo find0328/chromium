@@ -3131,6 +3131,7 @@ interface Image
 interface ImageBitmap
     getter height
     getter width
+    method close
     method constructor
 interface ImageData
     getter height
@@ -3608,6 +3609,7 @@ interface Node : EventTarget
     getter parentNode
     getter previousSibling
     getter textContent
+    getter treeRoot
     method appendChild
     method cloneNode
     method compareDocumentPosition
@@ -3679,6 +3681,7 @@ interface Notification : EventTarget
     getter requireInteraction
     getter silent
     getter tag
+    getter timestamp
     getter title
     getter vibrate
     method close
@@ -3854,6 +3857,9 @@ interface Permissions
     method request
     method requestAll
     method revoke
+interface PerspectiveTransformComponent : TransformComponent
+    getter length
+    method constructor
 interface Plugin
     getter description
     getter filename
@@ -3876,6 +3882,10 @@ interface PositionSensorVRDevice : VRDevice
     method getImmediateState
     method getState
     method resetSensor
+interface PositionValue : StyleValue
+    getter x
+    getter y
+    method constructor
 interface Presentation
     getter defaultRequest
     getter receiver
