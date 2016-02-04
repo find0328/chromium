@@ -44,20 +44,20 @@ class CONTENT_EXPORT BluetoothBlacklist final {
   // UUID is already in the blacklist.
   void AddOrDie(const device::BluetoothUUID&, Value);
 
-  // Returns if an UUID is excluded from all operations.
+  // Returns if a UUID is excluded from all operations.
   bool IsExcluded(const device::BluetoothUUID&) const;
 
   // Returns if any UUID in a set of filters is excluded from all operations.
   bool IsExcluded(const std::vector<content::BluetoothScanFilter>&);
 
-  // Returns if an UUID is excluded from read operations.
+  // Returns if a UUID is excluded from read operations.
   bool IsExcludedFromReads(const device::BluetoothUUID&) const;
 
-  // Returns if an UUID is excluded from write operations.
+  // Returns if a UUID is excluded from write operations.
   bool IsExcludedFromWrites(const device::BluetoothUUID&) const;
 
   // Modifies a list of UUIDs, removing any UUIDs with Value::EXCLUDE.
-  void RemoveExcludedUuids(std::vector<device::BluetoothUUID>&);
+  void RemoveExcludedUuids(std::vector<device::BluetoothUUID>*);
 
   // Size of blacklist.
   size_t size() { return blacklisted_uuids_.size(); }

@@ -65,11 +65,11 @@ bool BluetoothBlacklist::IsExcludedFromWrites(const BluetoothUUID& uuid) const {
 }
 
 void BluetoothBlacklist::RemoveExcludedUuids(
-    std::vector<device::BluetoothUUID>& uuids) {
-  auto it = uuids.begin();
-  while (it != uuids.end()) {
+    std::vector<device::BluetoothUUID>* uuids) {
+  auto it = uuids->begin();
+  while (it != uuids->end()) {
     if (IsExcluded(*it)) {
-      it = uuids.erase(it);
+      it = uuids->erase(it);
     } else {
       it++;
     }
