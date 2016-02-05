@@ -1022,7 +1022,7 @@ void BluetoothDispatcherHost::OnRequestDeviceImpl(
   std::vector<BluetoothUUID> optional_services_blacklist_filtered(
       optional_services);
   BluetoothBlacklist::Get().RemoveExcludedUuids(
-      optional_services_blacklist_filtered);
+      &optional_services_blacklist_filtered);
 
   RenderFrameHostImpl* render_frame_host =
       RenderFrameHostImpl::FromID(render_process_id_, frame_routing_id);
