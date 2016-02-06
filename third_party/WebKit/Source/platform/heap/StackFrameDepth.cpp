@@ -21,6 +21,7 @@ static const char* s_avoidOptimization = nullptr;
 uintptr_t StackFrameDepth::s_stackFrameLimit = 0;
 #if ENABLE(ASSERT)
 bool StackFrameDepth::s_isEnabled = false;
+bool StackFrameDepth::s_isUsingFallbackStackSize = false;
 #endif
 
 // NEVER_INLINE ensures that |dummy| array on configureLimit() is not optimized away,
@@ -31,31 +32,44 @@ NEVER_INLINE static uintptr_t currentStackFrameBaseOnCallee(const char* dummy)
     return StackFrameDepth::currentStackFrame();
 }
 
+uintptr_t StackFrameDepth::getFallbackStackLimit()
+{
+    // Allocate an |kSafeStackFrameSize|-sized object on stack and query
+    // stack frame base after it.
+    char dummy[kSafeStackFrameSize];
+
+    // Check that the stack frame can be used.
+    dummy[sizeof(dummy) - 1] = 0;
+#if ENABLE(ASSERT)
+    // Use a larger stack limit for what's acceptable if the platform
+    // thread ends up using the fallback size to decide if switching to
+    // lazy marking is in order.
+    s_isUsingFallbackStackSize = true;
+#endif
+    return currentStackFrameBaseOnCallee(dummy);
+}
+
 void StackFrameDepth::enableStackLimit()
 {
 #if ENABLE(ASSERT)
     s_isEnabled = true;
+    s_isUsingFallbackStackSize = false;
 #endif
 
-    static const int kStackRoomSize = 1024;
-
+    // Windows and OSX platforms will always return a non-zero estimate.
     size_t stackSize = getUnderestimatedStackSize();
-    if (stackSize) {
-        Address stackBase = reinterpret_cast<Address>(getStackStart());
-        RELEASE_ASSERT(stackSize > static_cast<const size_t>(kStackRoomSize));
-        size_t stackRoom = stackSize - kStackRoomSize;
-        RELEASE_ASSERT(stackBase > reinterpret_cast<Address>(stackRoom));
-        s_stackFrameLimit = reinterpret_cast<uintptr_t>(stackBase - stackRoom);
+    if (!stackSize) {
+        s_stackFrameLimit = getFallbackStackLimit();
         return;
     }
 
-    // Fallback version
-    // Allocate a 32KB object on stack and query stack frame base after it.
-    char dummy[kSafeStackFrameSize];
-    s_stackFrameLimit = currentStackFrameBaseOnCallee(dummy);
+    static const int kStackRoomSize = 1024;
 
-    // Assert that the stack frame can be used.
-    dummy[sizeof(dummy) - 1] = 0;
+    Address stackBase = reinterpret_cast<Address>(getStackStart());
+    RELEASE_ASSERT(stackSize > static_cast<const size_t>(kStackRoomSize));
+    size_t stackRoom = stackSize - kStackRoomSize;
+    RELEASE_ASSERT(stackBase > reinterpret_cast<Address>(stackRoom));
+    s_stackFrameLimit = reinterpret_cast<uintptr_t>(stackBase - stackRoom);
 }
 
 size_t StackFrameDepth::getUnderestimatedStackSize()

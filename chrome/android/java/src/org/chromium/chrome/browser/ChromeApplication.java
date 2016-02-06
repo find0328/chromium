@@ -26,7 +26,6 @@ import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ApplicationStatus.ApplicationStateListener;
 import org.chromium.base.BuildInfo;
 import org.chromium.base.CommandLineInitUtil;
-import org.chromium.base.PathUtils;
 import org.chromium.base.ResourceExtractor;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
@@ -122,7 +121,6 @@ public class ChromeApplication extends ContentApplication {
     private static final long BOOT_TIMESTAMP_MARGIN_MS = 1000;
     private static final String PREF_LOCALE = "locale";
     private static final float FLOAT_EPSILON = 0.001f;
-    private static final String PRIVATE_DATA_DIRECTORY_SUFFIX = "chrome";
     private static final String DEV_TOOLS_SERVER_SOCKET_PREFIX = "chrome";
     private static final String SESSIONS_UUID_PREF_KEY = "chromium.sync.sessions.id";
 
@@ -418,7 +416,6 @@ public class ChromeApplication extends ContentApplication {
         if (!BuildInfo.hasLanguageApkSplits(this)) {
             ResourceExtractor.setResourcesToExtract(ResourceBundle.getActiveLocaleResources());
         }
-        PathUtils.setPrivateDataDirectorySuffix(PRIVATE_DATA_DIRECTORY_SUFFIX, this);
     }
 
     /**
@@ -859,7 +856,7 @@ public class ChromeApplication extends ContentApplication {
     private void cacheNativeFlags() {
         if (sIsFinishedCachingNativeFlags) return;
 
-        boolean isToastNeeded = ChromePreferenceManager.getInstance(this).cacheHerbFlavor();
+        boolean isToastNeeded = ChromePreferenceManager.cacheHerbFlavor();
         if (isToastNeeded) {
             Toast.makeText(this,
                     R.string.cache_native_flags_requires_restart, Toast.LENGTH_SHORT).show();

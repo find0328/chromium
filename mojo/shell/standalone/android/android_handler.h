@@ -28,10 +28,10 @@ class AndroidHandler : public ApplicationDelegate,
  private:
   // ApplicationDelegate:
   void Initialize(ApplicationImpl* app) override;
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override;
+  bool AcceptConnection(ApplicationConnection* connection) override;
 
   // ContentHandlerFactory::Delegate:
-  void RunApplication(InterfaceRequest<Application> application_request,
+  void RunApplication(InterfaceRequest<mojom::Application> application_request,
                       URLResponsePtr response) override;
 
   ContentHandlerFactory content_handler_factory_;

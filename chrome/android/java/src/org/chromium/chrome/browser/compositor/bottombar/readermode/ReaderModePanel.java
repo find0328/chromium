@@ -16,7 +16,7 @@ import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelContentViewD
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager.PanelPriority;
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
-import org.chromium.chrome.browser.compositor.scene_layer.ContextualSearchSceneLayer;
+import org.chromium.chrome.browser.compositor.scene_layer.ReaderModeSceneLayer;
 import org.chromium.chrome.browser.compositor.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.dom_distiller.DomDistillerTabUtils;
 import org.chromium.chrome.browser.dom_distiller.ReaderModeManagerDelegate;
@@ -32,7 +32,7 @@ import org.chromium.ui.resources.ResourceManager;
 public class ReaderModePanel extends OverlayPanel {
 
     /** The compositor layer used for drawing the panel. */
-    private ContextualSearchSceneLayer mSceneLayer;
+    private ReaderModeSceneLayer mSceneLayer;
 
     /** Delegate for calling functions on the ReaderModeManager. */
     private ReaderModeManagerDelegate mManagerDelegate;
@@ -130,15 +130,14 @@ public class ReaderModePanel extends OverlayPanel {
         // top controls height).
         updateTopControlsState();
 
-        mSceneLayer.update(resourceManager, this, ContextualSearchSceneLayer.READER_MODE_PANEL,
-                0, getBarTextViewId(), null, 0, mReaderBarTextOpacity, null);
+        mSceneLayer.update(resourceManager, this, getBarTextViewId(), mReaderBarTextOpacity);
     }
 
     /**
      * Create a new scene layer for this panel. This should be overridden by tests as necessary.
      */
-    protected ContextualSearchSceneLayer createNewReaderModeSceneLayer() {
-        return new ContextualSearchSceneLayer(mContext.getResources().getDisplayMetrics().density);
+    protected ReaderModeSceneLayer createNewReaderModeSceneLayer() {
+        return new ReaderModeSceneLayer(mContext.getResources().getDisplayMetrics().density);
     }
 
     // ============================================================================================
@@ -286,25 +285,22 @@ public class ReaderModePanel extends OverlayPanel {
     }
 
     @Override
-    public float getArrowIconOpacity() {
-        // TODO(mdjones): This will not be needed once Reader Mode has its own scene layer.
-        // Never show the arrow icon.
-        return 0.0f;
-    }
-
-    @Override
-    public float getCloseIconOpacity() {
-        // TODO(mdjones): Make close button controlled by overlay panel as a toggle.
-        // TODO(mdjones): This will not be needed once Reader Mode has its own scene layer.
-        // Always show the close icon.
-        return 1.0f;
-    }
-
-    @Override
     protected float calculateBasePageTargetY(PanelState state) {
-        // TODO(mdjones): Remove this method when this panel behaves like the toolbar. In the case
-        // of reader mode the base page will always need to move the same amount.
+        // In the case of reader mode the base page will always need to move the same amount.
         return -getToolbarHeight();
+    }
+
+    @Override
+    public void onSizeChanged(float width, float height) {
+        super.onSizeChanged(width, height);
+        if (mManagerDelegate != null) {
+            mManagerDelegate.onSizeChanged();
+        }
+        // If the panel is not closed, make sure it is in the appropriate place when the viewport
+        // size changes.
+        if (getPanelState() != PanelState.UNDEFINED && getPanelState() != PanelState.CLOSED) {
+            resizePanelToState(getPanelState(), StateChangeReason.UNKNOWN);
+        }
     }
 
     // ============================================================================================

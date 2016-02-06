@@ -178,7 +178,17 @@ bool IsProbablyConst(const clang::VarDecl& decl,
 bool GetNameForDecl(const clang::FunctionDecl& decl,
                     const clang::ASTContext& context,
                     std::string& name) {
-  name = decl.getName().str();
+  StringRef original_name = decl.getName();
+
+  // Some functions shouldn't be renamed because reasons.
+  // - swap() methods should match the signature of std::swap for ADL tricks.
+  static const char* kBlacklist[] = {"swap"};
+  for (const auto& b : kBlacklist) {
+    if (original_name == b)
+      return false;
+  }
+
+  name = original_name.str();
   name[0] = clang::toUppercase(name[0]);
   return true;
 }
@@ -187,6 +197,16 @@ bool GetNameForDecl(const clang::EnumConstantDecl& decl,
                     const clang::ASTContext& context,
                     std::string& name) {
   StringRef original_name = decl.getName();
+
+  bool already_shouty = true;
+  for (char c : original_name) {
+    if (!clang::isUppercase(c) && !clang::isDigit(c) && c != '_') {
+      already_shouty = false;
+      break;
+    }
+  }
+  if (already_shouty)
+    return false;
 
   name = CamelCaseToUnderscoreCase(original_name, true);
   for (auto& c : name)
@@ -218,20 +238,18 @@ bool GetNameForDecl(const clang::FieldDecl& decl,
                     const clang::ASTContext& context,
                     std::string& name) {
   StringRef original_name = decl.getName();
-  // Blink style field names are prefixed with `m_`. If this prefix isn't
-  // present, assume it's already been converted to Google style.
-  if (original_name.size() < strlen(kBlinkFieldPrefix) ||
-      !original_name.startswith(kBlinkFieldPrefix))
-    return false;
-  name = CamelCaseToUnderscoreCase(
-      original_name.substr(strlen(kBlinkFieldPrefix)), false);
-  // The few examples I could find used struct-style naming with no `_` suffix
-  // for unions.
-  bool c = decl.getParent()->isClass();
-  // There appears to be a GCC bug that makes this branch incorrectly if we
-  // don't use a temp variable!! Clang works right. crbug.com/580745
-  if (c)
+  bool member_prefix = original_name.startswith(kBlinkFieldPrefix);
+
+  StringRef rename_part = !member_prefix
+                              ? original_name
+                              : original_name.substr(strlen(kBlinkFieldPrefix));
+  name = CamelCaseToUnderscoreCase(rename_part, false);
+
+  // Assume that prefix of m_ was intentional and always replace it with a
+  // suffix _.
+  if (member_prefix && name.back() != '_')
     name += '_';
+
   return true;
 }
 

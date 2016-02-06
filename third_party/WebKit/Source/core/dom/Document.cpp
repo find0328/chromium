@@ -32,6 +32,7 @@
 #include "bindings/core/v8/ExceptionMessages.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/ExceptionStatePlaceholder.h"
+#include "bindings/core/v8/ScriptCallStack.h"
 #include "bindings/core/v8/ScriptController.h"
 #include "bindings/core/v8/UnionTypesCore.h"
 #include "bindings/core/v8/V8DOMWrapper.h"
@@ -169,7 +170,6 @@
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InspectorTraceEvents.h"
 #include "core/inspector/InstanceCounters.h"
-#include "core/inspector/ScriptCallStack.h"
 #include "core/layout/HitTestResult.h"
 #include "core/layout/LayoutPart.h"
 #include "core/layout/LayoutView.h"
@@ -315,16 +315,9 @@ static inline bool isValidNamePart(UChar32 c)
     return true;
 }
 
-static bool shouldInheritSecurityOriginFromOwner(const KURL& url)
+static bool shouldInheritContentSecurityPolicyFromOwner(const KURL& url)
 {
-    // http://www.whatwg.org/specs/web-apps/current-work/#origin-0
-    //
-    // If a Document has the address "about:blank"
-    //     The origin of the Document is the origin it was assigned when its browsing context was created.
-    //
-    // Note: We generalize this to all "blank" URLs and invalid URLs because we
-    // treat all of these URLs as about:blank.
-    //
+    // TODO(jochen): Somehow unify this with DocumentInit::shouldInheritSecurityOriginFromOwner.
     return url.isEmpty() || url.protocolIsAbout();
 }
 
@@ -1562,16 +1555,6 @@ void Document::updateStyleInvalidationIfNeeded()
     styleEngine().styleInvalidator().invalidate(*this);
 }
 
-bool Document::attemptedToDetermineEncodingFromContentSniffing() const
-{
-    return m_encodingData.attemptedToDetermineEncodingFromContentSniffing();
-}
-
-bool Document::encodingWasDetectedFromContentSniffing() const
-{
-    return m_encodingData.encodingWasDetectedFromContentSniffing();
-}
-
 void Document::setupFontBuilder(ComputedStyle& documentStyle)
 {
     FontBuilder fontBuilder(*this);
@@ -2189,7 +2172,7 @@ void Document::attach(const AttachContext& context)
 void Document::detach(const AttachContext& context)
 {
     TRACE_EVENT0("blink", "Document::detach");
-    ASSERT(!m_frame || m_frame->tree().childCount() == 0);
+    RELEASE_ASSERT(!m_frame || m_frame->tree().childCount() == 0);
     if (!isActive())
         return;
 
@@ -2219,6 +2202,8 @@ void Document::detach(const AttachContext& context)
     if (m_frame->loader().client()->sharedWorkerRepositoryClient())
         m_frame->loader().client()->sharedWorkerRepositoryClient()->documentDetached(this);
 
+    for (DocumentVisibilityObserver* observer : m_visibilityObservers)
+        observer->willDetachDocument();
     stopActiveDOMObjects();
 
     // FIXME: consider using ActiveDOMObject.
@@ -3623,9 +3608,6 @@ bool Document::setFocusedElement(PassRefPtrWillBeRawPtr<Element> prpNewFocusedEl
                 focusChangeBlocked = true;
                 newFocusedElement = nullptr;
             }
-            // Event handlers might make newFocusedElement dirty.
-            if (newFocusedElement)
-                updateLayoutTreeIgnorePendingStylesheets();
         }
 
         if (view()) {
@@ -3637,6 +3619,8 @@ bool Document::setFocusedElement(PassRefPtrWillBeRawPtr<Element> prpNewFocusedEl
         }
     }
 
+    if (newFocusedElement)
+        updateLayoutTreeIgnorePendingStylesheets();
     if (newFocusedElement && newFocusedElement->isFocusable()) {
         if (newFocusedElement->isRootEditableElement() && !acceptsEditingFocus(*newFocusedElement)) {
             // delegate blocks focus change
@@ -3647,6 +3631,11 @@ bool Document::setFocusedElement(PassRefPtrWillBeRawPtr<Element> prpNewFocusedEl
         m_focusedElement = newFocusedElement;
 
         m_focusedElement->setFocus(true);
+        // Element::setFocus for frames can dispatch events.
+        if (m_focusedElement != newFocusedElement) {
+            focusChangeBlocked = true;
+            goto SetFocusedElementDone;
+        }
         cancelFocusAppearanceUpdate();
         m_focusedElement->updateFocusAppearance(params.selectionBehavior);
 
@@ -4940,7 +4929,7 @@ void Document::initSecurityContext(const DocumentInit& initializer)
         setBaseURLOverride(initializer.parentBaseURL());
     }
 
-    if (!shouldInheritSecurityOriginFromOwner(m_url))
+    if (!initializer.shouldInheritSecurityOriginFromOwner())
         return;
 
     // If we do not obtain a meaningful origin from the URL, then we try to
@@ -4972,7 +4961,7 @@ void Document::initContentSecurityPolicy(PassRefPtrWillBeRawPtr<ContentSecurityP
     setContentSecurityPolicy(csp ? csp : ContentSecurityPolicy::create());
     if (m_frame && m_frame->tree().parent() && m_frame->tree().parent()->isLocalFrame()) {
         ContentSecurityPolicy* parentCSP = toLocalFrame(m_frame->tree().parent())->document()->contentSecurityPolicy();
-        if (shouldInheritSecurityOriginFromOwner(m_url)) {
+        if (shouldInheritContentSecurityPolicyFromOwner(m_url)) {
             contentSecurityPolicy()->copyStateFrom(parentCSP);
         } else if (isPluginDocument()) {
             // Per CSP2, plugin-types for plugin documents in nested browsing

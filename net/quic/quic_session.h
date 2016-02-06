@@ -11,6 +11,8 @@
 
 #include <map>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "base/compiler_specific.h"
@@ -80,6 +82,7 @@ class NET_EXPORT_PRIVATE QuicSession : public QuicConnectionVisitorInterface {
   bool WillingAndAbleToWrite() const override;
   bool HasPendingHandshake() const override;
   bool HasOpenDynamicStreams() const override;
+  void OnPathDegrading() override;
 
   // Called on every incoming packet. Passes |packet| through to |connection_|.
   virtual void ProcessUdpPacket(const IPEndPoint& self_address,
@@ -225,7 +228,7 @@ class NET_EXPORT_PRIVATE QuicSession : public QuicConnectionVisitorInterface {
   bool ShouldYield(QuicStreamId stream_id);
 
  protected:
-  typedef base::hash_map<QuicStreamId, ReliableQuicStream*> StreamMap;
+  typedef std::unordered_map<QuicStreamId, ReliableQuicStream*> StreamMap;
 
   // Creates a new stream, owned by the caller, to handle a peer-initiated
   // stream.  Returns nullptr and does error handling if the stream can not be
@@ -373,12 +376,12 @@ class NET_EXPORT_PRIVATE QuicSession : public QuicConnectionVisitorInterface {
 
   // Set of stream ids that are less than the largest stream id that has been
   // received, but are nonetheless available to be created.
-  base::hash_set<QuicStreamId> available_streams_;
+  std::unordered_set<QuicStreamId> available_streams_;
 
   // Set of stream ids that are "draining" -- a FIN has been sent and received,
   // but the stream object still exists because not all the received data has
   // been consumed.
-  base::hash_set<QuicStreamId> draining_streams_;
+  std::unordered_set<QuicStreamId> draining_streams_;
 
   // A list of streams which need to write more data.
   QuicWriteBlockedList write_blocked_streams_;

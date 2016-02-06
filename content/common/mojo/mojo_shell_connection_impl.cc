@@ -64,7 +64,7 @@ MojoShellConnectionImpl::~MojoShellConnectionImpl() {
 
 void MojoShellConnectionImpl::WaitForShell(
     mojo::ScopedMessagePipeHandle handle) {
-  mojo::InterfaceRequest<mojo::Application> application_request;
+  mojo::ApplicationRequest application_request;
   runner_connection_.reset(mojo::shell::RunnerConnection::ConnectToRunner(
       &application_request, std::move(handle)));
   application_impl_.reset(
@@ -76,11 +76,11 @@ void MojoShellConnectionImpl::Initialize(mojo::ApplicationImpl* application) {
   initialized_ = true;
 }
 
-bool MojoShellConnectionImpl::ConfigureIncomingConnection(
+bool MojoShellConnectionImpl::AcceptConnection(
     mojo::ApplicationConnection* connection) {
   bool found = false;
   for (auto listener : listeners_)
-    found |= listener->ConfigureIncomingConnection(connection);
+    found |= listener->AcceptConnection(connection);
   return found;
 }
 

@@ -28,6 +28,7 @@
 #include "net/proxy/proxy_server.h"
 #include "net/quic/network_connection.h"
 #include "net/quic/quic_chromium_client_session.h"
+#include "net/quic/quic_client_push_promise_index.h"
 #include "net/quic/quic_config.h"
 #include "net/quic/quic_crypto_stream.h"
 #include "net/quic/quic_http_stream.h"
@@ -152,6 +153,7 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
       bool disable_quic_on_timeout_with_open_streams,
       int idle_connection_timeout_seconds,
       bool migrate_sessions_on_network_change,
+      bool migrate_sessions_early,
       const QuicTagVector& connection_options);
   ~QuicStreamFactory() override;
 
@@ -349,6 +351,8 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
                     int cert_verify_flags,
                     scoped_ptr<QuicServerInfo> quic_server_info,
                     const AddressList& address_list,
+                    scoped_ptr<DatagramClientSocket> socket,
+                    scoped_ptr<QuicChromiumPacketReader> reader,
                     base::TimeTicks dns_resolution_end_time,
                     const BoundNetLog& net_log,
                     QuicChromiumClientSession** session);
@@ -505,6 +509,10 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
   // interface changes.
   const bool migrate_sessions_on_network_change_;
 
+  // Set if early migration should be attempted when the connection
+  // experiences poor connectivity.
+  const bool migrate_sessions_early_;
+
   // Each profile will (probably) have a unique port_seed_ value.  This value
   // is used to help seed a pseudo-random number generator (PortSuggester) so
   // that we consistently (within this profile) suggest the same ephemeral
@@ -521,7 +529,7 @@ class NET_EXPORT_PRIVATE QuicStreamFactory
 
   NetworkConnection network_connection_;
 
-  QuicPromisedByUrlMap promised_by_url_;
+  QuicClientPushPromiseIndex push_promise_index_;
 
   base::TaskRunner* task_runner_;
 

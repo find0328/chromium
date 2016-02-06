@@ -36,7 +36,7 @@ class FakeImageSource : public CanvasImageSource {
 public:
     FakeImageSource(IntSize, BitmapOpacity);
 
-    PassRefPtr<Image> getSourceImageForCanvas(SourceImageStatus*, AccelerationHint) const override;
+    PassRefPtr<Image> getSourceImageForCanvas(SourceImageStatus*, AccelerationHint, SnapshotReason) const override;
 
     bool wouldTaintOrigin(SecurityOrigin* destinationSecurityOrigin) const override { return false; }
     FloatSize elementSize() const override { return FloatSize(m_size); }
@@ -60,7 +60,7 @@ FakeImageSource::FakeImageSource(IntSize size, BitmapOpacity opacity)
     m_image = StaticBitmapImage::create(image);
 }
 
-PassRefPtr<Image> FakeImageSource::getSourceImageForCanvas(SourceImageStatus* status, AccelerationHint) const
+PassRefPtr<Image> FakeImageSource::getSourceImageForCanvas(SourceImageStatus* status, AccelerationHint, SnapshotReason) const
 {
     if (status)
         *status = NormalSourceImageStatus;
@@ -629,6 +629,29 @@ TEST_F(CanvasRenderingContext2DTest, FallbackWithLargeState)
         context2d()->translate(1.0f, 0.0f);
     }
     canvasElement().doDeferredPaintInvalidation(); // To close the current frame
+}
+
+TEST_F(CanvasRenderingContext2DTest, OpaqueDisplayListFallsBackForText)
+{
+    // Verify that drawing text to an opaque canvas, which is expected to
+    // render with subpixel text anti-aliasing, results in falling out
+    // of display list mode because the current diplay list implementation
+    // does not support pixel geometry settings.
+    // See: crbug.com/583809
+    createContext(Opaque);
+    OwnPtr<RecordingImageBufferSurface> surface = adoptPtr(new RecordingImageBufferSurface(IntSize(10, 10), MockSurfaceFactory::create(MockSurfaceFactory::ExpectFallback), Opaque));
+    canvasElement().createImageBufferUsingSurfaceForTesting(surface.release());
+
+    context2d()->fillText("Text", 0, 5);
+}
+
+TEST_F(CanvasRenderingContext2DTest, NonOpaqueDisplayListDoesNotFallBackForText)
+{
+    createContext(NonOpaque);
+    OwnPtr<RecordingImageBufferSurface> surface = adoptPtr(new RecordingImageBufferSurface(IntSize(10, 10), MockSurfaceFactory::create(MockSurfaceFactory::ExpectNoFallback), NonOpaque));
+    canvasElement().createImageBufferUsingSurfaceForTesting(surface.release());
+
+    context2d()->fillText("Text", 0, 5);
 }
 
 TEST_F(CanvasRenderingContext2DTest, ImageResourceLifetime)

@@ -285,15 +285,6 @@ if (!is_android) {
     ]
   }
 
-  # TODO(GYP): Delete this after we've converted everything to GN.
-  # The _run targets exist only for compatibility w/ GYP.
-  group("interactive_ui_tests_run") {
-    testonly = true
-    deps = [
-      ":interactive_ui_tests",
-    ]
-  }
-
   test("interactive_ui_tests") {
     sources =
         rebase_path(chrome_tests_gypi_values.chrome_interactive_ui_test_sources,
@@ -779,15 +770,6 @@ if (!is_android) {
     ]
   }
 
-  # TODO(GYP): Delete this after we've converted everything to GN.
-  # The _run targets exist only for compatibility w/ GYP.
-  group("browser_tests_run") {
-    testonly = true
-    data_deps = [
-      ":browser_tests",
-    ]
-  }
-
   test("browser_tests") {
     sources = [
       "base/browser_tests_main.cc",
@@ -1174,6 +1156,19 @@ if (!is_android) {
         "../renderer/safe_browsing/phishing_classifier_browsertest.cc",
         "../renderer/safe_browsing/phishing_classifier_delegate_browsertest.cc",
       ]
+
+      # The browser window can be views or Cocoa on Mac. Test accordingly.
+      if (mac_views_browser) {
+        sources += rebase_path(
+                chrome_tests_gypi_values.chrome_browser_tests_views_non_mac_sources,
+                ".",
+                "//chrome")
+      } else {
+        sources += rebase_path(
+                chrome_tests_gypi_values.chrome_browser_tests_cocoa_sources,
+                ".",
+                "//chrome")
+      }
     }
     if (is_mac || is_win) {
       sources += [
@@ -1273,15 +1268,6 @@ if (!is_android) {
     if (use_x11) {
       deps += [ "//tools/xdisplaycheck" ]
     }
-  }
-
-  # TODO(GYP): Delete this after we've converted everything to GN.
-  # The _run targets exist only for compatibility w/ GYP.
-  group("sync_integration_tests_run") {
-    testonly = true
-    deps = [
-      ":sync_integration_tests",
-    ]
   }
 
   test("sync_integration_tests") {
@@ -1482,15 +1468,6 @@ js2gtest("unit_tests_js") {
   }
 }
 
-# TODO(GYP): Delete this after we've converted everything to GN.
-# The _run targets exist only for compatibility w/ GYP.
-group("unit_tests_run") {
-  testonly = true
-  deps = [
-    ":unit_tests",
-  ]
-}
-
 test("unit_tests") {
   sources = rebase_path(chrome_tests_unit_gypi_values.chrome_unit_tests_sources,
                         ".",
@@ -1516,10 +1493,6 @@ test("unit_tests") {
     "//third_party/zlib/google/test/data/",
     "//tools/metrics/histograms/histograms.xml",
     "$root_out_dir/pyproto/google/",
-    "$root_out_dir/test_data/chrome/browser/resources/google_now/",
-    "$root_out_dir/test_data/chrome/browser/resources/print_preview/",
-    "$root_out_dir/test_data/chrome/renderer/resources/extensions/",
-    "$root_out_dir/test_data/ui/webui/",
     "$root_out_dir/resources.pak",
   ]
   if (is_android || is_linux || is_win) {
@@ -1648,6 +1621,12 @@ test("unit_tests") {
             chrome_tests_unit_gypi_values.chrome_unit_tests_non_mobile_sources,
             ".",
             "//chrome")
+    data += [
+      "$root_out_dir/test_data/chrome/browser/resources/google_now/",
+      "$root_out_dir/test_data/chrome/browser/resources/print_preview/",
+      "$root_out_dir/test_data/chrome/renderer/resources/extensions/",
+      "$root_out_dir/test_data/ui/webui/",
+    ]
   }
 
   if (is_ios || is_chromeos) {

@@ -26,7 +26,7 @@ class HTMLDocumentApplicationDelegate : public mojo::ApplicationDelegate,
                                         public HTMLFactory {
  public:
   HTMLDocumentApplicationDelegate(
-      mojo::InterfaceRequest<mojo::Application> request,
+      mojo::ApplicationRequest request,
       mojo::URLResponsePtr response,
       GlobalState* global_state,
       scoped_ptr<mojo::AppRefCount> parent_app_refcount,
@@ -48,7 +48,7 @@ class HTMLDocumentApplicationDelegate : public mojo::ApplicationDelegate,
 
   // ApplicationDelegate:
   void Initialize(mojo::ApplicationImpl* app) override;
-  bool ConfigureIncomingConnection(
+  bool AcceptConnection(
       mojo::ApplicationConnection* connection) override;
 
   void OnHTMLDocumentDeleted2(HTMLDocument* document);

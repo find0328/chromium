@@ -83,6 +83,8 @@ void SerializeEntry(const ApplicationInfo& entry,
 ApplicationInfo::ApplicationInfo() {}
 ApplicationInfo::~ApplicationInfo() {}
 
+ApplicationCatalogStore::~ApplicationCatalogStore() {}
+
 PackageManagerImpl::PackageManagerImpl(
     const base::FilePath& shell_file_root,
     base::TaskRunner* task_runner,
@@ -179,7 +181,7 @@ uint32_t PackageManagerImpl::HandleWithContentHandler(
     const Identity& source,
     const GURL& target_url,
     const CapabilityFilter& target_filter,
-    InterfaceRequest<Application>* application_request) {
+    InterfaceRequest<mojom::Application>* application_request) {
   Identity content_handler_identity;
   URLResponsePtr response;
   if (ShouldHandleWithContentHandler(fetcher,
@@ -193,7 +195,7 @@ uint32_t PackageManagerImpl::HandleWithContentHandler(
                                  std::move(response));
     return connection->id();
   }
-  return Shell::kInvalidApplicationID;
+  return mojom::Shell::kInvalidApplicationID;
 }
 
 bool PackageManagerImpl::IsURLInCatalog(const std::string& url) const {
@@ -344,11 +346,25 @@ void PackageManagerImpl::SerializeCatalog() {
     catalog_store_->UpdateStore(std::move(catalog));
 }
 
-void PackageManagerImpl::DeserializeApplication(
+const ApplicationInfo& PackageManagerImpl::DeserializeApplication(
     const base::DictionaryValue* dictionary) {
   ApplicationInfo info = BuildApplicationInfoFromDictionary(*dictionary);
   CHECK(catalog_.find(info.url) == catalog_.end());
   catalog_[info.url] = info;
+
+  if (dictionary->HasKey("applications")) {
+    const base::ListValue* applications = nullptr;
+    dictionary->GetList("applications", &applications);
+    for (size_t i = 0; i < applications->GetSize(); ++i) {
+      const base::DictionaryValue* child = nullptr;
+      applications->GetDictionary(i, &child);
+      const ApplicationInfo& child_info = DeserializeApplication(child);
+      GURL child_url(child_info.url);
+      RegisterApplicationPackageAlias(child_url, GURL(info.url),
+                                      child_url.host());
+    }
+  }
+  return catalog_[info.url];
 }
 
 scoped_ptr<base::Value> PackageManagerImpl::ReadManifest(

@@ -17,7 +17,7 @@
 #include "base/strings/string_piece.h"
 #include "net/quic/congestion_control/loss_detection_interface.h"
 #include "net/quic/congestion_control/send_algorithm_interface.h"
-#include "net/quic/quic_client_session_base.h"
+#include "net/quic/quic_client_push_promise_index.h"
 #include "net/quic/quic_connection.h"
 #include "net/quic/quic_framer.h"
 #include "net/quic/quic_protocol.h"
@@ -296,6 +296,7 @@ class MockConnectionVisitor : public QuicConnectionVisitorInterface {
   MOCK_METHOD0(OnCanWrite, void());
   MOCK_METHOD1(OnCongestionWindowChange, void(QuicTime now));
   MOCK_METHOD0(OnConnectionMigration, void());
+  MOCK_METHOD0(OnPathDegrading, void());
   MOCK_CONST_METHOD0(WillingAndAbleToWrite, bool());
   MOCK_CONST_METHOD0(HasPendingHandshake, bool());
   MOCK_CONST_METHOD0(HasOpenDynamicStreams, bool());
@@ -537,6 +538,8 @@ class TestQuicSpdyClientSession : public QuicClientSessionBase {
                             QuicCryptoClientConfig* crypto_config);
   ~TestQuicSpdyClientSession() override;
 
+  bool IsAuthorized(const std::string& authority) override;
+
   // QuicClientSessionBase
   MOCK_METHOD1(OnProofValid,
                void(const QuicCryptoClientConfig::CachedState& cached));
@@ -552,7 +555,7 @@ class TestQuicSpdyClientSession : public QuicClientSessionBase {
 
  private:
   scoped_ptr<QuicCryptoClientStream> crypto_stream_;
-  QuicPromisedByUrlMap promised_by_url_;
+  QuicClientPushPromiseIndex push_promise_index_;
 
   DISALLOW_COPY_AND_ASSIGN(TestQuicSpdyClientSession);
 };
@@ -695,6 +698,7 @@ class MockNetworkChangeVisitor
 
   MOCK_METHOD0(OnCongestionWindowChange, void());
   MOCK_METHOD0(OnRttChange, void());
+  MOCK_METHOD0(OnPathDegrading, void());
 
  private:
   DISALLOW_COPY_AND_ASSIGN(MockNetworkChangeVisitor);

@@ -15,8 +15,9 @@ namespace html_viewer {
 
 class GlobalState;
 
-class HTMLViewer : public mojo::ApplicationDelegate,
-                   public mojo::InterfaceFactory<mojo::ContentHandler> {
+class HTMLViewer
+    : public mojo::ApplicationDelegate,
+      public mojo::InterfaceFactory<mojo::shell::mojom::ContentHandler> {
  public:
   HTMLViewer();
   ~HTMLViewer() override;
@@ -30,12 +31,13 @@ class HTMLViewer : public mojo::ApplicationDelegate,
 
  private:
   // Overridden from ApplicationDelegate:
-  bool ConfigureIncomingConnection(
+  bool AcceptConnection(
       mojo::ApplicationConnection* connection) override;
 
-  // Overridden from InterfaceFactory<ContentHandler>
+  // Overridden from InterfaceFactory<shell::mojom::ContentHandler>
   void Create(mojo::ApplicationConnection* connection,
-              mojo::InterfaceRequest<mojo::ContentHandler> request) override;
+              mojo::InterfaceRequest<mojo::shell::mojom::ContentHandler>
+                  request) override;
 
   scoped_ptr<GlobalState> global_state_;
   mojo::ApplicationImpl* app_;

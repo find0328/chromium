@@ -10,6 +10,7 @@
 #include "core/dom/DOMException.h"
 #include "core/dom/Document.h"
 #include "core/dom/ExceptionCode.h"
+#include "core/events/Event.h"
 #include "core/page/PageVisibilityState.h"
 #include "modules/bluetooth/BluetoothError.h"
 #include "modules/bluetooth/BluetoothGATTRemoteServer.h"
@@ -18,22 +19,70 @@
 
 namespace blink {
 
-BluetoothDevice::BluetoothDevice(PassOwnPtr<WebBluetoothDevice> webDevice)
-    : m_webDevice(webDevice)
+BluetoothDevice::BluetoothDevice(ExecutionContext* context, PassOwnPtr<WebBluetoothDevice> webDevice)
+    : ActiveDOMObject(context)
+    , PageLifecycleObserver(toDocument(context)->page())
+    , m_webDevice(webDevice)
     , m_adData(BluetoothAdvertisingData::create(m_webDevice->txPower,
         m_webDevice->rssi))
+    , m_gatt(BluetoothGATTRemoteServer::create(this))
 {
+    // See example in Source/platform/heap/ThreadState.h
+    ThreadState::current()->registerPreFinalizer(this);
 }
 
-BluetoothDevice* BluetoothDevice::take(ScriptPromiseResolver*, PassOwnPtr<WebBluetoothDevice> webDevice)
+BluetoothDevice* BluetoothDevice::take(ScriptPromiseResolver* resolver, PassOwnPtr<WebBluetoothDevice> webDevice)
 {
     ASSERT(webDevice);
-    return new BluetoothDevice(webDevice);
+    BluetoothDevice* device = new BluetoothDevice(resolver->executionContext(), webDevice);
+    device->suspendIfNeeded();
+    return device;
+}
+
+void BluetoothDevice::dispose()
+{
+    disconnectGATTIfConnected();
+}
+
+void BluetoothDevice::stop()
+{
+    disconnectGATTIfConnected();
+}
+
+void BluetoothDevice::pageVisibilityChanged()
+{
+    if (!page()->isPageVisible() && disconnectGATTIfConnected()) {
+        dispatchEvent(Event::create(EventTypeNames::gattserverdisconnected));
+    }
+}
+
+bool BluetoothDevice::disconnectGATTIfConnected()
+{
+    if (m_gatt->connected()) {
+        m_gatt->setConnected(false);
+        BluetoothSupplement::fromExecutionContext(executionContext())->disconnect(id());
+        return true;
+    }
+    return false;
+}
+
+const WTF::AtomicString& BluetoothDevice::interfaceName() const
+{
+    return EventTargetNames::BluetoothDevice;
+}
+
+ExecutionContext* BluetoothDevice::executionContext() const
+{
+    return ActiveDOMObject::executionContext();
 }
 
 DEFINE_TRACE(BluetoothDevice)
 {
+    RefCountedGarbageCollectedEventTargetWithInlineData<BluetoothDevice>::trace(visitor);
+    ActiveDOMObject::trace(visitor);
+    PageLifecycleObserver::trace(visitor);
     visitor->trace(m_adData);
+    visitor->trace(m_gatt);
 }
 
 unsigned BluetoothDevice::deviceClass(bool& isNull)
@@ -81,20 +130,7 @@ Vector<String> BluetoothDevice::uuids()
 
 ScriptPromise BluetoothDevice::connectGATT(ScriptState* scriptState)
 {
-    // TODO(ortuno): Allow connections when the tab is in the background.
-    // This is a short term solution instead of implementing a tab indicator
-    // for bluetooth connections.
-    // https://crbug.com/579746
-    if (!toDocument(scriptState->executionContext())->page()->isPageVisible()) {
-        return ScriptPromise::rejectWithDOMException(scriptState, DOMException::create(SecurityError, "Connection is only allowed while the page is visible. This is a temporary measure until we are able to effectively communicate to the user that a page is connected to a device."));
-    }
-    WebBluetooth* webbluetooth = BluetoothSupplement::fromScriptState(scriptState);
-    if (!webbluetooth)
-        return ScriptPromise::rejectWithDOMException(scriptState, DOMException::create(NotSupportedError));
-    ScriptPromiseResolver* resolver = ScriptPromiseResolver::create(scriptState);
-    ScriptPromise promise = resolver->promise();
-    webbluetooth->connectGATT(id(), new CallbackPromiseAdapter<BluetoothGATTRemoteServer, BluetoothError>(resolver));
-    return promise;
+    return m_gatt->connect(scriptState);
 }
 
 } // namespace blink

@@ -201,7 +201,13 @@ IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTest, CursorTestIncognito) {
              true /* incognito */);
 }
 
-IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTest, CursorPrefetch) {
+// crbug.com/513787
+#if defined(ANDROID)
+#define MAYBE_CursorPrefetch DISABLED_CursorPrefetch
+#else
+#define MAYBE_CursorPrefetch CursorPrefetch
+#endif
+IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTest, MAYBE_CursorPrefetch) {
   SimpleTest(GetTestUrl("indexeddb", "cursor_prefetch.html"));
 }
 
@@ -843,14 +849,8 @@ class IndexedDBBrowserTestSingleProcess : public IndexedDBBrowserTest {
   }
 };
 
-// Flaky on linux_chromium_asan_rel_ng: crbug.com/581448
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_RenderThreadShutdownTest DISABLED_RenderThreadShutdownTest
-#else
-#define MAYBE_RenderThreadShutdownTest RenderThreadShutdownTest
-#endif
 IN_PROC_BROWSER_TEST_F(IndexedDBBrowserTestSingleProcess,
-                       MAYBE_RenderThreadShutdownTest) {
+                       RenderThreadShutdownTest) {
   SimpleTest(GetTestUrl("indexeddb", "shutdown_with_requests.html"));
 }
 

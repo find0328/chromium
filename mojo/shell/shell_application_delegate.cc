@@ -22,7 +22,7 @@ ShellApplicationDelegate::ShellApplicationDelegate(
 ShellApplicationDelegate::~ShellApplicationDelegate() {}
 
 void ShellApplicationDelegate::Initialize(ApplicationImpl* app) {}
-bool ShellApplicationDelegate::ConfigureIncomingConnection(
+bool ShellApplicationDelegate::AcceptConnection(
     ApplicationConnection* connection) {
   connection->AddService<mojom::ApplicationManager>(this);
   return true;
@@ -37,48 +37,10 @@ void ShellApplicationDelegate::Create(
 void ShellApplicationDelegate::CreateInstanceForHandle(
     ScopedHandle channel,
     const String& url,
-    CapabilityFilterPtr filter,
+    mojom::CapabilityFilterPtr filter,
     InterfaceRequest<mojom::PIDReceiver> pid_receiver) {
   manager_->CreateInstanceForHandle(std::move(channel), GURL(url.get()),
                                     std::move(filter), std::move(pid_receiver));
-}
-
-void ShellApplicationDelegate::RegisterProcessWithBroker(
-    uint32_t pid, ScopedHandle pipe) {
-  // First, for security we want to verify that the given pid's grand parent
-  // process is us.
-  base::Process process = base::Process::OpenWithExtraPrivileges(
-      static_cast<base::ProcessId>(pid));
-  if (!process.IsValid()) {
-    NOTREACHED();
-    return;
-  }
-  base::ProcessId parent_pid = base::GetParentProcessId(process.Handle());
-  base::Process parent_process = base::Process::Open(parent_pid);
-  if (!parent_process.IsValid()) {
-    NOTREACHED();
-    return;
-  }
-  base::ProcessId grandparent_pid = base::GetParentProcessId(
-      parent_process.Handle());
-  if (grandparent_pid != base::GetCurrentProcId()) {
-#if defined(OS_POSIX)
-    // Zygote can also be in between.
-    base::ProcessId great_grandparent =
-        base::GetParentProcessId(base::Process(grandparent_pid).Handle());
-    if (great_grandparent != base::GetCurrentProcId())
-#endif
-    {
-      NOTREACHED();
-      return;
-    }
-  }
-
-  embedder::ScopedPlatformHandle platform_pipe;
-  MojoResult rv = embedder::PassWrappedPlatformHandle(
-      pipe.release().value(), &platform_pipe);
-  CHECK_EQ(rv, MOJO_RESULT_OK);
-  embedder::ChildProcessLaunched(process.Handle(), std::move(platform_pipe));
 }
 
 void ShellApplicationDelegate::AddListener(

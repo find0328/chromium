@@ -416,8 +416,9 @@ Polymer({
    * @private
    */
   acknowledgeFirstRunFlow_: function() {
-    var userOptedIntoCloudServices = this.$$('#first-run-cloud-checkbox') ?
-      this.$$('#first-run-cloud-checkbox').checked : false;
+    var userOptedIntoCloudServices = this.$$('#first-run-cloud-checkbox') &&
+        this.showFirstRunFlowCloudPref ?
+        this.$$('#first-run-cloud-checkbox').checked : false;
     this.fire('acknowledge-first-run-flow', {
       optedIntoCloudServices: userOptedIntoCloudServices,
     });
@@ -954,13 +955,6 @@ Polymer({
   },
 
   /**
-   * Handles timeout of previous create route attempt.
-   */
-  onNotifyRouteCreationTimeout: function() {
-    this.resetRouteCreationProperties_(false);
-  },
-
-  /**
    * Called when a sink is clicked.
    *
    * @param {!Event} event The event object.
@@ -1001,23 +995,16 @@ Polymer({
         this.startTapTimer_();
         this.resetRouteCreationProperties_(true);
       }
-    }
-
-    // If |currentRoute_| is no longer active, clear |currentRoute_|. Also
-    // switch back to the SINK_PICKER view if the user is currently in the
-    // ROUTE_DETAILS view.
-    if (!this.currentRoute_ || !this.routeMap_[this.currentRoute_.id]) {
-      if (this.currentView_ == media_router.MediaRouterView.ROUTE_DETAILS) {
-        // We may have an updated route to show for a device.
-        // We swap out |currentRoute_| (and consequently the route-details
-        // controls) to handle this.
-        this.currentRoute_ =
-            tempSinkToRouteMap[this.currentRoute_.sinkId] || null;
-
-        if (!this.currentRoute_)
-          this.showSinkList_();
-      } else {
-        this.currentRoute_ = null;
+    } else {
+      // If |currentRoute_| is no longer active, clear |currentRoute_|. Also
+      // switch back to the SINK_PICKER view if the user is currently in the
+      // ROUTE_DETAILS view.
+      if (this.currentRoute_) {
+        this.currentRoute_ = this.routeMap_[this.currentRoute_.id] || null;
+      }
+      if (!this.currentRoute_ &&
+          this.currentView_ == media_router.MediaRouterView.ROUTE_DETAILS) {
+        this.showSinkList_();
       }
     }
 

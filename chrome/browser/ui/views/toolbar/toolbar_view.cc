@@ -291,11 +291,12 @@ void ToolbarView::ResetTabState(WebContents* tab) {
 }
 
 void ToolbarView::SetPaneFocusAndFocusAppMenu() {
-  SetPaneFocus(app_menu_button_);
+  if (app_menu_button_)
+    SetPaneFocus(app_menu_button_);
 }
 
 bool ToolbarView::IsAppMenuFocused() {
-  return app_menu_button_->HasFocus();
+  return app_menu_button_ && app_menu_button_->HasFocus();
 }
 
 views::View* ToolbarView::GetBookmarkBubbleAnchor() {
@@ -651,6 +652,10 @@ bool ToolbarView::DoesIntersectRect(const views::View* target,
 void ToolbarView::UpdateBadgeSeverity(AppMenuBadgeController::BadgeType type,
                                       AppMenuIconPainter::Severity severity,
                                       bool animate) {
+  // There's no app menu in tabless windows.
+  if (!app_menu_button_)
+    return;
+
   // Showing the bubble requires |app_menu_button_| to be in a widget. See
   // comment in ConflictingModuleView for details.
   DCHECK(app_menu_button_->GetWidget());

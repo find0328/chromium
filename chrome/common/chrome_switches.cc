@@ -1038,10 +1038,6 @@ const char kSystemLogUploadFrequency[] = "system-log-upload-frequency";
 // Passes the name of the current running automated test to Chrome.
 const char kTestName[]                      = "test-name";
 
-// Disables same-origin check on HTTP resources pushed via a SPDY proxy.
-// The value is the host:port of the trusted proxy.
-const char kTrustedSpdyProxy[]              = "trusted-spdy-proxy";
-
 // Experimental. Shows a dialog asking the user to try chrome. This flag is to
 // be used only by the upgrade process.
 const char kTryChromeAgain[]                = "try-chrome-again";
@@ -1223,14 +1219,6 @@ const char kRelauncherProcessDMGDevice[]    = "dmg-device";
 #endif  // defined(OS_MACOSX)
 
 #if defined(OS_WIN)
-// A process type (switches::kProcessType) that indicates chrome.exe is being
-// launched as crashpad_handler. This is only used on Windows. We bundle the
-// handler into chrome.exe on Windows because there is high probability of a
-// "new" .exe being blocked or interfered with by application firewalls, AV
-// software, etc. On other platforms, crashpad_handler is a standalone
-// executable.
-const char kCrashpadHandler[]               = "crashpad-handler";
-
 // Fallback to XPS. By default connector uses CDD.
 const char kEnableCloudPrintXps[]           = "enable-cloud-print-xps";
 

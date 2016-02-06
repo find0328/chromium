@@ -29,7 +29,7 @@ class TestApplication : public ApplicationDelegate {
  private:
   // Overridden from ApplicationDelegate:
   void Initialize(ApplicationImpl* app) override;
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override;
+  bool AcceptConnection(ApplicationConnection* connection) override;
 
   void ConnectionClosed(const std::string& service_url);
 
@@ -48,7 +48,8 @@ class TestLoader : public ApplicationLoader {
 
  private:
   // Overridden from ApplicationLoader:
-  void Load(const GURL& url, InterfaceRequest<Application> request) override;
+  void Load(const GURL& url,
+            InterfaceRequest<mojom::Application> request) override;
 
   scoped_ptr<ApplicationDelegate> delegate_;
   scoped_ptr<ApplicationImpl> app_;

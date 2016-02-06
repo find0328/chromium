@@ -243,13 +243,6 @@ void RenderWidgetHostViewGuest::OnSwapCompositorFrame(
   }
 
   last_scroll_offset_ = frame->metadata.root_scroll_offset;
-  // When not using surfaces, the frame just gets proxied to
-  // the embedder's renderer to be composited.
-  if (!frame->delegated_frame_data || !use_surfaces_) {
-    guest_->SwapCompositorFrame(output_surface_id, host_->GetProcess()->GetID(),
-                                host_->GetRoutingID(), std::move(frame));
-    return;
-  }
 
   cc::RenderPass* root_pass =
       frame->delegated_frame_data->render_pass_list.back().get();
@@ -643,7 +636,6 @@ void RenderWidgetHostViewGuest::GestureEventAck(
 void RenderWidgetHostViewGuest::OnHandleInputEvent(
     RenderWidgetHostImpl* embedder,
     int browser_plugin_instance_id,
-    const gfx::Rect& guest_window_rect,
     const blink::WebInputEvent* event) {
   if (blink::WebInputEvent::isMouseEventType(event->type)) {
     // The mouse events for BrowserPlugin are modified by all

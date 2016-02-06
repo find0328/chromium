@@ -132,6 +132,9 @@ class NET_EXPORT_PRIVATE QuicConnectionVisitorInterface {
   // Called when the connection receives a packet from a migrated client.
   virtual void OnConnectionMigration() = 0;
 
+  // Called when the peer seems unreachable over the current path.
+  virtual void OnPathDegrading() = 0;
+
   // Called after OnStreamFrame, OnRstStream, OnGoAway, OnWindowUpdateFrame,
   // OnBlockedFrame, and OnCanWrite to allow post-processing once the work has
   // been done.
@@ -465,6 +468,7 @@ class NET_EXPORT_PRIVATE QuicConnection
   // QuicSentPacketManager::NetworkChangeVisitor
   void OnCongestionWindowChange() override;
   void OnRttChange() override;
+  void OnPathDegrading() override;
 
   // Called by the crypto stream when the handshake completes. In the server's
   // case this is when the SHLO has been ACKed. Clients call this on receipt of
@@ -519,8 +523,8 @@ class NET_EXPORT_PRIVATE QuicConnection
   // Returns true if the connection has queued packets or frames.
   bool HasQueuedData() const;
 
-  // Sets the overall and idle state connection timeouts.
-  void SetNetworkTimeouts(QuicTime::Delta overall_timeout,
+  // Sets the handshake and idle state connection timeouts.
+  void SetNetworkTimeouts(QuicTime::Delta handshake_timeout,
                           QuicTime::Delta idle_timeout);
 
   // If the connection has timed out, this will close the connection.
@@ -663,18 +667,16 @@ class NET_EXPORT_PRIVATE QuicConnection
   QuicConnectionHelperInterface* helper() { return helper_; }
 
  protected:
-  // Do any work which logically would be done in OnPacket but can not be
-  // safely done until the packet is validated.  Returns true if the packet
-  // can be handled, false otherwise. Also migrates the connection if the packet
-  // can be handled and peer address changes.
-  virtual bool ProcessValidatedPacket(const QuicPacketHeader& header);
-
   // Send a packet to the peer, and takes ownership of the packet if the packet
   // cannot be written immediately.
   virtual void SendOrQueuePacket(SerializedPacket* packet);
 
-  // On peer address changes, determine and return the change type.
-  virtual PeerAddressChangeType DeterminePeerAddressChangeType();
+  // On peer address changes, determine and return peer address change type.
+  PeerAddressChangeType DeterminePeerAddressChangeType();
+
+  // Migrate the connection if peer address changes. This function should only
+  // be called after the packet is validated.
+  virtual void MaybeMigrateConnectionToNewPeerAddress();
 
   // Selects and updates the version of the protocol being used by selecting a
   // version from |available_versions| which is also supported. Returns true if
@@ -713,10 +715,6 @@ class NET_EXPORT_PRIVATE QuicConnection
   // Saves the connection close packet for later transmission, even if the
   // writer is write blocked.
   bool WritePacket(SerializedPacket* packet);
-
-  // Does the main work of WritePacket, but does not delete the packet or
-  // retransmittable frames upon success.
-  bool WritePacketInner(SerializedPacket* packet);
 
   // Make sure an ack we got from our peer is sane.
   // Returns nullptr for valid acks or an error std::string if it was invalid.
@@ -821,6 +819,11 @@ class NET_EXPORT_PRIVATE QuicConnection
   // QuicMultipathReceivedPacketManager are landed in QuicConnection.
   void OnPathClosed(QuicPathId path_id);
 
+  // Do any work which logically would be done in OnPacket but can not be
+  // safely done until the packet is validated. Returns true if packet can be
+  // handled, false otherwise.
+  bool ProcessValidatedPacket(const QuicPacketHeader& header);
+
   QuicFramer framer_;
   QuicConnectionHelperInterface* helper_;  // Not owned.
   PerPacketOptions* per_packet_options_;   // Not owned.
@@ -879,8 +882,10 @@ class NET_EXPORT_PRIVATE QuicConnection
   bool pending_version_negotiation_packet_;
 
   // When packets could not be sent because the socket was not writable,
-  // they are added to this list.  All corresponding frames are in
-  // unacked_packets_ if they are to be retransmitted.
+  // they are added to this std::list.  All corresponding frames are in
+  // unacked_packets_ if they are to be retransmitted.  Packets encrypted_buffer
+  // fields are owned by the QueuedPacketList, in order to ensure they outlast
+  // the original scope of the SerializedPacket.
   QueuedPacketList queued_packets_;
 
   // If true, then crypto packets will be saved as termination packets.
@@ -889,7 +894,9 @@ class NET_EXPORT_PRIVATE QuicConnection
   // Contains the connection close packets if the connection has been closed.
   scoped_ptr<std::vector<QuicEncryptedPacket*>> termination_packets_;
 
-  // When true, the connection does not send a close packet on timeout.
+  // When true, the connection does not send a close packet on idle timeout due
+  // to lack of network activity.
+  // This is particularly important on mobile, where connections are short.
   bool silent_close_enabled_;
 
   FecGroupMap group_map_;
@@ -944,10 +951,10 @@ class NET_EXPORT_PRIVATE QuicConnection
   // An alarm that fires when an FEC packet should be sent.
   QuicArenaScopedPtr<QuicAlarm> fec_alarm_;
 
-  // Network idle time before we kill of this connection.
+  // Network idle time before this connection is closed.
   QuicTime::Delta idle_network_timeout_;
-  // Overall connection timeout.
-  QuicTime::Delta overall_connection_timeout_;
+  // The connection will wait this long for the handshake to complete.
+  QuicTime::Delta handshake_timeout_;
 
   // Statistics for this session.
   QuicConnectionStats stats_;
@@ -996,6 +1003,12 @@ class NET_EXPORT_PRIVATE QuicConnection
   // Set to true if the UDP packet headers are addressed to a different port.
   // We do not support connection migration when the self port changed.
   bool self_port_changed_;
+
+  // Destination address of the last received packet.
+  IPEndPoint last_packet_destination_address_;
+
+  // Source address of the last received packet.
+  IPEndPoint last_packet_source_address_;
 
   // Set to false if the connection should not send truncated connection IDs to
   // the peer, even if the peer supports it.

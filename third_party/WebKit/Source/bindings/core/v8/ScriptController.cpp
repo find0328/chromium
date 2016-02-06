@@ -34,7 +34,7 @@
 
 #include "bindings/core/v8/BindingSecurity.h"
 #include "bindings/core/v8/NPV8Object.h"
-#include "bindings/core/v8/ScriptCallStackFactory.h"
+#include "bindings/core/v8/ScriptCallStack.h"
 #include "bindings/core/v8/ScriptSourceCode.h"
 #include "bindings/core/v8/ScriptValue.h"
 #include "bindings/core/v8/V8Binding.h"
@@ -61,13 +61,14 @@
 #include "core/inspector/ConsoleMessage.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InspectorTraceEvents.h"
-#include "core/inspector/ScriptCallStack.h"
+#include "core/inspector/v8/V8StackTrace.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/FrameLoader.h"
 #include "core/loader/FrameLoaderClient.h"
 #include "core/loader/NavigationScheduler.h"
 #include "core/loader/ProgressTracker.h"
 #include "core/plugins/PluginView.h"
+#include "platform/Histogram.h"
 #include "platform/NotImplemented.h"
 #include "platform/TraceEvent.h"
 #include "platform/UserGestureIndicator.h"
@@ -134,7 +135,9 @@ void ScriptController::clearForClose()
 {
     double start = currentTime();
     m_windowProxyManager->clearForClose();
-    Platform::current()->histogramCustomCounts("WebCore.ScriptController.clearForClose", (currentTime() - start) * 1000, 0, 10000, 50);
+    double end = currentTime();
+    DEFINE_STATIC_LOCAL(CustomCountHistogram, clearForCloseHistogram, ("WebCore.ScriptController.clearForClose", 0, 10000, 50));
+    clearForCloseHistogram.count((end - start) * 1000);
 }
 
 void ScriptController::updateSecurityOrigin(SecurityOrigin* origin)
@@ -410,12 +413,14 @@ void ScriptController::clearWindowProxy()
     clearScriptObjects();
 
     m_windowProxyManager->clearForNavigation();
-    Platform::current()->histogramCustomCounts("WebCore.ScriptController.clearWindowProxy", (currentTime() - start) * 1000, 0, 10000, 50);
+    double end = currentTime();
+    DEFINE_STATIC_LOCAL(CustomCountHistogram, clearWindowProxyHistogram, ("WebCore.ScriptController.clearWindowProxy", 0, 10000, 50));
+    clearWindowProxyHistogram.count((end - start) * 1000);
 }
 
 void ScriptController::setCaptureCallStackForUncaughtExceptions(v8::Isolate* isolate, bool value)
 {
-    isolate->SetCaptureStackTraceForUncaughtExceptions(value, ScriptCallStack::maxCallStackSizeToCapture, stackTraceOptions);
+    isolate->SetCaptureStackTraceForUncaughtExceptions(value, V8StackTrace::maxCallStackSizeToCapture, stackTraceOptions);
 }
 
 void ScriptController::collectIsolatedContexts(Vector<std::pair<ScriptState*, SecurityOrigin*>>& result)

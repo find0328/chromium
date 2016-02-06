@@ -88,6 +88,7 @@
 #include "bindings/core/v8/DOMWrapperWorld.h"
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/ExceptionStatePlaceholder.h"
+#include "bindings/core/v8/ScriptCallStack.h"
 #include "bindings/core/v8/ScriptController.h"
 #include "bindings/core/v8/ScriptSourceCode.h"
 #include "bindings/core/v8/ScriptValue.h"
@@ -132,7 +133,6 @@
 #include "core/html/PluginDocument.h"
 #include "core/input/EventHandler.h"
 #include "core/inspector/ConsoleMessage.h"
-#include "core/inspector/ScriptCallStack.h"
 #include "core/layout/HitTestResult.h"
 #include "core/layout/LayoutBox.h"
 #include "core/layout/LayoutObject.h"
@@ -185,7 +185,6 @@
 #include "platform/weborigin/KURL.h"
 #include "platform/weborigin/SchemeRegistry.h"
 #include "platform/weborigin/SecurityPolicy.h"
-#include "public/platform/Platform.h"
 #include "public/platform/WebFloatPoint.h"
 #include "public/platform/WebFloatRect.h"
 #include "public/platform/WebLayer.h"
@@ -775,6 +774,7 @@ void WebLocalFrameImpl::dispatchUnloadEvent()
 {
     if (!frame())
         return;
+    SubframeLoadingDisabler disabler(frame()->document());
     frame()->loader().dispatchUnloadEvent();
 }
 
@@ -963,6 +963,11 @@ void WebLocalFrameImpl::reloadImage(const WebNode& webNode)
         const HTMLImageElement& imageElement = toHTMLImageElement(*node);
         imageElement.forceReload();
     }
+}
+
+void WebLocalFrameImpl::reloadLoFiImages()
+{
+    frame()->document()->fetcher()->reloadLoFiImages();
 }
 
 void WebLocalFrameImpl::loadRequest(const WebURLRequest& request)

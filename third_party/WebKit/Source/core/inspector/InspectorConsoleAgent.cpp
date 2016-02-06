@@ -25,13 +25,13 @@
 
 #include "core/inspector/InspectorConsoleAgent.h"
 
+#include "bindings/core/v8/ScriptCallStack.h"
 #include "bindings/core/v8/ScriptValue.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/inspector/ConsoleMessageStorage.h"
 #include "core/inspector/IdentifiersFactory.h"
 #include "core/inspector/InstrumentingAgents.h"
 #include "core/inspector/ScriptArguments.h"
-#include "core/inspector/ScriptAsyncCallStack.h"
 #include "core/inspector/v8/InjectedScript.h"
 #include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/inspector/v8/V8Debugger.h"
@@ -223,13 +223,8 @@ void InspectorConsoleAgent::sendConsoleMessageToFrontend(ConsoleMessage* console
             jsonObj->setParameters(jsonArgs);
         }
     }
-    if (consoleMessage->callStack()) {
-        if (consoleMessage->callStack()->size())
-            jsonObj->setStackTrace(consoleMessage->callStack()->buildInspectorArray());
-        RefPtr<ScriptAsyncCallStack> asyncCallStack = consoleMessage->callStack()->asyncCallStack();
-        if (asyncCallStack)
-            jsonObj->setAsyncStackTrace(asyncCallStack->buildInspectorObject());
-    }
+    if (consoleMessage->callStack())
+        jsonObj->setStack(consoleMessage->callStack()->buildInspectorObject());
     if (consoleMessage->messageId())
         jsonObj->setMessageId(consoleMessage->messageId());
     if (consoleMessage->relatedMessageId())

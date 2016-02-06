@@ -47,10 +47,6 @@
 
 namespace {
 
-// Spacing constant for outer margin. This is added to the
-// bubble margin itself to equalize the margins at 13px.
-const int kBubbleOuterMargin = 5;
-
 // Spacing between major items should be 9px.
 const int kItemMajorSpacing = 9;
 
@@ -174,6 +170,7 @@ class PermissionsBubbleDelegateView : public views::BubbleDelegateView,
   const gfx::FontList& GetTitleFontList() const override;
   base::string16 GetWindowTitle() const override;
   void OnWidgetDestroying(views::Widget* widget) override;
+  gfx::Size GetPreferredSize() const override;
   void GetAccessibleState(ui::AXViewState* state) override;
 
   // ButtonListener:
@@ -211,13 +208,11 @@ PermissionsBubbleDelegateView::PermissionsBubbleDelegateView(
       deny_(nullptr) {
   DCHECK(!requests.empty());
 
-  RemoveAllChildViews(true);
-  customize_comboboxes_.clear();
   set_close_on_esc(true);
   set_close_on_deactivate(false);
 
-  SetLayoutManager(new views::BoxLayout(
-      views::BoxLayout::kVertical, kBubbleOuterMargin, 0, kItemMajorSpacing));
+  SetLayoutManager(new views::BoxLayout(views::BoxLayout::kVertical, 0, 0,
+                                        kItemMajorSpacing));
 
   display_origin_ = url_formatter::FormatUrlForSecurityDisplay(
       requests[0]->GetOrigin(), languages);
@@ -239,10 +234,8 @@ PermissionsBubbleDelegateView::PermissionsBubbleDelegateView(
     row_layout->StartRow(0, 0);
 
     views::View* label_container = new views::View();
-    label_container->SetLayoutManager(
-        new views::BoxLayout(views::BoxLayout::kHorizontal,
-                             kPermissionIndentSpacing,
-                             0, kBubbleOuterMargin));
+    label_container->SetLayoutManager(new views::BoxLayout(
+        views::BoxLayout::kHorizontal, kPermissionIndentSpacing, 0, 0));
     views::ImageView* icon = new views::ImageView();
     gfx::VectorIconId vector_id = requests[index]->GetVectorIconId();
     if (vector_id != gfx::VectorIconId::VECTOR_ICON_NONE) {
@@ -289,8 +282,6 @@ PermissionsBubbleDelegateView::PermissionsBubbleDelegateView(
     ok_button->SetStyle(views::Button::STYLE_BUTTON);
     button_layout->AddView(ok_button);
     allow_ = ok_button;
-
-    button_layout->AddPaddingRow(0, kBubbleOuterMargin);
     return;
   }
 
@@ -313,8 +304,6 @@ PermissionsBubbleDelegateView::PermissionsBubbleDelegateView(
   deny_button->SetStyle(views::Button::STYLE_BUTTON);
   button_layout->AddView(deny_button);
   deny_ = deny_button;
-
-  button_layout->AddPaddingRow(0, kBubbleOuterMargin);
 }
 
 PermissionsBubbleDelegateView::~PermissionsBubbleDelegateView() {
@@ -355,6 +344,12 @@ void PermissionsBubbleDelegateView::OnWidgetDestroying(views::Widget* widget) {
     owner_->Closing();
     owner_ = nullptr;
   }
+}
+
+gfx::Size PermissionsBubbleDelegateView::GetPreferredSize() const {
+  // TODO(estade): bubbles should default to this width.
+  const int kWidth = 320 - GetInsets().width();
+  return gfx::Size(kWidth, GetHeightForWidth(kWidth));
 }
 
 void PermissionsBubbleDelegateView::GetAccessibleState(ui::AXViewState* state) {

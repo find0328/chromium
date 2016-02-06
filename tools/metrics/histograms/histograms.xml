@@ -2162,6 +2162,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="AutodetectEncoding.Attempted" enum="BooleanAttempted">
+  <obsolete>
+    Deprecated as of 2/2016.
+  </obsolete>
   <owner>jinsukkim@chromium.org</owner>
   <summary>
     Whether the text encoding auto detection logic was attempted for a web page.
@@ -2178,6 +2181,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="AutodetectEncoding.Detected" enum="EncodingMethod"
     units="pages">
+  <obsolete>
+    Deprecated as of 2/2016.
+  </obsolete>
   <owner>jinsukkim@chromium.org</owner>
   <summary>
     The number of web pages whose encoding method is found by the auto detection
@@ -3442,7 +3448,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>ortuno@chromium.org</owner>
   <owner>scheib@chromium.org</owner>
   <summary>
-    Records the result of a device.connectGATT() call. Used to understand what
+    Records the result of a device.gatt.connect() call. Used to understand what
     errors developers are getting so we can target efforts toward the most
     common ones.
   </summary>
@@ -3771,6 +3777,24 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>kbr@chromium.org</owner>
   <summary>
     Records the context type names used to create canvas rendering contexts.
+  </summary>
+</histogram>
+
+<histogram name="Canvas.DisplayListFallbackReason"
+    enum="CanvasDisplayListFallbackReason">
+  <owner>junov@chromium.org</owner>
+  <summary>
+    The reasons why a canvas initially set to display list mode had to fall back
+    to direct rasterization mode.
+  </summary>
+</histogram>
+
+<histogram name="Canvas.GPUAccelerated2DCanvasDisableDeferralReason"
+    enum="CanvasGPUAccelerated2DCanvasDisableDeferralReason">
+  <owner>junov@chromium.org</owner>
+  <summary>
+    The reasons why a GPU accelerated canvas stopped deferring its rendering
+    operations.
   </summary>
 </histogram>
 
@@ -7200,13 +7224,6 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>Specified DevTools action has been taken.</summary>
 </histogram>
 
-<histogram name="DevTools.DrawerShown" enum="DevToolsDrawer">
-  <owner>sergeyv@chromium.org</owner>
-  <owner>samli@chromium.org</owner>
-  <owner>pfeldman@chromium.org</owner>
-  <summary>Specified DevTools drawer view was shown.</summary>
-</histogram>
-
 <histogram name="DevTools.InspectElement" units="ms">
   <owner>sergeyv@chromium.org</owner>
   <owner>vsevik@chromium.org</owner>
@@ -7219,12 +7236,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="DevTools.PanelShown" enum="DevToolsPanel">
   <owner>sergeyv@chromium.org</owner>
+  <owner>vsevik@chromium.org</owner>
   <owner>pfeldman@chromium.org</owner>
   <summary>Specified DevTools panel was shown.</summary>
 </histogram>
 
 <histogram name="DevTools.SettingChanged" enum="DevToolsSetting">
   <owner>sergeyv@chromium.org</owner>
+  <owner>vsevik@chromium.org</owner>
   <owner>pfeldman@chromium.org</owner>
   <summary>Specified DevTools setting was changed.</summary>
 </histogram>
@@ -19250,6 +19269,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Media.GPU.HasEverLostContext" enum="ContextProviderPhase">
+  <owner>dcastagna@chromium.org</owner>
+  <summary>
+    Records when a context provider is acquired in media, and when it's released
+    because a context loss has been detected.
+  </summary>
+</histogram>
+
 <histogram name="Media.GpuVideoDecoderInitializeStatus" enum="PipelineStatus">
   <owner>posciak@chromium.org</owner>
   <summary>Results of attempts to GpuVideoDecoder::Initialize().</summary>
@@ -19305,6 +19332,13 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>tommi@chromium.org</owner>
   <summary>
     Error codes that we encounter while setting up an AUAudioInputStream on Mac.
+  </summary>
+</histogram>
+
+<histogram name="Media.InputInvalidSampleRateMac" units="Hz">
+  <owner>henrika@chromium.org</owner>
+  <summary>
+    Invalid input sample rate when calling AUAudioInputStream::Open on Mac.
   </summary>
 </histogram>
 
@@ -21523,18 +21557,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Client.Helper.InitState" enum="NaClHelperStatus">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     When the browser started, what happened with the NaCl helper process?
   </summary>
 </histogram>
 
 <histogram name="NaCl.Client.Helper.StateOnFork" enum="NaClHelperStatus">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     When a NaCl application process was created, what had happened with the NaCl
     helper process when the browser was started?
@@ -21542,17 +21574,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Client.OSArch" enum="NaClOSArchEnum">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The OS/Architecture of a nexe that was loaded.</summary>
 </histogram>
 
 <histogram name="NaCl.HttpStatusCodeClass.Manifest.InstalledApp"
     enum="NaClHttpStatusCodeClass">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The status code returned when trying to load a manifest inside an installed
     app.
@@ -21561,9 +21591,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.HttpStatusCodeClass.Manifest.NotInstalledApp"
     enum="NaClHttpStatusCodeClass">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The status code returned when trying to load a manifest from a source other
     than an installed app.
@@ -21572,9 +21601,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.HttpStatusCodeClass.Nexe.InstalledApp"
     enum="NaClHttpStatusCodeClass">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The status code returned when trying to load a NaCl executable inside an
     installed app.
@@ -21583,9 +21611,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.HttpStatusCodeClass.Nexe.NotInstalledApp"
     enum="NaClHttpStatusCodeClass">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The status code returned when trying to load a NaCl executable from a source
     other than an installed app.
@@ -21593,17 +21620,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.LoadStatus.Plugin" enum="NaClPluginErrorCode">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The error code returned by NaCl's Chrome plugin.</summary>
 </histogram>
 
 <histogram name="NaCl.LoadStatus.Plugin.InstalledApp"
     enum="NaClPluginErrorCode">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The error code returned by NaCl's Chrome plugin, but only for installed
     apps.
@@ -21612,9 +21637,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.LoadStatus.Plugin.NotInstalledApp"
     enum="NaClPluginErrorCode">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The error code returned by NaCl's Chrome plugin, but excluding installed
     apps.
@@ -21622,17 +21646,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.LoadStatus.SelLdr" enum="NaClSelLdrErrorCode">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The error code returned by NaCl's sel_ldr.</summary>
 </histogram>
 
 <histogram name="NaCl.LoadStatus.SelLdr.InstalledApp"
     enum="NaClSelLdrErrorCode">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The error code returned by NaCl's sel_ldr, but only for installed apps.
   </summary>
@@ -21640,18 +21662,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.LoadStatus.SelLdr.NotInstalledApp"
     enum="NaClSelLdrErrorCode">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The error code returned by NaCl's sel_ldr, but excluding installed apps.
   </summary>
 </histogram>
 
 <histogram name="NaCl.Manifest.IsDataURI" enum="NaClManifestType">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     Was the manifest specified as a data URI rather than a .nmf file?
   </summary>
@@ -21661,25 +21681,22 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <obsolete>
     Deprecated 6/2011, renamed.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to download the manifset file for a Native Client module.
   </summary>
 </histogram>
 
 <histogram name="NaCl.ModuleUptime.Crash" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The time a NaCl module ran before it crashed.</summary>
 </histogram>
 
 <histogram name="NaCl.ModuleUptime.Normal" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The time a NaCl module ran without crashing, at shutdown.</summary>
 </histogram>
 
@@ -21687,9 +21704,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <obsolete>
     Deprecated 6/2011, renamed.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to download the main .nexe for a Native Client module.
   </summary>
@@ -21699,9 +21715,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <obsolete>
     Deprecated 6/2011, renamed.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The size of the main .nexe file downloaded for a Native Client module.
   </summary>
@@ -21711,9 +21726,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <obsolete>
     Deprecated 6/2011, renamed.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took between the Native Client plugin initialization and when
     proxied execution of the NaCl module begins. This is the general startup
@@ -21725,9 +21739,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <obsolete>
     Deprecated 6/2011, renamed.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took between the Native Client plugin initialization and when
     proxied execution of the NaCl module begins. This is the general startup
@@ -21736,9 +21749,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Options.PNaCl.OptLevel" enum="PNaClOptionsOptLevelEnum">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The optimization level set for the initial Portable Native Client
     translation from bitcode to native code.
@@ -21749,16 +21761,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <obsolete>
     Deprecated 6/2011, renamed.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The OS/Architecture of a nexe that was loaded.</summary>
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClCache.IsHit" enum="PNaClTranslationCacheEnum">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     Did the Portable Native Client translation cache find an executable
     translated from bitcode?
@@ -21766,9 +21776,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.CompileKBPerSec" units="KB/s">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The rate for compiling a Portable Native Client bitcode file to an object
     file in Kilobytes per second.
@@ -21776,9 +21785,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.CompileTime" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to compile a Portable Native Client bitcode file to an
     object file.
@@ -21786,9 +21794,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.LinkTime" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to link a Portable Native Client generated object file into
     a Native Client executable.
@@ -21796,18 +21803,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.LoadCompiler" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to load and validate the Portable Native Client compiler.
   </summary>
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.LoadLinker" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to load and validate the Portable Native Client linker.
   </summary>
@@ -21815,9 +21820,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.Perf.PNaClLoadTime.PctCompiledWhenFullyDownloaded"
     units="%">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The percentage of a Portable Native Client application that is compiled by
     the time the application is fully downloaded (compile and download happen in
@@ -21826,9 +21830,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.TotalUncachedKBPerSec" units="KB/s">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The rate for completely translating a Portable Native Client bitcode file
     into a Native Client executable and caching the result in Kilobytes per
@@ -21837,9 +21840,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.PNaClLoadTime.TotalUncachedTime" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The total time it took to completely translate a Portable Native Client
     bitcode file into a Native Client executable, and cache the result.
@@ -21847,32 +21849,28 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.ShutdownTime.Total" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The time it took the NaCl module to shut down.</summary>
 </histogram>
 
 <histogram name="NaCl.Perf.Size.Manifest" units="KB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The size of the manifest file.</summary>
 </histogram>
 
 <histogram name="NaCl.Perf.Size.Nexe" units="KB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The size of the main .nexe file downloaded for a Native Client module.
   </summary>
 </histogram>
 
 <histogram name="NaCl.Perf.Size.Pexe" units="KB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The size of the main .pexe bitcode file downloaded for a Portable Native
     Client module.
@@ -21880,9 +21878,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.Size.PexeNexeSizePct" units="%">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The size of the main .pexe bitcode file divided by the size of the .nexe
     that is the result of translating the bitcode file, times 100.
@@ -21890,9 +21887,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.Size.PNaClTranslatedNexe" units="KB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The size of the main .nexe file that is the result of translating a Portable
     Native Client .pexe bitcode file.  This reflects the amount of cache
@@ -21901,16 +21897,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.LoadModule" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>The time it took to load the NaCl module into sel_ldr.</summary>
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.LoadModulePerMB" units="milliseconds/MB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to load the NaCl module into sel_ldr.  Normalized by the
     size of the .nexe, in megabytes.
@@ -21918,18 +21912,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.ManifestDownload" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to download the manifset file for a Native Client module.
   </summary>
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.NaClOverhead" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took between the Native Client plugin initialization and when
     proxied execution of the NaCl module begins. This is the general startup
@@ -21939,9 +21931,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.Perf.StartupTime.NaClOverheadPerMB"
     units="milliseconds/MB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took between the Native Client plugin initialization and when
     proxied execution of the NaCl module begins. This is the general startup
@@ -21951,9 +21942,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.NexeDownload" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to download the main .nexe for a Native Client module.
   </summary>
@@ -21961,9 +21951,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <histogram name="NaCl.Perf.StartupTime.NexeDownloadPerMB"
     units="milliseconds/MB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took to download the main .nexe for a Native Client module.
     Normalized by the size of the .nexe, in megabytes.
@@ -21971,9 +21960,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.Total" units="ms">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took between the Native Client plugin initialization and when
     the NaCl module is ready to be used.
@@ -21981,9 +21969,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.Perf.StartupTime.TotalPerMB" units="milliseconds/MB">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The time it took between the Native Client plugin initialization and when
     the NaCl module is ready to be used.  Normalized by the size of the .nexe,
@@ -21996,9 +21983,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
     Deprecated 5/2011, data is duplicated by NaCl.NexeStartupTime, and
     normalizing to 'tab opens' is unusual.
   </obsolete>
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     The number of times that Native Client has been started by loading a .nexe
     compared to the number of times that a tab has been opened.
@@ -22006,18 +21992,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="NaCl.ValidationCache.Query" enum="NaClValidationCacheEnum">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     Did a validation cache query find a previously known validation result?
   </summary>
 </histogram>
 
 <histogram name="NaCl.ValidationCache.Set" enum="NaClValidationCacheEnum">
-  <owner>jvoung@chromium.org</owner>
-  <owner>mackinlay@google.com</owner>
-  <owner>ncbray@chromium.org</owner>
+  <owner>sehr@chromium.org</owner>
+  <owner>bradnelson@chromium.org</owner>
   <summary>
     Was the validation cache updated with a new validation result?
   </summary>
@@ -23374,6 +23358,13 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     For each successful HTTPS request, whether it used the SSL version fallback.
     The value indicates the SSL version the request fell back on
+  </summary>
+</histogram>
+
+<histogram name="Net.ContentDecodingFailed.FilterType" enum="NetFilterType">
+  <owner>rdsmith@chromium.org</owner>
+  <summary>
+    For each CONTENT_DECODING_FAILED, record the filter that failed.
   </summary>
 </histogram>
 
@@ -26009,6 +26000,13 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     The final maximum packet size of the connection used by the client before
     the session is closed.
+  </summary>
+</histogram>
+
+<histogram name="Net.QuicSession.CloseAllSessionsError" enum="NetErrorCodes">
+  <owner>rch@chromium.org</owner>
+  <summary>
+    The network error code which resulted in all sessions being closed.
   </summary>
 </histogram>
 
@@ -31013,6 +31011,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
     enum="BooleanSuccess">
   <owner>peter@chromium.org</owner>
   <owner>deepak.m1@samsung.com</owner>
+  <obsolete>
+    Deprecated 01/2016, no longer used.
+  </obsolete>
   <summary>
     Recorded when the data associated with a persistent Web Notification gets
     deleted. The value will be true if data deletion succeeded, and false if
@@ -31027,6 +31028,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     Recorded delivery status for persistent notification clicks to a Service
     Worker when handling a click on a persistent WebNotification has finished.
+  </summary>
+</histogram>
+
+<histogram name="Notifications.PersistentWebNotificationCloseResult"
+    enum="PlatformNotificationStatus">
+  <owner>peter@chromium.org</owner>
+  <owner>nsatragno@chromium.org</owner>
+  <summary>
+    Records delivery status for persistent notification close events sent to a
+    Service Worker when the event has been handled.
   </summary>
 </histogram>
 
@@ -40908,18 +40919,12 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
-<histogram name="SafeBrowsing.GetV4HashResult" enum="SB2GetHashResult">
+<histogram name="SafeBrowsing.GetV4HashResult"
+    enum="SafeBrowsingGetV4HashResult">
   <owner>kcarattini@chromium.org</owner>
   <summary>
-    Track return status from V4 GetHash attempts (STATUS_200, STATUS_204,
-    NETWORK_ERROR, HTTP_ERROR, BACKOFF_ERROR, PARSE_ERROR, NETWORK_ERROR,
-    HTTP_ERROR, BACKOFF_ERROR and MIN_WAIT_DURATION_ERROR), whether parsing a
-    200 result failed (PARSE_ERROR), and dispensation of returned values (EMPTY,
-    HIT, MISS). EMPTY means the response had no full hashes, and should contain
-    all of the 204 responses plus all *_ERROR cases.  HIT means that one of the
-    full hashes matched. MISS means that none of the hashes matched (there was a
-    prefix collision). The buckets of this histogram overlap, so the counts
-    cannot be used as percentages.
+    Track return status from V4 GetHash attempts. The buckets of this histogram
+    overlap, so the counts cannot be used as percentages.
   </summary>
 </histogram>
 
@@ -44435,6 +44440,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="ServiceWorker.NotificationCloseEvent.Time" units="ms">
+  <owner>nsatragno@chromium.org</owner>
+  <owner>peter@chromium.org</owner>
+  <summary>
+    The time taken between dispatching a NotificationCloseEvent to a Service
+    Worker and receiving a message that it finished handling the event. Includes
+    the time for the waitUntil() promise to settle.
+  </summary>
+</histogram>
+
 <histogram name="ServiceWorker.PageLoad" enum="ServiceWorkerSite">
   <owner>falken@chromium.org</owner>
   <summary>Counts page loads controlled by a service worker.</summary>
@@ -47186,6 +47201,21 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
     The count of responses that may be parsed as JavaScript among not blocked
     responses with an XML content type. Sampled with value 1 when the first
     network packet of a response of this type is received.
+  </summary>
+</histogram>
+
+<histogram name="Skia.DrawTiled" enum="BooleanTiled">
+  <owner>ericrk@chromium.org</owner>
+  <summary>
+    Whether a call to drawBitmap(Rect) or drawImage(Rect) used the tiled or
+    non-tiled rasterization path.
+  </summary>
+</histogram>
+
+<histogram name="Skia.LockTexturePath" enum="SkiaLockTexturePath">
+  <owner>ericrk@chromium.org</owner>
+  <summary>
+    The path taken by Skia when it attempts to lock a texture for use.
   </summary>
 </histogram>
 
@@ -58687,6 +58717,11 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="1" label="Terminated"/>
 </enum>
 
+<enum name="BooleanTiled" type="int">
+  <int value="0" label="Not tiled"/>
+  <int value="1" label="Tiled"/>
+</enum>
+
 <enum name="BooleanTimedOut" type="int">
   <int value="0" label="Did not time out"/>
   <int value="1" label="Timed out"/>
@@ -58795,6 +58830,40 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="7" label="DisplayList2DCanvasFallbackToRaster"/>
   <int value="8" label="GPUAccelerated2DCanvasDeferralDisabled"/>
   <int value="10" label="GPUAccelerated2DCanvasSurfaceCreationFailed"/>
+</enum>
+
+<enum name="CanvasDisplayListFallbackReason" type="int">
+  <int value="0" label="Unknown (Should not be seen in production)."/>
+  <int value="1" label="Canvas not cleared between consecutive frames."/>
+  <int value="2"
+      label="Canvas state stack too large (unbalanced save/restore?)."/>
+  <int value="3" label="Direct pixel write."/>
+  <int value="4" label="Flush for initial clear."/>
+  <int value="5" label="Flush after drawing from a WebGL canvas."/>
+  <int value="6" label="Acquiring snapshot for getImageData()."/>
+  <int value="7" label="Acquiring snapshot for WebGL texture upload."/>
+  <int value="8"
+      label="Acquiring snapshot for direct painting of canvas contents."/>
+  <int value="9" label="Acquiring snapshot for toDataURL()"/>
+  <int value="10" label="Acquiring snapshot for toBlob()."/>
+  <int value="11" label="Acquiring snapshot for capturing to a stream."/>
+  <int value="12" label="Acquiring snapshot for drawImage() source."/>
+  <int value="13" label="Acquiring snapshot for createPattern()."/>
+  <int value="14" label="Expensive overdraw heuristic."/>
+  <int value="15" label="Darwing a texture-backed pattern."/>
+  <int value="16" label="Drawing a video."/>
+  <int value="17" label="Drawing an animated 2D canvas."/>
+  <int value="18" label="Sub-pixel text anti-aliasing support."/>
+</enum>
+
+<enum name="CanvasGPUAccelerated2DCanvasDisableDeferralReason" type="int">
+  <int value="0" label="Unknown (Should not be seen in production)."/>
+  <int value="1" label="Canvas not cleared between consecutive frames."/>
+  <int value="2"
+      label="Canvas state stack too large (unbalanced save/restore?)."/>
+  <int value="3" label="Direct pixel write."/>
+  <int value="4" label="Draw image of animated 2d canvas"/>
+  <int value="5" label="Sub-pixel text anti-aliasing support (expect 0)"/>
 </enum>
 
 <enum name="CanvasHibernationEvent" type="int">
@@ -59723,12 +59792,17 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     The content type when user chooses save link context menu option
   </summary>
-  <int value="0" label="Unkown"/>
+  <int value="0" label="Unknown"/>
   <int value="1" label="Text"/>
   <int value="2" label="Image"/>
   <int value="3" label="Audio"/>
   <int value="4" label="Video"/>
   <int value="5" label="Pdf"/>
+</enum>
+
+<enum name="ContextProviderPhase" type="int">
+  <int value="0" label="Acquired"/>
+  <int value="1" label="Released"/>
 </enum>
 
 <enum name="ContextualSearchBasePageProtocol" type="int">
@@ -60092,6 +60166,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="5" label="Error: Allocator is corrupt."/>
   <int value="6" label="Error: Allocator is full."/>
   <int value="7" label="Error: Allocator failed (unknown error)."/>
+  <int value="8" label="Error: Unknown histogram type."/>
 </enum>
 
 <enum name="CredentialFilteredType" type="int">
@@ -60729,15 +60804,6 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="15" label="Command evaluated in console panel"/>
   <int value="16" label="DOM properties expanded"/>
   <int value="17" label="Resized view in responsive mode"/>
-</enum>
-
-<enum name="DevToolsDrawer" type="int">
-  <int value="1" label="Console"/>
-  <int value="2" label="Animations"/>
-  <int value="3" label="Network config"/>
-  <int value="4" label="Rendering"/>
-  <int value="5" label="Sensors"/>
-  <int value="6" label="Search"/>
 </enum>
 
 <enum name="DevToolsPanel" type="int">
@@ -63204,6 +63270,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="391" label="EASY_UNLOCK_PRIVATE_ON_SEND_COMPLETED"/>
   <int value="392" label="DISPLAY_SOURCE_ON_SINKS_UPDATED"/>
   <int value="393" label="INPUT_IME_ON_COMPOSITION_BOUNDS_CHANGED"/>
+  <int value="394" label="INPUT_METHOD_PRIVATE_ON_IME_MENU_ACTIVATION_CHANGED"/>
 </enum>
 
 <enum name="ExtensionFileWriteResult" type="int">
@@ -66133,6 +66200,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="1150" label="MediaStreamConstraintsNameValue"/>
   <int value="1151" label="MediaStreamConstraintsFromDictionary"/>
   <int value="1152" label="MediaStreamConstraintsConformant"/>
+  <int value="1153" label="CSSSelectorIndirectAdjacent"/>
+  <int value="1154" label="NodeTreeRoot"/>
+  <int value="1155" label="BluetoothDeviceConnectGATT"/>
 </enum>
 
 <enum name="FetchRequestMode" type="int">
@@ -66952,9 +67022,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="1" label="Download Folder"/>
   <int value="2" label="Removable Disk"/>
   <int value="3" label="Archive File"/>
-  <int value="4" label="Cloud Device"/>
-  <int value="5" label="FileSystemProvider API"/>
-  <int value="6" label="MTP (Media Transfer Protocol) Device"/>
+  <int value="4" label="FileSystemProvider API"/>
+  <int value="5" label="MTP (Media Transfer Protocol) Device"/>
 </enum>
 
 <enum name="FileSystemDatabaseInitResult" type="int">
@@ -72591,6 +72660,20 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="21" label="Show Offline Copy Button Clicked"/>
 </enum>
 
+<enum name="NetFilterType" type="int">
+  <summary>
+    Specific content decoding filter.  See   net::Filter::FilterType for more
+    details
+  </summary>
+  <int value="0" label="Brotli"/>
+  <int value="1" label="Deflate"/>
+  <int value="2" label="GZIP"/>
+  <int value="3" label="GzipHelpingSdch"/>
+  <int value="4" label="SDCH"/>
+  <int value="5" label="SDCHPossible"/>
+  <int value="6" label="Unsupported"/>
+</enum>
+
 <enum name="NetInternalsUiFeature" type="int">
   <int value="0" label="NetInternals"/>
   <int value="1" label="Connection tester"/>
@@ -76207,7 +76290,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="22" label="INVALID_HEADER_ID"/>
   <int value="23" label="INVALID_NEGOTIATED_VALUE"/>
   <int value="24" label="DECOMPRESSION_FAILURE"/>
-  <int value="25" label="CONNECTION_TIMED_OUT"/>
+  <int value="25" label="NETWORK_IDLE_TIMEOUT"/>
   <int value="26" label="ERROR_MIGRATING_ADDRESS"/>
   <int value="27" label="PACKET_WRITE_ERROR"/>
   <int value="28" label="HANDSHAKE_FAILED"/>
@@ -76249,11 +76332,23 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="64" label="FLOW_CONTROL_INVALID_WINDOW"/>
   <int value="65" label="CRYPTO_UPDATE_BEFORE_HANDSHAKE_COMPLETE"/>
   <int value="66" label="TOO_MANY_UNFINISHED_STREAMS"/>
-  <int value="67" label="CONNECTION_OVERALL_TIMED_OUT"/>
-  <int value="68" label="QUIC_TOO_MANY_OUTSTANDING_SENT_PACKETS"/>
-  <int value="69" label="QUIC_TOO_MANY_OUTSTANDING_RECEIVED_PACKETS"/>
-  <int value="70" label="QUIC_CONNECTION_CANCELLED"/>
-  <int value="71" label="QUIC_BAD_PACKET_LOSS_RATE"/>
+  <int value="67" label="HANDSHAKE_TIMEOUT"/>
+  <int value="68" label="TOO_MANY_OUTSTANDING_SENT_PACKETS"/>
+  <int value="69" label="TOO_MANY_OUTSTANDING_RECEIVED_PACKETS"/>
+  <int value="70" label="CONNECTION_CANCELLED"/>
+  <int value="71" label="BAD_PACKET_LOSS_RATE"/>
+  <int value="72" label="CRYPTO_HANDSHAKE_STATELESS_REJECT"/>
+  <int value="73" label="PUBLIC_RESETS_POST_HANDSHAKE"/>
+  <int value="74" label="TIMEOUTS_WITH_OPEN_STREAMS"/>
+  <int value="75" label="FAILED_TO_SERIALIZE_PACKET"/>
+  <int value="76" label="TOO_MANY_AVAILABLE_STREAMS"/>
+  <int value="77" label="UNENCRYPTED_FEC_DATA"/>
+  <int value="78" label="INVALID_PATH_CLOSE_DATA"/>
+  <int value="79" label="BAD_MULTIPATH_FLAG"/>
+  <int value="80" label="IP_ADDRESS_CHANGED"/>
+  <int value="81" label="CONNECTION_MIGRATION_NO_MIGRATABLE_STREAMS"/>
+  <int value="82" label="CONNECTION_MIGRATION_TOO_MANY_CHANGES"/>
+  <int value="83" label="CONNECTION_MIGRATION_NO_NEW_NETWORK"/>
 </enum>
 
 <enum name="QuicHandshakeFailureReason" type="int">
@@ -76745,6 +76840,15 @@ To add a new entry, add it with any value and run test to compute valid value.
 <enum name="SadTabKind" type="int">
   <int value="0" label="Crash (Aw, Snap!)"/>
   <int value="1" label="Kill (He's dead, Jim!)"/>
+</enum>
+
+<enum name="SafeBrowsingGetV4HashResult" type="int">
+  <int value="0" label="STATUS_200"/>
+  <int value="1" label="PARSE_ERROR (subset of STATUS_200)"/>
+  <int value="2" label="NETWORK_ERROR"/>
+  <int value="3" label="HTTP_ERROR"/>
+  <int value="4" label="BACKOFF_ERROR"/>
+  <int value="5" label="MIN_WAIT_DURATION_ERROR"/>
 </enum>
 
 <enum name="SafeBrowsingParseV4HashResult" type="int">
@@ -78299,6 +78403,15 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="2" label="JSON"/>
   <int value="3" label="Plain"/>
   <int value="4" label="Others"/>
+</enum>
+
+<enum name="SkiaLockTexturePath" type="int">
+  <int value="0" label="Failure"/>
+  <int value="1" label="Pre-Existing"/>
+  <int value="2" label="Native"/>
+  <int value="3" label="Compressed"/>
+  <int value="4" label="YUV"/>
+  <int value="5" label="RGBA"/>
 </enum>
 
 <enum name="SnippetsInteractions" type="int">
@@ -87246,13 +87359,14 @@ To add a new entry, add it with any value and run test to compute valid value.
 </histogram_suffixes>
 
 <histogram_suffixes name="V8SpecialApps" separator=".">
+  <suffix name="calendar" label="Custom histogram for Calendar"/>
   <suffix name="docs" label="Custom histogram for Google Docs and Drive"/>
   <suffix name="gmail" label="Custom histogram for GMail"/>
   <suffix name="inbox" label="Custom histogram for Inbox"/>
   <suffix name="plus" label="Custom histogram for Google+"/>
-  <suffix name="youtube" label="Custom histogram for Youtube"/>
   <suffix name="top10"
       label="Custom histogram for Alexa's Top10 non-Google sites"/>
+  <suffix name="youtube" label="Custom histogram for Youtube"/>
   <affected-histogram name="V8.MemoryExternalFragmentationTotal"/>
   <affected-histogram name="V8.MemoryHeapCommitted"/>
   <affected-histogram name="V8.MemoryHeapSampleTotalCommitted"/>

@@ -299,10 +299,6 @@
       'renderer/media/cdm/render_cdm_factory.h',
       'renderer/media/media_permission_dispatcher.cc',
       'renderer/media/media_permission_dispatcher.h',
-      'renderer/media/media_permission_dispatcher_impl.cc',
-      'renderer/media/media_permission_dispatcher_impl.h',
-      'renderer/media/media_permission_dispatcher_proxy.cc',
-      'renderer/media/media_permission_dispatcher_proxy.h',
       'renderer/media/media_stream_audio_level_calculator.cc',
       'renderer/media/media_stream_audio_level_calculator.h',
       'renderer/media/media_stream_audio_track.cc',
@@ -761,6 +757,7 @@
       'renderer/p2p/socket_client_impl.h',
       'renderer/p2p/socket_dispatcher.cc',
       'renderer/p2p/socket_dispatcher.h',
+      'renderer/renderer_features.h',
     ],
     # Stuff only used when both WebRTC and plugins are enabled.
     'private_renderer_plugin_webrtc_sources': [

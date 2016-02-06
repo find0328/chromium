@@ -117,6 +117,7 @@
 #include "ash/system/chromeos/devicetype_utils.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/chromeos/accessibility/accessibility_util.h"
+#include "chrome/browser/chromeos/arc/arc_auth_service.h"
 #include "chrome/browser/chromeos/login/users/wallpaper/wallpaper_manager.h"
 #include "chrome/browser/chromeos/net/wake_on_wifi_manager.h"
 #include "chrome/browser/chromeos/policy/browser_policy_connector_chromeos.h"
@@ -1048,7 +1049,8 @@ void BrowserOptionsHandler::InitializePage() {
   }
 
   if (!arc::ArcBridgeService::GetEnabled(
-          base::CommandLine::ForCurrentProcess())) {
+          base::CommandLine::ForCurrentProcess()) ||
+      arc::ArcAuthService::IsOptInVerificationDisabled()) {
     web_ui()->CallJavascriptFunction("BrowserOptions.hideAndroidAppsSection");
   }
 #endif
@@ -1482,7 +1484,7 @@ void BrowserOptionsHandler::HandleSelectDownloadLocation(
   select_folder_dialog_ = ui::SelectFileDialog::Create(
       this, new ChromeSelectFilePolicy(web_ui()->GetWebContents()));
   ui::SelectFileDialog::FileTypeInfo info;
-  info.support_drive = true;
+  info.allowed_paths = ui::SelectFileDialog::FileTypeInfo::NATIVE_OR_DRIVE_PATH;
   select_folder_dialog_->SelectFile(
       ui::SelectFileDialog::SELECT_FOLDER,
       l10n_util::GetStringUTF16(IDS_OPTIONS_DOWNLOADLOCATION_BROWSE_TITLE),

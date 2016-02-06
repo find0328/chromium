@@ -535,6 +535,14 @@ const FeatureEntry::Choice kHerbPrototypeChoices[] = {
 };
 #endif  // defined(OS_ANDROID)
 
+const FeatureEntry::Choice kEnableUseZoomForDSFChoices[] = {
+  { IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_CHOICE_DEFAULT, "", ""},
+  { IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_CHOICE_ENABLED,
+    switches::kEnableUseZoomForDSF, "true" },
+  { IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_CHOICE_DISABLED,
+    switches::kEnableUseZoomForDSF, "false" },
+};
+
 // RECORDING USER METRICS FOR FLAGS:
 // -----------------------------------------------------------------------------
 // The first line of the entry is the internal name. If you'd like to gather
@@ -1340,7 +1348,7 @@ const FeatureEntry kFeatureEntries[] = {
     {"enable-password-separated-signin-flow",
      IDS_FLAGS_ENABLE_PASSWORD_SEPARATED_SIGNIN_FLOW_NAME,
      IDS_FLAGS_ENABLE_PASSWORD_SEPARATED_SIGNIN_FLOW_DESCRIPTION,
-     kOsWin | kOsLinux,
+     kOsMac | kOsWin | kOsLinux,
      ENABLE_DISABLE_VALUE_TYPE(switches::kEnablePasswordSeparatedSigninFlow,
                                switches::kDisablePasswordSeparatedSigninFlow)},
     {"enable-google-profile-info",
@@ -1726,7 +1734,7 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_NAME,
      IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_DESCRIPTION,
      kOsDesktop,
-     SINGLE_VALUE_TYPE(switches::kEnableUseZoomForDSF)},
+     MULTI_VALUE_TYPE(kEnableUseZoomForDSFChoices)},
 #if defined(OS_MACOSX)
     {"enable-harfbuzz-rendertext",
      IDS_FLAGS_HARFBUZZ_RENDERTEXT_NAME,

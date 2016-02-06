@@ -92,6 +92,7 @@
 #include "third_party/WebKit/public/platform/WebMediaStreamCenter.h"
 #include "third_party/WebKit/public/platform/WebMediaStreamCenterClient.h"
 #include "third_party/WebKit/public/platform/WebPluginListBuilder.h"
+#include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
 #include "third_party/WebKit/public/platform/WebVector.h"
 #include "third_party/WebKit/public/platform/modules/device_orientation/WebDeviceMotionListener.h"
@@ -283,18 +284,6 @@ void RendererBlinkPlatformImpl::Shutdown() {
   // need to clear that map now, just before blink::shutdown() is called.
   sandbox_support_.reset();
 #endif
-}
-
-//------------------------------------------------------------------------------
-
-double RendererBlinkPlatformImpl::currentTimeSeconds() {
-  // TODO(alexclarke): Change the way this is plumbed through to blink.
-  return renderer_scheduler_->VirtualTimeSeconds();
-}
-
-double RendererBlinkPlatformImpl::monotonicallyIncreasingTimeSeconds() {
-  // TODO(alexclarke): Change the way this is plumbed through to blink.
-  return renderer_scheduler_->MonotonicallyIncreasingVirtualTimeSeconds();
 }
 
 //------------------------------------------------------------------------------
@@ -697,7 +686,8 @@ WebAudioDevice* RendererBlinkPlatformImpl::createAudioDevice(
     unsigned channels,
     double sample_rate,
     WebAudioDevice::RenderCallback* callback,
-    const blink::WebString& input_device_id) {
+    const blink::WebString& input_device_id,
+    const blink::WebSecurityOrigin& security_origin) {
   // Use a mock for testing.
   blink::WebAudioDevice* mock_device =
       GetContentClient()->renderer()->OverrideCreateAudioDevice(sample_rate);
@@ -756,7 +746,8 @@ WebAudioDevice* RendererBlinkPlatformImpl::createAudioDevice(
                                 buffer_size);
   params.set_channels_for_discrete(channels);
 
-  return new RendererWebAudioDeviceImpl(params, callback, session_id);
+  return new RendererWebAudioDeviceImpl(
+      params, callback, session_id, static_cast<url::Origin>(security_origin));
 }
 
 bool RendererBlinkPlatformImpl::loadAudioResource(

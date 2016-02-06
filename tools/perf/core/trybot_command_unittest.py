@@ -72,7 +72,7 @@ class TrybotCommandTest(unittest.TestCase):
 
   def _MockTryserverJson(self, bots_dict):
     data = mock.Mock()
-    data.read.return_value = json.dumps({'builders': bots_dict})
+    data.read.return_value = json.dumps(bots_dict)
     self._urllib2_mock.urlopen.return_value = data
 
   def testFindAllBrowserTypesList(self):
@@ -394,6 +394,27 @@ class TrybotCommandTest(unittest.TestCase):
          '  "target_arch": "x64",\n'
          '  "truncate_percent": "0"\n'
          '}'), config)
+
+  def testConfigWinX64WithNoHyphen(self):
+    config = self._GetConfigForTrybot(
+        'winx64nvidia', 'win-x64', 'currentwork', 'tools/run-perf-test.cfg')
+    self.assertEquals(
+        ('config = {\n'
+         '  "command": "python tools\\\\perf\\\\run_benchmark '
+         '--browser=release_x64 sunspider",\n'
+         '  "max_time_minutes": "120",\n'
+         '  "repeat_count": "1",\n'
+         '  "target_arch": "x64",\n'
+         '  "truncate_percent": "0"\n'
+         '}'), config)
+
+  def testUnsupportedTrybot(self):
+    self.assertRaises(
+        trybot_command.TrybotError,
+        trybot_command._GetBuilderNames,
+        'arms-nvidia',
+        {'win_perf_bisect': 'stuff'}
+    )
 
   def testConfigBlink(self):
     config = self._GetConfigForTrybot(

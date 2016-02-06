@@ -71,6 +71,8 @@ LayerImpl::LayerImpl(LayerTreeImpl* tree_impl,
       contents_opaque_(false),
       is_root_for_isolated_group_(false),
       use_parent_backface_visibility_(false),
+      use_local_transform_for_backface_visibility_(false),
+      should_check_backface_visibility_(false),
       draws_content_(false),
       hide_layer_and_subtree_(false),
       transform_is_invertible_(true),
@@ -554,13 +556,19 @@ InputHandler::ScrollStatus LayerImpl::TryScroll(
     }
   }
 
-  if ((type == InputHandler::WHEEL || type == InputHandler::ANIMATED_WHEEL) &&
-      layer_tree_impl_->have_wheel_event_handlers()) {
-    TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed WheelEventHandlers");
-    scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
-    scroll_status.main_thread_scrolling_reasons =
-        MainThreadScrollingReason::kEventHandlers;
-    return scroll_status;
+  if (type == InputHandler::WHEEL || type == InputHandler::ANIMATED_WHEEL) {
+    EventListenerProperties event_properties =
+        layer_tree_impl_->event_listener_properties(
+            EventListenerClass::kMouseWheel);
+    if (event_properties == EventListenerProperties::kBlocking ||
+        (!layer_tree_impl_->settings().use_mouse_wheel_gestures &&
+         event_properties == EventListenerProperties::kPassive)) {
+      TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed WheelEventHandlers");
+      scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
+      scroll_status.main_thread_scrolling_reasons =
+          MainThreadScrollingReason::kEventHandlers;
+      return scroll_status;
+    }
   }
 
   if (!scrollable()) {
@@ -628,6 +636,9 @@ void LayerImpl::PushPropertiesTo(LayerImpl* layer) {
       should_flatten_transform_from_property_tree_);
   layer->set_draw_blend_mode(draw_blend_mode_);
   layer->SetUseParentBackfaceVisibility(use_parent_backface_visibility_);
+  layer->SetUseLocalTransformForBackfaceVisibility(
+      use_local_transform_for_backface_visibility_);
+  layer->SetShouldCheckBackfaceVisibility(should_check_backface_visibility_);
   layer->SetTransformAndInvertibility(transform_, transform_is_invertible_);
 
   layer->SetScrollClipLayer(scroll_clip_layer_id_);

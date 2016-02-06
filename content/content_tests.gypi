@@ -58,8 +58,6 @@
       'public/test/ppapi_test_utils.h',
       'public/test/render_view_test.cc',
       'public/test/render_view_test.h',
-      'public/test/render_widget_test.cc',
-      'public/test/render_widget_test.h',
       'public/test/sandbox_file_system_test_helper.cc',
       'public/test/sandbox_file_system_test_helper.h',
       'public/test/test_browser_context.cc',
@@ -1022,6 +1020,17 @@
   'conditions': [
     ['test_isolation_mode != "noop"', {
       'targets': [
+        {
+          # GN: //content/test:content_site_isolation_browsertests_run
+          'target_name': 'content_site_isolation_browsertests_run',
+          'type': 'none',
+          'dependencies': [
+            'content_browsertests_run',
+          ],
+          'sources': [
+            'content_site_isolation_browsertests.isolate',
+          ],
+        },
         {
           'target_name': 'content_browsertests_run',
           'type': 'none',

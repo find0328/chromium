@@ -14,7 +14,6 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/singleton.h"
-#include "base/metrics/histogram.h"
 #include "base/rand_util.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
@@ -65,10 +64,10 @@
 #include "third_party/WebKit/public/platform/WebData.h"
 #include "third_party/WebKit/public/platform/WebFloatPoint.h"
 #include "third_party/WebKit/public/platform/WebMemoryDumpProvider.h"
+#include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
 #include "third_party/WebKit/public/platform/WebWaitableEvent.h"
-#include "third_party/WebKit/public/web/WebSecurityOrigin.h"
 #include "ui/base/layout.h"
 #include "ui/events/gestures/blink/web_gesture_curve_impl.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
@@ -577,28 +576,6 @@ blink::WebWaitableEvent* BlinkPlatformImpl::waitMultipleEvents(
   size_t idx = base::WaitableEvent::WaitMany(events.data(), events.size());
   DCHECK_LT(idx, web_events.size());
   return web_events[idx];
-}
-
-void BlinkPlatformImpl::histogramCustomCounts(
-    const char* name, int sample, int min, int max, int bucket_count) {
-  // Copied from histogram macro, but without the static variable caching
-  // the histogram because name is dynamic.
-  base::HistogramBase* counter =
-      base::Histogram::FactoryGet(name, min, max, bucket_count,
-          base::HistogramBase::kUmaTargetedHistogramFlag);
-  DCHECK_EQ(name, counter->histogram_name());
-  counter->Add(sample);
-}
-
-void BlinkPlatformImpl::histogramEnumeration(
-    const char* name, int sample, int boundary_value) {
-  // Copied from histogram macro, but without the static variable caching
-  // the histogram because name is dynamic.
-  base::HistogramBase* counter =
-      base::LinearHistogram::FactoryGet(name, 1, boundary_value,
-          boundary_value + 1, base::HistogramBase::kUmaTargetedHistogramFlag);
-  DCHECK_EQ(name, counter->histogram_name());
-  counter->Add(sample);
 }
 
 void BlinkPlatformImpl::registerMemoryDumpProvider(

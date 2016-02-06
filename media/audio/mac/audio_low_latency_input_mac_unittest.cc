@@ -191,23 +191,21 @@ TEST_F(MacAudioInputTest, AUAudioInputStreamMiscCallingSequences) {
   AudioInputStream* ais = CreateDefaultAudioInputStream();
   AUAudioInputStream* auais = static_cast<AUAudioInputStream*>(ais);
 
-  // Open(), Open() should fail the second time.
   EXPECT_TRUE(ais->Open());
-  EXPECT_FALSE(ais->Open());
 
   MockAudioInputCallback sink;
 
   // Start(), Start() is a valid calling sequence (second call does nothing).
   ais->Start(&sink);
-  EXPECT_TRUE(auais->started());
+  EXPECT_TRUE(auais->IsRunning());
   ais->Start(&sink);
-  EXPECT_TRUE(auais->started());
+  EXPECT_TRUE(auais->IsRunning());
 
   // Stop(), Stop() is a valid calling sequence (second call does nothing).
   ais->Stop();
-  EXPECT_FALSE(auais->started());
+  EXPECT_FALSE(auais->IsRunning());
   ais->Stop();
-  EXPECT_FALSE(auais->started());
+  EXPECT_FALSE(auais->IsRunning());
 
   ais->Close();
 }

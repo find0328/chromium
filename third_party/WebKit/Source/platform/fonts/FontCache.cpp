@@ -31,6 +31,7 @@
 
 #include "platform/FontFamilyNames.h"
 
+#include "platform/Histogram.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/fonts/AlternateFontFamily.h"
 #include "platform/fonts/FontCacheClient.h"
@@ -194,6 +195,41 @@ SimpleFontData* FontCache::getNonRetainedLastResortFallbackFont(const FontDescri
     return getLastResortFallbackFont(fontDescription, DoNotRetain).leakRef();
 }
 
+template <FontFallbackPriority fallbackPriority>
+const Vector<AtomicString>* FontCache::initAndGetFontListForFallbackPriority(const FontDescription& fontDescription)
+{
+    DEFINE_STATIC_LOCAL(Vector<AtomicString>, fontsList, ());
+    DEFINE_STATIC_LOCAL(bool, fontsListInitialized, (false));
+    if (fontsListInitialized)
+        return &fontsList;
+
+    for (auto fontCandidate :
+        platformFontListForFallbackPriority(fallbackPriority)) {
+        if (isPlatformFontAvailable(fontDescription, fontCandidate))
+            fontsList.append(fontCandidate);
+    }
+    fontsListInitialized = true;
+    return &fontsList;
+}
+
+const Vector<AtomicString>* FontCache::fontListForFallbackPriority(const FontDescription& fontDescription, FontFallbackPriority fallbackPriority)
+{
+    // Explicit template instantiations for valid values.
+    switch (fallbackPriority) {
+    case FontFallbackPriority::Symbols:
+        return initAndGetFontListForFallbackPriority<FontFallbackPriority::Symbols>(fontDescription);
+    case FontFallbackPriority::Math:
+        return initAndGetFontListForFallbackPriority<FontFallbackPriority::Math>(fontDescription);
+    case FontFallbackPriority::EmojiText:
+        return initAndGetFontListForFallbackPriority<FontFallbackPriority::EmojiText>(fontDescription);
+    case FontFallbackPriority::EmojiEmoji:
+        return initAndGetFontListForFallbackPriority<FontFallbackPriority::EmojiEmoji>(fontDescription);
+    default:
+        ASSERT_NOT_REACHED();
+        return nullptr;
+    }
+}
+
 void FontCache::releaseFontData(const SimpleFontData* fontData)
 {
     ASSERT(gFontDataCache);
@@ -250,7 +286,8 @@ static inline void purgeFallbackListShaperCache()
         }
         gFallbackListShaperCache->clear();
     }
-    Platform::current()->histogramCustomCounts("Blink.Fonts.ShapeCache", items, 1, 1000000, 50);
+    DEFINE_STATIC_LOCAL(CustomCountHistogram, shapeCacheHistogram, ("Blink.Fonts.ShapeCache", 1, 1000000, 50));
+    shapeCacheHistogram.count(items);
 }
 
 void FontCache::invalidateShapeCache()

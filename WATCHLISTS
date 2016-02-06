@@ -600,9 +600,6 @@
     'origin_trials': {
       'filepath': 'origin_trials',
     },
-    'overview_mode': {
-      'filepath': 'ash/wm/overview/',
-    },
     'ozone': {
       'filepath': 'ui/ozone/|'\
         'ui/events/ozone/|'\
@@ -842,11 +839,6 @@
     'views': {
       # Applies to all files and subdirs within this directory.
       'filepath': '^ui/views/',
-    },
-    'views_core': {
-      'filepath': 'ui/views/view.h|'\
-                  'ui/views/view.cc|'\
-                  'ui/views/widget/',
     },
     'views_corewm': {
       'filepath': 'ui/views/corewm/',
@@ -1167,6 +1159,9 @@
     'blink_spellcheck' : {
       'filepath': 'third_party/WebKit/Source/core/editing/spellcheck'
     },
+    'blink_spv2_layout_tests': {
+      'filepath': 'third_party/WebKit/LayoutTests/virtual/spv2'
+    },
     'blink_style': {
       'filepath': 'third_party/WebKit/.*(style/|Style)',
     },
@@ -1387,8 +1382,7 @@
     'ios_chrome': ['sdefresne+watch@chromium.org'],
     'ipc': ['jam@chromium.org', 'darin-cc@chromium.org'],
     'login': ['vabr+watchlistlogin@chromium.org'],
-    'libwebp': ['urvang@chromium.org', 'jzern@chromium.org',
-                'skal@google.com', 'vikasa@google.com'],
+    'libwebp': ['urvang@chromium.org', 'jzern@chromium.org', 'skal@google.com'],
     'libvpx': ['tomfinegan@chromium.org', 'jzern@chromium.org',
                'fgalligan@chromium.org', 'johannkoenig@chromium.org'],
     'linux_fonts': ['derat+watch@chromium.org'],
@@ -1435,7 +1429,6 @@
     'options': ['dbeam+watch-options@chromium.org',
                 'michaelpg+watch-options@chromium.org'],
     'origin_trials': ['chasej+watch@chromium.org'],
-    'overview_mode': ['tdanderson+overview@chromium.org'],
     'ozone': ['kalyan.kondapally@intel.com', 'ozone-reviews@chromium.org'],
     'page_load_metrics' : ['csharrison+watch@chromium.org',
                            'loading-reviews+metrics@chromium.org'],
@@ -1516,7 +1509,6 @@
     'version_assembly': ['caitkp+watch@chromium.org',
                          'gab+watch@chromium.org'],
     'views': ['tfarina@chromium.org'],
-    'views_core': ['tdanderson+views@chromium.org'],
     'virtual_keyboard': ['dfaden+virtualkb@google.com',
                          'groby+virtualkb@chromium.org'],
     'webrtc_media': ['mcasas+watch@chromium.org',
@@ -1690,6 +1682,8 @@
                                'cbiesinger@chromium.org',
                                'teravest@chromium.org' ],
     'blink_spellcheck' : [ 'groby+blinkspell@chromium.org' ],
+    'blink_spv2_layout_tests': [ 'jbroman+watch@chromium.org',
+                                 'pdr+virtualspv2watchlist@chromium.org' ],
     'blink_style': [ 'blink-reviews-style@chromium.org' ],
     'blink_svg': [ 'schenney@chromium.org',
                    'pdr+svgwatchlist@chromium.org',

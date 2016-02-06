@@ -13,7 +13,6 @@
       'sources': [
         '../public/provider/chrome/browser/browser_constants.cc',
         '../public/provider/chrome/browser/browser_constants.h',
-        '../public/provider/chrome/browser/browser_state/chrome_browser_state_manager.h',
         '../public/provider/chrome/browser/chrome_browser_provider.cc',
         '../public/provider/chrome/browser/chrome_browser_provider.h',
         '../public/provider/chrome/browser/geolocation_updater_provider.h',
@@ -26,6 +25,8 @@
         '../public/provider/chrome/browser/signin/signin_error_provider.mm',
         '../public/provider/chrome/browser/signin/signin_resources_provider.h',
         '../public/provider/chrome/browser/signin/signin_resources_provider.mm',
+        '../public/provider/chrome/browser/ui/default_ios_web_view_factory.h',
+        '../public/provider/chrome/browser/ui/default_ios_web_view_factory.mm',
         '../public/provider/chrome/browser/ui/infobar_view_delegate.h',
         '../public/provider/chrome/browser/ui/infobar_view_protocol.h',
         '../public/provider/chrome/browser/updatable_resource_provider.h',

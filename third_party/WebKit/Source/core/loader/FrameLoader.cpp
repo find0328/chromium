@@ -327,8 +327,13 @@ void FrameLoader::replaceDocumentWhileExecutingJavaScriptURL(const String& sourc
     // inherit an aliased security context.
     DocumentInit init(m_frame->document()->url(), m_frame);
     init.withNewRegistrationContext();
+    init.withoutInheritingSecurityOrigin();
 
     stopAllLoaders();
+    // Don't allow any new child frames to load in this frame: attaching a new
+    // child frame during or after detaching children results in an attached
+    // frame on a detached DOM tree, which is bad.
+    SubframeLoadingDisabler disabler(m_frame->document());
     m_frame->detachChildren();
     m_frame->document()->detach();
     clear();
@@ -1042,6 +1047,10 @@ bool FrameLoader::prepareForCommit()
         ThreadState::current()->schedulePageNavigationGCIfNeeded(ratio);
     }
 
+    // Don't allow any new child frames to load in this frame: attaching a new
+    // child frame during or after detaching children results in an attached
+    // frame on a detached DOM tree, which is bad.
+    SubframeLoadingDisabler disabler(m_frame->document());
     if (m_documentLoader) {
         client()->dispatchWillClose();
         dispatchUnloadEvent();
@@ -1087,8 +1096,10 @@ void FrameLoader::commitProvisionalLoad()
     if (!prepareForCommit())
         return;
 
-    if (isLoadingMainFrame())
-        m_frame->page()->chromeClient().needTouchEvents(false);
+    if (isLoadingMainFrame()) {
+        m_frame->page()->chromeClient().setEventListenerProperties(WebEventListenerClass::Touch, WebEventListenerProperties::Nothing);
+        m_frame->page()->chromeClient().setEventListenerProperties(WebEventListenerClass::MouseWheel, WebEventListenerProperties::Nothing);
+    }
 
     client()->transitionToCommittedForNewPage();
     m_frame->navigationScheduler().cancel();

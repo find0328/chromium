@@ -8,6 +8,7 @@
 #ifndef NET_TOOLS_QUIC_QUIC_DISPATCHER_H_
 #define NET_TOOLS_QUIC_QUIC_DISPATCHER_H_
 
+#include <unordered_map>
 #include <vector>
 
 #include "base/containers/hash_tables.h"
@@ -28,7 +29,6 @@ class QuicConfig;
 class QuicCryptoServerConfig;
 class QuicServerSessionBase;
 
-
 namespace test {
 class QuicDispatcherPeer;
 }  // namespace test
@@ -39,7 +39,10 @@ class QuicDispatcher : public QuicServerSessionVisitor,
                        public QuicFramerVisitorInterface {
  public:
   // Ideally we'd have a linked_hash_set: the  boolean is unused.
-  typedef linked_hash_map<QuicBlockedWriterInterface*, bool> WriteBlockedList;
+  typedef linked_hash_map<QuicBlockedWriterInterface*,
+                          bool,
+                          QuicBlockedWriterInterfacePtrHash>
+      WriteBlockedList;
 
   // Due to the way delete_sessions_closure_ is registered, the Dispatcher must
   // live until server Shutdown. |supported_versions| specifies the std::list
@@ -87,7 +90,8 @@ class QuicDispatcher : public QuicServerSessionVisitor,
   void OnConnectionRemovedFromTimeWaitList(
       QuicConnectionId connection_id) override;
 
-  typedef base::hash_map<QuicConnectionId, QuicServerSessionBase*> SessionMap;
+  typedef std::unordered_map<QuicConnectionId, QuicServerSessionBase*>
+      SessionMap;
 
   const SessionMap& session_map() const { return session_map_; }
 

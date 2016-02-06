@@ -1617,6 +1617,22 @@ TEST_F(WebViewTest, LongPressSelection)
     EXPECT_EQ("testword", std::string(frame->selectionAsText().utf8().data()));
 }
 
+TEST_F(WebViewTest, LongPressEmptyTextarea)
+{
+    URLTestHelpers::registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("longpress_textarea.html"));
+
+    WebView* webView = m_webViewHelper.initializeAndLoad(m_baseURL + "longpress_textarea.html", true);
+    webView->resize(WebSize(500, 300));
+    webView->updateAllLifecyclePhases();
+    runPendingTasks();
+
+    WebString blanklinestextbox = WebString::fromUTF8("blanklinestextbox");
+    WebLocalFrameImpl* frame = toWebLocalFrameImpl(webView->mainFrame());
+
+    EXPECT_TRUE(tapElementById(webView, WebInputEvent::GestureLongPress, blanklinestextbox));
+    EXPECT_EQ("", std::string(frame->selectionAsText().utf8().data()));
+}
+
 TEST_F(WebViewTest, BlinkCaretOnTypingAfterLongPress)
 {
     URLTestHelpers::registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("blink_caret_on_typing_after_long_press.html"));
@@ -2292,7 +2308,7 @@ TEST_F(WebViewTest, HasTouchEventHandlers)
     std::string url = m_baseURL + "has_touch_event_handlers.html";
     URLTestHelpers::registerMockedURLLoad(toKURL(url), "has_touch_event_handlers.html");
     WebViewImpl* webViewImpl = m_webViewHelper.initializeAndLoad(url, true, 0, &client);
-    const EventHandlerRegistry::EventHandlerClass touchEvent = EventHandlerRegistry::TouchEvent;
+    const EventHandlerRegistry::EventHandlerClass touchEvent = EventHandlerRegistry::TouchEventBlocking;
 
     // The page is initialized with at least one no-handlers call.
     // In practice we get two such calls because WebViewHelper::initializeAndLoad first

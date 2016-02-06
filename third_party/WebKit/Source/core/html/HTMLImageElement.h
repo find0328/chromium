@@ -99,7 +99,7 @@ public:
     virtual void ensurePrimaryContent();
 
     // CanvasImageSource implementation
-    PassRefPtr<Image> getSourceImageForCanvas(SourceImageStatus*, AccelerationHint) const override;
+    PassRefPtr<Image> getSourceImageForCanvas(SourceImageStatus*, AccelerationHint, SnapshotReason) const override;
     bool isSVGSource() const override;
     bool wouldTaintOrigin(SecurityOrigin*) const override;
     FloatSize elementSize() const override;
@@ -170,8 +170,6 @@ private:
     RefPtrWillBeMember<HTMLSourceElement> m_source;
     unsigned m_formWasSetByParser : 1;
     unsigned m_elementCreatedByParser : 1;
-    // Intrinsic sizing is viewport dependant if the 'w' descriptor was used for the picked resource.
-    unsigned m_intrinsicSizingViewportDependant : 1;
     unsigned m_useFallbackContent : 1;
     unsigned m_isFallbackImage : 1;
 

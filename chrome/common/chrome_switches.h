@@ -277,7 +277,6 @@ extern const char kSupervisedUserSafeSites[];
 extern const char kSupervisedUserSyncToken[];
 extern const char kSystemLogUploadFrequency[];
 extern const char kTestName[];
-extern const char kTrustedSpdyProxy[];
 extern const char kTryChromeAgain[];
 extern const char kUnlimitedStorage[];
 extern const char kUnsafelyTreatInsecureOriginAsSecure[];
@@ -352,7 +351,6 @@ extern const char kRelauncherProcessDMGDevice[];
 #endif  // defined(OS_MACOSX)
 
 #if defined(OS_WIN)
-extern const char kCrashpadHandler[];
 extern const char kEnableCloudPrintXps[];
 extern const char kEnableProfileShortcutManager[];
 extern const char kForceDesktop[];

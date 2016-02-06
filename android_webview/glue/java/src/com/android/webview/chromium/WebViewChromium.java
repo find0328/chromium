@@ -25,6 +25,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.print.PrintDocumentAdapter;
 import android.util.Log;
+import android.view.DragEvent;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -1794,6 +1795,22 @@ class WebViewChromium implements WebViewProvider, WebViewProvider.ScrollDelegate
         mAwContents.onConfigurationChanged(newConfig);
     }
 
+    //TODO(hush): add override after release.
+    //@Override
+    public boolean onDragEvent(final DragEvent event) {
+        mFactory.startYourEngines(false);
+        if (checkNeedsPost()) {
+            boolean ret = runOnUiThreadBlocking(new Callable<Boolean>() {
+                @Override
+                public Boolean call() {
+                    return onDragEvent(event);
+                }
+            });
+            return ret;
+        }
+        return mAwContents.onDragEvent(event);
+    }
+
     @Override
     public InputConnection onCreateInputConnection(final EditorInfo outAttrs) {
         mFactory.startYourEngines(false);
@@ -2097,6 +2114,18 @@ class WebViewChromium implements WebViewProvider, WebViewProvider.ScrollDelegate
             return;
         }
         mAwContents.setLayerType(layerType, paint);
+    }
+
+    // Overrides method added to WebViewProvider.ViewDelegate interface
+    // (not called in M and below)
+    public Handler getHandler(Handler originalHandler) {
+        return originalHandler;
+    }
+
+    // Overrides method added to WebViewProvider.ViewDelegate interface
+    // (not called in M and below)
+    public View findFocus(View originalFocusedView) {
+        return originalFocusedView;
     }
 
     // Remove from superclass

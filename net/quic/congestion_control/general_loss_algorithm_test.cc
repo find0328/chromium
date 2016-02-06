@@ -29,17 +29,15 @@ class GeneralLossAlgorithmTest : public ::testing::Test {
                          QuicTime::Delta::Zero(), clock_.Now());
   }
 
-  ~GeneralLossAlgorithmTest() override { STLDeleteElements(&packets_); }
+  ~GeneralLossAlgorithmTest() override {}
 
   void SendDataPacket(QuicPacketNumber packet_number) {
-    packets_.push_back(new QuicEncryptedPacket(nullptr, kDefaultLength));
-    QuicFrames* frames = new QuicFrames();
     QuicStreamFrame* frame = new QuicStreamFrame();
     frame->stream_id = kHeadersStreamId;
-    frames->push_back(QuicFrame(frame));
     SerializedPacket packet(kDefaultPathId, packet_number,
-                            PACKET_1BYTE_PACKET_NUMBER, packets_.back(), 0,
-                            frames, false, false);
+                            PACKET_1BYTE_PACKET_NUMBER, nullptr, kDefaultLength,
+                            0, false, false);
+    packet.retransmittable_frames.push_back(QuicFrame(frame));
     unacked_packets_.AddSentPacket(&packet, 0, NOT_RETRANSMISSION, clock_.Now(),
                                    1000, true);
   }
@@ -56,7 +54,6 @@ class GeneralLossAlgorithmTest : public ::testing::Test {
     }
   }
 
-  vector<QuicEncryptedPacket*> packets_;
   QuicUnackedPacketMap unacked_packets_;
   GeneralLossAlgorithm loss_algorithm_;
   RttStats rtt_stats_;

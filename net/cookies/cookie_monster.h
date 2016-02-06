@@ -146,13 +146,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
                 CookieMonsterDelegate* delegate,
                 int last_access_threshold_milliseconds);
 
-  // Helper function that adds all cookies from |list| into this instance,
-  // overwriting any equivalent cookies.
-  bool ImportCookies(const CookieList& list);
-
-  typedef base::Callback<void(const CookieList& cookies)> GetCookieListCallback;
-  typedef base::Callback<void(bool success)> DeleteCookieCallback;
-
   // Returns all the cookies, for use in management UI, etc. Filters results
   // using given url scheme, host / domain and path and options. This does not
   // mark the cookies as having been accessed.
@@ -162,10 +155,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
       const GURL& url,
       const CookieOptions& options,
       const GetCookieListCallback& callback);
-
-  // Deletes one specific cookie.
-  void DeleteCanonicalCookieAsync(const CanonicalCookie& cookie,
-                                  const DeleteCookieCallback& callback);
 
   // Replaces all the cookies by |list|. This method does not flush the backend.
   void SetAllCookiesAsync(const CookieList& list,
@@ -181,8 +170,9 @@ class NET_EXPORT CookieMonster : public CookieStore {
                                  const std::string& value,
                                  const std::string& domain,
                                  const std::string& path,
-                                 const base::Time creation_time,
-                                 const base::Time expiration_time,
+                                 base::Time creation_time,
+                                 base::Time expiration_time,
+                                 base::Time last_access_time,
                                  bool secure,
                                  bool http_only,
                                  bool same_site,
@@ -198,6 +188,8 @@ class NET_EXPORT CookieMonster : public CookieStore {
   void DeleteCookieAsync(const GURL& url,
                          const std::string& cookie_name,
                          const base::Closure& callback) override;
+  void DeleteCanonicalCookieAsync(const CanonicalCookie& cookie,
+                                  const DeleteCallback& callback) override;
   void DeleteAllCreatedBetweenAsync(const base::Time& delete_begin,
                                     const base::Time& delete_end,
                                     const DeleteCallback& callback) override;
@@ -208,6 +200,7 @@ class NET_EXPORT CookieMonster : public CookieStore {
       const DeleteCallback& callback) override;
   void DeleteSessionCookiesAsync(const DeleteCallback&) override;
   void FlushStore(const base::Closure& callback) override;
+  void SetForceKeepSessionState() override;
 
   CookieMonster* GetCookieMonster() override;
 
@@ -220,9 +213,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // in cases where the cookie monster is used as a data structure to keep
   // arbitrary cookies.
   void SetKeepExpiredCookies();
-
-  // Protects session cookies from deletion on shutdown.
-  void SetForceKeepSessionState();
 
   // Enables writing session cookies into the cookie database. If this this
   // method is called, it must be called before first use of the instance
@@ -418,8 +408,9 @@ class NET_EXPORT CookieMonster : public CookieStore {
                             const std::string& value,
                             const std::string& domain,
                             const std::string& path,
-                            const base::Time creation_time,
-                            const base::Time expiration_time,
+                            base::Time creation_time,
+                            base::Time expiration_time,
+                            base::Time last_access_time,
                             bool secure,
                             bool http_only,
                             bool same_site,
@@ -438,8 +429,6 @@ class NET_EXPORT CookieMonster : public CookieStore {
                                      const base::Time delete_end,
                                      const GURL& url);
 
-  bool DeleteCanonicalCookie(const CanonicalCookie& cookie);
-
   bool SetCookieWithOptions(const GURL& url,
                             const std::string& cookie_line,
                             const CookieOptions& options);
@@ -448,6 +437,8 @@ class NET_EXPORT CookieMonster : public CookieStore {
                                     const CookieOptions& options);
 
   void DeleteCookie(const GURL& url, const std::string& cookie_name);
+
+  int DeleteCanonicalCookie(const CanonicalCookie& cookie);
 
   bool SetCookieWithCreationTime(const GURL& url,
                                  const std::string& cookie_line,

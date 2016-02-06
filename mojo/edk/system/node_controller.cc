@@ -104,6 +104,10 @@ NodeController::ReservedPort::ReservedPort() {}
 
 NodeController::ReservedPort::~ReservedPort() {}
 
+NodeController::PendingRemotePortConnection::PendingRemotePortConnection() {}
+
+NodeController::PendingRemotePortConnection::~PendingRemotePortConnection() {}
+
 NodeController::~NodeController() {}
 
 NodeController::NodeController(Core* core)
@@ -196,28 +200,31 @@ void NodeController::ConnectToParentPort(const ports::PortRef& local_port,
                  base::Unretained(this), local_port, token, callback));
 }
 
-void NodeController::ConnectReservedPorts(const std::string& token1,
-                                          const std::string& token2) {
-  ReservedPort port1;
-  ReservedPort port2;
-  {
-    base::AutoLock lock(reserved_ports_lock_);
-    auto it1 = reserved_ports_.find(token1);
-    if (it1 == reserved_ports_.end())
-      return;
-    auto it2 = reserved_ports_.find(token2);
-    if (it2 == reserved_ports_.end())
-      return;
-    port1 = it1->second;
-    port2 = it2->second;
-    reserved_ports_.erase(it1);
-    reserved_ports_.erase(it2);
+void NodeController::ConnectToRemotePort(
+    const ports::PortRef& local_port,
+    const ports::NodeName& remote_node_name,
+    const ports::PortName& remote_port_name,
+    const base::Closure& callback) {
+  if (remote_node_name == name_) {
+    // It's possible that two different code paths on the node are trying to
+    // bootstrap ports to each other (e.g. in Chrome single-process mode)
+    // without being aware of the fact. In this case we can initialize the port
+    // immediately (which can fail silently if it's already been initialized by
+    // the request on the other side), and invoke |callback|.
+    node_->InitializePort(local_port, name_, remote_port_name);
+    callback.Run();
+    return;
   }
 
-  node_->InitializePort(port1.local_port, name_, port2.local_port.name());
-  node_->InitializePort(port2.local_port, name_, port1.local_port.name());
-  port1.callback.Run(port1.local_port);
-  port2.callback.Run(port2.local_port);
+  PendingRemotePortConnection connection;
+  connection.local_port = local_port;
+  connection.remote_node_name = remote_node_name;
+  connection.remote_port_name = remote_port_name;
+  connection.callback = callback;
+  io_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&NodeController::ConnectToRemotePortOnIOThread,
+                 base::Unretained(this), connection));
 }
 
 void NodeController::RequestShutdown(const base::Closure& callback) {
@@ -281,8 +288,28 @@ void NodeController::RequestParentPortConnectionOnIOThread(
     return;
   }
 
-  pending_port_connections_.insert(std::make_pair(local_port.name(), callback));
+  pending_parent_port_connections_.insert(
+      std::make_pair(local_port.name(), callback));
   parent->RequestPortConnection(local_port.name(), token);
+}
+
+void NodeController::ConnectToRemotePortOnIOThread(
+    const PendingRemotePortConnection& connection) {
+  scoped_refptr<NodeChannel> peer = GetPeerChannel(connection.remote_node_name);
+  if (peer) {
+    // It's safe to initialize the port since we already have a channel to its
+    // peer. No need to actually send them a message.
+    int rv = node_->InitializePort(connection.local_port,
+                                   connection.remote_node_name,
+                                   connection.remote_port_name);
+    DCHECK_EQ(rv, ports::OK);
+    connection.callback.Run();
+    return;
+  }
+
+  // Save this for later. We'll initialize the port once this:: peer is added.
+  pending_remote_port_connections_[connection.remote_node_name].push_back(
+      connection);
 }
 
 scoped_refptr<NodeChannel> NodeController::GetPeerChannel(
@@ -313,37 +340,53 @@ void NodeController::AddPeer(const ports::NodeName& name,
 
   channel->SetRemoteNodeName(name);
 
-  base::AutoLock lock(peers_lock_);
-  if (peers_.find(name) != peers_.end()) {
-    // This can happen normally if two nodes race to be introduced to each
-    // other. The losing pipe will be silently closed and introduction should
-    // not be affected.
-    DVLOG(1) << "Ignoring duplicate peer name " << name;
-    return;
+  OutgoingMessageQueue pending_messages;
+  {
+    base::AutoLock lock(peers_lock_);
+    if (peers_.find(name) != peers_.end()) {
+      // This can happen normally if two nodes race to be introduced to each
+      // other. The losing pipe will be silently closed and introduction should
+      // not be affected.
+      DVLOG(1) << "Ignoring duplicate peer name " << name;
+      return;
+    }
+
+    auto result = peers_.insert(std::make_pair(name, channel));
+    DCHECK(result.second);
+
+    DVLOG(2) << "Accepting new peer " << name << " on node " << name_;
+
+    RecordPeerCount(peers_.size());
+
+    auto it = pending_peer_messages_.find(name);
+    if (it != pending_peer_messages_.end()) {
+      std::swap(pending_messages, it->second);
+      pending_peer_messages_.erase(it);
+    }
   }
-
-  auto result = peers_.insert(std::make_pair(name, channel));
-  DCHECK(result.second);
-
-  DVLOG(2) << "Accepting new peer " << name << " on node " << name_;
-
-  RecordPeerCount(peers_.size());
 
   if (start_channel)
     channel->Start();
 
   // Flush any queued message we need to deliver to this node.
-  OutgoingMessageQueue pending_messages;
-  auto it = pending_peer_messages_.find(name);
-  if (it != pending_peer_messages_.end()) {
-    auto& message_queue = it->second;
-    while (!message_queue.empty()) {
-      ports::ScopedMessage message = std::move(message_queue.front());
-      channel->PortsMessage(
-          static_cast<PortsMessage*>(message.get())->TakeChannelMessage());
-      message_queue.pop();
+  while (!pending_messages.empty()) {
+    ports::ScopedMessage message = std::move(pending_messages.front());
+    channel->PortsMessage(
+        static_cast<PortsMessage*>(message.get())->TakeChannelMessage());
+    pending_messages.pop();
+  }
+
+  // Complete any pending port connections to this peer.
+  auto connections_it = pending_remote_port_connections_.find(name);
+  if (connections_it != pending_remote_port_connections_.end()) {
+    for (const auto& connection : connections_it->second) {
+      int rv = node_->InitializePort(connection.local_port,
+                                     connection.remote_node_name,
+                                     connection.remote_port_name);
+      DCHECK_EQ(rv, ports::OK);
+      connection.callback.Run();
     }
-    pending_peer_messages_.erase(it);
+    pending_remote_port_connections_.erase(connections_it);
   }
 }
 
@@ -524,7 +567,7 @@ void NodeController::OnAcceptChild(const ports::NodeName& from_node,
 
   parent->AcceptParent(token, name_);
   for (const auto& request : pending_port_requests_) {
-    pending_port_connections_.insert(
+    pending_parent_port_connections_.insert(
         std::make_pair(request.local_port.name(), request.callback));
     parent->RequestPortConnection(request.local_port.name(), request.token);
   }
@@ -677,10 +720,10 @@ void NodeController::OnConnectToPort(
   CHECK_EQ(ports::OK, node_->InitializePort(connectee_port, from_node,
                                             connector_port_name));
 
-  auto it = pending_port_connections_.find(connectee_port_name);
-  DCHECK(it != pending_port_connections_.end());
+  auto it = pending_parent_port_connections_.find(connectee_port_name);
+  DCHECK(it != pending_parent_port_connections_.end());
   it->second.Run();
-  pending_port_connections_.erase(it);
+  pending_parent_port_connections_.erase(it);
 }
 
 void NodeController::OnRequestIntroduction(const ports::NodeName& from_node,

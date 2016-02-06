@@ -96,8 +96,7 @@
 #include "content/renderer/media/audio_device_factory.h"
 #include "content/renderer/media/audio_renderer_mixer_manager.h"
 #include "content/renderer/media/cdm/render_cdm_factory.h"
-#include "content/renderer/media/media_permission_dispatcher_impl.h"
-#include "content/renderer/media/media_permission_dispatcher_proxy.h"
+#include "content/renderer/media/media_permission_dispatcher.h"
 #include "content/renderer/media/media_stream_dispatcher.h"
 #include "content/renderer/media/media_stream_renderer_factory_impl.h"
 #include "content/renderer/media/midi_dispatcher.h"
@@ -148,6 +147,7 @@
 #include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebData.h"
 #include "third_party/WebKit/public/platform/WebMediaPlayer.h"
+#include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebStorageQuotaCallbacks.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
@@ -172,7 +172,6 @@
 #include "third_party/WebKit/public/web/WebScopedUserGesture.h"
 #include "third_party/WebKit/public/web/WebScriptSource.h"
 #include "third_party/WebKit/public/web/WebSearchableFormData.h"
-#include "third_party/WebKit/public/web/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/web/WebSecurityPolicy.h"
 #include "third_party/WebKit/public/web/WebSerializedScriptValue.h"
 #include "third_party/WebKit/public/web/WebSettings.h"
@@ -975,7 +974,6 @@ RenderFrameImpl::RenderFrameImpl(const CreateParams& params)
       handling_select_range_(false),
       notification_permission_dispatcher_(NULL),
       web_user_media_client_(NULL),
-      media_permission_dispatcher_(NULL),
       midi_dispatcher_(NULL),
 #if defined(OS_ANDROID)
       media_player_manager_(NULL),
@@ -1393,6 +1391,7 @@ bool RenderFrameImpl::OnMessageReceived(const IPC::Message& msg) {
     IPC_MESSAGE_HANDLER(FrameMsg_SetEditableSelectionOffsets,
                         OnSetEditableSelectionOffsets)
     IPC_MESSAGE_HANDLER(FrameMsg_Reload, OnReload)
+    IPC_MESSAGE_HANDLER(FrameMsg_ReloadLoFiImages, OnReloadLoFiImages)
     IPC_MESSAGE_HANDLER(FrameMsg_TextSurroundingSelectionRequest,
                         OnTextSurroundingSelectionRequest)
     IPC_MESSAGE_HANDLER(FrameMsg_SetAccessibilityMode,
@@ -2128,6 +2127,11 @@ void RenderFrameImpl::OnPostMessageEvent(
 
 void RenderFrameImpl::OnReload(bool ignore_cache) {
   frame_->reload(ignore_cache);
+}
+
+void RenderFrameImpl::OnReloadLoFiImages() {
+  is_using_lofi_ = false;
+  GetWebFrame()->reloadLoFiImages();
 }
 
 void RenderFrameImpl::OnTextSurroundingSelectionRequest(size_t max_length) {
@@ -3133,9 +3137,13 @@ void RenderFrameImpl::didCommitProvisionalLoad(
       DocumentState::FromDataSource(frame->dataSource());
   NavigationStateImpl* navigation_state =
       static_cast<NavigationStateImpl*>(document_state->navigation_state());
-  WebURLResponseExtraDataImpl* extra_data = GetExtraDataFromResponse(
-      frame->dataSource()->response());
-  is_using_lofi_ = extra_data && extra_data->is_using_lofi();
+  WebURLResponseExtraDataImpl* extra_data =
+      GetExtraDataFromResponse(frame->dataSource()->response());
+  // Only update LoFi state for new main frame documents. Subframes inherit from
+  // the main frame and should not change at commit time.
+  if (is_main_frame_ && !navigation_state->WasWithinSamePage()) {
+    is_using_lofi_ = extra_data && extra_data->is_using_lofi();
+  }
 
   if (proxy_routing_id_ != MSG_ROUTING_NONE) {
     RenderFrameProxy* proxy =
@@ -5960,17 +5968,13 @@ RendererMediaSessionManager* RenderFrameImpl::GetMediaSessionManager() {
 
 #endif  // defined(OS_ANDROID)
 
-scoped_ptr<media::MediaPermission> RenderFrameImpl::CreateMediaPermissionProxy(
-    scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner) {
-  MediaPermissionDispatcherImpl* media_permission =
-      static_cast<MediaPermissionDispatcherImpl*>(GetMediaPermission());
-  return media_permission->CreateProxy(caller_task_runner);
-}
-
 media::MediaPermission* RenderFrameImpl::GetMediaPermission() {
-  if (!media_permission_dispatcher_)
-    media_permission_dispatcher_ = new MediaPermissionDispatcherImpl(this);
-  return media_permission_dispatcher_;
+  if (!media_permission_dispatcher_) {
+    media_permission_dispatcher_.reset(new MediaPermissionDispatcher(
+        base::Bind(&RenderFrameImpl::ConnectToService<PermissionService>,
+                   base::Unretained(this))));
+  }
+  return media_permission_dispatcher_.get();
 }
 
 #if defined(ENABLE_MOJO_MEDIA)
@@ -6040,6 +6044,12 @@ void RenderFrameImpl::RegisterMojoServices() {
   }
 }
 
+template <typename Interface>
+void RenderFrameImpl::ConnectToService(
+    mojo::InterfaceRequest<Interface> request) {
+  GetServiceRegistry()->ConnectToRemoteService(std::move(request));
+}
+
 mojo::ServiceProviderPtr RenderFrameImpl::ConnectToApplication(
     const GURL& url) {
   if (!mojo_shell_)
@@ -6047,7 +6057,8 @@ mojo::ServiceProviderPtr RenderFrameImpl::ConnectToApplication(
   mojo::ServiceProviderPtr service_provider;
   mojo::URLRequestPtr request(mojo::URLRequest::New());
   request->url = mojo::String::From(url);
-  mojo::CapabilityFilterPtr filter(mojo::CapabilityFilter::New());
+  mojo::shell::mojom::CapabilityFilterPtr filter(
+      mojo::shell::mojom::CapabilityFilter::New());
   mojo::Array<mojo::String> all_interfaces;
   all_interfaces.push_back("*");
   filter->filter.insert("*", std::move(all_interfaces));

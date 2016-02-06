@@ -84,6 +84,10 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     # Note that this test fails on ['win', 'intel'] with bug=483282
     self.Fail('conformance2/buffers/uniform-buffers.html', bug=577368)
 
+    # Remove the following after roll in ToT WebGL conformance tests.
+    self.Fail('conformance2/reading/read-pixels-into-pixel-pack-buffer.html',
+        ['mac', 'linux'], bug=570453)
+
     # Windows only.
     self.Fail('conformance2/textures/canvas/tex-image-and-sub-image-2d' +
         '-with-canvas-r8-red-unsigned_byte.html',
@@ -215,7 +219,7 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     self.Fail('conformance2/glsl3/const-array-init.html',
         ['win'], bug=1198) # angle bug ID
     self.Skip('conformance2/reading/read-pixels-into-pixel-pack-buffer.html',
-        ['win', 'debug'], bug=1266) # angle bug ID
+        ['win'], bug=1266) # angle bug ID
 
     # Windows 8 only.
     self.Fail('conformance2/textures/image_data/tex-image-and-sub-image-2d' +
@@ -321,6 +325,8 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         ['mac'], bug=483282)
     self.Fail('conformance2/renderbuffers/framebuffer-test.html',
         ['mac'], bug=483282)
+    self.Fail('conformance2/renderbuffers/readbuffer.html',
+        ['mac'], bug=570453)
     self.Fail('conformance2/textures/misc/compressed-tex-image.html',
         ['mac'], bug=565438)
     self.Fail('conformance2/textures/misc/tex-mipmap-levels.html',

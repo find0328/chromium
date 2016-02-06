@@ -628,7 +628,7 @@ RenderProcessHostImpl::RenderProcessHostImpl(
 #endif  // USE_ATTACHMENT_BROKER
 
 #if defined(MOJO_SHELL_CLIENT)
-  RegisterChildWithExternalShell(id_, this);
+  RegisterChildWithExternalShell(id_, weak_factory_.GetWeakPtr());
 #endif
 }
 
@@ -1447,7 +1447,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kEnablePrefixedEncryptedMedia,
     switches::kEnableRGBA4444Textures,
     switches::kEnableRendererMojoChannel,
-    switches::kEnableScrollAnchoring,
     switches::kEnableSkiaBenchmarking,
     switches::kEnableSlimmingPaintV2,
     switches::kEnableSmoothScrolling,
@@ -1517,6 +1516,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     cc::switches::kEnableGpuBenchmarking,
     cc::switches::kEnableMainFrameBeforeActivation,
     cc::switches::kShowCompositedLayerBorders,
+    cc::switches::kShowFPSCounter,
     cc::switches::kShowLayerAnimationBounds,
     cc::switches::kShowPropertyChangedRects,
     cc::switches::kShowReplicaScreenSpaceRects,
@@ -1951,10 +1951,6 @@ bool RenderProcessHostImpl::SuddenTerminationAllowed() const {
 
 base::TimeDelta RenderProcessHostImpl::GetChildProcessIdleTime() const {
   return base::TimeTicks::Now() - child_process_activity_time_;
-}
-
-void RenderProcessHostImpl::ResumeRequestsForView(int route_id) {
-  widget_helper_->ResumeRequestsForView(route_id);
 }
 
 void RenderProcessHostImpl::FilterURL(bool empty_allowed, GURL* url) {
@@ -2566,16 +2562,8 @@ void RenderProcessHostImpl::OnProcessLaunched() {
       child_process_launcher_.get()) {
     base::ProcessHandle process_handle =
         child_process_launcher_->GetProcess().Handle();
-    mojo::embedder::ScopedPlatformHandle client_pipe;
-#if defined(MOJO_SHELL_CLIENT)
-    if (IsRunningInMojoShell()) {
-      client_pipe = RegisterProcessWithBroker(
-          child_process_launcher_->GetProcess().Pid());
-    } else
-#endif
-    {
-      client_pipe = mojo::embedder::ChildProcessLaunched(process_handle);
-    }
+    mojo::embedder::ScopedPlatformHandle client_pipe =
+        mojo::embedder::ChildProcessLaunched(process_handle);
     Send(new ChildProcessMsg_SetMojoParentPipeHandle(
         IPC::GetFileHandleForProcess(
 #if defined(OS_WIN)

@@ -228,7 +228,8 @@ Output.ROLE_INFO_ = {
     inherits: 'abstractContainer'
   },
   menu: {
-    msgId: 'role_menu'
+    msgId: 'role_menu',
+    earconId: 'LISTBOX',
   },
   menuBar: {
     msgId: 'role_menubar',
@@ -434,8 +435,7 @@ Output.RULES = {
       speak: '$name='
     },
     link: {
-      enter: '$name $if($visited, @visited_link, $role)',
-      stay: '$name= $if($visited, @visited_link, $role)',
+      enter: '$name= $if($visited, @visited_link, $role)',
       speak: '$name= $if($visited, @visited_link, $role) $description'
     },
     list: {
@@ -453,8 +453,8 @@ Output.RULES = {
       enter: '$role'
     },
     menu: {
-      enter: '$name $role @@list_with_items($countChildren(menuItem)) ' +
-          '$description'
+      enter: '$name $role',
+      speak: '$name $role @@list_with_items($countChildren(menuItem))'
     },
     menuItem: {
       speak: '$name $role $if($haspopup, @has_submenu) ' +
@@ -878,11 +878,9 @@ Output.prototype = {
    * @param {string|!Object} format The output format either specified as an
    * output template string or a parsed output format tree.
    * @param {!Array<Spannable>} buff Buffer to receive rendered output.
-   * @param {!Object=} opt_exclude A set of attributes to exclude.
    * @private
    */
-  format_: function(node, format, buff, opt_exclude) {
-    opt_exclude = opt_exclude || {};
+  format_: function(node, format, buff) {
     var tokens = [];
     var args = null;
 
@@ -925,9 +923,6 @@ Output.prototype = {
       var prefix = token[0];
       token = token.slice(1);
 
-      if (opt_exclude[token])
-        return;
-
       // All possible tokens based on prefix.
       if (prefix == '$') {
         if (token == 'value') {
@@ -939,10 +934,6 @@ Output.prototype = {
                   node.textSelEnd));
             }
           }
-          // Annotate this as a name so we don't duplicate names from ancestors.
-          if (node.role == RoleType.inlineTextBox ||
-              node.role == RoleType.staticText)
-            token = 'name';
           options.annotation.push(token);
           this.append_(buff, text, options);
         } else if (token == 'name') {
@@ -1168,7 +1159,8 @@ Output.prototype = {
       var buff = [];
       this.ancestry_(node, prevNode, type, buff);
       this.node_(node, prevNode, type, buff);
-      this.locations_.push(node.location);
+      if (node.location)
+        this.locations_.push(node.location);
       return buff;
     }.bind(this);
 
@@ -1193,12 +1185,9 @@ Output.prototype = {
    * @param {!AutomationNode} prevNode
    * @param {EventType|Output.EventType} type
    * @param {!Array<Spannable>} buff
-   * @param {!Object=} opt_exclude A list of attributes to exclude from
-   * processing.
    * @private
    */
-  ancestry_: function(node, prevNode, type, buff, opt_exclude) {
-    opt_exclude = opt_exclude || {};
+  ancestry_: function(node, prevNode, type, buff) {
     var prevUniqueAncestors =
         AutomationUtil.getUniqueAncestors(node, prevNode);
     var uniqueAncestors = AutomationUtil.getUniqueAncestors(prevNode, node);
@@ -1236,7 +1225,7 @@ Output.prototype = {
 
       var roleBlock = getMergedRoleBlock(formatPrevNode.role);
       if (roleBlock.leave && localStorage['useVerboseMode'] == 'true')
-        this.format_(formatPrevNode, roleBlock.leave, buff, opt_exclude);
+        this.format_(formatPrevNode, roleBlock.leave, buff);
     }
 
     var enterOutputs = [];
@@ -1250,7 +1239,7 @@ Output.prototype = {
           continue;
         enterRole[formatNode.role] = true;
         var tempBuff = [];
-        this.format_(formatNode, roleBlock.enter, tempBuff, opt_exclude);
+        this.format_(formatNode, roleBlock.enter, tempBuff);
         enterOutputs.unshift(tempBuff);
       }
       if (formatNode.role == 'window')
@@ -1259,17 +1248,6 @@ Output.prototype = {
     enterOutputs.forEach(function(b) {
       buff.push.apply(buff, b);
     });
-
-    if (!opt_exclude.stay) {
-      var commonFormatNode = uniqueAncestors[0];
-      while (commonFormatNode && commonFormatNode.parent) {
-        commonFormatNode = commonFormatNode.parent;
-        var roleBlock =
-            eventBlock[commonFormatNode.role] || eventBlock['default'];
-        if (roleBlock.stay)
-          this.format_(commonFormatNode, roleBlock.stay, buff, opt_exclude);
-      }
-    }
   },
 
   /**
@@ -1300,10 +1278,7 @@ Output.prototype = {
     var dir = cursors.Range.getDirection(prevRange, range);
     var node = range.start.node;
     var prevNode = prevRange.getBound(dir).node;
-    this.ancestry_(
-        node, prevNode, type, buff,
-        {stay: true, name: true, value: true});
-    var options = {annotation: []};
+    var options = {annotation: ['name'], isUnique: true};
     var startIndex = range.start.index;
     var endIndex = range.end.index;
     if (this.formatOptions_.braille) {
@@ -1318,10 +1293,14 @@ Output.prototype = {
             startIndex));
       }
     }
-    this.append_(
-        buff, range.start.getText().substring(startIndex, endIndex),
+    this.ancestry_(node, prevNode, type, buff);
+    this.append_(buff, range.start.getText().substring(startIndex, endIndex),
         options);
-    this.locations_.push(node.boundsForRange(startIndex, endIndex));
+
+    var loc =
+        range.start.node.boundsForRange(startIndex, endIndex);
+    if (loc)
+      this.locations_.push(loc);
   },
 
   /**
@@ -1349,13 +1328,18 @@ Output.prototype = {
           function(annotation) {
             return !(annotation instanceof Output.NodeSpan);
           });
+
       var alreadyAnnotated = buff.some(function(s) {
         return annotationSansNodes.some(function(annotation) {
           if (!s.hasSpan(annotation))
             return false;
           var start = s.getSpanStart(annotation);
           var end = s.getSpanEnd(annotation);
-          return s.substring(start, end).toString() == value.toString();
+          var substr = s.substring(start, end);
+          if (substr && value)
+            return substr.toString() == value.toString();
+          else
+            return false;
         });
       });
       if (alreadyAnnotated)

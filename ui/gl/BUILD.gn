@@ -191,8 +191,8 @@ component("gl") {
 
     deps += [ "//ui/gfx/x" ]
     data_deps = [
-      "//third_party/angle:libEGL_ANGLE",
-      "//third_party/angle:libGLESv2_ANGLE",
+      "//third_party/angle:libEGL",
+      "//third_party/angle:libGLESv2",
     ]
   }
   if (is_win) {
@@ -326,15 +326,6 @@ source_set("test_support") {
       "//ui/platform_window/x11",
     ]
   }
-}
-
-# TODO(GYP): Delete this after we've converted everything to GN.
-# The _run targets exist only for compatibility w/ GYP.
-group("gl_unittests_run") {
-  testonly = true
-  deps = [
-    ":gl_unittests",
-  ]
 }
 
 test("gl_unittests") {

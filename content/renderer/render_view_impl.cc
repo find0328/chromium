@@ -32,6 +32,7 @@
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
+#include "cc/base/switches.h"
 #include "content/child/appcache/appcache_dispatcher.h"
 #include "content/child/appcache/web_application_cache_host_impl.h"
 #include "content/child/child_shared_bitmap_manager.h"
@@ -154,7 +155,6 @@
 #include "third_party/WebKit/public/web/WebRuntimeFeatures.h"
 #include "third_party/WebKit/public/web/WebScriptSource.h"
 #include "third_party/WebKit/public/web/WebSearchableFormData.h"
-#include "third_party/WebKit/public/web/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/web/WebSecurityPolicy.h"
 #include "third_party/WebKit/public/web/WebSettings.h"
 #include "third_party/WebKit/public/web/WebUserGestureIndicator.h"
@@ -741,8 +741,8 @@ void RenderViewImpl::Initialize(const ViewMsg_New_Params& params,
       !command_line.HasSwitch(switches::kDisableThreadedScrolling));
   webview()->settings()->setRootLayerScrolls(
       command_line.HasSwitch(switches::kRootLayerScrolls));
-  webview()->settings()->setScrollAnchoringEnabled(
-      command_line.HasSwitch(switches::kEnableScrollAnchoring));
+  webview()->setShowFPSCounter(
+      command_line.HasSwitch(cc::switches::kShowFPSCounter));
 
   ApplyWebPreferencesInternal(webkit_preferences_, webview(), compositor_deps_);
 

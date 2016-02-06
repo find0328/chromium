@@ -6,6 +6,7 @@
 #define V8Debugger_h
 
 #include "core/CoreExport.h"
+#include "core/InspectorFrontend.h"
 #include "wtf/Forward.h"
 #include "wtf/PassOwnPtr.h"
 
@@ -13,11 +14,22 @@
 
 namespace blink {
 
+class JSONObject;
 class V8DebuggerClient;
+class V8StackTrace;
 
 class CORE_EXPORT V8Debugger {
     USING_FAST_MALLOC(V8Debugger);
 public:
+    template <typename T>
+    class Agent {
+    public:
+        virtual void setInspectorState(PassRefPtr<JSONObject>) = 0;
+        virtual void setFrontend(T*) = 0;
+        virtual void clearFrontend() = 0;
+        virtual void restore() = 0;
+    };
+
     static PassOwnPtr<V8Debugger> create(v8::Isolate*, V8DebuggerClient*);
     virtual ~V8Debugger() { }
 
@@ -26,6 +38,9 @@ public:
     // |contextGroupId| must be non-0.
     static void setContextDebugData(v8::Local<v8::Context>, const String& type, int contextGroupId);
     static int contextId(v8::Local<v8::Context>);
+
+    virtual PassOwnPtr<V8StackTrace> createStackTrace(v8::Local<v8::StackTrace>, size_t maxStackSize) = 0;
+    virtual PassOwnPtr<V8StackTrace> captureStackTrace(size_t maxStackSize) = 0;
 };
 
 } // namespace blink

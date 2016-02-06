@@ -80,13 +80,14 @@ class QuicChromiumClientSessionTest
     writer->SetConnection(connection);
     session_.reset(new QuicChromiumClientSession(
         connection, std::move(socket),
+        scoped_ptr<QuicChromiumPacketReader>(nullptr),
         /*stream_factory=*/nullptr, &crypto_client_stream_factory_, &clock_,
-        &transport_security_state_, make_scoped_ptr((QuicServerInfo*)nullptr),
+        &transport_security_state_, scoped_ptr<QuicServerInfo>(nullptr),
         QuicServerId(kServerHostname, kServerPort, PRIVACY_MODE_DISABLED),
         kQuicYieldAfterPacketsRead,
         QuicTime::Delta::FromMilliseconds(kQuicYieldAfterDurationMilliseconds),
         /*cert_verify_flags=*/0, DefaultQuicConfig(), &crypto_config_,
-        "CONNECTION_UNKNOWN", base::TimeTicks::Now(), &promised_by_url_,
+        "CONNECTION_UNKNOWN", base::TimeTicks::Now(), &push_promise_index_,
         base::ThreadTaskRunnerHandle::Get().get(),
         /*socket_performance_watcher=*/nullptr, &net_log_));
 
@@ -132,7 +133,7 @@ class QuicChromiumClientSessionTest
   TestCompletionCallback callback_;
   QuicTestPacketMaker maker_;
   ProofVerifyDetailsChromium verify_details_;
-  QuicPromisedByUrlMap promised_by_url_;
+  QuicClientPushPromiseIndex push_promise_index_;
 };
 
 INSTANTIATE_TEST_CASE_P(Tests,

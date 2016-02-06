@@ -58,12 +58,12 @@
 #include "third_party/WebKit/public/platform/WebGraphicsContext3DProvider.h"
 #include "third_party/WebKit/public/platform/WebMediaPlayerClient.h"
 #include "third_party/WebKit/public/platform/WebMediaPlayerEncryptedMediaClient.h"
+#include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
 #include "third_party/WebKit/public/web/WebDocument.h"
 #include "third_party/WebKit/public/web/WebFrame.h"
 #include "third_party/WebKit/public/web/WebRuntimeFeatures.h"
-#include "third_party/WebKit/public/web/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/web/WebView.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkPaint.h"
@@ -1235,8 +1235,10 @@ void WebMediaPlayerAndroid::ReallocateVideoFrame() {
             &OnReleaseTexture, stream_texture_factory_, texture_id_ref)),
         natural_size_, gfx::Rect(natural_size_), natural_size_,
         base::TimeDelta());
-    new_frame->metadata()->SetBoolean(media::VideoFrameMetadata::COPY_REQUIRED,
-                                      enable_texture_copy_);
+    if (new_frame.get()) {
+      new_frame->metadata()->SetBoolean(
+          media::VideoFrameMetadata::COPY_REQUIRED, enable_texture_copy_);
+    }
     SetCurrentFrameInternal(new_frame);
   }
 }

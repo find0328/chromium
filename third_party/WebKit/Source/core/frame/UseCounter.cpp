@@ -34,7 +34,7 @@
 #include "core/frame/LocalFrame.h"
 #include "core/inspector/ConsoleMessage.h"
 #include "core/workers/WorkerGlobalScope.h"
-#include "public/platform/Platform.h"
+#include "platform/Histogram.h"
 
 namespace blink {
 
@@ -568,6 +568,12 @@ int UseCounter::mapCSSPropertyIdToCSSSampleIdForHistogram(int id)
 
 static int maximumCSSSampleId() { return 518; }
 
+static EnumerationHistogram& featureObserverHistogram()
+{
+    DEFINE_STATIC_LOCAL(EnumerationHistogram, histogram, ("WebCore.FeatureObserver", UseCounter::NumberOfFeatures));
+    return histogram;
+}
+
 void UseCounter::muteForInspector()
 {
     UseCounter::m_muteCount++;
@@ -587,16 +593,17 @@ UseCounter::UseCounter()
 UseCounter::~UseCounter()
 {
     // We always log PageDestruction so that we have a scale for the rest of the features.
-    Platform::current()->histogramEnumeration("WebCore.FeatureObserver", PageDestruction, NumberOfFeatures);
+    featureObserverHistogram().count(PageDestruction);
 
     updateMeasurements();
 }
 
 void UseCounter::CountBits::updateMeasurements()
 {
+    EnumerationHistogram& featureHistogram = featureObserverHistogram();
     for (unsigned i = 0; i < NumberOfFeatures; ++i) {
         if (m_bits.quickGet(i))
-            Platform::current()->histogramEnumeration("WebCore.FeatureObserver", i, NumberOfFeatures);
+            featureHistogram.count(i);
     }
     // Clearing count bits is timing sensitive.
     m_bits.clearAll();
@@ -604,23 +611,24 @@ void UseCounter::CountBits::updateMeasurements()
 
 void UseCounter::updateMeasurements()
 {
-    Platform::current()->histogramEnumeration("WebCore.FeatureObserver", PageVisits, NumberOfFeatures);
+    featureObserverHistogram().count(PageVisits);
     m_countBits.updateMeasurements();
 
     // FIXME: Sometimes this function is called more than once per page. The following
     //        bool guards against incrementing the page count when there are no CSS
     //        bits set. https://crbug.com/236262.
+    DEFINE_STATIC_LOCAL(EnumerationHistogram, cssPropertiesHistogram, ("WebCore.FeatureObserver.CSSProperties", maximumCSSSampleId()));
     bool needsPagesMeasuredUpdate = false;
     for (int i = firstCSSProperty; i <= lastUnresolvedCSSProperty; ++i) {
         if (m_CSSFeatureBits.quickGet(i)) {
             int cssSampleId = mapCSSPropertyIdToCSSSampleIdForHistogram(i);
-            Platform::current()->histogramEnumeration("WebCore.FeatureObserver.CSSProperties", cssSampleId, maximumCSSSampleId());
+            cssPropertiesHistogram.count(cssSampleId);
             needsPagesMeasuredUpdate = true;
         }
     }
 
     if (needsPagesMeasuredUpdate)
-        Platform::current()->histogramEnumeration("WebCore.FeatureObserver.CSSProperties", totalPagesMeasuredCSSSampleId(), maximumCSSSampleId());
+        cssPropertiesHistogram.count(totalPagesMeasuredCSSSampleId());
 
     m_CSSFeatureBits.clearAll();
 }
@@ -750,6 +758,8 @@ static const char* milestoneString(int milestone)
         return "M50, around April 2016";
     case 51:
         return "M51, around June 2016";
+    case 52:
+        return "M52, around August 2016";
     case 53:
         return "M53, around September 2016";
     }
@@ -953,6 +963,9 @@ String UseCounter::deprecationMessage(Feature feature)
 
     case BluetoothDeviceInstanceId:
         return replacedBy("'BluetoothDevice.instanceID'", "'BluetoothDevice.id'");
+
+    case BluetoothDeviceConnectGATT:
+        return replacedWillBeRemoved("'BluetoothDevice.connectGATT'", "'BluetoothDevice.gatt.connect'", 52, "5264933985976320");
 
     case V8SVGElement_OffsetParent_AttributeGetter:
         return willBeRemoved("'SVGElement.offsetParent'", 50, "5724912467574784");

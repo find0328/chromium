@@ -56,7 +56,7 @@ class HTMLDocumentApplicationDelegate::ServiceConnectorQueue
 };
 
 HTMLDocumentApplicationDelegate::HTMLDocumentApplicationDelegate(
-    mojo::InterfaceRequest<mojo::Application> request,
+    mojo::ApplicationRequest request,
     mojo::URLResponsePtr response,
     GlobalState* global_state,
     scoped_ptr<mojo::AppRefCount> parent_app_refcount,
@@ -97,7 +97,7 @@ void HTMLDocumentApplicationDelegate::Initialize(mojo::ApplicationImpl* app) {
   app_.ConnectToService("mojo:network_service", &url_loader_factory_);
 }
 
-bool HTMLDocumentApplicationDelegate::ConfigureIncomingConnection(
+bool HTMLDocumentApplicationDelegate::AcceptConnection(
     mojo::ApplicationConnection* connection) {
   if (initial_response_) {
     OnResponseReceived(nullptr, mojo::URLLoaderPtr(), connection, nullptr,
