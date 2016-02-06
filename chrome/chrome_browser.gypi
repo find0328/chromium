@@ -676,6 +676,10 @@
       'browser/android/compositor/layer/content_layer.h',
       'browser/android/compositor/layer/contextual_search_layer.cc',
       'browser/android/compositor/layer/contextual_search_layer.h',
+      'browser/android/compositor/layer/overlay_panel_layer.cc',
+      'browser/android/compositor/layer/overlay_panel_layer.h',
+      'browser/android/compositor/layer/reader_mode_layer.cc',
+      'browser/android/compositor/layer/reader_mode_layer.h',
       'browser/android/compositor/layer/crushed_sprite_layer.cc',
       'browser/android/compositor/layer/crushed_sprite_layer.h',
       'browser/android/compositor/layer/layer.h',
@@ -691,6 +695,8 @@
       'browser/android/compositor/layer_title_cache.h',
       'browser/android/compositor/scene_layer/contextual_search_scene_layer.cc',
       'browser/android/compositor/scene_layer/contextual_search_scene_layer.h',
+      'browser/android/compositor/scene_layer/reader_mode_scene_layer.cc',
+      'browser/android/compositor/scene_layer/reader_mode_scene_layer.h',
       'browser/android/compositor/scene_layer/scene_layer.cc',
       'browser/android/compositor/scene_layer/scene_layer.h',
       'browser/android/compositor/scene_layer/static_tab_scene_layer.cc',
@@ -1817,6 +1823,7 @@
       'android/java/src/org/chromium/chrome/browser/compositor/LayerTitleCache.java',
       'android/java/src/org/chromium/chrome/browser/compositor/layouts/content/TabContentManager.java',
       'android/java/src/org/chromium/chrome/browser/compositor/scene_layer/ContextualSearchSceneLayer.java',
+      'android/java/src/org/chromium/chrome/browser/compositor/scene_layer/ReaderModeSceneLayer.java',
       'android/java/src/org/chromium/chrome/browser/compositor/scene_layer/SceneLayer.java',
       'android/java/src/org/chromium/chrome/browser/compositor/scene_layer/StaticTabSceneLayer.java',
       'android/java/src/org/chromium/chrome/browser/compositor/scene_layer/TabListSceneLayer.java',
@@ -3138,7 +3145,6 @@
         '../components/components.gyp:data_reduction_proxy_core_browser',
         '../components/components.gyp:data_usage_core',
         '../components/components.gyp:data_use_measurement_core',
-        '../components/components.gyp:domain_reliability',
         '../components/components.gyp:favicon_base',
         '../components/components.gyp:favicon_core',
         '../components/components.gyp:gcm_driver',
@@ -3267,6 +3273,7 @@
             '../components/components.gyp:devtools_discovery',
             '../components/components.gyp:devtools_http_handler',
             '../components/components.gyp:dom_distiller_content_browser',
+            '../components/components.gyp:domain_reliability',
             '../components/components.gyp:error_page_common',
             '../components/components.gyp:favicon_content',
             '../components/components.gyp:flags_ui',
@@ -3431,6 +3438,11 @@
             'browser_app_shim',
           ],
           'sources': [ '<@(chrome_browser_mac_sources)' ]
+        }],
+        ['OS=="win"', {
+          'dependencies': [
+            'file_pre_reader',
+          ],
         }],
         ['OS=="mac" or OS=="android"', {
           'sources': [

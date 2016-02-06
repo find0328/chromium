@@ -15,11 +15,13 @@
 #include "net/base/net_errors.h"
 #include "net/base/socket_performance_watcher.h"
 #include "net/base/test_completion_callback.h"
+#include "net/base/test_data_directory.h"
 #include "net/base/upload_bytes_element_reader.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/transport_security_state.h"
 #include "net/quic/congestion_control/send_algorithm_interface.h"
 #include "net/quic/crypto/crypto_protocol.h"
+#include "net/quic/crypto/proof_verifier_chromium.h"
 #include "net/quic/crypto/quic_decrypter.h"
 #include "net/quic/crypto/quic_encrypter.h"
 #include "net/quic/crypto/quic_server_info.h"
@@ -45,6 +47,7 @@
 #include "net/spdy/spdy_framer.h"
 #include "net/spdy/spdy_http_utils.h"
 #include "net/spdy/spdy_protocol.h"
+#include "net/test/cert_test_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -217,16 +220,27 @@ class QuicHttpStreamTest : public ::testing::TestWithParam<QuicVersion> {
         helper_.get(), new QuicChromiumPacketWriter(socket));
     connection_->set_visitor(&visitor_);
     connection_->SetSendAlgorithm(send_algorithm_);
+
+    // Load a certificate that is valid for *.example.org
+    scoped_refptr<X509Certificate> test_cert(
+        ImportCertFromFile(GetTestCertsDirectory(), "wildcard.pem"));
+    EXPECT_TRUE(test_cert.get());
+
+    verify_details_.cert_verify_result.verified_cert = test_cert;
+    verify_details_.cert_verify_result.is_issued_by_known_root = true;
+    crypto_client_stream_factory_.AddProofVerifyDetails(&verify_details_);
+
     session_.reset(new QuicChromiumClientSession(
         connection_, scoped_ptr<DatagramClientSocket>(socket),
+        scoped_ptr<QuicChromiumPacketReader>(nullptr),
         /*stream_factory=*/nullptr, &crypto_client_stream_factory_, &clock_,
-        &transport_security_state_, make_scoped_ptr((QuicServerInfo*)nullptr),
+        &transport_security_state_, scoped_ptr<QuicServerInfo>(nullptr),
         QuicServerId(kDefaultServerHostName, kDefaultServerPort,
                      PRIVACY_MODE_DISABLED),
         kQuicYieldAfterPacketsRead,
         QuicTime::Delta::FromMilliseconds(kQuicYieldAfterDurationMilliseconds),
         /*cert_verify_flags=*/0, DefaultQuicConfig(), &crypto_config_,
-        "CONNECTION_UNKNOWN", base::TimeTicks::Now(), &promised_by_url_,
+        "CONNECTION_UNKNOWN", base::TimeTicks::Now(), &push_promise_index_,
         base::ThreadTaskRunnerHandle::Get().get(),
         /*socket_performance_watcher=*/nullptr, nullptr));
     session_->Initialize();
@@ -329,7 +343,7 @@ class QuicHttpStreamTest : public ::testing::TestWithParam<QuicVersion> {
   SpdyHeaderBlock response_headers_;
   std::string request_data_;
   std::string response_data_;
-  QuicPromisedByUrlMap promised_by_url_;
+  QuicClientPushPromiseIndex push_promise_index_;
 
  private:
   const QuicConnectionId connection_id_;
@@ -338,6 +352,7 @@ class QuicHttpStreamTest : public ::testing::TestWithParam<QuicVersion> {
   IPEndPoint self_addr_;
   IPEndPoint peer_addr_;
   MockRandom random_generator_;
+  ProofVerifyDetailsChromium verify_details_;
   MockCryptoClientStreamFactory crypto_client_stream_factory_;
   scoped_ptr<StaticSocketDataProvider> socket_data_;
   std::vector<PacketToWrite> writes_;
@@ -476,6 +491,25 @@ TEST_P(QuicHttpStreamTest, SessionClosedBeforeSendRequest) {
 
   EXPECT_EQ(0, stream_->GetTotalSentBytes());
   EXPECT_EQ(0, stream_->GetTotalReceivedBytes());
+}
+
+// Regression test for http://crbug.com/584441
+TEST_P(QuicHttpStreamTest, GetSSLInfoAfterSessionClosed) {
+  SetRequest("GET", "/", DEFAULT_PRIORITY);
+  Initialize();
+
+  request_.method = "GET";
+  request_.url = GURL("http://www.google.com/");
+
+  EXPECT_EQ(OK, stream_->InitializeStream(&request_, DEFAULT_PRIORITY, net_log_,
+                                          callback_.callback()));
+
+  SSLInfo ssl_info;
+  stream_->GetSSLInfo(&ssl_info);
+
+  session_->connection()->CloseConnection(QUIC_NO_ERROR, true);
+
+  stream_->GetSSLInfo(&ssl_info);
 }
 
 TEST_P(QuicHttpStreamTest, LogGranularQuicConnectionError) {

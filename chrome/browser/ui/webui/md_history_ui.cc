@@ -8,7 +8,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/browsing_history_handler.h"
 #include "chrome/browser/ui/webui/metrics_handler.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
+#include "components/prefs/pref_service.h"
 #include "components/search/search.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
@@ -26,16 +28,25 @@
 
 namespace {
 
-content::WebUIDataSource* CreateMdHistoryUIHTMLSource() {
+content::WebUIDataSource* CreateMdHistoryUIHTMLSource(Profile* profile) {
+  PrefService* prefs = profile->GetPrefs();
+
   content::WebUIDataSource* source =
       content::WebUIDataSource::Create(chrome::kChromeUIHistoryHost);
 
   // Localized strings (alphabetical order).
   source->AddLocalizedString("clearSearch", IDS_MD_HISTORY_CLEAR_SEARCH);
+  source->AddLocalizedString("cancel", IDS_CANCEL);
+  source->AddLocalizedString("delete", IDS_MD_HISTORY_DELETE);
+  source->AddLocalizedString("itemsSelected", IDS_MD_HISTORY_ITEMS_SELECTED);
   source->AddLocalizedString("moreFromSite", IDS_HISTORY_MORE_FROM_SITE);
   source->AddLocalizedString("removeFromHistory", IDS_HISTORY_REMOVE_PAGE);
   source->AddLocalizedString("search", IDS_MD_HISTORY_SEARCH);
   source->AddLocalizedString("title", IDS_HISTORY_TITLE);
+
+  bool allow_deleting_history =
+      prefs->GetBoolean(prefs::kAllowDeletingBrowserHistory);
+  source->AddBoolean("allowDeletingHistory", allow_deleting_history);
 
   source->AddResourcePath("history_card.html",
                           IDR_MD_HISTORY_HISTORY_CARD_HTML);
@@ -74,7 +85,7 @@ MdHistoryUI::MdHistoryUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 #endif
 
   Profile* profile = Profile::FromWebUI(web_ui);
-  content::WebUIDataSource::Add(profile, CreateMdHistoryUIHTMLSource());
+  content::WebUIDataSource::Add(profile, CreateMdHistoryUIHTMLSource(profile));
 }
 
 MdHistoryUI::~MdHistoryUI() {}

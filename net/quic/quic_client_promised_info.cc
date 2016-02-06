@@ -6,7 +6,6 @@
 
 #include "base/logging.h"
 #include "net/quic/spdy_utils.h"
-#include "net/tools/quic/quic_client_session.h"
 
 using net::SpdyHeaderBlock;
 using net::kPushPromiseTimeoutSecs;
@@ -20,16 +19,13 @@ QuicClientPromisedInfo::QuicClientPromisedInfo(QuicClientSessionBase* session,
       helper_(session->connection()->helper()),
       id_(id),
       url_(url),
-      listener_(nullptr) {}
+      client_request_delegate_(nullptr) {}
 
-QuicClientPromisedInfo::~QuicClientPromisedInfo() {
-  DVLOG(1) << "~QuicClientPromisedInfo(): stream " << id_;
-  MaybeNotifyListener();
-}
+QuicClientPromisedInfo::~QuicClientPromisedInfo() {}
 
 QuicTime QuicClientPromisedInfo::CleanupAlarm::OnAlarm() {
-  DVLOG(1) << "PromisedStream self GC alarm";
-  promised_->session()->DeletePromised(promised_);
+  DVLOG(1) << "self GC alarm for stream " << promised_->id_;
+  promised_->Reset(QUIC_STREAM_CANCELLED);
   return QuicTime::Zero();
 }
 
@@ -40,32 +36,78 @@ void QuicClientPromisedInfo::Init() {
       QuicTime::Delta::FromSeconds(kPushPromiseTimeoutSecs)));
 }
 
-void QuicClientPromisedInfo::OnPromiseHeaders(
-    std::unique_ptr<SpdyHeaderBlock> headers) {
-  if (!SpdyUtils::UrlIsValid(*headers)) {
+void QuicClientPromisedInfo::OnPromiseHeaders(const SpdyHeaderBlock& headers) {
+  if (!SpdyUtils::UrlIsValid(headers)) {
     DVLOG(1) << "Promise for stream " << id_ << " has invalid URL " << url_;
     Reset(QUIC_INVALID_PROMISE_URL);
     return;
   }
-  request_headers_ = std::move(headers);
-}
-
-void QuicClientPromisedInfo::MaybeNotifyListener() {
-  if (!listener_)
+  if (!session_->IsAuthorized(SpdyUtils::GetHostNameFromHeaderBlock(headers))) {
+    Reset(QUIC_UNAUTHORIZED_PROMISE_URL);
     return;
-  listener_->OnResponse();
-  listener_ = nullptr;
+  }
+  request_headers_.reset(new SpdyHeaderBlock(headers));
 }
 
-void QuicClientPromisedInfo::OnResponseHeaders(
-    std::unique_ptr<SpdyHeaderBlock> headers) {
-  response_headers_ = std::move(headers);
-  MaybeNotifyListener();
+void QuicClientPromisedInfo::OnResponseHeaders(const SpdyHeaderBlock& headers) {
+  response_headers_.reset(new SpdyHeaderBlock(headers));
+  if (client_request_delegate_) {
+    // We already have a client request waiting.
+    FinalValidation();
+  }
 }
 
 void QuicClientPromisedInfo::Reset(QuicRstStreamErrorCode error_code) {
+  QuicClientPushPromiseIndex::Delegate* delegate = client_request_delegate_;
   session_->ResetPromised(id_, error_code);
   session_->DeletePromised(this);
+  if (delegate) {
+    delegate->OnRendezvousResult(nullptr);
+  }
+}
+
+QuicAsyncStatus QuicClientPromisedInfo::FinalValidation() {
+  if (!client_request_delegate_->CheckVary(
+          *client_request_headers_, *request_headers_, *response_headers_)) {
+    Reset(QUIC_PROMISE_VARY_MISMATCH);
+    return QUIC_FAILURE;
+  }
+  QuicSpdyStream* stream = session_->GetPromisedStream(id_);
+  if (!stream) {
+    // This shouldn't be possible, as |ClientRequest| guards against
+    // closed stream for the synchronous case.  And in the
+    // asynchronous case, a RST can only be caught by |OnAlarm()|.
+    QUIC_BUG << "missing promised stream" << id_;
+  }
+  QuicClientPushPromiseIndex::Delegate* delegate = client_request_delegate_;
+  session_->DeletePromised(this);
+  // Stream can start draining now
+  if (delegate) {
+    delegate->OnRendezvousResult(stream);
+  }
+  return QUIC_SUCCESS;
+}
+
+QuicAsyncStatus QuicClientPromisedInfo::HandleClientRequest(
+    const SpdyHeaderBlock& request_headers,
+    QuicClientPushPromiseIndex::Delegate* delegate) {
+  if (session_->IsClosedStream(id_)) {
+    // There was a RST on the response stream.
+    session_->DeletePromised(this);
+    return QUIC_FAILURE;
+  }
+  client_request_delegate_ = delegate;
+  client_request_headers_.reset(new SpdyHeaderBlock(request_headers));
+  if (!response_headers_) {
+    return QUIC_PENDING;
+  }
+  return FinalValidation();
+}
+
+void QuicClientPromisedInfo::Cancel() {
+  // Don't fire OnRendezvousResult() for client initiated cancel.
+  client_request_delegate_ = nullptr;
+  Reset(QUIC_STREAM_CANCELLED);
 }
 
 }  // namespace net

@@ -76,8 +76,9 @@ void DelayedCookieMonster::SetCookieWithDetailsAsync(
     const std::string& value,
     const std::string& domain,
     const std::string& path,
-    const base::Time creation_time,
-    const base::Time expiration_time,
+    base::Time creation_time,
+    base::Time expiration_time,
+    base::Time last_access_time,
     bool secure,
     bool http_only,
     bool same_site,
@@ -150,6 +151,12 @@ void DelayedCookieMonster::DeleteCookie(const GURL& url,
 void DelayedCookieMonster::DeleteCookieAsync(const GURL& url,
                                              const std::string& cookie_name,
                                              const base::Closure& callback) {
+  ADD_FAILURE();
+}
+
+void DelayedCookieMonster::DeleteCanonicalCookieAsync(
+    const CanonicalCookie& cookie,
+    const DeleteCallback& callback) {
   ADD_FAILURE();
 }
 

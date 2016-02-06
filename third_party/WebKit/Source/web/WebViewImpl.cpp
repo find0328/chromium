@@ -99,6 +99,7 @@
 #include "platform/ContextMenu.h"
 #include "platform/ContextMenuItem.h"
 #include "platform/Cursor.h"
+#include "platform/Histogram.h"
 #include "platform/KeyboardCodes.h"
 #include "platform/Logging.h"
 #include "platform/NotImplemented.h"
@@ -231,16 +232,17 @@ static Vector<OwnPtr<ScopedPageLoadDeferrer>>& pageLoadDeferrerStack()
 
 // Ensure that the WebDragOperation enum values stay in sync with the original
 // DragOperation constants.
-#define STATIC_ASSERT_MATCHING_ENUM(coreName) \
-    static_assert(int(coreName) == int(Web##coreName), "DragOperation and WebDragOperation enum mismatch: " #coreName)
-STATIC_ASSERT_MATCHING_ENUM(DragOperationNone);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationCopy);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationLink);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationGeneric);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationPrivate);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationMove);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationDelete);
-STATIC_ASSERT_MATCHING_ENUM(DragOperationEvery);
+#define STATIC_ASSERT_ENUM(a, b)                              \
+    static_assert(static_cast<int>(a) == static_cast<int>(b), \
+        "mismatching enum : " #a)
+STATIC_ASSERT_ENUM(DragOperationNone, WebDragOperationNone);
+STATIC_ASSERT_ENUM(DragOperationCopy, WebDragOperationCopy);
+STATIC_ASSERT_ENUM(DragOperationLink, WebDragOperationLink);
+STATIC_ASSERT_ENUM(DragOperationGeneric, WebDragOperationGeneric);
+STATIC_ASSERT_ENUM(DragOperationPrivate, WebDragOperationPrivate);
+STATIC_ASSERT_ENUM(DragOperationMove, WebDragOperationMove);
+STATIC_ASSERT_ENUM(DragOperationDelete, WebDragOperationDelete);
+STATIC_ASSERT_ENUM(DragOperationEvery, WebDragOperationEvery);
 
 static bool shouldUseExternalPopupMenus = false;
 
@@ -322,69 +324,6 @@ private:
     WebColor m_color;
 };
 
-#if OS(ANDROID)
-// Array used to convert canonical encoding method name to index to be
-// uploaded to UMA for the experiment on text encoding auto detection.
-// The listed order should be in sync with the enum definition 'EncodingMethod'
-// in tools/metrics/histograms/histograms.xml.
-static const char* kEncodingNames[] = {
-    "UNKNOWN",
-    "Big5",
-    "EUC-JP",
-    "EUC-KR",
-    "GBK",
-    "IBM866",
-    "ISO-2022-JP",
-    "ISO-8859-10",
-    "ISO-8859-13",
-    "ISO-8859-14",
-    "ISO-8859-15",
-    "ISO-8859-16",
-    "ISO-8859-2",
-    "ISO-8859-3",
-    "ISO-8859-4",
-    "ISO-8859-5",
-    "ISO-8859-6",
-    "ISO-8859-7",
-    "ISO-8859-8",
-    "ISO-8859-8-I",
-    "KOI8-R",
-    "KOI8-U",
-    "Shift_JIS",
-    "UTF-16LE",
-    "UTF-8",
-    "gb18030",
-    "macintosh",
-    "windows-1250",
-    "windows-1251",
-    "windows-1252",
-    "windows-1253",
-    "windows-1254",
-    "windows-1255",
-    "windows-1256",
-    "windows-1257",
-    "windows-1258",
-    "windows-874"
-};
-
-// Returns the index of the entry in the array that matches
-// the given encoding method.
-static int encodingToUmaId(const WTF::TextEncoding& encoding)
-{
-    const char* encodingName = encoding.name();
-    for (size_t i = 0; i < WTF_ARRAY_LENGTH(kEncodingNames); ++i) {
-        if (!strcasecmp(kEncodingNames[i], encodingName))
-            return i;
-    }
-    return 0;
-}
-
-static bool isInternalURL(const KURL& url)
-{
-    const String& protocol = url.protocol();
-    return protocol == "chrome" || protocol == "chrome-native" || protocol == "swappedout";
-}
-#endif
 } // namespace
 
 // WebView ----------------------------------------------------------------
@@ -708,6 +647,8 @@ bool WebViewImpl::scrollBy(const WebFloatSize& delta, const WebFloatSize& veloci
         WebMouseWheelEvent syntheticWheel;
         const float tickDivisor = WheelEvent::TickMultiplier;
 
+        syntheticWheel.type = WebInputEvent::MouseWheel;
+        syntheticWheel.timeStampSeconds = WTF::monotonicallyIncreasingTime();
         syntheticWheel.deltaX = delta.width;
         syntheticWheel.deltaY = delta.height;
         syntheticWheel.wheelTicksX = delta.width / tickDivisor;
@@ -725,6 +666,7 @@ bool WebViewImpl::scrollBy(const WebFloatSize& delta, const WebFloatSize& veloci
         WebGestureEvent syntheticGestureEvent;
 
         syntheticGestureEvent.type = WebInputEvent::GestureScrollUpdate;
+        syntheticGestureEvent.timeStampSeconds = WTF::monotonicallyIncreasingTime();
         syntheticGestureEvent.data.scrollUpdate.preventPropagation = true;
         syntheticGestureEvent.data.scrollUpdate.deltaX = delta.width;
         syntheticGestureEvent.data.scrollUpdate.deltaY = delta.height;
@@ -2055,8 +1997,10 @@ void WebViewImpl::paint(WebCanvas* canvas, const WebRect& rect)
     PageWidgetDelegate::paint(*m_page, canvas, rect, *m_page->deprecatedLocalMainFrame());
     double paintEnd = currentTime();
     double pixelsPerSec = (rect.width * rect.height) / (paintEnd - paintStart);
-    Platform::current()->histogramCustomCounts("Renderer4.SoftwarePaintDurationMS", (paintEnd - paintStart) * 1000, 0, 120, 30);
-    Platform::current()->histogramCustomCounts("Renderer4.SoftwarePaintMegapixPerSecond", pixelsPerSec / 1000000, 10, 210, 30);
+    DEFINE_STATIC_LOCAL(CustomCountHistogram, softwarePaintDurationHistogram, ("Renderer4.SoftwarePaintDurationMS", 0, 120, 30));
+    softwarePaintDurationHistogram.count((paintEnd - paintStart) * 1000);
+    DEFINE_STATIC_LOCAL(CustomCountHistogram, softwarePaintRateHistogram, ("Renderer4.SoftwarePaintMegapixPerSecond", 10, 210, 30));
+    softwarePaintRateHistogram.count(pixelsPerSec / 1000000);
 }
 
 #if OS(ANDROID)
@@ -4047,18 +3991,6 @@ void WebViewImpl::willInsertMainFrameDocumentBody()
 void WebViewImpl::didFinishMainFrameDocumentLoad()
 {
     resumeTreeViewCommitsIfRenderingReady();
-#if OS(ANDROID)
-    if (!isInternalURL(mainFrameImpl()->frame()->document()->baseURL()) && page()->settings().usesEncodingDetector()) {
-        const Document& document = *mainFrameImpl()->frame()->document();
-
-        // "AutodetectEncoding.Attempted" is of boolean type - either 0 or 1. Use 2 for the boundary value.
-        Platform::current()->histogramEnumeration("AutodetectEncoding.Attempted", document.attemptedToDetermineEncodingFromContentSniffing(), 2);
-        if (document.encodingWasDetectedFromContentSniffing()) {
-            int encodingId = encodingToUmaId(document.encoding());
-            Platform::current()->histogramEnumeration("AutodetectEncoding.Detected", encodingId, WTF_ARRAY_LENGTH(kEncodingNames) + 1);
-        }
-    }
-#endif
 }
 
 void WebViewImpl::didRemoveAllPendingStylesheetsInMainFrameDocument()

@@ -17,7 +17,7 @@
 #include "blimp/net/input_message_generator.h"
 
 namespace blink {
-class WebInputEvent;
+class WebGestureEvent;
 }
 
 namespace cc {
@@ -64,8 +64,8 @@ class BLIMP_CLIENT_EXPORT RenderWidgetFeature : public BlimpMessageProcessor {
   void set_outgoing_compositor_message_processor(
       scoped_ptr<BlimpMessageProcessor> processor);
 
-  // Sends a WebInputEvent for |tab_id| to the engine.
-  void SendInputEvent(const int tab_id, const blink::WebInputEvent& event);
+  // Sends a WebGestureEvent for |tab_id| to the engine.
+  void SendInputEvent(const int tab_id, const blink::WebGestureEvent& event);
 
   // Sends a CompositorMessage for |tab_id| to the engine.
   void SendCompositorMessage(const int tab_id,
@@ -74,8 +74,9 @@ class BLIMP_CLIENT_EXPORT RenderWidgetFeature : public BlimpMessageProcessor {
   // Sets a RenderWidgetMessageDelegate to be notified of all incoming
   // RenderWidget related messages for |tab_id| from the engine.  There can only
   // be one RenderWidgetMessageDelegate per tab.
-  void SetDelegate(const int tab_id, RenderWidgetFeatureDelegate* delegate);
-  void RemoveDelegate(const int tab_id);
+  // virtual for testing.
+  virtual void SetDelegate(int tab_id, RenderWidgetFeatureDelegate* delegate);
+  virtual void RemoveDelegate(const int tab_id);
 
  private:
   // BlimpMessageProcessor implementation.

@@ -424,6 +424,7 @@
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
         '../third_party/mesa/mesa.gyp:osmesa',
+        '../third_party/protobuf/protobuf.gyp:protobuf_lite',
         '../ui/gfx/gfx.gyp:gfx',
         '../ui/gfx/gfx.gyp:gfx_geometry',
         '../ui/gfx/gfx.gyp:gfx_test_support',
@@ -463,6 +464,25 @@
             'includes': [ '../build/apk_test.gypi' ],
           },
         ],
+        'conditions': [
+          ['test_isolation_mode != "noop"', {
+            'targets': [
+              {
+                'target_name': 'cc_unittests_apk_run',
+                'type': 'none',
+                'dependencies': [
+                  'cc_unittests_apk',
+                ],
+                'includes': [
+                  '../build/isolate.gypi',
+                ],
+                'sources': [
+                  'cc_unittests_apk.isolate',
+                ],
+              }
+            ]
+          }]
+        ]
       }
     ],
     ['test_isolation_mode != "noop"', {

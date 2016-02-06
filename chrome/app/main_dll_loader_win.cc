@@ -13,8 +13,7 @@
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
-#include "base/environment.h"
-#include "base/files/memory_mapped_file.h"
+#include "base/files/file_path.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -24,7 +23,6 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/threading/platform_thread.h"
 #include "base/trace_event/trace_event.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/windows_version.h"
@@ -38,7 +36,6 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_result_codes.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/common/env_vars.h"
 #include "chrome/installer/util/google_update_constants.h"
 #include "chrome/installer/util/google_update_settings.h"
 #include "chrome/installer/util/install_util.h"
@@ -62,30 +59,17 @@ typedef void (*RelaunchChromeBrowserWithNewCommandLineIfNeededFunc)();
 HMODULE LoadModuleWithDirectory(const base::FilePath& module) {
   ::SetCurrentDirectoryW(module.DirName().value().c_str());
 
-  // Get pre-read options from the PreRead field trial.
   const startup_metric_utils::PreReadOptions pre_read_options =
       startup_metric_utils::GetPreReadOptions();
 
-  // Pre-read the binary to warm the memory caches (avoids a lot of random IO).
-  if (pre_read_options.pre_read) {
-    base::ThreadPriority previous_priority = base::ThreadPriority::NORMAL;
-    if (pre_read_options.high_priority) {
-      previous_priority = base::PlatformThread::GetCurrentThreadPriority();
-      base::PlatformThread::SetCurrentThreadPriority(
-          base::ThreadPriority::DISPLAY);
-    }
-
-    if (pre_read_options.prefetch_virtual_memory) {
-      base::MemoryMappedFile module_memory_map;
-      const bool map_initialize_success = module_memory_map.Initialize(module);
-      DCHECK(map_initialize_success);
-      PreReadMemoryMappedFile(module_memory_map, module);
-    } else {
-      PreReadFile(module);
-    }
-
-    if (pre_read_options.high_priority)
-      base::PlatformThread::SetCurrentThreadPriority(previous_priority);
+  // If enabled by the PreRead field trial, pre-read the binary to avoid a lot
+  // of random IO. Don't pre-read the binary if it is chrome_child.dll and the
+  // |pre_read_chrome_child_in_browser| option is enabled; the binary should
+  // already have been pre-read by the browser process in that case.
+  if (pre_read_options.pre_read &&
+      (!pre_read_options.pre_read_chrome_child_in_browser ||
+       module.BaseName().value() != installer::kChromeChildDll)) {
+    PreReadFile(module, pre_read_options);
   }
 
   return ::LoadLibraryExW(module.value().c_str(), nullptr,
@@ -154,13 +138,7 @@ MainDllLoader::MainDllLoader()
 MainDllLoader::~MainDllLoader() {
 }
 
-// Loading chrome is an interesting affair. First we try loading from the
-// current directory to support run-what-you-compile and other development
-// scenarios.
-// If that fails then we look at the version resource in the current
-// module. This is the expected path for chrome.exe browser instances in an
-// installed build.
-HMODULE MainDllLoader::Load(base::string16* version, base::FilePath* module) {
+HMODULE MainDllLoader::Load(base::FilePath* module) {
   const base::char16* dll_name = nullptr;
   if (process_type_ == switches::kServiceProcess || process_type_.empty()) {
     dll_name = installer::kChromeDll;
@@ -174,7 +152,7 @@ HMODULE MainDllLoader::Load(base::string16* version, base::FilePath* module) {
 #endif
   }
 
-  *module = installer::GetModulePath(dll_name, version);
+  *module = installer::GetModulePath(dll_name);
   if (module->empty()) {
     PLOG(ERROR) << "Cannot find module " << dll_name;
     return nullptr;
@@ -189,14 +167,12 @@ HMODULE MainDllLoader::Load(base::string16* version, base::FilePath* module) {
   return dll;
 }
 
-// Launching is a matter of loading the right dll, setting the CHROME_VERSION
-// environment variable and just calling the entry point. Derived classes can
-// add custom code in the OnBeforeLaunch callback.
+// Launching is a matter of loading the right dll and calling the entry point.
+// Derived classes can add custom code in the OnBeforeLaunch callback.
 int MainDllLoader::Launch(HINSTANCE instance) {
   const base::CommandLine& cmd_line = *base::CommandLine::ForCurrentProcess();
   process_type_ = cmd_line.GetSwitchValueASCII(switches::kProcessType);
 
-  base::string16 version;
   base::FilePath file;
 
   if (process_type_ == switches::kWatcherProcess) {
@@ -219,7 +195,7 @@ int MainDllLoader::Launch(HINSTANCE instance) {
         !InstallUtil::IsPerUserInstall(cmd_line.GetProgram()));
 
     // Intentionally leaked.
-    HMODULE watcher_dll = Load(&version, &file);
+    HMODULE watcher_dll = Load(&file);
     if (!watcher_dll)
       return chrome::RESULT_CODE_MISSING_DATA;
 
@@ -236,12 +212,9 @@ int MainDllLoader::Launch(HINSTANCE instance) {
   sandbox::SandboxInterfaceInfo sandbox_info = {0};
   content::InitializeSandboxInfo(&sandbox_info);
 
-  dll_ = Load(&version, &file);
+  dll_ = Load(&file);
   if (!dll_)
     return chrome::RESULT_CODE_MISSING_DATA;
-
-  scoped_ptr<base::Environment> env(base::Environment::Create());
-  env->SetVar(chrome::kChromeVersionEnvVar, base::WideToUTF8(version));
 
   OnBeforeLaunch(process_type_, file);
   DLL_MAIN chrome_main =

@@ -166,6 +166,7 @@ class CookieStoreTest : public testing::Test {
                             const std::string& path,
                             const base::Time creation_time,
                             const base::Time expiration_time,
+                            const base::Time last_access_time,
                             bool secure,
                             bool http_only,
                             bool same_site,
@@ -173,10 +174,11 @@ class CookieStoreTest : public testing::Test {
     DCHECK(cs);
     ResultSavingCookieCallback<bool> callback;
     cs->SetCookieWithDetailsAsync(
-        url, name, value, domain, path, creation_time, expiration_time, secure,
-        http_only, same_site, false /* enforces strict secure cookies */,
-        priority, base::Bind(&ResultSavingCookieCallback<bool>::Run,
-                             base::Unretained(&callback)));
+        url, name, value, domain, path, creation_time, expiration_time,
+        last_access_time, secure, http_only, same_site,
+        false /* enforces strict secure cookies */, priority,
+        base::Bind(&ResultSavingCookieCallback<bool>::Run,
+                   base::Unretained(&callback)));
     callback.WaitUntilDone();
     return callback.result();
   }
@@ -212,6 +214,16 @@ class CookieStoreTest : public testing::Test {
         url, cookie_name,
         base::Bind(&NoResultCookieCallback::Run, base::Unretained(&callback)));
     callback.WaitUntilDone();
+  }
+
+  int DeleteCanonicalCookie(CookieStore* cs, const CanonicalCookie& cookie) {
+    DCHECK(cs);
+    ResultSavingCookieCallback<int> callback;
+    cs->DeleteCanonicalCookieAsync(
+        cookie, base::Bind(&ResultSavingCookieCallback<int>::Run,
+                           base::Unretained(&callback)));
+    callback.WaitUntilDone();
+    return callback.result();
   }
 
   int DeleteCreatedBetween(CookieStore* cs,
@@ -321,43 +333,46 @@ TYPED_TEST_CASE_P(CookieStoreTest);
 TYPED_TEST_P(CookieStoreTest, SetCookieWithDetailsAsync) {
   scoped_refptr<CookieStore> cs(this->GetCookieStore());
 
+  base::Time two_hours_ago = base::Time::Now() - base::TimeDelta::FromHours(2);
   base::Time one_hour_ago = base::Time::Now() - base::TimeDelta::FromHours(1);
   base::Time one_hour_from_now =
       base::Time::Now() + base::TimeDelta::FromHours(1);
 
   EXPECT_TRUE(this->SetCookieWithDetails(
       cs.get(), this->www_google_foo_.url(), "A", "B", std::string(), "/foo",
-      one_hour_ago, one_hour_from_now, false, false, false,
+      one_hour_ago, one_hour_from_now, base::Time(), false, false, false,
       COOKIE_PRIORITY_DEFAULT));
+  // Note that for the creation time to be set exactly, without modification,
+  // it must be different from the one set by the line above.
   EXPECT_TRUE(this->SetCookieWithDetails(
       cs.get(), this->www_google_bar_.url(), "C", "D",
-      this->www_google_bar_.domain(), "/bar", base::Time(), base::Time(), false,
-      true, false, COOKIE_PRIORITY_DEFAULT));
+      this->www_google_bar_.domain(), "/bar", two_hours_ago, base::Time(),
+      one_hour_ago, false, true, false, COOKIE_PRIORITY_DEFAULT));
   EXPECT_TRUE(this->SetCookieWithDetails(
       cs.get(), this->http_www_google_.url(), "E", "F", std::string(),
-      std::string(), base::Time(), base::Time(), true, false, false,
-      COOKIE_PRIORITY_DEFAULT));
+      std::string(), base::Time(), base::Time(), base::Time(), true, false,
+      false, COOKIE_PRIORITY_DEFAULT));
 
   // Test that malformed attributes fail to set the cookie.
   EXPECT_FALSE(this->SetCookieWithDetails(
       cs.get(), this->www_google_foo_.url(), " A", "B", std::string(), "/foo",
-      base::Time(), base::Time(), false, false, false,
+      base::Time(), base::Time(), base::Time(), false, false, false,
       COOKIE_PRIORITY_DEFAULT));
   EXPECT_FALSE(this->SetCookieWithDetails(
       cs.get(), this->www_google_foo_.url(), "A;", "B", std::string(), "/foo",
-      base::Time(), base::Time(), false, false, false,
+      base::Time(), base::Time(), base::Time(), false, false, false,
       COOKIE_PRIORITY_DEFAULT));
   EXPECT_FALSE(this->SetCookieWithDetails(
       cs.get(), this->www_google_foo_.url(), "A=", "B", std::string(), "/foo",
-      base::Time(), base::Time(), false, false, false,
+      base::Time(), base::Time(), base::Time(), false, false, false,
       COOKIE_PRIORITY_DEFAULT));
   EXPECT_FALSE(this->SetCookieWithDetails(
       cs.get(), this->www_google_foo_.url(), "A", "B", "google.ozzzzzzle",
-      "foo", base::Time(), base::Time(), false, false, false,
+      "foo", base::Time(), base::Time(), base::Time(), false, false, false,
       COOKIE_PRIORITY_DEFAULT));
   EXPECT_FALSE(this->SetCookieWithDetails(
       cs.get(), this->www_google_foo_.url(), "A=", "B", std::string(), "foo",
-      base::Time(), base::Time(), false, false, false,
+      base::Time(), base::Time(), base::Time(), false, false, false,
       COOKIE_PRIORITY_DEFAULT));
 
   CookieList cookies =
@@ -374,6 +389,9 @@ TYPED_TEST_P(CookieStoreTest, SetCookieWithDetailsAsync) {
   // Expect expiration date is in the right range.  Some cookie implementations
   // may not record it with millisecond accuracy.
   EXPECT_LE((one_hour_from_now - it->ExpiryDate()).magnitude().InSeconds(), 5);
+  // Some CookieStores don't store last access date.
+  if (!it->LastAccessDate().is_null())
+    EXPECT_EQ(one_hour_ago, it->LastAccessDate());
   EXPECT_FALSE(it->IsSecure());
   EXPECT_FALSE(it->IsHttpOnly());
 
@@ -387,10 +405,11 @@ TYPED_TEST_P(CookieStoreTest, SetCookieWithDetailsAsync) {
   EXPECT_EQ("D", it->Value());
   EXPECT_EQ(this->www_google_bar_.Format(".%D"), it->Domain());
   EXPECT_EQ("/bar", it->Path());
-  // Cookie should have its creation time set, and be in a reasonable range.
-  EXPECT_LE((base::Time::Now() - it->CreationDate()).magnitude().InMinutes(),
-            2);
+  EXPECT_EQ(two_hours_ago, it->CreationDate());
   EXPECT_FALSE(it->IsPersistent());
+  // Some CookieStores don't store last access date.
+  if (!it->LastAccessDate().is_null())
+    EXPECT_EQ(one_hour_ago, it->LastAccessDate());
   EXPECT_FALSE(it->IsSecure());
   EXPECT_TRUE(it->IsHttpOnly());
 
@@ -408,6 +427,9 @@ TYPED_TEST_P(CookieStoreTest, SetCookieWithDetailsAsync) {
   EXPECT_LE((base::Time::Now() - it->CreationDate()).magnitude().InMinutes(),
             2);
   EXPECT_FALSE(it->IsPersistent());
+  // Some CookieStores don't store last access date.
+  if (!it->LastAccessDate().is_null())
+    EXPECT_EQ(it->CreationDate(), it->LastAccessDate());
   EXPECT_TRUE(it->IsSecure());
   EXPECT_FALSE(it->IsHttpOnly());
 
@@ -1249,6 +1271,47 @@ TYPED_TEST_P(CookieStoreTest, GetAllCookiesAsync) {
   ASSERT_TRUE(++it == cookies.end());
 }
 
+TYPED_TEST_P(CookieStoreTest, DeleteCanonicalCookieAsync) {
+  scoped_refptr<CookieStore> cs(this->GetCookieStore());
+
+  // Set two cookies with the same name, and make sure both are set.
+  EXPECT_TRUE(
+      this->SetCookie(cs.get(), this->http_www_google_.url(), "A=B;Path=/foo"));
+  EXPECT_TRUE(
+      this->SetCookie(cs.get(), this->http_www_google_.url(), "A=C;Path=/bar"));
+  EXPECT_EQ(2u, this->GetAllCookies(cs.get()).size());
+  EXPECT_EQ("A=B", this->GetCookies(cs.get(), this->www_google_foo_.url()));
+  EXPECT_EQ("A=C", this->GetCookies(cs.get(), this->www_google_bar_.url()));
+
+  // Delete the "/foo" cookie, and make sure only it was deleted.
+  CookieList cookies =
+      this->GetAllCookiesForURL(cs.get(), this->www_google_foo_.url());
+  ASSERT_EQ(1u, cookies.size());
+  EXPECT_EQ(1, this->DeleteCanonicalCookie(cs.get(), cookies[0]));
+  EXPECT_EQ(1u, this->GetAllCookies(cs.get()).size());
+  EXPECT_EQ("", this->GetCookies(cs.get(), this->www_google_foo_.url()));
+  EXPECT_EQ("A=C", this->GetCookies(cs.get(), this->www_google_bar_.url()));
+
+  // Deleting the "/foo" cookie again should fail.
+  EXPECT_EQ(0, this->DeleteCanonicalCookie(cs.get(), cookies[0]));
+
+  // Try to delete the "/bar" cookie after overwriting it with a new cookie.
+  cookies = this->GetAllCookiesForURL(cs.get(), this->www_google_bar_.url());
+  ASSERT_EQ(1u, cookies.size());
+  EXPECT_TRUE(
+      this->SetCookie(cs.get(), this->http_www_google_.url(), "A=D;Path=/bar"));
+  EXPECT_EQ(0, this->DeleteCanonicalCookie(cs.get(), cookies[0]));
+  EXPECT_EQ(1u, this->GetAllCookies(cs.get()).size());
+  EXPECT_EQ("A=D", this->GetCookies(cs.get(), this->www_google_bar_.url()));
+
+  // Delete the new "/bar" cookie.
+  cookies = this->GetAllCookiesForURL(cs.get(), this->www_google_bar_.url());
+  ASSERT_EQ(1u, cookies.size());
+  EXPECT_EQ(1, this->DeleteCanonicalCookie(cs.get(), cookies[0]));
+  EXPECT_EQ(0u, this->GetAllCookies(cs.get()).size());
+  EXPECT_EQ("", this->GetCookies(cs.get(), this->www_google_bar_.url()));
+}
+
 TYPED_TEST_P(CookieStoreTest, DeleteSessionCookie) {
   scoped_refptr<CookieStore> cs(this->GetCookieStore());
   // Create a session cookie and a persistent cookie.
@@ -1292,6 +1355,7 @@ REGISTER_TYPED_TEST_CASE_P(CookieStoreTest,
                            OverwritePersistentCookie,
                            CookieOrdering,
                            GetAllCookiesAsync,
+                           DeleteCanonicalCookieAsync,
                            DeleteSessionCookie);
 
 template<class CookieStoreTestTraits>

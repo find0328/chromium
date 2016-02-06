@@ -29,7 +29,7 @@ class ShellApplicationDelegate
  private:
   // Overridden from ApplicationDelegate:
   void Initialize(ApplicationImpl* app) override;
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override;
+  bool AcceptConnection(ApplicationConnection* connection) override;
 
   // Overridden from InterfaceFactory<mojom::ApplicationManager>:
   void Create(
@@ -40,9 +40,8 @@ class ShellApplicationDelegate
   void CreateInstanceForHandle(
       ScopedHandle channel,
       const String& url,
-      CapabilityFilterPtr filter,
+      mojom::CapabilityFilterPtr filter,
       InterfaceRequest<mojom::PIDReceiver> pid_receiver) override;
-  void RegisterProcessWithBroker(uint32_t pid, ScopedHandle pipe) override;
   void AddListener(
       mojom::ApplicationManagerListenerPtr listener) override;
 

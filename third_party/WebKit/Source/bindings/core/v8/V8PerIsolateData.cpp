@@ -35,6 +35,7 @@
 #include "core/frame/UseCounter.h"
 #include "core/inspector/MainThreadDebugger.h"
 #include "public/platform/Platform.h"
+#include "wtf/LeakAnnotations.h"
 #include "wtf/MainThread.h"
 
 namespace blink {
@@ -131,7 +132,6 @@ V8PerIsolateData::V8PerIsolateData()
     , m_internalScriptRecursionLevel(0)
 #endif
     , m_performingMicrotaskCheckpoint(false)
-    , m_scriptDebugger(nullptr)
 {
     // FIXME: Remove once all v8::Isolate::GetCurrent() calls are gone.
     isolate()->Enter();
@@ -184,7 +184,7 @@ void V8PerIsolateData::willBeDestroyed(v8::Isolate* isolate)
     ASSERT(!data->m_destructionPending);
     data->m_destructionPending = true;
 
-    data->m_scriptDebugger.clear();
+    data->m_threadDebugger.clear();
     // Clear any data that may have handles into the heap,
     // prior to calling ThreadState::detach().
     data->clearEndOfScopeTasks();
@@ -253,6 +253,7 @@ void V8PerIsolateData::setDOMTemplate(const void* domTemplateKey, v8::Local<v8::
 v8::Local<v8::Context> V8PerIsolateData::ensureScriptRegexpContext()
 {
     if (!m_scriptRegexpScriptState) {
+        LEAK_SANITIZER_DISABLED_SCOPE;
         v8::Local<v8::Context> context(v8::Context::New(isolate()));
         m_scriptRegexpScriptState = ScriptState::create(context, DOMWrapperWorld::create(isolate()));
     }
@@ -319,10 +320,15 @@ void V8PerIsolateData::clearEndOfScopeTasks()
     m_endOfScopeTasks.clear();
 }
 
-void V8PerIsolateData::setScriptDebugger(PassOwnPtr<MainThreadDebugger> debugger)
+void V8PerIsolateData::setThreadDebugger(PassOwnPtr<ThreadDebugger> threadDebugger)
 {
-    ASSERT(!m_scriptDebugger);
-    m_scriptDebugger = std::move(debugger);
+    ASSERT(!m_threadDebugger);
+    m_threadDebugger = std::move(threadDebugger);
+}
+
+ThreadDebugger* V8PerIsolateData::threadDebugger()
+{
+    return m_threadDebugger.get();
 }
 
 } // namespace blink

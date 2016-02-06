@@ -31,7 +31,7 @@
 #include "core/inspector/InspectorResourceAgent.h"
 
 #include "bindings/core/v8/ExceptionStatePlaceholder.h"
-#include "bindings/core/v8/ScriptCallStackFactory.h"
+#include "bindings/core/v8/ScriptCallStack.h"
 #include "core/dom/Document.h"
 #include "core/dom/ScriptableDocumentParser.h"
 #include "core/fetch/FetchInitiatorInfo.h"
@@ -52,8 +52,6 @@
 #include "core/inspector/InspectedFrames.h"
 #include "core/inspector/InstrumentingAgents.h"
 #include "core/inspector/NetworkResourcesData.h"
-#include "core/inspector/ScriptAsyncCallStack.h"
-#include "core/inspector/ScriptCallStack.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/FrameLoader.h"
 #include "core/loader/MixedContentChecker.h"
@@ -383,11 +381,21 @@ static PassRefPtr<TypeBuilder::Network::Response> buildObjectForResourceResponse
 
         const ResourceResponse::SecurityDetails* responseSecurityDetails = response.securityDetails();
 
+        int numUnknownSCTs = safeCast<int>(responseSecurityDetails->numUnknownSCTs);
+        int numInvalidSCTs = safeCast<int>(responseSecurityDetails->numInvalidSCTs);
+        int numValidSCTs = safeCast<int>(responseSecurityDetails->numValidSCTs);
+
+        RefPtr<TypeBuilder::Network::CertificateValidationDetails> certificateValidationDetails = TypeBuilder::Network::CertificateValidationDetails::create()
+            .setNumUnknownScts(numUnknownSCTs)
+            .setNumInvalidScts(numInvalidSCTs)
+            .setNumValidScts(numValidSCTs);
+
         RefPtr<TypeBuilder::Network::SecurityDetails> securityDetails = TypeBuilder::Network::SecurityDetails::create()
             .setProtocol(responseSecurityDetails->protocol)
             .setKeyExchange(responseSecurityDetails->keyExchange)
             .setCipher(responseSecurityDetails->cipher)
             .setCertificateId(responseSecurityDetails->certID);
+        securityDetails->setCertificateValidationDetails(certificateValidationDetails);
         if (responseSecurityDetails->mac.length() > 0)
             securityDetails->setMac(responseSecurityDetails->mac);
 
@@ -773,15 +781,11 @@ void InspectorResourceAgent::didScheduleStyleRecalculation(Document* document)
 
 PassRefPtr<TypeBuilder::Network::Initiator> InspectorResourceAgent::buildInitiatorObject(Document* document, const FetchInitiatorInfo& initiatorInfo)
 {
-    RefPtr<ScriptCallStack> stackTrace = currentScriptCallStack(ScriptCallStack::maxCallStackSizeToCapture);
+    RefPtr<ScriptCallStack> stackTrace = ScriptCallStack::capture();
     if (stackTrace) {
         RefPtr<TypeBuilder::Network::Initiator> initiatorObject = TypeBuilder::Network::Initiator::create()
             .setType(TypeBuilder::Network::Initiator::Type::Script);
-        if (stackTrace->size() > 0)
-            initiatorObject->setStackTrace(stackTrace->buildInspectorArray());
-        RefPtr<ScriptAsyncCallStack> asyncStackTrace = stackTrace->asyncCallStack();
-        if (asyncStackTrace)
-            initiatorObject->setAsyncStackTrace(asyncStackTrace->buildInspectorObject());
+        initiatorObject->setStack(stackTrace->buildInspectorObject());
         return initiatorObject;
     }
 

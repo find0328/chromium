@@ -983,10 +983,6 @@ void IOThread::ConfigureSpdyGlobals(
     base::StringPiece spdy_trial_group,
     const VariationParameters& spdy_trial_params,
     IOThread::Globals* globals) {
-  if (command_line.HasSwitch(switches::kTrustedSpdyProxy)) {
-    globals->trusted_spdy_proxy.set(
-        command_line.GetSwitchValueASCII(switches::kTrustedSpdyProxy));
-  }
   if (command_line.HasSwitch(switches::kIgnoreUrlFetcherCertRequests))
     net::URLFetcher::SetIgnoreCertificateRequests(true);
 
@@ -1169,7 +1165,6 @@ void IOThread::InitializeNetworkSessionParamsFromGlobals(
       &params->spdy_default_protocol);
   globals.enable_spdy31.CopyToIfSet(&params->enable_spdy31);
   globals.enable_http2.CopyToIfSet(&params->enable_http2);
-  globals.trusted_spdy_proxy.CopyToIfSet(&params->trusted_spdy_proxy);
   params->forced_spdy_exclusions = globals.forced_spdy_exclusions;
   globals.parse_alternative_services.CopyToIfSet(
       &params->parse_alternative_services);
@@ -1223,6 +1218,8 @@ void IOThread::InitializeNetworkSessionParamsFromGlobals(
     params->quic_host_whitelist = globals.quic_host_whitelist;
   globals.quic_migrate_sessions_on_network_change.CopyToIfSet(
       &params->quic_migrate_sessions_on_network_change);
+  globals.quic_migrate_sessions_early.CopyToIfSet(
+      &params->quic_migrate_sessions_early);
   globals.origin_to_force_quic_on.CopyToIfSet(
       &params->origin_to_force_quic_on);
   params->enable_user_alternate_protocol_ports =
@@ -1369,6 +1366,8 @@ void IOThread::ConfigureQuicGlobals(
         GetQuicHostWhitelist(command_line, quic_trial_params);
     globals->quic_migrate_sessions_on_network_change.set(
         ShouldQuicMigrateSessionsOnNetworkChange(quic_trial_params));
+    globals->quic_migrate_sessions_early.set(
+        ShouldQuicMigrateSessionsEarly(quic_trial_params));
   }
 
   size_t max_packet_length = GetQuicMaxPacketLength(command_line,
@@ -1666,6 +1665,12 @@ bool IOThread::ShouldQuicMigrateSessionsOnNetworkChange(
       GetVariationParam(quic_trial_params,
                         "migrate_sessions_on_network_change"),
       "true");
+}
+
+bool IOThread::ShouldQuicMigrateSessionsEarly(
+    const VariationParameters& quic_trial_params) {
+  return base::LowerCaseEqualsASCII(
+      GetVariationParam(quic_trial_params, "migrate_sessions_early"), "true");
 }
 
 size_t IOThread::GetQuicMaxPacketLength(

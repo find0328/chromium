@@ -341,9 +341,6 @@ void OneCopyTileTaskWorkerPool::PlaybackAndCopyOnWorkerThread(
                   use_partial_raster_
                       ? gfx::BufferUsage::GPU_READ_CPU_READ_WRITE_PERSISTENT
                       : gfx::BufferUsage::GPU_READ_CPU_READ_WRITE);
-      DCHECK_EQ(gfx::NumberOfPlanesForBufferFormat(
-                    staging_buffer->gpu_memory_buffer->GetFormat()),
-                1u);
     }
 
     gfx::Rect playback_rect = raster_full_rect;
@@ -466,8 +463,15 @@ void OneCopyTileTaskWorkerPool::PlaybackAndCopyOnWorkerThread(
 #endif
     }
 
+    const uint64_t fence_sync = gl->InsertFenceSyncCHROMIUM();
+
     // Barrier to sync worker context output to cc context.
     gl->OrderingBarrierCHROMIUM();
+
+    // Generate sync token after the barrier for cross context synchronization.
+    gpu::SyncToken sync_token;
+    gl->GenUnverifiedSyncTokenCHROMIUM(fence_sync, sync_token.GetData());
+    resource_lock->UpdateResourceSyncToken(sync_token);
   }
 
   staging_buffer->last_usage = base::TimeTicks::Now();

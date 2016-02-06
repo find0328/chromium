@@ -102,6 +102,12 @@ class NET_EXPORT_PRIVATE QuicSentPacketManager {
     // Called when RTT may have changed, including when an RTT is read from
     // the config.
     virtual void OnRttChange() = 0;
+
+    // Called with the path may be degrading. Note that the path may only be
+    // temporarily degrading.
+    // TODO(jri): With multipath, this method should probably have a path_id
+    // parameter, and should maybe result in the path being marked as inactive.
+    virtual void OnPathDegrading() = 0;
   };
 
   QuicSentPacketManager(Perspective perspective,
@@ -437,9 +443,6 @@ class NET_EXPORT_PRIVATE QuicSentPacketManager {
   // the crypto stream (i.e. SCUP messages) are treated like normal
   // retransmittable frames.
   bool handshake_confirmed_;
-
-  // Latched value of FLAGS_gfe2_reloadable_flag_quic_general_loss_algorithm.
-  const bool use_general_loss_algorithm_;
 
   // Records bandwidth from server to client in normal operation, over periods
   // of time with no loss events.

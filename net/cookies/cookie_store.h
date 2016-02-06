@@ -64,6 +64,7 @@ class NET_EXPORT CookieStore : public base::RefCountedThreadSafe<CookieStore> {
   // if such characters are found.
   //
   // If |creation_time| is null, it will be set to the time the cookie is set.
+  // If |last_access_time| is null, it be set to |creation_time|.
   //
   // If unable to set a cookie, will  invoke |callback| with false.
   virtual void SetCookieWithDetailsAsync(
@@ -72,8 +73,9 @@ class NET_EXPORT CookieStore : public base::RefCountedThreadSafe<CookieStore> {
       const std::string& value,
       const std::string& domain,
       const std::string& path,
-      const base::Time creation_time,
-      const base::Time expiration_time,
+      base::Time creation_time,
+      base::Time expiration_time,
+      base::Time last_access_time,
       bool secure,
       bool http_only,
       bool same_site,
@@ -112,6 +114,12 @@ class NET_EXPORT CookieStore : public base::RefCountedThreadSafe<CookieStore> {
                                  const std::string& cookie_name,
                                  const base::Closure& callback) = 0;
 
+  // Deletes one specific cookie. |cookie| must have been returned by a previous
+  // query on this CookieStore. Invokes |callback| with 1 if a cookie was
+  // deleted, 0 otherwise.
+  virtual void DeleteCanonicalCookieAsync(const CanonicalCookie& cookie,
+                                          const DeleteCallback& callback) = 0;
+
   // Deletes all of the cookies that have a creation_date greater than or equal
   // to |delete_begin| and less than |delete_end|
   // Returns the number of cookies that have been deleted.
@@ -146,6 +154,11 @@ class NET_EXPORT CookieStore : public base::RefCountedThreadSafe<CookieStore> {
   // be invoked on the CookieStore's thread, and this comment can be removed.
   // https://crbug.com/46185
   virtual void FlushStore(const base::Closure& callback) = 0;
+
+  // Protects session cookies from deletion on shutdown, if the underlying
+  // CookieStore implemention is currently configured to store them to disk.
+  // Otherwise, does nothing.
+  virtual void SetForceKeepSessionState();
 
   // Returns the underlying CookieMonster.
   virtual CookieMonster* GetCookieMonster() = 0;

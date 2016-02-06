@@ -98,7 +98,7 @@ class PackageManagerImpl : public PackageManager {
       const Identity& source,
       const GURL& target_url,
       const CapabilityFilter& target_filter,
-      InterfaceRequest<Application>* application_request) override;
+      InterfaceRequest<mojom::Application>* application_request) override;
   bool IsURLInCatalog(const std::string& url) const override;
   std::string GetApplicationName(const std::string& url) const override;
 
@@ -127,7 +127,8 @@ class PackageManagerImpl : public PackageManager {
   void SerializeCatalog();
 
   // Construct a catalog entry from |dictionary|.
-  void DeserializeApplication(const base::DictionaryValue* dictionary);
+  const ApplicationInfo& DeserializeApplication(
+      const base::DictionaryValue* dictionary);
 
   // Reads a manifest in the blocking pool and returns a base::Value with its
   // contents via OnReadManifest().

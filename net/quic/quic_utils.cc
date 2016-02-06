@@ -194,6 +194,7 @@ const char* QuicUtils::StreamErrorToString(QuicRstStreamErrorCode error) {
     RETURN_STRING_LITERAL(QUIC_INVALID_PROMISE_URL);
     RETURN_STRING_LITERAL(QUIC_UNAUTHORIZED_PROMISE_URL);
     RETURN_STRING_LITERAL(QUIC_DUPLICATE_PROMISE_URL);
+    RETURN_STRING_LITERAL(QUIC_PROMISE_VARY_MISMATCH);
   }
   // Return a default value so that we return this when |error| doesn't match
   // any of the QuicRstStreamErrorCodes. This can happen when the RstStream
@@ -250,8 +251,8 @@ const char* QuicUtils::ErrorToString(QuicErrorCode error) {
     RETURN_STRING_LITERAL(QUIC_INVALID_HEADER_ID);
     RETURN_STRING_LITERAL(QUIC_INVALID_NEGOTIATED_VALUE);
     RETURN_STRING_LITERAL(QUIC_DECOMPRESSION_FAILURE);
-    RETURN_STRING_LITERAL(QUIC_CONNECTION_TIMED_OUT);
-    RETURN_STRING_LITERAL(QUIC_CONNECTION_OVERALL_TIMED_OUT);
+    RETURN_STRING_LITERAL(QUIC_NETWORK_IDLE_TIMEOUT);
+    RETURN_STRING_LITERAL(QUIC_HANDSHAKE_TIMEOUT);
     RETURN_STRING_LITERAL(QUIC_ERROR_MIGRATING_ADDRESS);
     RETURN_STRING_LITERAL(QUIC_PACKET_WRITE_ERROR);
     RETURN_STRING_LITERAL(QUIC_PACKET_READ_ERROR);
@@ -455,13 +456,32 @@ void QuicUtils::RemoveFramesForStream(QuicFrames* frames,
 
 // static
 void QuicUtils::ClearSerializedPacket(SerializedPacket* serialized_packet) {
-  if (serialized_packet->retransmittable_frames != nullptr) {
-    DeleteFrames(serialized_packet->retransmittable_frames);
+  if (!serialized_packet->retransmittable_frames.empty()) {
+    DeleteFrames(&serialized_packet->retransmittable_frames);
   }
-  delete serialized_packet->retransmittable_frames;
-  delete serialized_packet->packet;
-  serialized_packet->retransmittable_frames = nullptr;
-  serialized_packet->packet = nullptr;
+  serialized_packet->encrypted_buffer = nullptr;
+  serialized_packet->encrypted_length = 0;
+}
+
+// static
+uint64_t QuicUtils::PackPathIdAndPacketNumber(QuicPathId path_id,
+                                              QuicPacketNumber packet_number) {
+  // Setting the nonce below relies on QuicPathId and QuicPacketNumber being
+  // specific sizes.
+  static_assert(sizeof(path_id) == 1, "Size of QuicPathId changed.");
+  static_assert(sizeof(packet_number) == 8,
+                "Size of QuicPacketNumber changed.");
+  // Use path_id and lower 7 bytes of packet_number as lower 8 bytes of nonce.
+  uint64_t path_id_packet_number =
+      (static_cast<uint64_t>(path_id) << 56) | packet_number;
+  DCHECK(path_id != kDefaultPathId || path_id_packet_number == packet_number);
+  return path_id_packet_number;
+}
+
+char* QuicUtils::CopyBuffer(const SerializedPacket& packet) {
+  char* dst_buffer = new char[packet.encrypted_length];
+  memcpy(dst_buffer, packet.encrypted_buffer, packet.encrypted_length);
+  return dst_buffer;
 }
 
 }  // namespace net

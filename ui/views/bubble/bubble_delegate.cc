@@ -120,7 +120,9 @@ View* BubbleDelegateView::GetContentsView() {
 
 NonClientFrameView* BubbleDelegateView::CreateNonClientFrameView(
     Widget* widget) {
-  BubbleFrameView* frame = new BubbleFrameView(margins());
+  BubbleFrameView* frame = new BubbleFrameView(
+      gfx::Insets(kPanelVertMargin, kPanelHorizMargin, 0, kPanelHorizMargin),
+      margins());
   // Note: In CreateBubble, the call to SizeToContents() will cause
   // the relayout that this call requires.
   frame->SetTitleFontList(GetTitleFontList());
@@ -206,6 +208,11 @@ void BubbleDelegateView::OnBeforeBubbleWidgetInit(Widget::InitParams* params,
 
 scoped_ptr<View> BubbleDelegateView::CreateFootnoteView() {
   return nullptr;
+}
+
+void BubbleDelegateView::UseCompactMargins() {
+  const int kCompactMargin = 6;
+  margins_.Set(kCompactMargin, kCompactMargin, kCompactMargin, kCompactMargin);
 }
 
 void BubbleDelegateView::SetAlignment(BubbleBorder::BubbleAlignment alignment) {

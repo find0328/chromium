@@ -30,10 +30,12 @@
 #include "core/fetch/CrossOriginAccessControl.h"
 #include "core/fetch/FetchContext.h"
 #include "core/fetch/FetchInitiatorTypeNames.h"
+#include "core/fetch/ImageResource.h"
 #include "core/fetch/MemoryCache.h"
 #include "core/fetch/ResourceLoader.h"
 #include "core/fetch/ResourceLoaderSet.h"
 #include "core/fetch/UniqueIdentifier.h"
+#include "platform/Histogram.h"
 #include "platform/Logging.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/TraceEvent.h"
@@ -66,11 +68,37 @@ enum SriResourceIntegrityMismatchEvent {
     SriResourceIntegrityMismatchEventCount
 };
 
+#define DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, name)                                                                                                                      \
+    case Resource::name: {                                                                                                                                                  \
+        DEFINE_THREAD_SAFE_STATIC_LOCAL(EnumerationHistogram, resourceHistogram, new EnumerationHistogram("Blink.MemoryCache.RevalidationPolicy." prefix #name, Load + 1)); \
+        resourceHistogram.count(policy);                                                                                                                                    \
+        break;                                                                                                                                                              \
+    }
+
+#define DEFINE_RESOURCE_HISTOGRAM(prefix)                        \
+    switch (factory.type()) {                                    \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, CSSStyleSheet)  \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, Font)           \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, Image)          \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, ImportResource) \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, LinkPrefetch)   \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, LinkPreload)    \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, MainResource)   \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, Manifest)       \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, Media)          \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, Raw)            \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, Script)         \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, SVGDocument)    \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, TextTrack)      \
+        DEFINE_SINGLE_RESOURCE_HISTOGRAM(prefix, XSLStyleSheet)  \
+    }
+
 } // namespace
 
 static void RecordSriResourceIntegrityMismatchEvent(SriResourceIntegrityMismatchEvent event)
 {
-    Platform::current()->histogramEnumeration("sri.resource_integrity_mismatch_event", event, SriResourceIntegrityMismatchEventCount);
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(EnumerationHistogram, integrityHistogram, new EnumerationHistogram("sri.resource_integrity_mismatch_event", SriResourceIntegrityMismatchEventCount));
+    integrityHistogram.count(event);
 }
 
 static ResourceLoadPriority typeToPriority(Resource::Type type)
@@ -387,11 +415,11 @@ ResourcePtr<Resource> ResourceFetcher::requestResource(FetchRequest& request, co
 
     const RevalidationPolicy policy = determineRevalidationPolicy(factory.type(), request, resource.get(), isStaticData);
 
-    String histogramName = "Blink.MemoryCache.RevalidationPolicy.";
-    if (request.forPreload())
-        histogramName.append("Preload.");
-    histogramName.append(Resource::resourceTypeName(factory.type()));
-    Platform::current()->histogramEnumeration(histogramName.utf8().data(), policy, Load + 1);
+    if (request.forPreload()) {
+        DEFINE_RESOURCE_HISTOGRAM("Preload.");
+    } else {
+        DEFINE_RESOURCE_HISTOGRAM("");
+    }
 
     switch (policy) {
     case Reload:
@@ -1065,6 +1093,17 @@ void ResourceFetcher::updateAllImageResourcePriorities()
     }
 }
 
+void ResourceFetcher::reloadLoFiImages()
+{
+    for (const auto& documentResource : m_documentResources) {
+        Resource* resource = documentResource.value.get();
+        if (resource && resource->isImage()) {
+            ImageResource* imageResource = toImageResource(resource);
+            imageResource->reloadIfLoFi(this);
+        }
+    }
+}
+
 #if PRELOAD_DEBUG
 void ResourceFetcher::printPreloadStats()
 {
@@ -1137,12 +1176,12 @@ ResourceFetcher::DeadResourceStatsRecorder::DeadResourceStatsRecorder()
 
 ResourceFetcher::DeadResourceStatsRecorder::~DeadResourceStatsRecorder()
 {
-    Platform::current()->histogramCustomCounts(
-        "WebCore.ResourceFetcher.HitCount", m_useCount, 0, 1000, 50);
-    Platform::current()->histogramCustomCounts(
-        "WebCore.ResourceFetcher.RevalidateCount", m_revalidateCount, 0, 1000, 50);
-    Platform::current()->histogramCustomCounts(
-        "WebCore.ResourceFetcher.LoadCount", m_loadCount, 0, 1000, 50);
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(CustomCountHistogram, hitCountHistogram, new CustomCountHistogram("WebCore.ResourceFetcher.HitCount", 0, 1000, 50));
+    hitCountHistogram.count(m_useCount);
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(CustomCountHistogram, revalidateCountHistogram, new CustomCountHistogram("WebCore.ResourceFetcher.RevalidateCount", 0, 1000, 50));
+    revalidateCountHistogram.count(m_revalidateCount);
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(CustomCountHistogram, loadCountHistogram, new CustomCountHistogram("WebCore.ResourceFetcher.LoadCount", 0, 1000, 50));
+    loadCountHistogram.count(m_loadCount);
 }
 
 void ResourceFetcher::DeadResourceStatsRecorder::update(RevalidationPolicy policy)

@@ -449,25 +449,40 @@ bool Texture::CanRenderWithSampler(const FeatureInfo* feature_info,
 
   bool needs_mips = sampler_state.min_filter != GL_NEAREST &&
                     sampler_state.min_filter != GL_LINEAR;
-  if (needs_mips) {
-    if (static_cast<size_t>(base_level_) >= face_infos_[0].level_infos.size())
+  if (target_ == GL_TEXTURE_EXTERNAL_OES) {
+    if (needs_mips) {
       return false;
+    }
+    if (sampler_state.wrap_s != GL_CLAMP_TO_EDGE ||
+        sampler_state.wrap_t != GL_CLAMP_TO_EDGE) {
+      return false;
+    }
+    return true;
+  }
 
+  if (needs_mips && !texture_complete()) {
+    return false;
+  }
+  if ((sampler_state.min_filter != GL_NEAREST &&
+       sampler_state.min_filter != GL_NEAREST_MIPMAP_NEAREST) ||
+      sampler_state.mag_filter != GL_NEAREST) {
+    DCHECK(!face_infos_.empty());
+    DCHECK_LT(static_cast<size_t>(base_level_),
+              face_infos_[0].level_infos.size());
     const Texture::LevelInfo& first_level =
         face_infos_[0].level_infos[base_level_];
-
-    if (!texture_complete()) {
-      return false;
-    } else if (first_level.type == GL_FLOAT &&
-        !feature_info->feature_flags().enable_texture_float_linear &&
-        (sampler_state.min_filter != GL_NEAREST_MIPMAP_NEAREST ||
-         sampler_state.mag_filter != GL_NEAREST)) {
-      return false;
-    } else if (first_level.type == GL_HALF_FLOAT_OES &&
-        !feature_info->feature_flags().enable_texture_half_float_linear &&
-        (sampler_state.min_filter != GL_NEAREST_MIPMAP_NEAREST ||
-         sampler_state.mag_filter != GL_NEAREST)) {
-      return false;
+    if ((GLES2Util::GetChannelsForFormat(first_level.internal_format) &
+         (GLES2Util::kDepth | GLES2Util::kStencil)) != 0 ||
+        feature_info->validators()->compressed_texture_format.IsValid(
+            first_level.internal_format)) {
+      // TODO(zmo): The assumption that depth/stencil textures and compressed
+      // textures are all filterable may not be true in the future.
+    } else {
+      if (!Texture::TextureFilterable(feature_info,
+                                      first_level.internal_format,
+                                      first_level.type)) {
+        return false;
+      }
     }
   }
 
@@ -539,15 +554,15 @@ void Texture::MarkMipmapsGenerated() {
     GLsizei width = level0_info.width;
     GLsizei height = level0_info.height;
     GLsizei depth = level0_info.depth;
-    GLenum target = target_ == GL_TEXTURE_2D ? GL_TEXTURE_2D :
-                               GLES2Util::IndexToGLFaceTarget(ii);
+    GLenum target = target_ == GL_TEXTURE_CUBE_MAP ?
+        GLES2Util::IndexToGLFaceTarget(ii) : target_;
 
     const GLsizei num_mips = face_info.num_mip_levels;
     for (GLsizei level = base_level_ + 1;
          level < base_level_ + num_mips; ++level) {
       width = std::max(1, width >> 1);
       height = std::max(1, height >> 1);
-      depth = std::max(1, depth >> 1);
+      depth = target == GL_TEXTURE_2D_ARRAY ? depth : std::max(1, depth >> 1);
       SetLevelInfo(target, level, level0_info.internal_format,
                    width, height, depth, level0_info.border, level0_info.format,
                    level0_info.type, gfx::Rect(width, height));
@@ -595,18 +610,9 @@ bool Texture::CanGenerateMipmaps(const FeatureInfo* feature_info) const {
     return false;
   }
 
-  bool valid_internal_format = false;
-  if (feature_info->validators()->texture_unsized_internal_format.IsValid(
-      base.internal_format)) {
-    valid_internal_format = true;
-  } else if (feature_info->validators()->
-      texture_sized_color_renderable_internal_format.IsValid(
-          base.internal_format) && feature_info->validators()->
-      texture_sized_texture_filterable_internal_format.IsValid(
-          base.internal_format)) {
-    valid_internal_format = true;
-  }
-  if (!valid_internal_format) {
+  if (!Texture::ColorRenderable(feature_info, base.internal_format) ||
+      !Texture::TextureFilterable(
+          feature_info, base.internal_format, base.type)) {
     return false;
   }
 
@@ -667,7 +673,9 @@ bool Texture::TextureMipComplete(const Texture::LevelInfo& base_level_face,
     const GLsizei mip_width = std::max(1, base_level_face.width >> level_diff);
     const GLsizei mip_height =
         std::max(1, base_level_face.height >> level_diff);
-    const GLsizei mip_depth = std::max(1, base_level_face.depth >> level_diff);
+    const GLsizei mip_depth = target == GL_TEXTURE_2D_ARRAY ?
+        base_level_face.depth :
+        std::max(1, base_level_face.depth >> level_diff);
 
     complete &= (width == mip_width &&
                  height == mip_height &&
@@ -677,6 +685,37 @@ bool Texture::TextureMipComplete(const Texture::LevelInfo& base_level_face,
                  type == base_level_face.type);
   }
   return complete;
+}
+
+// static
+bool Texture::ColorRenderable(const FeatureInfo* feature_info,
+                              GLenum internal_format) {
+  if (feature_info->validators()->texture_unsized_internal_format.IsValid(
+      internal_format)) {
+    return true;
+  }
+  return feature_info->validators()->
+      texture_sized_color_renderable_internal_format.IsValid(internal_format);
+}
+
+// static
+bool Texture::TextureFilterable(const FeatureInfo* feature_info,
+                                GLenum internal_format,
+                                GLenum type) {
+  if (feature_info->validators()->texture_unsized_internal_format.IsValid(
+      internal_format)) {
+    switch (type) {
+      case GL_FLOAT:
+        return feature_info->feature_flags().enable_texture_float_linear;
+      case GL_HALF_FLOAT_OES:
+        return feature_info->feature_flags().enable_texture_half_float_linear;
+      default:
+        // GL_HALF_FLOAT is ES3 only and should only be used with sized formats.
+        return true;
+    }
+  }
+  return feature_info->validators()->
+      texture_sized_texture_filterable_internal_format.IsValid(internal_format);
 }
 
 void Texture::SetLevelClearedRect(GLenum target,
@@ -1473,7 +1512,6 @@ TextureManager::TextureManager(MemoryTracker* memory_tracker,
                                               max_cube_map_texture_size,
                                               max_cube_map_texture_size)),
       max_3d_levels_(ComputeMipMapCount(GL_TEXTURE_3D,
-                                        // Same as GL_TEXTURE_2D_ARRAY
                                         max_3d_texture_size,
                                         max_3d_texture_size,
                                         max_3d_texture_size)),

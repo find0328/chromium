@@ -566,9 +566,6 @@ protected:
     PersistentHeapVectorWillBeHeapVector<TextureUnitState> m_textureUnits;
     unsigned long m_activeTextureUnit;
 
-    PersistentWillBeMember<WebGLTexture> m_blackTexture2D;
-    PersistentWillBeMember<WebGLTexture> m_blackTextureCubeMap;
-
     Vector<GLenum> m_compressedTextureFormats;
 
     // Fixed-size cache of reusable image buffers for video texImage2D calls.
@@ -587,6 +584,7 @@ protected:
     GLint m_maxTextureSize;
     GLint m_maxCubeMapTextureSize;
     GLint m_max3DTextureSize;
+    GLint m_maxArrayTextureLayers;
     GLint m_maxRenderbufferSize;
     GLint m_maxViewportDims[2];
     GLint m_maxTextureLevel;
@@ -833,9 +831,6 @@ protected:
         GLint internalformat, GLenum type, GLint xoffset, GLint yoffset, GLint zoffset, HTMLCanvasElement*);
     bool canUseTexImageCanvasByGPU(GLint internalformat, GLenum type);
 
-    void handleTextureCompleteness(const char*, bool);
-    void createFallbackBlackTextures1x1();
-
     virtual WebGLImageConversion::PixelStoreParams getPackPixelStoreParams();
     virtual WebGLImageConversion::PixelStoreParams getUnpackPixelStoreParams();
 
@@ -868,11 +863,10 @@ protected:
     // Generates GL error and returns false if parameters are invalid.
     bool validateTexFuncFormatAndType(const char* functionName, TexImageFunctionType, GLenum internalformat, GLenum format, GLenum type, GLint level);
 
-    // Helper function to check readbuffer validity for readPixels and copyTex{Sub}Image.
-    // If yes, obtains the readbuffer's format, type, the bound read framebuffer, returns true.
+    // Helper function to check readbuffer validity for copyTex{Sub}Image.
+    // If yes, obtains the bound read framebuffer, returns true.
     // If not, generates a GL error, returns false.
-    // Note: it's OK to pass format == nullptr and type == nullptr.
-    bool validateReadBufferAndGetInfo(const char* functionName, WebGLFramebuffer*& readFramebufferBinding, GLenum* format, GLenum* type);
+    bool validateReadBufferAndGetInfo(const char* functionName, WebGLFramebuffer*& readFramebufferBinding);
 
     // Helper function to check format/type enums for readPixels.
     // Generates INVALID_ENUM and returns false if parameters are invalid.
@@ -880,10 +874,6 @@ protected:
 
     // Helper function to get expected ArrayBuffer view type for readPixels.
     virtual DOMArrayBufferView::ViewType readPixelsExpectedArrayBufferViewType(GLenum type);
-
-    // Helper function to check format/type combination for readPixels.
-    // Generates INVALID_OPERATION and returns false if the combination is unsupported.
-    bool validateReadPixelsFormatTypeCombination(GLenum format, GLenum type, GLenum readBufferInternalFormat, GLenum readBufferType);
 
     // Helper function to check parameters of readPixels. Returns true if all parameters
     // are valid. Otherwise, generates appropriate error and returns false.
@@ -979,6 +969,8 @@ protected:
 
     // Get the framebuffer bound to given target
     virtual WebGLFramebuffer* getFramebufferBinding(GLenum target);
+
+    virtual WebGLFramebuffer* getReadFramebufferBinding();
 
     // Helper function to validate input parameters for framebuffer functions.
     // Generate GL error if parameters are illegal.

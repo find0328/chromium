@@ -945,8 +945,10 @@ void BrowserView::OnActiveTabChanged(content::WebContents* old_contents,
 }
 
 void BrowserView::ZoomChangedForActiveTab(bool can_show_bubble) {
-  GetLocationBarView()->ZoomChangedForActiveTab(
-      can_show_bubble && !toolbar_->app_menu_button()->IsMenuShowing());
+  bool app_menu_showing = toolbar_->app_menu_button() &&
+                          toolbar_->app_menu_button()->IsMenuShowing();
+  GetLocationBarView()->ZoomChangedForActiveTab(can_show_bubble &&
+                                                !app_menu_showing);
 }
 
 gfx::Rect BrowserView::GetRestoredBounds() const {
@@ -1143,7 +1145,7 @@ void BrowserView::FocusToolbar() {
 }
 
 ToolbarActionsBar* BrowserView::GetToolbarActionsBar() {
-  return toolbar_ ?
+  return toolbar_ && toolbar_->browser_actions() ?
       toolbar_->browser_actions()->toolbar_actions_bar() : nullptr;
 }
 
@@ -1350,11 +1352,12 @@ void BrowserView::ShowOneClickSigninBubble(
   scoped_ptr<OneClickSigninBubbleDelegate> delegate;
   delegate.reset(new OneClickSigninBubbleLinksDelegate(browser()));
 
-  views::View* anchor_view;
+  views::View* anchor_view = nullptr;
   if (type == BrowserWindow::ONE_CLICK_SIGNIN_BUBBLE_TYPE_BUBBLE)
     anchor_view = toolbar_->app_menu_button();
-  else
+  if (!anchor_view)
     anchor_view = toolbar_->location_bar();
+  DCHECK(anchor_view);
 
   OneClickSigninBubbleView::ShowBubble(type, email, error_message,
                                        std::move(delegate), anchor_view,
@@ -1416,6 +1419,9 @@ void BrowserView::ShowWebsiteSettings(
 }
 
 void BrowserView::ShowAppMenu() {
+  if (!toolbar_->app_menu_button())
+    return;
+
   // Keep the top-of-window views revealed as long as the app menu is visible.
   scoped_ptr<ImmersiveRevealedLock> revealed_lock(
       immersive_mode_controller_->GetRevealedLock(
@@ -2586,7 +2592,7 @@ void BrowserView::ShowAvatarBubbleFromAvatarButton(
   profiles::BubbleViewModeFromAvatarBubbleMode(mode, &bubble_view_mode,
                                                &tutorial_mode);
   if (SigninViewController::ShouldShowModalSigninForMode(bubble_view_mode)) {
-    ShowModalSigninWindow(mode, access_point);
+    browser_->ShowModalSigninWindow(bubble_view_mode, access_point);
   } else {
     ProfileChooserView::ShowBubble(
         bubble_view_mode, tutorial_mode, manage_accounts_params, access_point,
@@ -2597,25 +2603,6 @@ void BrowserView::ShowAvatarBubbleFromAvatarButton(
 #else
   NOTREACHED();
 #endif
-}
-
-void BrowserView::CloseModalSigninWindow() {
-  signin_view_controller_.CloseModalSignin();
-}
-
-void BrowserView::ShowModalSigninWindow(
-    AvatarBubbleMode mode,
-    signin_metrics::AccessPoint access_point) {
-  profiles::BubbleViewMode bubble_view_mode;
-  profiles::TutorialMode tutorial_mode;
-  profiles::BubbleViewModeFromAvatarBubbleMode(mode, &bubble_view_mode,
-                                               &tutorial_mode);
-  signin_view_controller_.ShowModalSignin(bubble_view_mode, browser(),
-                                          access_point);
-}
-
-void BrowserView::ShowModalSyncConfirmationWindow() {
-  signin_view_controller_.ShowModalSyncConfirmationDialog(browser());
 }
 
 int BrowserView::GetRenderViewHeightInsetWithDetachedBookmarkBar() {
@@ -2688,7 +2675,7 @@ int BrowserView::GetMaxTopInfoBarArrowHeight() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// BrowserView, ExclusiveAccessContext overrides
+// BrowserView, ExclusiveAccessContext implementation:
 Profile* BrowserView::GetProfile() {
   return browser_->profile();
 }
@@ -2712,17 +2699,35 @@ void BrowserView::HideDownloadShelf() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// BrowserView, ExclusiveAccessBubbleViewsContext overrides
+// BrowserView, ExclusiveAccessBubbleViewsContext implementation:
 ExclusiveAccessManager* BrowserView::GetExclusiveAccessManager() {
   return browser_->exclusive_access_manager();
 }
 
-bool BrowserView::IsImmersiveModeEnabled() {
-  return immersive_mode_controller()->IsEnabled();
-}
-
 views::Widget* BrowserView::GetBubbleAssociatedWidget() {
   return GetWidget();
+}
+
+ui::AcceleratorProvider* BrowserView::GetAcceleratorProvider() {
+  return this;
+}
+
+gfx::NativeView BrowserView::GetBubbleParentView() const {
+  return GetWidget()->GetNativeView();
+}
+
+gfx::Point BrowserView::GetCursorPointInParent() const {
+  gfx::Point cursor_pos = gfx::Screen::GetScreen()->GetCursorScreenPoint();
+  views::View::ConvertPointFromScreen(GetWidget()->GetRootView(), &cursor_pos);
+  return cursor_pos;
+}
+
+gfx::Rect BrowserView::GetClientAreaBoundsInScreen() const {
+  return GetWidget()->GetClientAreaBoundsInScreen();
+}
+
+bool BrowserView::IsImmersiveModeEnabled() {
+  return immersive_mode_controller()->IsEnabled();
 }
 
 gfx::Rect BrowserView::GetTopContainerBoundsInScreen() {

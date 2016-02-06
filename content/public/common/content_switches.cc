@@ -298,6 +298,9 @@ const char kDisableZeroCopy[]                = "disable-zero-copy";
 // based tests.
 const char kDomAutomationController[]       = "dom-automation";
 
+// Causes the process to run as a download subprocess.
+const char kDownloadProcess[]               = "download";
+
 // Enable antialiasing on 2d canvas clips (as opposed to draw operations)
 const char kEnable2dCanvasClipAntialiasing[] = "enable-2d-canvas-clip-aa";
 
@@ -430,9 +433,6 @@ const char kV8SnapshotPassedByFD[] = "v8-snapshot-passed-by-fd";
 // Cause the OS X sandbox write to syslog every time an access to a resource
 // is denied by the sandbox.
 const char kEnableSandboxLogging[]          = "enable-sandbox-logging";
-
-// Scrolls to compensate for layout movements (bit.ly/scroll-anchoring).
-const char kEnableScrollAnchoring[]         = "enable-scroll-anchoring";
 
 // Enables the Skia benchmarking extension
 const char kEnableSkiaBenchmarking[]        = "enable-skia-benchmarking";

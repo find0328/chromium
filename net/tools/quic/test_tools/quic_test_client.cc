@@ -233,6 +233,22 @@ ssize_t QuicTestClient::GetOrCreateStreamAndSendRequest(
     StringPiece body,
     bool fin,
     QuicAckListenerInterface* delegate) {
+  if (headers) {
+    QuicClientPushPromiseIndex::TryHandle* handle;
+    QuicAsyncStatus rv = client()->push_promise_index()->Try(
+        SpdyBalsaUtils::RequestHeadersToSpdyHeaders(*headers), this, &handle);
+    if (rv == QUIC_SUCCESS)
+      return 1;
+    if (rv == QUIC_PENDING) {
+      // May need to retry request if asynchronous rendezvous fails.
+      auto new_headers = new BalsaHeaders;
+      new_headers->CopyFrom(*headers);
+      push_promise_data_to_resend_.reset(
+          new TestClientDataToResend(new_headers, body, fin, this, delegate));
+      return 1;
+    }
+  }
+
   // Maybe it's better just to overload this.  it's just that we need
   // for the GetOrCreateStream function to call something else...which
   // is icky and complicated, but maybe not worse than this.
@@ -240,8 +256,8 @@ ssize_t QuicTestClient::GetOrCreateStreamAndSendRequest(
   if (stream == nullptr) {
     return 0;
   }
-  ssize_t ret = 0;
 
+  ssize_t ret = 0;
   if (headers != nullptr) {
     SpdyHeaderBlock spdy_headers =
         SpdyBalsaUtils::RequestHeadersToSpdyHeaders(*headers);
@@ -452,6 +468,12 @@ void QuicTestClient::ClearPerRequestState() {
   response_body_size_ = 0;
 }
 
+bool QuicTestClient::HaveActiveStream() {
+  return push_promise_data_to_resend_.get() ||
+         (stream_ != nullptr &&
+          !client_->session()->IsClosedStream(stream_->id()));
+}
+
 void QuicTestClient::WaitForResponseForMs(int timeout_ms) {
   int64_t timeout_us = timeout_ms * base::Time::kMicrosecondsPerMillisecond;
   int64_t old_timeout_us = epoll_server()->timeout_in_us();
@@ -463,8 +485,7 @@ void QuicTestClient::WaitForResponseForMs(int timeout_ms) {
           ->GetClock();
   QuicTime end_waiting_time =
       clock->Now().Add(QuicTime::Delta::FromMicroseconds(timeout_us));
-  while (stream_ != nullptr &&
-         !client_->session()->IsClosedStream(stream_->id()) &&
+  while (HaveActiveStream() &&
          (timeout_us < 0 || clock->Now() < end_waiting_time)) {
     client_->WaitForEvents();
   }
@@ -555,6 +576,24 @@ void QuicTestClient::OnClose(QuicSpdyStream* stream) {
   response_header_size_ = headers_.GetSizeForWriteBuffer();
   response_body_size_ = stream_->data().size();
   stream_ = nullptr;
+}
+
+bool QuicTestClient::CheckVary(const SpdyHeaderBlock& client_request,
+                               const SpdyHeaderBlock& promise_request,
+                               const SpdyHeaderBlock& promise_response) {
+  return true;
+}
+
+void QuicTestClient::OnRendezvousResult(QuicSpdyStream* stream) {
+  std::unique_ptr<TestClientDataToResend> data_to_resend =
+      std::move(push_promise_data_to_resend_);
+  stream_ = static_cast<QuicSpdyClientStream*>(stream);
+  if (stream) {
+    stream->set_visitor(this);
+    stream->OnDataAvailable();
+  } else if (data_to_resend.get()) {
+    data_to_resend->Resend();
+  }
 }
 
 void QuicTestClient::UseWriter(QuicPacketWriterWrapper* writer) {

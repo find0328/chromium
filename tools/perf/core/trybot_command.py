@@ -19,8 +19,6 @@ SUCCESS, NO_CHANGES, ERROR = range(3)
 # Unsupported Perf bisect bots.
 EXCLUDED_BOTS = {
     'win_xp_perf_bisect',  # Goma issues: crbug.com/330900
-    'linux_perf_tester',
-    'linux_perf_bisector',
     'win_perf_bisect_builder',
     'win64_nv_tester',
     'winx64_bisect_builder',
@@ -35,6 +33,11 @@ EXCLUDED_BOTS = {
     'linux_fyi_perf_bisect',
     'mac_fyi_perf_bisect',
     'win_fyi_perf_bisect',
+    # CQ bots on tryserver.chromium.perf
+    'android_s5_perf_cq',
+    'winx64_10_perf_cq',
+    'mac_retina_perf_cq',
+    'linux_perf_cq',
 }
 
 INCLUDE_BOTS = [
@@ -45,6 +48,16 @@ INCLUDE_BOTS = [
     'all-android'
 ]
 
+# Default try bot to use incase builbot is unreachable.
+DEFAULT_TRYBOTS =  [
+    'linux_perf_bisect',
+    'mac_10_11_perf_bisect',
+    'winx64_10_perf_bisect',
+    'android_s5_perf_bisect',
+]
+
+assert not set(DEFAULT_TRYBOTS) & set(EXCLUDED_BOTS),  ( 'A trybot cannot '
+    'present in both Default as well as Excluded bots lists.')
 
 class TrybotError(Exception):
 
@@ -61,15 +74,19 @@ def _GetTrybotList(builders):
 
 def _GetBuilderNames(trybot_name, builders):
   """ Return platform and its available bot name as dictionary."""
+  os_names = ['linux', 'android', 'mac', 'win']
   if 'all' not in trybot_name:
     bot = ['%s_perf_bisect' % trybot_name.replace('-', '_')]
-    bot_platform = trybot_name.split('-')[0]
+    try:
+      bot_platform = next(b for b in os_names if b in trybot_name)
+    except StopIteration:
+      raise TrybotError('Trybot "%s" unsupported for tryjobs.' % trybot_name)
     if 'x64' in trybot_name:
       bot_platform += '-x64'
     return {bot_platform: bot}
 
   platform_and_bots = {}
-  for os_name in ['linux', 'android', 'mac', 'win']:
+  for os_name in os_names:
     platform_and_bots[os_name] = [bot for bot in builders if os_name in bot]
 
   # Special case for Windows x64, consider it as separate platform
@@ -113,11 +130,24 @@ class Trybot(command_line.ArgParseCommand):
   @classmethod
   def _GetBuilderList(cls):
     if not cls._builders:
-      f = urllib2.urlopen(
-          'https://build.chromium.org/p/tryserver.chromium.perf/json')
-      builders = json.loads(f.read()).get('builders', {}).keys()
-      # Exclude unsupported bots like win xp and some dummy bots.
-      cls._builders = [bot for bot in builders if bot not in EXCLUDED_BOTS]
+      try:
+        f = urllib2.urlopen(
+            ('https://build.chromium.org/p/tryserver.chromium.perf/json/'
+             'builders'),
+            timeout=5)
+      # In case of any kind of exception, allow tryjobs to use default trybots.
+      # Possible exception are ssl.SSLError, urllib2.URLError,
+      # socket.timeout, socket.error.
+      except Exception:
+        # Incase of any exception return default trybots.
+        print ('WARNING: Unable to reach builbot to retrieve trybot '
+            'information, tryjob will use default trybots.')
+        cls._builders = DEFAULT_TRYBOTS
+      else:
+        builders = json.loads(f.read()).keys()
+        # Exclude unsupported bots like win xp and some dummy bots.
+        cls._builders = [bot for bot in builders if bot not in EXCLUDED_BOTS]
+
     return cls._builders
 
   def _InitializeBuilderNames(self, trybot):

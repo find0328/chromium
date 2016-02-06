@@ -33,6 +33,9 @@ const uint32_t kDefaultLength = 1000;
 // Stream ID for data sent in CreatePacket().
 const QuicStreamId kStreamId = 7;
 
+// Minimum number of consecutive RTOs before path is considered to be degrading.
+const size_t kMinTimeoutsBeforePathDegrading = 2;
+
 // Matcher to check the key of the key-value pair it receives as first argument
 // equals its second argument.
 MATCHER(KeyEq, "") {
@@ -194,23 +197,20 @@ class QuicSentPacketManagerTest : public ::testing::TestWithParam<bool> {
 
   SerializedPacket CreatePacket(QuicPacketNumber packet_number,
                                 bool retransmittable) {
-    packets_.push_back(new QuicEncryptedPacket(nullptr, kDefaultLength));
-    QuicFrames* frames = nullptr;
+    SerializedPacket packet(kDefaultPathId, packet_number,
+                            PACKET_6BYTE_PACKET_NUMBER, nullptr, kDefaultLength,
+                            0u, false, false);
     if (retransmittable) {
-      frames = new QuicFrames();
-      frames->push_back(
+      packet.retransmittable_frames.push_back(
           QuicFrame(new QuicStreamFrame(kStreamId, false, 0, StringPiece())));
     }
-    return SerializedPacket(kDefaultPathId, packet_number,
-                            PACKET_6BYTE_PACKET_NUMBER, packets_.back(), 0u,
-                            frames, false, false);
+    return packet;
   }
 
   SerializedPacket CreateFecPacket(QuicPacketNumber packet_number) {
-    packets_.push_back(new QuicEncryptedPacket(nullptr, kDefaultLength));
     SerializedPacket serialized(kDefaultPathId, packet_number,
-                                PACKET_6BYTE_PACKET_NUMBER, packets_.back(), 0u,
-                                nullptr, false, false);
+                                PACKET_6BYTE_PACKET_NUMBER, nullptr,
+                                kDefaultLength, 0u, false, false);
     serialized.is_fec_packet = true;
     return serialized;
   }
@@ -221,7 +221,7 @@ class QuicSentPacketManagerTest : public ::testing::TestWithParam<bool> {
         .Times(1)
         .WillOnce(Return(true));
     SerializedPacket packet(CreateDataPacket(packet_number));
-    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.packet->length(),
+    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.encrypted_length,
                           NOT_RETRANSMISSION, HAS_RETRANSMITTABLE_DATA);
   }
 
@@ -232,10 +232,10 @@ class QuicSentPacketManagerTest : public ::testing::TestWithParam<bool> {
         .Times(1)
         .WillOnce(Return(true));
     SerializedPacket packet(CreateDataPacket(packet_number));
-    packet.retransmittable_frames->push_back(
+    packet.retransmittable_frames.push_back(
         QuicFrame(new QuicStreamFrame(1, false, 0, StringPiece())));
     packet.has_crypto_handshake = IS_HANDSHAKE;
-    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.packet->length(),
+    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.encrypted_length,
                           NOT_RETRANSMISSION, HAS_RETRANSMITTABLE_DATA);
   }
 
@@ -246,7 +246,7 @@ class QuicSentPacketManagerTest : public ::testing::TestWithParam<bool> {
         .Times(1)
         .WillOnce(Return(true));
     SerializedPacket packet(CreateFecPacket(packet_number));
-    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.packet->length(),
+    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.encrypted_length,
                           NOT_RETRANSMISSION, NO_RETRANSMITTABLE_DATA);
   }
 
@@ -257,7 +257,7 @@ class QuicSentPacketManagerTest : public ::testing::TestWithParam<bool> {
         .Times(1)
         .WillOnce(Return(false));
     SerializedPacket packet(CreatePacket(packet_number, false));
-    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.packet->length(),
+    manager_.OnPacketSent(&packet, 0, clock_.Now(), packet.encrypted_length,
                           NOT_RETRANSMISSION, NO_RETRANSMITTABLE_DATA);
   }
 
@@ -1171,6 +1171,7 @@ TEST_F(QuicSentPacketManagerTest, TwoRetransmissionTimeoutsAckSecond) {
   EXPECT_FALSE(manager_.HasPendingRetransmissions());
 
   // Rto a second time.
+  EXPECT_CALL(*network_change_visitor_, OnPathDegrading());
   manager_.OnRetransmissionTimeout();
   EXPECT_TRUE(manager_.HasPendingRetransmissions());
   EXPECT_EQ(2 * kDefaultLength,
@@ -1204,6 +1205,7 @@ TEST_F(QuicSentPacketManagerTest, TwoRetransmissionTimeoutsAckFirst) {
   EXPECT_FALSE(manager_.HasPendingRetransmissions());
 
   // Rto a second time.
+  EXPECT_CALL(*network_change_visitor_, OnPathDegrading());
   manager_.OnRetransmissionTimeout();
   EXPECT_TRUE(manager_.HasPendingRetransmissions());
   EXPECT_EQ(2 * kDefaultLength,
@@ -1223,6 +1225,21 @@ TEST_F(QuicSentPacketManagerTest, TwoRetransmissionTimeoutsAckFirst) {
   // The first two packets should still be outstanding.
   EXPECT_EQ(2 * kDefaultLength,
             QuicSentPacketManagerPeer::GetBytesInFlight(&manager_));
+}
+
+TEST_F(QuicSentPacketManagerTest, OnPathDegrading) {
+  SendDataPacket(1);
+  QuicTime::Delta delay = QuicTime::Delta::FromMilliseconds(500);
+  EXPECT_CALL(*send_algorithm_, RetransmissionDelay())
+      .WillRepeatedly(Return(delay));
+  for (size_t i = 1; i < kMinTimeoutsBeforePathDegrading; ++i) {
+    manager_.OnRetransmissionTimeout();
+    RetransmitNextPacket(i + 2);
+  }
+  // Next RTO should cause network_change_visitor_'s OnPathDegrading method
+  // to be called.
+  EXPECT_CALL(*network_change_visitor_, OnPathDegrading());
+  manager_.OnRetransmissionTimeout();
 }
 
 TEST_F(QuicSentPacketManagerTest, GetTransmissionTime) {
@@ -1358,6 +1375,7 @@ TEST_F(QuicSentPacketManagerTest, GetTransmissionDelayMin) {
 
   // If the delay is smaller than the min, ensure it exponentially backs off
   // from the min.
+  EXPECT_CALL(*network_change_visitor_, OnPathDegrading());
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(delay,
               QuicSentPacketManagerPeer::GetRetransmissionDelay(&manager_));
@@ -1382,6 +1400,7 @@ TEST_F(QuicSentPacketManagerTest, GetTransmissionDelay) {
       .WillRepeatedly(Return(delay));
 
   // Delay should back off exponentially.
+  EXPECT_CALL(*network_change_visitor_, OnPathDegrading());
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(delay,
               QuicSentPacketManagerPeer::GetRetransmissionDelay(&manager_));

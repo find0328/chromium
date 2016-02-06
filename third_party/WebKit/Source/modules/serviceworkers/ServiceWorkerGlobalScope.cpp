@@ -31,6 +31,7 @@
 #include "modules/serviceworkers/ServiceWorkerGlobalScope.h"
 
 #include "bindings/core/v8/CallbackPromiseAdapter.h"
+#include "bindings/core/v8/ScriptCallStack.h"
 #include "bindings/core/v8/ScriptPromise.h"
 #include "bindings/core/v8/ScriptPromiseResolver.h"
 #include "bindings/core/v8/ScriptState.h"
@@ -40,7 +41,6 @@
 #include "core/fetch/MemoryCache.h"
 #include "core/fetch/ResourceLoaderOptions.h"
 #include "core/inspector/ConsoleMessage.h"
-#include "core/inspector/ScriptCallStack.h"
 #include "core/inspector/WorkerInspectorController.h"
 #include "core/loader/ThreadableLoader.h"
 #include "core/workers/WorkerClients.h"
@@ -55,6 +55,7 @@
 #include "modules/serviceworkers/ServiceWorkerScriptCachedMetadataHandler.h"
 #include "modules/serviceworkers/ServiceWorkerThread.h"
 #include "modules/serviceworkers/WaitUntilObserver.h"
+#include "platform/Histogram.h"
 #include "platform/network/ResourceRequest.h"
 #include "platform/weborigin/DatabaseIdentifier.h"
 #include "platform/weborigin/KURL.h"
@@ -93,11 +94,13 @@ ServiceWorkerGlobalScope::~ServiceWorkerGlobalScope()
 
 void ServiceWorkerGlobalScope::didEvaluateWorkerScript()
 {
-    if (Platform* platform = Platform::current()) {
-        platform->histogramCustomCounts("ServiceWorker.ScriptCount", m_scriptCount, 1, 1000, 50);
-        platform->histogramCustomCounts("ServiceWorker.ScriptTotalSize", m_scriptTotalSize, 1000, 5000000, 50);
-        if (m_scriptCachedMetadataTotalSize)
-            platform->histogramCustomCounts("ServiceWorker.ScriptCachedMetadataTotalSize", m_scriptCachedMetadataTotalSize, 1000, 50000000, 50);
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(CustomCountHistogram, scriptCountHistogram, new CustomCountHistogram("ServiceWorker.ScriptCount", 1, 1000, 50));
+    scriptCountHistogram.count(m_scriptCount);
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(CustomCountHistogram, scriptTotalSizeHistogram, new CustomCountHistogram("ServiceWorker.ScriptTotalSize", 1000, 5000000, 50));
+    scriptTotalSizeHistogram.count(m_scriptTotalSize);
+    if (m_scriptCachedMetadataTotalSize) {
+        DEFINE_THREAD_SAFE_STATIC_LOCAL(CustomCountHistogram, cachedMetadataHistogram, new CustomCountHistogram("ServiceWorker.ScriptCachedMetadataTotalSize", 1000, 50000000, 50));
+        cachedMetadataHistogram.count(m_scriptCachedMetadataTotalSize);
     }
     m_didEvaluateScript = true;
 }

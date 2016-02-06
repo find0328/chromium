@@ -8,6 +8,7 @@
 #include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "net/quic/quic_alarm.h"
+#include "net/quic/quic_client_promised_info.h"
 #include "net/quic/spdy_utils.h"
 #include "net/spdy/spdy_protocol.h"
 #include "net/tools/quic/quic_client_session.h"
@@ -64,6 +65,7 @@ void QuicSpdyClientStream::OnInitialHeadersComplete(bool fin,
     return;
   }
   MarkHeadersConsumed(decompressed_headers().length());
+  DVLOG(1) << "headers complete for stream " << id();
 
   session_->OnInitialHeadersComplete(id(), response_headers_);
 }
@@ -92,19 +94,26 @@ void QuicSpdyClientStream::OnPromiseHeadersComplete(QuicStreamId promised_id,
                                                     size_t frame_len) {
   header_bytes_read_ += frame_len;
   int content_length = -1;
-  std::unique_ptr<SpdyHeaderBlock> promise_headers(new SpdyHeaderBlock);
+  SpdyHeaderBlock promise_headers;
   if (!SpdyUtils::ParseHeaders(decompressed_headers().data(),
                                decompressed_headers().length(), &content_length,
-                               promise_headers.get())) {
+                               &promise_headers)) {
     Reset(QUIC_BAD_APPLICATION_PAYLOAD);
     return;
   }
   MarkHeadersConsumed(decompressed_headers().length());
 
-  session_->HandlePromised(promised_id, std::move(promise_headers));
+  session_->HandlePromised(promised_id, promise_headers);
 }
 
 void QuicSpdyClientStream::OnDataAvailable() {
+  if (FLAGS_quic_supports_push_promise) {
+    // For push streams, visitor will not be set until the rendezvous
+    // between server promise and client request is complete.
+    if (visitor() == nullptr)
+      return;
+  }
+
   while (HasBytesToRead()) {
     struct iovec iov;
     if (GetReadableRegions(&iov, 1) == 0) {

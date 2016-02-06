@@ -26,10 +26,26 @@ Polymer({
    * @private
    */
   changeToolbarView_: function() {
-    this.itemsSelected_ = this.count != 0;
+    this.itemsSelected_ = this.count > 0;
   },
 
   onClearSelectionTap_: function() {
     this.fire('unselect-all');
+  },
+
+  onDeleteTap_: function() {
+    this.fire('delete-selected');
+  },
+
+  /**
+   * If the user is a supervised user the delete button is not shown.
+   * @private
+   */
+  deletingAllowed_: function() {
+    return loadTimeData.getBoolean('allowDeletingHistory');
+  },
+
+  numberOfItemsSelected_: function(count) {
+    return count > 0 ? loadTimeData.getStringF('itemsSelected', count) : '';
   }
 });

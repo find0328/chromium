@@ -31,6 +31,7 @@
 #include "core/inspector/InspectorRuntimeAgent.h"
 
 #include "bindings/core/v8/ScriptState.h"
+#include "core/inspector/InspectorTraceEvents.h"
 #include "core/inspector/MuteConsoleScope.h"
 #include "core/inspector/v8/InjectedScript.h"
 #include "core/inspector/v8/InjectedScriptManager.h"
@@ -88,7 +89,7 @@ void InspectorRuntimeAgent::restore()
     enable(&errorString);
 }
 
-void InspectorRuntimeAgent::evaluate(ErrorString* errorString, const String& expression, const String* const objectGroup, const bool* const includeCommandLineAPI, const bool* const doNotPauseOnExceptionsAndMuteConsole, const int* optExecutionContextId, const bool* const returnByValue, const bool* generatePreview, RefPtr<TypeBuilder::Runtime::RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown, RefPtr<TypeBuilder::Debugger::ExceptionDetails>& exceptionDetails)
+void InspectorRuntimeAgent::evaluate(ErrorString* errorString, const String& expression, const String* const objectGroup, const bool* const includeCommandLineAPI, const bool* const doNotPauseOnExceptionsAndMuteConsole, const int* optExecutionContextId, const bool* const returnByValue, const bool* generatePreview, RefPtr<TypeBuilder::Runtime::RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown, RefPtr<TypeBuilder::Runtime::ExceptionDetails>& exceptionDetails)
 {
     int executionContextId;
     if (optExecutionContextId) {
@@ -103,6 +104,7 @@ void InspectorRuntimeAgent::evaluate(ErrorString* errorString, const String& exp
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         muteScope.enter(this);
     m_v8RuntimeAgent->evaluate(errorString, expression, objectGroup, includeCommandLineAPI, doNotPauseOnExceptionsAndMuteConsole, &executionContextId, returnByValue, generatePreview, result, wasThrown, exceptionDetails);
+    TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data", InspectorUpdateCountersEvent::data());
 }
 
 void InspectorRuntimeAgent::callFunctionOn(ErrorString* errorString, const String& objectId, const String& expression, const RefPtr<JSONArray>* const optionalArguments, const bool* const doNotPauseOnExceptionsAndMuteConsole, const bool* const returnByValue, const bool* generatePreview, RefPtr<TypeBuilder::Runtime::RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown)
@@ -111,9 +113,10 @@ void InspectorRuntimeAgent::callFunctionOn(ErrorString* errorString, const Strin
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         muteScope.enter(this);
     m_v8RuntimeAgent->callFunctionOn(errorString, objectId, expression, optionalArguments, doNotPauseOnExceptionsAndMuteConsole, returnByValue, generatePreview, result, wasThrown);
+    TRACE_EVENT_INSTANT1(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"), "UpdateCounters", TRACE_EVENT_SCOPE_THREAD, "data", InspectorUpdateCountersEvent::data());
 }
 
-void InspectorRuntimeAgent::getProperties(ErrorString* errorString, const String& objectId, const bool* ownProperties, const bool* accessorPropertiesOnly, const bool* generatePreview, RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::PropertyDescriptor>>& result, RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::InternalPropertyDescriptor>>& internalProperties, RefPtr<TypeBuilder::Debugger::ExceptionDetails>& exceptionDetails)
+void InspectorRuntimeAgent::getProperties(ErrorString* errorString, const String& objectId, const bool* ownProperties, const bool* accessorPropertiesOnly, const bool* generatePreview, RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::PropertyDescriptor>>& result, RefPtr<TypeBuilder::Array<TypeBuilder::Runtime::InternalPropertyDescriptor>>& internalProperties, RefPtr<TypeBuilder::Runtime::ExceptionDetails>& exceptionDetails)
 {
     MuteConsoleScope<InspectorRuntimeAgent> muteScope(this);
     m_v8RuntimeAgent->getProperties(errorString, objectId, ownProperties, accessorPropertiesOnly, generatePreview, result, internalProperties, exceptionDetails);
@@ -142,6 +145,19 @@ void InspectorRuntimeAgent::isRunRequired(ErrorString* errorString, bool* outRes
 void InspectorRuntimeAgent::setCustomObjectFormatterEnabled(ErrorString* errorString, bool enabled)
 {
     m_v8RuntimeAgent->setCustomObjectFormatterEnabled(errorString, enabled);
+}
+
+void InspectorRuntimeAgent::compileScript(ErrorString* errorString, const String& inExpression, const String& inSourceURL, bool inPersistScript, int inExecutionContextId, TypeBuilder::OptOutput<TypeBuilder::Runtime::ScriptId>* optOutScriptId, RefPtr<TypeBuilder::Runtime::ExceptionDetails>& optOutExceptionDetails)
+{
+    m_v8RuntimeAgent->compileScript(errorString, inExpression, inSourceURL, inPersistScript, inExecutionContextId, optOutScriptId, optOutExceptionDetails);
+}
+
+void InspectorRuntimeAgent::runScript(ErrorString* errorString, const String& inScriptId, int inExecutionContextId, const String* inObjectGroup, const bool* inDoNotPauseOnExceptionsAndMuteConsole, RefPtr<TypeBuilder::Runtime::RemoteObject>& outResult, RefPtr<TypeBuilder::Runtime::ExceptionDetails>& optOutExceptionDetails)
+{
+    MuteConsoleScope<InspectorRuntimeAgent> muteScope;
+    if (asBool(inDoNotPauseOnExceptionsAndMuteConsole))
+        muteScope.enter(this);
+    m_v8RuntimeAgent->runScript(errorString, inScriptId, inExecutionContextId, inObjectGroup, inDoNotPauseOnExceptionsAndMuteConsole, outResult, optOutExceptionDetails);
 }
 
 void InspectorRuntimeAgent::enable(ErrorString* errorString)

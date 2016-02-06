@@ -4,25 +4,22 @@
 
 #include "core/inspector/v8/V8DebuggerAgentImpl.h"
 
-#include "bindings/core/v8/ScriptCallStackFactory.h"
-#include "bindings/core/v8/ScriptRegexp.h"
 #include "bindings/core/v8/V8RecursionScope.h"
 #include "core/dom/Microtask.h"
-#include "core/inspector/ContentSearchUtils.h"
-#include "core/inspector/ScriptAsyncCallStack.h"
-#include "core/inspector/ScriptCallFrame.h"
-#include "core/inspector/ScriptCallStack.h"
 #include "core/inspector/v8/AsyncCallChain.h"
 #include "core/inspector/v8/IgnoreExceptionsScope.h"
 #include "core/inspector/v8/InjectedScript.h"
 #include "core/inspector/v8/InjectedScriptHost.h"
 #include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/inspector/v8/JavaScriptCallFrame.h"
+#include "core/inspector/v8/PromiseTracker.h"
 #include "core/inspector/v8/RemoteObjectId.h"
 #include "core/inspector/v8/V8AsyncCallTracker.h"
 #include "core/inspector/v8/V8Debugger.h"
 #include "core/inspector/v8/V8DebuggerClient.h"
 #include "core/inspector/v8/V8JavaScriptCallFrame.h"
+#include "core/inspector/v8/V8Regex.h"
+#include "core/inspector/v8/V8StackTraceImpl.h"
 #include "core/inspector/v8/V8StringUtil.h"
 #include "platform/JSONValues.h"
 #include "wtf/Optional.h"
@@ -30,16 +27,15 @@
 #include "wtf/text/WTFString.h"
 
 using blink::TypeBuilder::Array;
-using blink::TypeBuilder::Console::AsyncStackTrace;
 using blink::TypeBuilder::Debugger::AsyncOperation;
 using blink::TypeBuilder::Debugger::BreakpointId;
 using blink::TypeBuilder::Debugger::CallFrame;
 using blink::TypeBuilder::Debugger::CollectionEntry;
-using blink::TypeBuilder::Debugger::ExceptionDetails;
+using blink::TypeBuilder::Runtime::ExceptionDetails;
 using blink::TypeBuilder::Debugger::FunctionDetails;
 using blink::TypeBuilder::Debugger::GeneratorObjectDetails;
 using blink::TypeBuilder::Debugger::PromiseDetails;
-using blink::TypeBuilder::Debugger::ScriptId;
+using blink::TypeBuilder::Runtime::ScriptId;
 using blink::TypeBuilder::Debugger::StackTrace;
 using blink::TypeBuilder::Runtime::RemoteObject;
 
@@ -91,21 +87,19 @@ static String generateBreakpointId(const String& scriptId, int lineNumber, int c
     return scriptId + ':' + String::number(lineNumber) + ':' + String::number(columnNumber) + breakpointIdSuffix(source);
 }
 
-static ScriptCallFrame toScriptCallFrame(JavaScriptCallFrame* callFrame)
+static V8StackTraceImpl::Frame toScriptCallFrame(JavaScriptCallFrame* callFrame)
 {
     String scriptId = String::number(callFrame->sourceID());
     // FIXME(WK62725): Debugger line/column are 0-based, while console ones are 1-based.
     int line = callFrame->line() + 1;
     int column = callFrame->column() + 1;
-    return ScriptCallFrame(callFrame->functionName(), scriptId, callFrame->scriptName(), line, column);
+    return V8StackTraceImpl::Frame(callFrame->functionName(), scriptId, callFrame->scriptName(), line, column);
 }
 
-static PassRefPtr<ScriptCallStack> toScriptCallStack(JavaScriptCallFrame* callFrame)
+static void toScriptCallFrames(JavaScriptCallFrame* callFrame, Vector<V8StackTraceImpl::Frame>& frames)
 {
-    Vector<ScriptCallFrame> frames;
     for (; callFrame; callFrame = callFrame->caller())
         frames.append(toScriptCallFrame(callFrame));
-    return ScriptCallStack::create(frames);
 }
 
 static PassRefPtr<JavaScriptCallFrame> toJavaScriptCallFrame(v8::Local<v8::Context> context, v8::Local<v8::Object> value)
@@ -113,12 +107,6 @@ static PassRefPtr<JavaScriptCallFrame> toJavaScriptCallFrame(v8::Local<v8::Conte
     if (value.IsEmpty())
         return nullptr;
     return V8JavaScriptCallFrame::unwrap(context, value);
-}
-
-static PassRefPtr<ScriptCallStack> toScriptCallStack(v8::Local<v8::Context> context, v8::Local<v8::Object> callFrames)
-{
-    RefPtr<JavaScriptCallFrame> jsCallFrame = toJavaScriptCallFrame(context, callFrames);
-    return jsCallFrame ? toScriptCallStack(jsCallFrame.get()) : nullptr;
 }
 
 static bool positionComparator(const std::pair<int, int>& a, const std::pair<int, int>& b)
@@ -235,7 +223,6 @@ void V8DebuggerAgentImpl::disable(ErrorString*)
     m_skippedStepFrameCount = 0;
     m_recursionLevelForStepFrame = 0;
     m_asyncOperationNotifications.clear();
-    m_compiledScripts.clear();
     clearStepIntoAsync();
     m_skipAllPauses = false;
     m_enabled = false;
@@ -314,10 +301,10 @@ static PassRefPtr<JSONObject> buildObjectForBreakpointCookie(const String& url, 
     return breakpointObject.release();
 }
 
-static bool matches(const String& url, const String& pattern, bool isRegex)
+static bool matches(V8DebuggerImpl* debugger, const String& url, const String& pattern, bool isRegex)
 {
     if (isRegex) {
-        ScriptRegexp regex(pattern, TextCaseSensitive);
+        V8Regex regex(debugger, pattern, TextCaseSensitive);
         return regex.match(url) != -1;
     }
     return url == pattern;
@@ -359,7 +346,7 @@ void V8DebuggerAgentImpl::setBreakpointByUrl(ErrorString* errorString, int lineN
 
     ScriptBreakpoint breakpoint(lineNumber, columnNumber, condition);
     for (auto& script : m_scripts) {
-        if (!matches(script.value.sourceURL(), url, isRegex))
+        if (!matches(m_debugger, script.value.sourceURL(), url, isRegex))
             continue;
         RefPtr<TypeBuilder::Debugger::Location> location = resolveBreakpoint(breakpointId, script.key, breakpoint, UserBreakpointSource);
         if (location)
@@ -612,7 +599,7 @@ void V8DebuggerAgentImpl::searchInContent(ErrorString* error, const String& scri
 {
     ScriptsMap::iterator it = m_scripts.find(scriptId);
     if (it != m_scripts.end())
-        results = ContentSearchUtils::searchInTextByLines(it->value.source(), query, asBool(optionalCaseSensitive), asBool(optionalIsRegex));
+        results = V8StringUtil::searchInTextByLines(m_debugger, it->value.source(), query, asBool(optionalCaseSensitive), asBool(optionalIsRegex));
     else
         *error = "No script for id: " + scriptId;
 }
@@ -897,7 +884,7 @@ bool V8DebuggerAgentImpl::callStackForId(ErrorString* errorString, const RemoteC
     return true;
 }
 
-void V8DebuggerAgentImpl::evaluateOnCallFrame(ErrorString* errorString, const String& callFrameId, const String& expression, const String* const objectGroup, const bool* const includeCommandLineAPI, const bool* const doNotPauseOnExceptionsAndMuteConsole, const bool* const returnByValue, const bool* generatePreview, RefPtr<RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown, RefPtr<TypeBuilder::Debugger::ExceptionDetails>& exceptionDetails)
+void V8DebuggerAgentImpl::evaluateOnCallFrame(ErrorString* errorString, const String& callFrameId, const String& expression, const String* const objectGroup, const bool* const includeCommandLineAPI, const bool* const doNotPauseOnExceptionsAndMuteConsole, const bool* const returnByValue, const bool* generatePreview, RefPtr<RemoteObject>& result, TypeBuilder::OptOutput<bool>* wasThrown, RefPtr<TypeBuilder::Runtime::ExceptionDetails>& exceptionDetails)
 {
     if (!isPaused() || m_currentCallStack.IsEmpty()) {
         *errorString = "Attempt to access callframe when debugger is not on pause";
@@ -926,87 +913,6 @@ void V8DebuggerAgentImpl::evaluateOnCallFrame(ErrorString* errorString, const St
         ignoreExceptionsScope.emplace(m_debugger);
 
     injectedScript->evaluateOnCallFrame(errorString, callStack, isAsync, callFrameId, expression, objectGroup ? *objectGroup : "", asBool(includeCommandLineAPI), asBool(returnByValue), asBool(generatePreview), &result, wasThrown, &exceptionDetails);
-}
-
-void V8DebuggerAgentImpl::compileScript(ErrorString* errorString, const String& expression, const String& sourceURL, bool persistScript, int executionContextId, TypeBuilder::OptOutput<ScriptId>* scriptId, RefPtr<ExceptionDetails>& exceptionDetails)
-{
-    if (!checkEnabled(errorString))
-        return;
-    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(executionContextId);
-    if (!injectedScript) {
-        *errorString = "Inspected frame has gone";
-        return;
-    }
-
-    v8::HandleScope handles(injectedScript->isolate());
-    v8::Context::Scope scope(injectedScript->context());
-    v8::TryCatch tryCatch(m_isolate);
-    v8::Local<v8::Script> script = m_debugger->compileInternalScript(injectedScript->context(), toV8String(m_isolate, expression), sourceURL);
-    if (script.IsEmpty()) {
-        v8::Local<v8::Message> message = tryCatch.Message();
-        if (!message.IsEmpty())
-            exceptionDetails = createExceptionDetails(m_isolate, message);
-        else
-            *errorString = "Script compilation failed";
-        return;
-    }
-
-    if (!persistScript)
-        return;
-
-    String scriptValueId = String::number(script->GetUnboundScript()->GetId());
-    OwnPtr<v8::Global<v8::Script>> global = adoptPtr(new v8::Global<v8::Script>(m_isolate, script));
-    m_compiledScripts.set(scriptValueId, global.release());
-    *scriptId = scriptValueId;
-}
-
-void V8DebuggerAgentImpl::runScript(ErrorString* errorString, const ScriptId& scriptId, int executionContextId, const String* const objectGroup, const bool* const doNotPauseOnExceptionsAndMuteConsole, RefPtr<RemoteObject>& result, RefPtr<ExceptionDetails>& exceptionDetails)
-{
-    if (!checkEnabled(errorString))
-        return;
-    InjectedScript* injectedScript = m_injectedScriptManager->findInjectedScript(executionContextId);
-    if (!injectedScript) {
-        *errorString = "Inspected frame has gone";
-        return;
-    }
-
-    Optional<IgnoreExceptionsScope> ignoreExceptionsScope;
-    if (asBool(doNotPauseOnExceptionsAndMuteConsole))
-        ignoreExceptionsScope.emplace(m_debugger);
-
-    if (!m_compiledScripts.contains(scriptId)) {
-        *errorString = "Script execution failed";
-        return;
-    }
-
-    v8::HandleScope handles(m_isolate);
-    v8::Local<v8::Context> context = injectedScript->context();
-    v8::Context::Scope scope(context);
-    OwnPtr<v8::Global<v8::Script>> scriptWrapper = m_compiledScripts.take(scriptId);
-    v8::Local<v8::Script> script = scriptWrapper->Get(m_isolate);
-
-    if (script.IsEmpty()) {
-        *errorString = "Script execution failed";
-        return;
-    }
-    v8::TryCatch tryCatch(m_isolate);
-    v8::Local<v8::Value> value;
-    v8::MaybeLocal<v8::Value> maybeValue = m_debugger->client()->runCompiledScript(context, script);
-    if (maybeValue.IsEmpty()) {
-        value = tryCatch.Exception();
-        v8::Local<v8::Message> message = tryCatch.Message();
-        if (!message.IsEmpty())
-            exceptionDetails = createExceptionDetails(m_isolate, message);
-    } else {
-        value = maybeValue.ToLocalChecked();
-    }
-
-    if (value.IsEmpty()) {
-        *errorString = "Script execution failed";
-        return;
-    }
-
-    result = injectedScript->wrapObject(value, objectGroup ? *objectGroup : "");
 }
 
 void V8DebuggerAgentImpl::setVariableValue(ErrorString* errorString, int scopeNumber, const String& variableName, const RefPtr<JSONObject>& newValue, const String* callFrameId, const String* functionObjectId)
@@ -1234,33 +1140,25 @@ void V8DebuggerAgentImpl::flushAsyncOperationEvents(ErrorString*)
         const AsyncCallStackVector& callStacks = chain->callStacks();
         ASSERT(!callStacks.isEmpty());
 
-        RefPtr<AsyncOperation> operation;
-        RefPtr<AsyncStackTrace> lastAsyncStackTrace;
-        for (const auto& callStack : callStacks) {
-            v8::HandleScope scope(m_isolate);
-            RefPtr<ScriptCallStack> scriptCallStack = toScriptCallStack(chain->creationContext(m_isolate), callStack->callFrames(m_isolate));
-            if (!scriptCallStack)
-                break;
-            if (!operation) {
-                operation = AsyncOperation::create()
-                    .setId(operationId)
-                    .setDescription(callStack->description())
-                    .release();
-                operation->setStackTrace(scriptCallStack->buildInspectorArray());
+        OwnPtr<V8StackTraceImpl> stack;
+        v8::HandleScope scope(m_isolate);
+        for (int i = callStacks.size() - 1; i >= 0; --i) {
+            v8::Local<v8::Object> callFrames = callStacks.at(i)->callFrames(m_isolate);
+            RefPtr<JavaScriptCallFrame> jsCallFrame = toJavaScriptCallFrame(chain->creationContext(m_isolate), callFrames);
+            if (!jsCallFrame)
                 continue;
-            }
-            RefPtr<AsyncStackTrace> asyncStackTrace = AsyncStackTrace::create()
-                .setCallFrames(scriptCallStack->buildInspectorArray());
-            asyncStackTrace->setDescription(callStack->description());
-            if (lastAsyncStackTrace)
-                lastAsyncStackTrace->setAsyncStackTrace(asyncStackTrace);
-            else
-                operation->setAsyncStackTrace(asyncStackTrace);
-            lastAsyncStackTrace = asyncStackTrace.release();
+            Vector<V8StackTraceImpl::Frame> frames;
+            toScriptCallFrames(jsCallFrame.get(), frames);
+            stack = V8StackTraceImpl::create(callStacks.at(i)->description(), frames, stack.release());
         }
 
-        if (operation)
+        if (stack) {
+            RefPtr<AsyncOperation> operation = AsyncOperation::create()
+                .setId(operationId)
+                .release();
+            operation->setStack(stack->buildInspectorObject());
             m_frontend->asyncOperationStarted(operation.release());
+        }
     }
 
     m_asyncOperationNotifications.clear();
@@ -1455,7 +1353,7 @@ PassRefPtr<StackTrace> V8DebuggerAgentImpl::currentAsyncStackTrace()
     return result.release();
 }
 
-PassRefPtr<ScriptAsyncCallStack> V8DebuggerAgentImpl::currentAsyncStackTraceForConsole()
+PassOwnPtr<V8StackTraceImpl> V8DebuggerAgentImpl::currentAsyncStackTraceForRuntime()
 {
     if (!trackingAsyncCalls())
         return nullptr;
@@ -1465,13 +1363,15 @@ PassRefPtr<ScriptAsyncCallStack> V8DebuggerAgentImpl::currentAsyncStackTraceForC
     const AsyncCallStackVector& callStacks = chain->callStacks();
     if (callStacks.isEmpty())
         return nullptr;
-    RefPtr<ScriptAsyncCallStack> result;
+    OwnPtr<V8StackTraceImpl> result;
+    v8::HandleScope scope(m_isolate);
     for (AsyncCallStackVector::const_reverse_iterator it = callStacks.rbegin(); it != callStacks.rend(); ++it) {
-        v8::HandleScope scope(m_isolate);
         RefPtr<JavaScriptCallFrame> callFrame = toJavaScriptCallFrame(chain->creationContext(m_isolate), (*it)->callFrames(m_isolate));
         if (!callFrame)
             break;
-        result = ScriptAsyncCallStack::create((*it)->description(), toScriptCallStack(callFrame.get()), result.release());
+        Vector<V8StackTraceImpl::Frame> frames;
+        toScriptCallFrames(callFrame.get(), frames);
+        result = V8StackTraceImpl::create((*it)->description(), frames, result.release());
     }
     return result.release();
 }
@@ -1480,7 +1380,7 @@ String V8DebuggerAgentImpl::sourceMapURLForScript(const V8DebuggerScript& script
 {
     if (success)
         return script.sourceMappingURL();
-    return ContentSearchUtils::findSourceMapURL(script.source(), ContentSearchUtils::JavaScriptMagicComment);
+    return V8StringUtil::findSourceMapURL(script.source(), false);
 }
 
 void V8DebuggerAgentImpl::didParseSource(const V8DebuggerParsedScript& parsedScript)
@@ -1488,7 +1388,7 @@ void V8DebuggerAgentImpl::didParseSource(const V8DebuggerParsedScript& parsedScr
     V8DebuggerScript script = parsedScript.script;
 
     if (!parsedScript.success)
-        script.setSourceURL(ContentSearchUtils::findSourceURL(script.source(), ContentSearchUtils::JavaScriptMagicComment));
+        script.setSourceURL(V8StringUtil::findSourceURL(script.source(), false));
 
     int executionContextId = script.executionContextId();
     bool isContentScript = script.isContentScript();
@@ -1523,7 +1423,7 @@ void V8DebuggerAgentImpl::didParseSource(const V8DebuggerParsedScript& parsedScr
         breakpointObject->getBoolean(DebuggerAgentState::isRegex, &isRegex);
         String url;
         breakpointObject->getString(DebuggerAgentState::url, &url);
-        if (!matches(scriptURL, url, isRegex))
+        if (!matches(m_debugger, scriptURL, url, isRegex))
             continue;
         ScriptBreakpoint breakpoint;
         breakpointObject->getNumber(DebuggerAgentState::lineNumber, &breakpoint.lineNumber);
@@ -1667,14 +1567,14 @@ void V8DebuggerAgentImpl::clearBreakDetails()
     m_breakAuxData = nullptr;
 }
 
-void V8DebuggerAgentImpl::setBreakpoint(const String& scriptId, int lineNumber, int columnNumber, BreakpointSource source, const String& condition)
+void V8DebuggerAgentImpl::setBreakpointAt(const String& scriptId, int lineNumber, int columnNumber, BreakpointSource source, const String& condition)
 {
     String breakpointId = generateBreakpointId(scriptId, lineNumber, columnNumber, source);
     ScriptBreakpoint breakpoint(lineNumber, columnNumber, condition);
     resolveBreakpoint(breakpointId, scriptId, breakpoint, source);
 }
 
-void V8DebuggerAgentImpl::removeBreakpoint(const String& scriptId, int lineNumber, int columnNumber, BreakpointSource source)
+void V8DebuggerAgentImpl::removeBreakpointAt(const String& scriptId, int lineNumber, int columnNumber, BreakpointSource source)
 {
     removeBreakpoint(generateBreakpointId(scriptId, lineNumber, columnNumber, source));
 }
@@ -1689,17 +1589,6 @@ void V8DebuggerAgentImpl::reset()
     m_promiseTracker->clear();
     if (m_frontend)
         m_frontend->globalObjectCleared();
-}
-
-PassRefPtr<TypeBuilder::Debugger::ExceptionDetails> V8DebuggerAgentImpl::createExceptionDetails(v8::Isolate* isolate, v8::Local<v8::Message> message)
-{
-    RefPtr<ExceptionDetails> exceptionDetails = ExceptionDetails::create().setText(toWTFStringWithTypeCheck(message->Get()));
-    exceptionDetails->setLine(message->GetLineNumber());
-    exceptionDetails->setColumn(message->GetStartColumn());
-    v8::Local<v8::StackTrace> messageStackTrace = message->GetStackTrace();
-    if (!messageStackTrace.IsEmpty() && messageStackTrace->GetFrameCount() > 0)
-        exceptionDetails->setStackTrace(createScriptCallStack(isolate, messageStackTrace, messageStackTrace->GetFrameCount())->buildInspectorArray());
-    return exceptionDetails.release();
 }
 
 } // namespace blink

@@ -126,6 +126,7 @@ double SiteEngagementScore::param_values[] = {
     0.01,  // HIDDEN_MEDIA_POINTS
     5,     // WEB_APP_INSTALLED_POINTS
     0.5,   // FIRST_DAILY_ENGAGEMENT
+    8,     // BOOTSTRAP_POINTS
 };
 
 const char* SiteEngagementScore::kRawScoreKey = "rawScore";
@@ -168,6 +169,10 @@ double SiteEngagementScore::GetWebAppInstalledPoints() {
 
 double SiteEngagementScore::GetFirstDailyEngagementPoints() {
   return param_values[FIRST_DAILY_ENGAGEMENT];
+}
+
+double SiteEngagementScore::GetBootstrapPoints() {
+  return param_values[BOOTSTRAP_POINTS];
 }
 
 void SiteEngagementScore::UpdateFromVariations() {
@@ -334,6 +339,7 @@ void SiteEngagementScore::SetParamValuesForTesting() {
   param_values[VISIBLE_MEDIA_POINTS] = 0.02;
   param_values[HIDDEN_MEDIA_POINTS] = 0.01;
   param_values[WEB_APP_INSTALLED_POINTS] = 5;
+  param_values[BOOTSTRAP_POINTS] = 8;
 
   // This is set to zero to avoid interference with tests and is set when
   // testing this functionality.
@@ -478,7 +484,7 @@ void SiteEngagementService::SetLastShortcutLaunchTime(const GURL& url) {
   }
 }
 
-double SiteEngagementService::GetScore(const GURL& url) {
+double SiteEngagementService::GetScore(const GURL& url) const {
   HostContentSettingsMap* settings_map =
     HostContentSettingsMapFactory::GetForProfile(profile_);
   scoped_ptr<base::DictionaryValue> score_dict =
@@ -488,7 +494,7 @@ double SiteEngagementService::GetScore(const GURL& url) {
   return score.Score();
 }
 
-double SiteEngagementService::GetTotalEngagementPoints() {
+double SiteEngagementService::GetTotalEngagementPoints() const {
   std::map<GURL, double> score_map = GetScoreMap();
 
   double total_score = 0;
@@ -498,7 +504,7 @@ double SiteEngagementService::GetTotalEngagementPoints() {
   return total_score;
 }
 
-std::map<GURL, double> SiteEngagementService::GetScoreMap() {
+std::map<GURL, double> SiteEngagementService::GetScoreMap() const {
   HostContentSettingsMap* settings_map =
       HostContentSettingsMapFactory::GetForProfile(profile_);
   scoped_ptr<ContentSettingsForOneType> engagement_settings =
@@ -517,6 +523,11 @@ std::map<GURL, double> SiteEngagementService::GetScoreMap() {
   }
 
   return score_map;
+}
+
+bool SiteEngagementService::IsBootstrapped() {
+  return GetTotalEngagementPoints() >=
+         SiteEngagementScore::GetBootstrapPoints();
 }
 
 SiteEngagementService::SiteEngagementService(Profile* profile,
@@ -605,7 +616,7 @@ void SiteEngagementService::RecordMetrics() {
 }
 
 double SiteEngagementService::GetMedianEngagement(
-    std::map<GURL, double>& score_map) {
+    std::map<GURL, double>& score_map) const {
   if (score_map.size() == 0)
     return 0;
 
@@ -625,7 +636,7 @@ double SiteEngagementService::GetMedianEngagement(
     return (scores[mid - 1] + scores[mid]) / 2;
 }
 
-int SiteEngagementService::OriginsWithMaxDailyEngagement() {
+int SiteEngagementService::OriginsWithMaxDailyEngagement() const {
   HostContentSettingsMap* settings_map =
       HostContentSettingsMapFactory::GetForProfile(profile_);
   scoped_ptr<ContentSettingsForOneType> engagement_settings =
@@ -650,7 +661,7 @@ int SiteEngagementService::OriginsWithMaxDailyEngagement() {
 }
 
 int SiteEngagementService::OriginsWithMaxEngagement(
-    std::map<GURL, double>& score_map) {
+    std::map<GURL, double>& score_map) const {
   int total_origins = 0;
 
   for (const auto& value : score_map)

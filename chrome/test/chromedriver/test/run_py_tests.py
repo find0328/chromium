@@ -1572,7 +1572,7 @@ class MobileEmulationCapabilityTest(ChromeDriverBaseTest):
     self.assertTrue(driver.capabilities['hasTouchScreen'])
 
 
-class ChromeDriverLogTest(unittest.TestCase):
+class ChromeDriverLogTest(ChromeDriverBaseTest):
   """Tests that chromedriver produces the expected log file."""
 
   UNEXPECTED_CHROMEOPTION_CAP = 'unexpected_chromeoption_capability'
@@ -1594,6 +1594,22 @@ class ChromeDriverLogTest(unittest.TestCase):
     with open(tmp_log_path, 'r') as f:
       self.assertTrue(self.LOG_MESSAGE in f.read())
 
+  def testDisablingDriverLogsSuppressesChromeDriverLog(self):
+    _, tmp_log_path = tempfile.mkstemp(prefix='chromedriver_log_')
+    chromedriver_server = server.Server(
+        _CHROMEDRIVER_BINARY, log_path=tmp_log_path)
+    try:
+      driver = self.CreateDriver(
+          chromedriver_server.GetUrl(), logging_prefs={'driver':'OFF'})
+      driver.Load(
+        ChromeDriverTest._http_server.GetUrl() + '/chromedriver/empty.html')
+      driver.AddCookie({'name': 'secret_code', 'value': 'bosco'})
+      driver.Quit()
+    finally:
+      chromedriver_server.Kill()
+    with open(tmp_log_path, 'r') as f:
+      self.assertNotIn('bosco', f.read())
+
 
 class PerformanceLoggerTest(ChromeDriverBaseTest):
   """Tests chromedriver tracing support and Inspector event collection."""
@@ -1602,7 +1618,7 @@ class PerformanceLoggerTest(ChromeDriverBaseTest):
     driver = self.CreateDriver(
         experimental_options={'perfLoggingPrefs': {
             'traceCategories': 'webkit.console,blink.console'
-          }}, performance_log_level='ALL')
+          }}, logging_prefs={'performance':'ALL'})
     driver.Load(
         ChromeDriverTest._http_server.GetUrl() + '/chromedriver/empty.html')
     # Mark the timeline; later we will verify the marks appear in the trace.

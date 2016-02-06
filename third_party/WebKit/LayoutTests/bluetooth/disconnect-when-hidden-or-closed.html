@@ -15,21 +15,28 @@ promise_test(() => {
   testRunner.setPageVisibility("visible");
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
   return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
-   .then(device => device.connectGATT())
-   .then(gatt_server => {
-     assert_true(gatt_server.connected);
-     testRunner.setPageVisibility("hidden");
-     assert_false(gatt_server.connected);
-     testRunner.setPageVisibility("visible");
-     assert_false(gatt_server.connected);
+   .then(device => {
+     return device.gatt.connect().then(gatt_server => {
+       assert_true(gatt_server.connected);
+
+       let event_catcher1 = new EventCatcher(device, 'gattserverdisconnected');
+       testRunner.setPageVisibility("hidden");
+       assert_false(gatt_server.connected);
+       assert_true(event_catcher1.eventFired);
+
+       let event_catcher2 = new EventCatcher(device, 'gattserverdisconnected');
+       testRunner.setPageVisibility("visible");
+       assert_false(gatt_server.connected);
+       assert_false(event_catcher2.eventFired);
+     });
    });
-}, 'Test device disconnects when tab becomes hidden');
+}, 'Test device disconnects and event is fired when tab becomes hidden.');
 
 promise_test(() => {
   testRunner.setPageVisibility('visible');
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
   return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
-   .then(device => device.connectGATT())
+   .then(device => device.gatt.connect())
    .then(gatt_server => {})
    .then(() => runGarbageCollection())
    .then(() => testRunner.setPageVisibility('hidden'));
@@ -40,7 +47,7 @@ promise_test(() => {
   testRunner.setPageVisibility('visible');
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
   return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
-   .then(device => device.connectGATT())
+   .then(device => device.gatt.connect())
    .then(gatt_server => testRunner.setPageVisibility('hidden'))
    .then(() => runGarbageCollection());
 }, 'Test object gets garbage collected after tab becomes hidden. ' +
@@ -51,11 +58,18 @@ promise_test(() => {
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
   return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
    .then(device => {
-     let connect_promise = device.connectGATT();
+     let connect_promise = device.gatt.connect();
      testRunner.setPageVisibility('hidden');
-     return connect_promise;
-   }).then(gatt_server => {
-     assert_false(gatt_server.connected);
+     return assert_promise_rejects_with_message(
+       connect_promise,
+       new DOMException('Connection is only allowed while the page is visible. ' +
+                        'This is a temporary measure until we are able to ' +
+                        'effectively communicate to the user that a page is ' +
+                        'connected to a device.',
+                        'SecurityError'))
+       .then(() => {
+         assert_false(device.gatt.connected);
+       });
    });
-}, 'Visibility changes during connection. Should disconnect.');
+}, 'Visibility changes during connection. Should disconnect and reject.');
 </script>

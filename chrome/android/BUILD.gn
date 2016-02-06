@@ -167,6 +167,7 @@ android_library("chrome_java") {
     ":resource_id_javagen",
     "//chrome:content_setting_javagen",
     "//chrome:content_settings_type_javagen",
+    "//chrome:signin_metrics_enum_javagen",
   ]
 
   # TODO(sievers): Split java code into components. Not everything
@@ -270,7 +271,6 @@ junit_binary("chrome_junit_tests") {
     "junit/src/org/chromium/chrome/browser/media/remote/AbstractMediaRouteControllerTest.java",
     "junit/src/org/chromium/chrome/browser/media/remote/MediaUrlResolverTest.java",
     "junit/src/org/chromium/chrome/browser/media/remote/RemoteVideoInfoTest.java",
-    "junit/src/org/chromium/chrome/browser/media/remote/TransportControlTest.java",
     "junit/src/org/chromium/chrome/browser/media/router/ChromeMediaRouterRouteTest.java",
     "junit/src/org/chromium/chrome/browser/media/router/ChromeMediaRouterSinkObservationTest.java",
     "junit/src/org/chromium/chrome/browser/media/router/ChromeMediaRouterTestBase.java",
@@ -281,6 +281,7 @@ junit_binary("chrome_junit_tests") {
     "junit/src/org/chromium/chrome/browser/omaha/ResponseParserTest.java",
     "junit/src/org/chromium/chrome/browser/omaha/VersionNumberTest.java",
     "junit/src/org/chromium/chrome/browser/snackbar/SnackbarCollectionUnitTest.java",
+    "junit/src/org/chromium/chrome/browser/superviseduser/SupervisedUserContentProviderUnitTest.java",
     "junit/src/org/chromium/chrome/browser/util/NonThreadSafeTest.java",
     "junit/src/org/chromium/chrome/browser/webapps/WebappDataStorageTest.java",
     "junit/src/org/chromium/chrome/browser/webapps/WebappRegistryTest.java",
@@ -292,6 +293,7 @@ junit_binary("chrome_junit_tests") {
     "//base:base_junit_test_support",
     "//components/bookmarks/common/android:bookmarks_java",
     "//components/invalidation/impl:java",
+    "//components/web_restrictions:web_restrictions_java",
     "//content/public/android:content_java",
     "//sync:sync_java_test_support",
     "//sync/android:sync_java",
@@ -544,12 +546,14 @@ instrumentation_test_apk("chrome_public_test_apk") {
   apk_name = "ChromePublicTest"
   apk_under_test = ":chrome_public_apk"
   android_manifest = chrome_public_test_apk_manifest
+
   deps = [
     ":chrome_public_test_apk_manifest",
     ":chrome_shared_test_java",
   ]
-  data_deps = [
+  additional_apks = [
     "//chrome/test/android/chrome_public_test_support:chrome_public_test_support_apk",
+    "//net/android:net_test_support_apk",
   ]
   isolate_file = "../chrome_public_test_apk.isolate"
   proguard_enabled = !is_debug

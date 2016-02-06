@@ -137,7 +137,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_utils.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
-#include "chrome/browser/ui/toolbar/toolbar_model_impl.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/validation_message_bubble.h"
 #include "chrome/browser/ui/website_settings/permission_bubble_manager.h"
@@ -170,6 +169,7 @@
 #include "components/sessions/core/session_types.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "components/startup_metric_utils/browser/startup_metric_utils.h"
+#include "components/toolbar/toolbar_model_impl.h"
 #include "components/translate/core/browser/language_state.h"
 #include "components/ui/zoom/zoom_controller.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
@@ -522,21 +522,6 @@ Browser::~Browser() {
       TabRestoreServiceFactory::GetForProfile(profile());
   if (tab_restore_service)
     tab_restore_service->BrowserClosed(live_tab_context());
-
-#if !defined(OS_MACOSX)
-  if (!chrome::GetBrowserCount(profile_)) {
-    // We're the last browser window with this profile. We need to nuke the
-    // TabRestoreService, which will start the shutdown of the
-    // NavigationControllers and allow for proper shutdown. If we don't do this
-    // chrome won't shutdown cleanly, and may end up crashing when some
-    // thread tries to use the IO thread (or another thread) that is no longer
-    // valid.
-    // This isn't a valid assumption for Mac OS, as it stays running after
-    // the last browser has closed. The Mac equivalent is in its app
-    // controller.
-    TabRestoreServiceFactory::ResetForProfile(profile_);
-  }
-#endif
 
   profile_pref_registrar_.RemoveAll();
 
@@ -905,7 +890,7 @@ void Browser::OpenFile() {
   // TODO(beng): figure out how to juggle this.
   gfx::NativeWindow parent_window = window_->GetNativeWindow();
   ui::SelectFileDialog::FileTypeInfo file_types;
-  file_types.support_drive = true;
+  file_types.allowed_paths = ui::SelectFileDialog::FileTypeInfo::ANY_PATH;
   select_file_dialog_->SelectFile(ui::SelectFileDialog::SELECT_OPEN_FILE,
                                   base::string16(),
                                   directory,
@@ -950,6 +935,19 @@ void Browser::UpdateUIForNavigationInTab(WebContents* contents,
 
   if (contents_is_selected)
     contents->SetInitialFocus();
+}
+
+void Browser::ShowModalSigninWindow(profiles::BubbleViewMode mode,
+                                    signin_metrics::AccessPoint access_point) {
+  signin_view_controller_.ShowModalSignin(mode, this, access_point);
+}
+
+void Browser::CloseModalSigninWindow() {
+  signin_view_controller_.CloseModalSignin();
+}
+
+void Browser::ShowModalSyncConfirmationWindow() {
+  signin_view_controller_.ShowModalSyncConfirmationDialog(this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

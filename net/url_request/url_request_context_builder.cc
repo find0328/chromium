@@ -11,7 +11,6 @@
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/memory/scoped_ptr.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_util.h"
 #include "base/thread_task_runner_handle.h"
@@ -188,7 +187,9 @@ URLRequestContextBuilder::HttpNetworkSessionParams::HttpNetworkSessionParams()
       quic_delay_tcp_race(false),
       quic_max_number_of_lossy_connections(0),
       quic_packet_loss_threshold(1.0f),
-      quic_idle_connection_timeout_seconds(kIdleConnectionTimeoutSeconds) {}
+      quic_idle_connection_timeout_seconds(kIdleConnectionTimeoutSeconds),
+      quic_close_sessions_on_ip_change(false),
+      quic_migrate_sessions_on_network_change(false) {}
 
 URLRequestContextBuilder::HttpNetworkSessionParams::~HttpNetworkSessionParams()
 {}
@@ -391,8 +392,6 @@ scoped_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
       http_network_session_params_.enable_spdy31;
   network_session_params.enable_http2 =
       http_network_session_params_.enable_http2;
-  network_session_params.trusted_spdy_proxy =
-      http_network_session_params_.trusted_spdy_proxy;
   network_session_params.parse_alternative_services =
       http_network_session_params_.parse_alternative_services;
   network_session_params.enable_alternative_service_with_different_host =
@@ -413,6 +412,10 @@ scoped_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
       http_network_session_params_.quic_connection_options;
   network_session_params.quic_host_whitelist =
       http_network_session_params_.quic_host_whitelist;
+  network_session_params.quic_close_sessions_on_ip_change =
+      http_network_session_params_.quic_close_sessions_on_ip_change;
+  network_session_params.quic_migrate_sessions_on_network_change =
+      http_network_session_params_.quic_migrate_sessions_on_network_change;
 
   storage->set_http_network_session(
       make_scoped_ptr(new HttpNetworkSession(network_session_params)));

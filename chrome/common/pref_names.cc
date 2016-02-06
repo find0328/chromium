@@ -384,6 +384,10 @@ const char kContextualSearchEnabled[] = "search.contextual_search_enabled";
 // Boolean that indicates whether the browser should put up a confirmation
 // window when the user is attempting to quit. Mac only.
 const char kConfirmToQuitEnabled[] = "browser.confirm_to_quit";
+
+// Boolean that indicates whether the browser should hide the toolbar when it's
+// in fullscreen. Mac only.
+const char kHideFullscreenToolbar[] = "browser.hide_fullscreen_toolbar";
 #endif
 
 // Boolean which specifies whether we should ask the user if we should download
@@ -508,7 +512,7 @@ const char kLanguageEnabledExtensionImesSyncable[] =
     "settings.language.enabled_extension_imes_syncable";
 
 // A boolean pref set to true if the IME menu is activated.
-const char kLangugaeImeMenuActivated[] = "settings.language.ime_menu_activated";
+const char kLanguageImeMenuActivated[] = "settings.language.ime_menu_activated";
 
 // A boolean pref to indicate whether we still need to add the globally synced
 // input methods. False after the initial post-OOBE sync.

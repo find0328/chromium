@@ -467,6 +467,12 @@ are declared in build/common.gypi.
       <message name="IDS_MD_HISTORY_CLEAR_SEARCH" desc="Tooltip text for the button that clears the search term on the history page">
         Clear search
       </message>
+      <message name="IDS_MD_HISTORY_DELETE" desc="Text for delete button contained in the history page toolbar">
+        Delete
+      </message>
+      <message name="IDS_MD_HISTORY_ITEMS_SELECTED" desc="Label displayed in history toolbar telling the user how many items they have selected.">
+        <ph name="NUMBER_OF_ITEMS_SELECTED">$1</ph> selected
+      </message>
 
       <!-- Generic terms -->
       <message name="IDS_ADD" desc="Used for Add on buttons">
@@ -5002,6 +5008,15 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_DESCRIPTION" desc="Description for the flag to use Blink's zooming mechanism to implement device scale factor.">
         If enabled, Blink uses its zooming mechanism to scale content for device scale factor.
       </message>
+      <message name="IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_CHOICE_DEFAULT" desc="Text to indicate that it'll use the platform settings to enable/disable use-zoom-for-dsf mode.">
+        Default
+      </message>
+      <message name="IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_CHOICE_ENABLED" desc="Text to indicate the use-zoom-for-dsf mode is enabled.">
+        Enabled
+      </message>
+      <message name="IDS_FLAGS_ENABLE_USE_ZOOM_FOR_DSF_CHOICE_DISABLED" desc="Text to indicate the use-zoom-for-dsf mode is disabled.">
+        Disabled
+      </message>
 
       <!-- Components -->
       <message name="IDS_COMPONENTS_TITLE" desc="Title for the chrome://components page.">
@@ -7757,10 +7772,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_BLOCK_INTERSTITIAL_DEFAULT_FEEDBACK_TEXT" desc="The default text for feedback about a blocked site.">
         <ph name="REASON">$1<ex>This site was blocked due to the SafeSites filter.</ex></ph>
 I don't think this site should be blocked!
-      </message>
-
-      <message name="IDS_SECURE_CONNECTION_EV" desc="Short text shown in the location bar when the connection is secure with an EV cert.">
-        <ph name="ORGANIZATION">$1<ex>Paypal Inc.</ex></ph> [<ph name="COUNTRY">$2<ex>US</ex></ph>]
       </message>
 
       <!-- Content Settings dialog data -->
@@ -13572,6 +13583,15 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       <message name="IDS_DESKTOP_MEDIA_PICKER_TEXT_DELEGATED" desc="Text for the window picker dialog shown when desktop capture is requested by an app to be used by a tab.">
         <ph name="APP_NAME">$1<ex>Google Hangouts</ex></ph> would like to share the content of your screen with <ph name="TARGET_NAME">$2<ex>https://google.com</ex></ph>. Choose what you'd like to share.
       </message>
+      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE" desc="Text for the checkbox on the window picker dialog, when checked, audio will be shared, otherwise just video sharing">
+        Also share audio
+      </message>
+      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_WINDOW" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox is disabled">
+        Audio sharing is not supported for individual windows.
+      </message>
+      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_NONE" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox is disabled">
+        Please select what to share first.
+      </message>            
       <message name="IDS_DESKTOP_MEDIA_PICKER_SINGLE_SCREEN_NAME" desc="Name for screens in the desktop media picker UI when there is only one monitor.">
         Entire screen
       </message>
@@ -14554,6 +14574,9 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       <message name="IDS_DATA_USE_TRACKING_STARTED_SNACKBAR_MESSAGE" desc="Message shown when data use tracking starts." formatter_data="android_java">
         Data use is being measured
       </message>
+      <message name="IDS_DATA_USE_TRACKING_SNACKBAR_ACTION" desc="Button to learn more when data use tracking starts or ends." formatter_data="android_java">
+        More
+      </message>
       <message name="IDS_DATA_USE_TRACKING_ENDED_SNACKBAR_MESSAGE" desc="Message shown when data use tracking has ended." formatter_data="android_java">
         Data use measuring has ended
       </message>
@@ -14562,6 +14585,12 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       </message>
       <message name="IDS_DATA_USE_TRACKING_ENDED_MESSAGE" desc="Message shown on the dialog when data use tracking has ended." formatter_data="android_java">
         Your data use will no longer be measured.
+      </message>
+      <message name="IDS_DATA_USE_TRACKING_ENDED_CHECKBOX_MESSAGE" desc="Message shown to opt out of seeing dialogs when data use tracking has ended." formatter_data="android_java">
+        Don’t show this again
+      </message>
+      <message name="IDS_DATA_USE_TRACKING_ENDED_CONTINUE" desc="Continue button for the dialog shown when data use tracking has ended. When clicked, the page resumes loading." formatter_data="android_java">
+        Continue
       </message>
       <message name="IDS_DATA_USE_LEARN_MORE_TITLE" desc="Title for the 'Learn more' link in the the dialog shown when data use tracking has ended." formatter_data="android_java">
         Learn more

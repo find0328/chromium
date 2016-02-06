@@ -12,17 +12,17 @@ namespace net {
 
 QuicClientSessionBase::QuicClientSessionBase(
     QuicConnection* connection,
-    QuicPromisedByUrlMap* promised_by_url,
+    QuicClientPushPromiseIndex* push_promise_index,
     const QuicConfig& config)
     : QuicSpdySession(connection, config),
-      promised_by_url_(promised_by_url),
+      push_promise_index_(push_promise_index),
       largest_promised_stream_id_(kInvalidStreamId) {}
 
 QuicClientSessionBase::~QuicClientSessionBase() {
   //  all promised streams for this session
   for (auto& it : promised_by_id_) {
     DVLOG(1) << "erase stream " << it.first << " url " << it.second->url();
-    promised_by_url_->erase(it.second->url());
+    push_promise_index_->promised_by_url()->erase(it.second->url());
   }
 }
 
@@ -62,8 +62,7 @@ void QuicClientSessionBase::OnInitialHeadersComplete(
   if (!promised)
     return;
 
-  promised->OnResponseHeaders(
-      std::unique_ptr<SpdyHeaderBlock>(new SpdyHeaderBlock(response_headers)));
+  promised->OnResponseHeaders(response_headers);
 }
 
 void QuicClientSessionBase::OnPromiseHeadersComplete(
@@ -87,9 +86,8 @@ void QuicClientSessionBase::OnPromiseHeadersComplete(
   stream->OnPromiseHeadersComplete(promised_stream_id, frame_len);
 }
 
-void QuicClientSessionBase::HandlePromised(
-    QuicStreamId id,
-    std::unique_ptr<SpdyHeaderBlock> headers) {
+void QuicClientSessionBase::HandlePromised(QuicStreamId id,
+                                           const SpdyHeaderBlock& headers) {
   // Due to pathalogical packet re-ordering, it is possible that
   // frames for the promised stream have already arrived, and the
   // promised stream could be active or closed.
@@ -101,13 +99,13 @@ void QuicClientSessionBase::HandlePromised(
     return;
   }
 
-  if (promised_by_url_->size() >= get_max_promises()) {
+  if (push_promise_index_->promised_by_url()->size() >= get_max_promises()) {
     DVLOG(1) << "Too many promises, rejecting promise for stream " << id;
     ResetPromised(id, QUIC_REFUSED_STREAM);
     return;
   }
 
-  const string url = SpdyUtils::GetUrlFromHeaderBlock(*headers);
+  const string url = SpdyUtils::GetUrlFromHeaderBlock(headers);
   QuicClientPromisedInfo* old_promised = GetPromisedByUrl(url);
   if (old_promised) {
     DVLOG(1) << "Promise for stream " << id << " is duplicate URL " << url
@@ -127,15 +125,16 @@ void QuicClientSessionBase::HandlePromised(
   std::unique_ptr<QuicClientPromisedInfo> promised_owner(promised);
   promised->Init();
   DVLOG(1) << "stream " << id << " emplace url " << url;
-  (*promised_by_url_)[url] = promised;
+  (*push_promise_index_->promised_by_url())[url] = promised;
   promised_by_id_[id] = std::move(promised_owner);
-  promised->OnPromiseHeaders(std::move(headers));
+  promised->OnPromiseHeaders(headers);
 }
 
 QuicClientPromisedInfo* QuicClientSessionBase::GetPromisedByUrl(
     const string& url) {
-  QuicPromisedByUrlMap::iterator it = promised_by_url_->find(url);
-  if (it != promised_by_url_->end()) {
+  QuicPromisedByUrlMap::iterator it =
+      push_promise_index_->promised_by_url()->find(url);
+  if (it != push_promise_index_->promised_by_url()->end()) {
     return it->second;
   }
   return nullptr;
@@ -150,8 +149,21 @@ QuicClientPromisedInfo* QuicClientSessionBase::GetPromisedById(
   return nullptr;
 }
 
+QuicSpdyStream* QuicClientSessionBase::GetPromisedStream(
+    const QuicStreamId id) {
+  if (IsClosedStream(id)) {
+    return nullptr;
+  }
+  StreamMap::iterator it = dynamic_streams().find(id);
+  if (it != dynamic_streams().end()) {
+    return static_cast<QuicSpdyStream*>(it->second);
+  }
+  QUIC_BUG << "Open promised stream " << id << " is missing!";
+  return nullptr;
+}
+
 void QuicClientSessionBase::DeletePromised(QuicClientPromisedInfo* promised) {
-  promised_by_url_->erase(promised->url());
+  push_promise_index_->promised_by_url()->erase(promised->url());
   // Since promised_by_id_ contains the unique_ptr, this will destroy
   // promised.
   promised_by_id_.erase(promised->id());

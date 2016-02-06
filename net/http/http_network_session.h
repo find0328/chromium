@@ -98,9 +98,6 @@ class NET_EXPORT HttpNetworkSession
     size_t spdy_initial_max_concurrent_streams;
     // Source of time for SPDY connections.
     SpdySessionPool::TimeFunc time_func;
-    // This SPDY proxy is allowed to push resources from origins that are
-    // different from those of their associated streams.
-    std::string trusted_spdy_proxy;
     // URLs to exclude from forced SPDY.
     std::set<HostPortPair> forced_spdy_exclusions;
     // Whether to parse Alt-Svc headers.
@@ -186,9 +183,12 @@ class NET_EXPORT HttpNetworkSession
     bool quic_disable_preconnect_if_0rtt;
     // List of hosts for which QUIC is explicitly whitelisted.
     std::unordered_set<std::string> quic_host_whitelist;
-    // If true, active QUIC sessions may be migrated onto new IPs when network
-    // changes.
+    // If true, active QUIC sessions may be migrated onto a new network when
+    // the platform indicates that the default network is changing.
     bool quic_migrate_sessions_on_network_change;
+    // If true, active QUIC sessions experiencing poor connectivity may be
+    // migrated onto a new network.
+    bool quic_migrate_sessions_early;
     ProxyDelegate* proxy_delegate;
     // Enable support for Token Binding.
     bool enable_token_binding;

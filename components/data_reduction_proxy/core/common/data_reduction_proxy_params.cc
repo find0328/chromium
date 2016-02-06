@@ -50,6 +50,8 @@ const char kLoFiFlagFieldTrial[] = "DataCompressionProxyLoFiFlag";
 const char kConfigServiceFieldTrial[] = "DataReductionProxyConfigService";
 const char kConfigServiceURLParam[] = "url";
 
+const char kTrustedSpdyProxyFieldTrialName[] = "DataReductionTrustedSpdyProxy";
+
 // Default URL for retrieving the Data Reduction Proxy configuration.
 const char kClientConfigURL[] =
     "https://datasaver.googleapis.com/v1/clientConfigs";
@@ -78,6 +80,15 @@ bool IsIncludedInAndroidOnePromoFieldTrial(const char* build_fingerprint) {
   return (fingerprint.find(kAndroidOneIdentifier) != std::string::npos);
 }
 
+std::string GetTrustedSpdyProxyFieldTrialName() {
+  return kTrustedSpdyProxyFieldTrialName;
+}
+
+bool IsIncludedInTrustedSpdyProxyFieldTrial() {
+  return base::FieldTrialList::FindFullName(GetTrustedSpdyProxyFieldTrialName())
+             .find(kEnabled) == 0;
+}
+
 std::string GetLoFiFieldTrialName() {
   return kLoFiFieldTrial;
 }
@@ -92,11 +103,13 @@ bool IsIncludedInLoFiEnabledFieldTrial() {
 }
 
 bool IsIncludedInLoFiControlFieldTrial() {
-  return FieldTrialList::FindFullName(GetLoFiFieldTrialName()) == kControl;
+  return FieldTrialList::FindFullName(GetLoFiFieldTrialName()).find(kControl) ==
+         0;
 }
 
 bool IsIncludedInLoFiPreviewFieldTrial() {
-  return FieldTrialList::FindFullName(GetLoFiFieldTrialName()) == kPreview;
+  return FieldTrialList::FindFullName(GetLoFiFieldTrialName()).find(kPreview) ==
+         0;
 }
 
 bool IsIncludedInTamperDetectionExperiment() {

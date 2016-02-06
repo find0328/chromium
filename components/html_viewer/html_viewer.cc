@@ -23,7 +23,7 @@ void HTMLViewer::Initialize(mojo::ApplicationImpl* app) {
   global_state_.reset(new GlobalState(app));
 }
 
-bool HTMLViewer::ConfigureIncomingConnection(
+bool HTMLViewer::AcceptConnection(
     mojo::ApplicationConnection* connection) {
   connection->AddService(this);
   return true;
@@ -31,7 +31,7 @@ bool HTMLViewer::ConfigureIncomingConnection(
 
 void HTMLViewer::Create(
     mojo::ApplicationConnection* connection,
-    mojo::InterfaceRequest<mojo::ContentHandler> request) {
+    mojo::InterfaceRequest<mojo::shell::mojom::ContentHandler> request) {
   new ContentHandlerImpl(global_state_.get(), app_, std::move(request));
 }
 

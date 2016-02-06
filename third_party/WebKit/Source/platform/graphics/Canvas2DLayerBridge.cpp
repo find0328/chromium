@@ -25,6 +25,7 @@
 
 #include "platform/graphics/Canvas2DLayerBridge.h"
 
+#include "platform/Histogram.h"
 #include "platform/TraceEvent.h"
 #include "platform/graphics/CanvasMetrics.h"
 #include "platform/graphics/ExpensiveCanvasHeuristicParameters.h"
@@ -331,7 +332,7 @@ SkCanvas* Canvas2DLayerBridge::canvas()
     return m_recorder->getRecordingCanvas();
 }
 
-void Canvas2DLayerBridge::disableDeferral()
+void Canvas2DLayerBridge::disableDeferral(DisableDeferralReason reason)
 {
     // Disabling deferral is permanent: once triggered by disableDeferral()
     // we stay in immediate mode indefinitely. This is a performance heuristic
@@ -345,6 +346,8 @@ void Canvas2DLayerBridge::disableDeferral()
     if (!m_isDeferralEnabled)
         return;
 
+    DEFINE_STATIC_LOCAL(EnumerationHistogram, gpuDisabledHistogram, ("Canvas.GPUAccelerated2DCanvasDisableDeferralReason", DisableDeferralReasonCount));
+    gpuDisabledHistogram.count(reason);
     CanvasMetrics::countCanvasContextUsage(CanvasMetrics::GPUAccelerated2DCanvasDeferralDisabled);
     flushRecordingOnly();
     // Because we will be discarding the recorder, if the flush failed
@@ -431,7 +434,8 @@ void Canvas2DLayerBridge::setIsHidden(bool hidden)
         m_softwareRenderingWhileHidden = false;
         SkSurface* newSurface = getOrCreateSurface(PreferAccelerationAfterVisibilityChange);
         if (newSurface) {
-            oldSurface->draw(newSurface->getCanvas(), 0, 0, &copyPaint);
+            if (oldSurface)
+                oldSurface->draw(newSurface->getCanvas(), 0, 0, &copyPaint);
             if (m_imageBuffer && !m_isDeferralEnabled) {
                 m_imageBuffer->resetCanvas(m_surface->getCanvas());
             }
@@ -601,8 +605,8 @@ bool Canvas2DLayerBridge::prepareMailbox(WebExternalTextureMailbox* outMailbox, 
         return false;
     }
 
-    RefPtr<SkImage> image = newImageSnapshot(PreferAcceleration);
-    if (!image)
+    RefPtr<SkImage> image = newImageSnapshot(PreferAcceleration, SnapshotReasonUnknown);
+    if (!image || !image->getTexture())
         return false;
 
     WebGraphicsContext3D* webContext = context();
@@ -630,8 +634,6 @@ bool Canvas2DLayerBridge::prepareMailbox(WebExternalTextureMailbox* outMailbox, 
 
     // Need to flush skia's internal queue because texture is about to be accessed directly
     grContext->flush();
-
-    ASSERT(image->getTexture());
 
     // Because of texture sharing with the compositor, we must invalidate
     // the state cached in skia so that the deferred copy on write
@@ -740,7 +742,7 @@ void Canvas2DLayerBridge::didDraw(const FloatRect& rect)
         IntRect pixelBounds = enclosingIntRect(rect);
         m_recordingPixelCount += pixelBounds.width() * pixelBounds.height();
         if (m_recordingPixelCount >= (m_size.width() * m_size.height() * ExpensiveCanvasHeuristicParameters::ExpensiveOverdrawThreshold)) {
-            disableDeferral();
+            disableDeferral(DisableDeferralReasonExpensiveOverdrawHeuristic);
         }
     }
     if (!m_isRegisteredTaskObserver) {
@@ -796,7 +798,7 @@ void Canvas2DLayerBridge::willProcessTask()
     ASSERT_NOT_REACHED();
 }
 
-PassRefPtr<SkImage> Canvas2DLayerBridge::newImageSnapshot(AccelerationHint hint)
+PassRefPtr<SkImage> Canvas2DLayerBridge::newImageSnapshot(AccelerationHint hint, SnapshotReason)
 {
     if (!checkSurfaceValid())
         return nullptr;
@@ -825,7 +827,8 @@ Canvas2DLayerBridge::MailboxInfo::MailboxInfo(const MailboxInfo& other)
 
 void Canvas2DLayerBridge::Logger::reportHibernationEvent(HibernationEvent event)
 {
-    blink::Platform::current()->histogramEnumeration("Canvas.HibernationEvents", event, HibernationEventCount);
+    DEFINE_STATIC_LOCAL(EnumerationHistogram, hibernationHistogram, ("Canvas.HibernationEvents", HibernationEventCount));
+    hibernationHistogram.count(event);
 }
 
 } // namespace blink

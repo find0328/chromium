@@ -28,6 +28,8 @@ std::pair<const char*, const char*> messageForStatus(SVGParseStatus status)
     switch (status) {
     case SVGParseStatus::TrailingGarbage:
         return std::make_pair("Trailing garbage, ", ".");
+    case SVGParseStatus::ExpectedAngle:
+        return std::make_pair("Expected angle, ", ".");
     case SVGParseStatus::ExpectedArcFlag:
         return std::make_pair("Expected arc flag ('0' or '1'), ", ".");
     case SVGParseStatus::ExpectedBoolean:
@@ -44,13 +46,20 @@ std::pair<const char*, const char*> messageForStatus(SVGParseStatus status)
         return std::make_pair("Expected moveto path command ('M' or 'm'), ", ".");
     case SVGParseStatus::ExpectedNumber:
         return std::make_pair("Expected number, ", ".");
+    case SVGParseStatus::ExpectedNumberOrPercentage:
+        return std::make_pair("Expected number or percentage, ", ".");
     case SVGParseStatus::ExpectedPathCommand:
         return std::make_pair("Expected path command, ", ".");
+    case SVGParseStatus::ExpectedStartOfArguments:
+        return std::make_pair("Expected '(', ", ".");
+    case SVGParseStatus::ExpectedTransformFunction:
+        return std::make_pair("Expected transform function, ", ".");
     case SVGParseStatus::NegativeValue:
         return std::make_pair("A negative value is not valid. (", ")");
     case SVGParseStatus::ZeroValue:
         return std::make_pair("A value of zero is not valid. (", ")");
     case SVGParseStatus::ParsingFailed:
+        return std::make_pair("Invalid value, ", ".");
     default:
         ASSERT_NOT_REACHED();
         break;
@@ -98,24 +107,16 @@ String SVGParsingError::format(const String& tagName, const QualifiedName& name,
 {
     StringBuilder builder;
 
-    // TODO(fs): Remove this case once enough specific errors have been added.
-    if (status() == SVGParseStatus::ParsingFailed) {
-        builder.appendLiteral("Invalid value for ");
-        appendErrorContextInfo(builder, tagName, name);
-        builder.append('=');
-        appendValue(builder, *this, value);
-    } else {
-        appendErrorContextInfo(builder, tagName, name);
-        builder.appendLiteral(": ");
+    appendErrorContextInfo(builder, tagName, name);
+    builder.appendLiteral(": ");
 
-        if (hasLocus() && locus() == value.length())
-            builder.appendLiteral("Unexpected end of attribute. ");
+    if (hasLocus() && locus() == value.length())
+        builder.appendLiteral("Unexpected end of attribute. ");
 
-        auto message = messageForStatus(status());
-        builder.append(message.first);
-        appendValue(builder, *this, value);
-        builder.append(message.second);
-    }
+    auto message = messageForStatus(status());
+    builder.append(message.first);
+    appendValue(builder, *this, value);
+    builder.append(message.second);
     return builder.toString();
 }
 

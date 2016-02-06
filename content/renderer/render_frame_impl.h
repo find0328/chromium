@@ -119,7 +119,7 @@ class GeolocationDispatcher;
 class ManifestManager;
 class MediaStreamDispatcher;
 class MediaStreamRendererFactory;
-class MediaPermissionDispatcherImpl;
+class MediaPermissionDispatcher;
 class MidiDispatcher;
 class NavigationState;
 class NotificationPermissionDispatcher;
@@ -645,11 +645,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void SetPendingNavigationParams(
       scoped_ptr<NavigationParams> navigation_params);
 
-  // Expose MediaPermission to the non-UI threads. Any calls to this will be
-  // redirected to |media_permission_dispatcher_| on UI thread and have the
-  // callback called on |caller_task_runner|.
-  scoped_ptr<media::MediaPermission> CreateMediaPermissionProxy(
-      scoped_refptr<base::SingleThreadTaskRunner> caller_task_runner);
+  media::MediaPermission* GetMediaPermission();
 
   // Sends the current frame's navigation state to the browser.
   void SendUpdateState();
@@ -774,6 +770,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void OnExecuteNoValueEditCommand(const std::string& name);
   void OnExtendSelectionAndDelete(int before, int after);
   void OnReload(bool ignore_cache);
+  void OnReloadLoFiImages();
   void OnTextSurroundingSelectionRequest(size_t max_length);
   void OnSetAccessibilityMode(AccessibilityMode new_mode);
   void OnSnapshotAccessibilityTree(int callback_id);
@@ -951,8 +948,6 @@ class CONTENT_EXPORT RenderFrameImpl
 
   bool AreSecureCodecsSupported();
 
-  media::MediaPermission* GetMediaPermission();
-
 #if defined(ENABLE_MOJO_MEDIA)
   media::interfaces::ServiceFactory* GetMediaServiceFactory();
 
@@ -963,6 +958,10 @@ class CONTENT_EXPORT RenderFrameImpl
   media::CdmFactory* GetCdmFactory();
 
   void RegisterMojoServices();
+
+  // Connect to an interface provided by the service registry.
+  template <typename Interface>
+  void ConnectToService(mojo::InterfaceRequest<Interface> request);
 
   // Connects to a Mojo application and returns a proxy to its exposed
   // ServiceProvider.
@@ -1104,8 +1103,8 @@ class CONTENT_EXPORT RenderFrameImpl
   // EncryptedMediaClient attached to this frame; lazily initialized.
   scoped_ptr<media::WebEncryptedMediaClientImpl> web_encrypted_media_client_;
 
-  // The media permission dispatcher attached to this frame, lazily initialized.
-  MediaPermissionDispatcherImpl* media_permission_dispatcher_;
+  // The media permission dispatcher attached to this frame.
+  scoped_ptr<MediaPermissionDispatcher> media_permission_dispatcher_;
 
 #if defined(ENABLE_MOJO_MEDIA)
   // The media factory attached to this frame, lazily initialized.
@@ -1162,7 +1161,7 @@ class CONTENT_EXPORT RenderFrameImpl
   ServiceRegistryImpl service_registry_;
 
   // The shell proxy used to connect to Mojo applications.
-  mojo::ShellPtr mojo_shell_;
+  mojo::shell::mojom::ShellPtr mojo_shell_;
 
   // The screen orientation dispatcher attached to the frame, lazily
   // initialized.

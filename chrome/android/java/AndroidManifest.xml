@@ -643,6 +643,17 @@ android:value="true" />
             android:exported="false" />
         {% endfor %}
 
+        <!-- Background download process, it may outlive chrome if download does not finish
+             when user kills chrome. Once created, the process will manage its own lifecycle.
+             To work around an issue in earlier android versions that a bound service will
+             get killed when chrome goes away, this service will only communicate with the
+             browser process through callbacks. -->
+        <service android:name="org.chromium.content.app.DownloadProcessService"
+            android:process=":download"
+            android:permission="{{ manifest_package }}.permission.CHILD_SERVICE"
+            android:isolatedProcess="false"
+            android:exported="false"/>
+
         <receiver android:name="org.chromium.chrome.browser.download.DownloadBroadcastReceiver"
             android:exported="false">
             <intent-filter>
@@ -656,11 +667,6 @@ android:value="true" />
                 <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED"/>
             </intent-filter>
         </receiver>
-
-        <service android:name="org.chromium.chrome.browser.media.remote.NotificationTransportControl$ListenerService" />
-
-        <!--  Receiver for lock screen input when casting -->
-        <receiver android:name="org.chromium.chrome.browser.media.remote.LockScreenTransportControl$MediaButtonIntentReceiver"/>
 
         <service android:name="org.chromium.chrome.browser.media.MediaCaptureNotificationService"
             android:exported="false"/>
@@ -676,6 +682,12 @@ android:value="true" />
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </service>
+        <service android:name="org.chromium.chrome.browser.media.ui.MediaNotificationManager$CastListenerService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </service>
 
 
         <receiver android:name="org.chromium.chrome.browser.media.ui.MediaNotificationManager$PlaybackMediaButtonReceiver">
@@ -684,6 +696,11 @@ android:value="true" />
             </intent-filter>
         </receiver>
         <receiver android:name="org.chromium.chrome.browser.media.ui.MediaNotificationManager$PresentationMediaButtonReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name="org.chromium.chrome.browser.media.ui.MediaNotificationManager$CastMediaButtonReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>

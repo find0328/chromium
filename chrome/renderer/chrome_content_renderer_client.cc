@@ -67,8 +67,6 @@
 #include "components/dom_distiller/content/renderer/distiller_js_render_frame_observer.h"
 #include "components/dom_distiller/core/url_constants.h"
 #include "components/error_page/common/localized_error.h"
-#include "components/nacl/renderer/ppb_nacl_private.h"
-#include "components/nacl/renderer/ppb_nacl_private_impl.h"
 #include "components/network_hints/renderer/prescient_networking_dispatcher.h"
 #include "components/page_load_metrics/renderer/metrics_render_frame_observer.h"
 #include "components/password_manager/content/renderer/credential_manager_client.h"
@@ -92,6 +90,7 @@
 #include "ppapi/c/private/ppb_pdf.h"
 #include "ppapi/shared_impl/ppapi_switches.h"
 #include "third_party/WebKit/public/platform/URLConversion.h"
+#include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
 #include "third_party/WebKit/public/platform/WebURLError.h"
 #include "third_party/WebKit/public/platform/WebURLRequest.h"
@@ -103,7 +102,6 @@
 #include "third_party/WebKit/public/web/WebLocalFrame.h"
 #include "third_party/WebKit/public/web/WebPluginContainer.h"
 #include "third_party/WebKit/public/web/WebPluginParams.h"
-#include "third_party/WebKit/public/web/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/web/WebSecurityPolicy.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/layout.h"
@@ -1208,15 +1206,6 @@ void ChromeContentRendererClient::SetSpellcheck(SpellCheck* spellcheck) {
     thread->AddObserver(spellcheck_.get());
 }
 #endif
-
-const void* ChromeContentRendererClient::CreatePPAPIInterface(
-    const std::string& interface_name) {
-#if defined(ENABLE_PLUGINS) && !defined(DISABLE_NACL)
-  if (interface_name == PPB_NACL_PRIVATE_INTERFACE)
-    return nacl::GetNaClPrivateInterface();
-#endif
-  return NULL;
-}
 
 bool ChromeContentRendererClient::IsExternalPepperPlugin(
     const std::string& module_name) {

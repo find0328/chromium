@@ -228,6 +228,10 @@ class WebContents : public PageNavigator,
   virtual void ForEachFrame(
       const base::Callback<void(RenderFrameHost*)>& on_frame) = 0;
 
+  // Returns a vector of all RenderFrameHosts in the currently active view in
+  // breadth-first traversal order.
+  virtual std::vector<RenderFrameHost*> GetAllFrames() = 0;
+
   // Sends the given IPC to all frames in the currently active view and returns
   // the number of sent messages (i.e. the number of processed frames). This is
   // a convenience method instead of calling ForEach.
@@ -415,6 +419,10 @@ class WebContents : public PageNavigator,
 
   // Reloads the focused frame.
   virtual void ReloadFocusedFrame(bool ignore_cache) = 0;
+
+  // Reloads all the Lo-Fi images in this WebContents. Ignores the cache and
+  // reloads from the network.
+  virtual void ReloadLoFiImages() = 0;
 
   // Editing commands ----------------------------------------------------------
 

@@ -4,6 +4,17 @@
             "group_name": "Disabled"
         }
     ],
+    "AsyncDns": [
+        {
+            "group_name": "AsyncDnsA"
+        },
+        {
+            "group_name": "SystemDnsA"
+        },
+        {
+            "group_name": "AsyncDnsNoFallbackA"
+        }
+    ],
     "AutodetectEncoding": [
         {
             "group_name": "Enabled"
@@ -206,6 +217,11 @@
                 "WiFi.DefaultMedianKbps": "2736",
                 "WiFi.DefaultMedianRTTMsec": "168"
             }
+        }
+    ],
+    "OfflinePages": [
+        {
+            "group_name": "EnabledAsBookmarks"
         }
     ],
     "PageRevisitInstrumentation": [

@@ -101,8 +101,8 @@ public:
     String toDataURL(const String& mimeType, const ScriptValue& qualityArgument, ExceptionState&) const;
     String toDataURL(const String& mimeType, ExceptionState& exceptionState) const { return toDataURL(mimeType, ScriptValue(), exceptionState); }
 
-    void toBlob(ScriptState*, BlobCallback*, const String& mimeType, const ScriptValue& qualityArgument, ExceptionState&);
-    void toBlob(ScriptState* scriptState, BlobCallback* callback, const String& mimeType, ExceptionState& exceptionState) { return toBlob(scriptState, callback, mimeType, ScriptValue(), exceptionState); }
+    void toBlob(BlobCallback*, const String& mimeType, const ScriptValue& qualityArgument, ExceptionState&);
+    void toBlob(BlobCallback* callback, const String& mimeType, ExceptionState& exceptionState) { return toBlob(callback, mimeType, ScriptValue(), exceptionState); }
 
     // Used for canvas capture.
     void addListener(CanvasDrawListener*);
@@ -114,7 +114,7 @@ public:
     void paint(GraphicsContext&, const LayoutRect&);
 
     SkCanvas* drawingCanvas() const;
-    void disableDeferral() const;
+    void disableDeferral(DisableDeferralReason) const;
     SkCanvas* existingDrawingCanvas() const;
 
     void setRenderingContext(PassOwnPtrWillBeRawPtr<CanvasRenderingContext>);
@@ -149,9 +149,10 @@ public:
 
     // DocumentVisibilityObserver implementation
     void didChangeVisibilityState(PageVisibilityState) override;
+    void willDetachDocument() override;
 
     // CanvasImageSource implementation
-    PassRefPtr<Image> getSourceImageForCanvas(SourceImageStatus*, AccelerationHint) const override;
+    PassRefPtr<Image> getSourceImageForCanvas(SourceImageStatus*, AccelerationHint, SnapshotReason) const override;
     bool wouldTaintOrigin(SecurityOrigin*) const override;
     FloatSize elementSize() const override;
     bool isCanvasElement() const override { return true; }
@@ -206,7 +207,8 @@ private:
 
     bool paintsIntoCanvasBuffer() const;
 
-    ImageData* toImageData(SourceDrawingBuffer) const;
+    ImageData* toImageData(SourceDrawingBuffer, SnapshotReason) const;
+
     String toDataURLInternal(const String& mimeType, const double& quality, SourceDrawingBuffer) const;
 
     PersistentHeapHashSetWillBeHeapHashSet<WeakMember<CanvasDrawListener>> m_listeners;

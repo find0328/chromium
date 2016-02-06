@@ -51,12 +51,13 @@ class ConnectionValidator : public ApplicationLoader,
 
  private:
   // Overridden from ApplicationLoader:
-  void Load(const GURL& url, InterfaceRequest<Application> request) override {
+  void Load(const GURL& url,
+            InterfaceRequest<mojom::Application> request) override {
     app_.reset(new ApplicationImpl(this, std::move(request)));
   }
 
   // Overridden from ApplicationDelegate:
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override {
+  bool AcceptConnection(ApplicationConnection* connection) override {
     connection->AddService<Validator>(this);
     return true;
   }
@@ -123,7 +124,7 @@ class ServiceApplication : public ApplicationDelegate,
     // directly to the validator application.
     app_->ConnectToService("test:validator", &validator_);
   }
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override {
+  bool AcceptConnection(ApplicationConnection* connection) override {
     AddService<Safe>(connection);
     AddService<Unsafe>(connection);
     return true;
@@ -166,7 +167,7 @@ TestApplication::~TestApplication() {}
 void TestApplication::Initialize(ApplicationImpl* app) {
   app_ = app;
 }
-bool TestApplication::ConfigureIncomingConnection(
+bool TestApplication::AcceptConnection(
     ApplicationConnection* connection) {
   // TestApplications receive their Validator via the inbound connection.
   connection->ConnectToService(&validator_);
@@ -194,7 +195,7 @@ TestLoader::TestLoader(ApplicationDelegate* delegate) : delegate_(delegate) {}
 TestLoader::~TestLoader() {}
 
 void TestLoader::Load(const GURL& url,
-                      InterfaceRequest<Application> request) {
+                      InterfaceRequest<mojom::Application> request) {
   app_.reset(new ApplicationImpl(delegate_.get(), std::move(request)));
 }
 

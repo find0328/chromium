@@ -54,6 +54,10 @@ crbug.com/581990 [ Win ] fast/writing-mode/english-lr-text.html [ Pass Failure ]
 crbug.com/574660 [ Win7 ] fast/text/emphasis-combined-text.html [ Pass Failure ]
 crbug.com/574660 [ Win7 ] fast/text/emphasis-vertical.html [ Pass Failure ]
 
+crbug.com/581974 fast/text/justify-ideograph-vertical.html [ Pass Failure ]
+crbug.com/584209 http/tests/misc/adopt-iframe-src-attr-after-remove.html [ Pass Failure ]
+crbug.com/584211 [ Mac Debug ] svg/transforms/animated-path-inside-transformed-html.xhtml [ Pass Failure ]
+
 # ====== Oilpan-only failures until here ======
 
 # Run these tests with under virtual/spv2 only.
@@ -362,8 +366,6 @@ crbug.com/248938 [ Win Debug ] virtual/threaded/animations/transition-and-animat
 
 crbug.com/487281 [ Mac ] fast/forms/select/menulist-narrow-width.html [ Failure ]
 
-crbug.com/572094 [ Win Mac Debug ] fast/forms/suggestion-picker/date-suggestion-picker-appearance-zoom200.html [ Timeout Failure Pass ]
-
 crbug.com/543110 [ Mac ] fast/text/international/text-shaping-arabic.html [ Failure ]
 
 crbug.com/548904 [ Linux Win ] fast/writing-mode/Kusa-Makura-background-canvas.html [ Failure Pass ]
@@ -464,6 +466,7 @@ crbug.com/537409 virtual/spv2/svg/as-image/svg-image-with-data-uri.html [ Pass ]
 # expectation files because they contain local path names.
 # Use crbug.com/490511 for untriaged failures.
 crbug.com/490511 imported/web-platform-tests/html/browsers/history/the-location-interface/location_assign.html [ Timeout ]
+crbug.com/490511 imported/web-platform-tests/html/rendering/bindings/the-input-element-as-a-text-entry-widget/unrecognized-type-should-fallback-as-text-type.html [ Failure ]
 crbug.com/526898 imported/web-platform-tests/html/rendering/non-replaced-elements/phrasing-content-0/font-element-text-decoration-color/001-x.xhtml [ Failure ]
 crbug.com/108417 imported/web-platform-tests/html/rendering/non-replaced-elements/tables/table-border-1.html [ Failure ]
 crbug.com/525872 imported/web-platform-tests/html/rendering/non-replaced-elements/tables/table-border-2.html [ Failure ]
@@ -550,11 +553,6 @@ crbug.com/404597 fast/css/text-overflow-ellipsis-button.html [ Pass Failure ]
 crbug.com/404597 [ Win ] fast/selectors/007a.html [ Pass Failure ]
 
 crbug.com/505364 imported/web-platform-tests/custom-elements/instantiating-custom-elements/extensions-to-document-interface/create-element-interface-type-is-a-type-extension.html [ Failure ]
-
-crbug.com/517836 imported/web-platform-tests/screen-orientation/lock-bad-argument.html [ Failure ]
-crbug.com/517836 imported/web-platform-tests/screen-orientation/orientation-reading.html [ Failure ]
-crbug.com/517836 imported/web-platform-tests/screen-orientation/onchange-event-subframe.html [ Failure Timeout ]
-crbug.com/517836 imported/web-platform-tests/screen-orientation/onchange-event.html [ Failure Timeout ]
 
 crbug.com/517840 imported/web-platform-tests/webrtc/rtcpeerconnection/rtcpeerconnection-idl.html [ Failure Timeout ]
 
@@ -1019,7 +1017,6 @@ crbug.com/521124 crbug.com/410145 [ Win ] fast/text/international/text-combine-i
 crbug.com/521124 crbug.com/410145 [ Win7 ] fast/css/font-weight-1.html [ Pass Failure ]
 crbug.com/521124 crbug.com/571481 crbug.com/410145 [ Win ] fast/text/orientation-sideways.html [ Pass Failure ]
 
-crbug.com/581974 [ Mac10.7 Debug ] fast/text/justify-ideograph-vertical.html [ Failure ]
 crbug.com/581974 [ Mac10.7 Debug ] fast/text/justify-ideograph-simple.html [ Failure ]
 crbug.com/581974 [ Mac10.7 Debug ] fast/text/justify-ideograph-complex.html [ Failure ]
 
@@ -1388,12 +1385,5 @@ crbug.com/581038 fast/text/first-letter-bad-line-boxes-crash.html [ Crash Pass ]
 
 # No baselines, but this js test is also showing FAIL
 crbug.com/583675 fast/dom/shadow/scoped-events-by-ua-stopped.html [ Failure ]
-
-crbug.com/583651 [ Win7 ] svg/W3C-SVG-1.1/pservers-grad-06-b.svg [ NeedsRebaseline ]
-crbug.com/583651 [ Win7 ] svg/custom/nested-pattern-boundingBoxModeContent.svg [ NeedsRebaseline ]
-crbug.com/583651 [ Win7 ] svg/custom/non-scaling-stroke.svg [ NeedsRebaseline ]
-crbug.com/583651 [ Win7 ] svg/custom/pattern-skew-transformed.svg [ NeedsRebaseline ]
-crbug.com/583651 [ Win7 ] svg/custom/pattern-with-transformation.svg [ NeedsRebaseline ]
-crbug.com/583651 [ Win7 ] svg/transforms/text-with-pattern-inside-transformed-html.xhtml [ NeedsRebaseline ]
 
 crbug.com/581203 [ Linux ] web-animations-api/player-finish-sample-only.html [ Failure Pass ]

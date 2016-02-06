@@ -114,13 +114,13 @@ class TestApplicationLoader : public ApplicationLoader,
  private:
   // ApplicationLoader implementation.
   void Load(const GURL& url,
-            InterfaceRequest<Application> application_request) override {
+            InterfaceRequest<mojom::Application> application_request) override {
     ++num_loads_;
     test_app_.reset(new ApplicationImpl(this, std::move(application_request)));
   }
 
   // ApplicationDelegate implementation.
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override {
+  bool AcceptConnection(ApplicationConnection* connection) override {
     connection->AddService<TestService>(this);
     last_requestor_url_ = GURL(connection->GetRemoteApplicationURL());
     return true;
@@ -144,7 +144,8 @@ class ClosingApplicationLoader : public ApplicationLoader {
  private:
   // ApplicationLoader implementation.
   void Load(const GURL& url,
-            InterfaceRequest<Application> application_request) override {}
+            InterfaceRequest<mojom::Application> application_request) override {
+  }
 };
 
 class TesterContext {
@@ -247,9 +248,11 @@ class TestAImpl : public TestA {
  public:
   TestAImpl(ApplicationImpl* app_impl,
             TesterContext* test_context,
-            InterfaceRequest<TestA> request)
+            InterfaceRequest<TestA> request,
+            InterfaceFactory<TestC>* factory)
       : test_context_(test_context), binding_(this, std::move(request)) {
     connection_ = app_impl->ConnectToApplication(kTestBURLString);
+    connection_->AddService<TestC>(factory);
     connection_->ConnectToService(&b_);
   }
 
@@ -343,11 +346,11 @@ class Tester : public ApplicationDelegate,
 
  private:
   void Load(const GURL& url,
-            InterfaceRequest<Application> application_request) override {
+            InterfaceRequest<mojom::Application> application_request) override {
     app_.reset(new ApplicationImpl(this, std::move(application_request)));
   }
 
-  bool ConfigureIncomingConnection(ApplicationConnection* connection) override {
+  bool AcceptConnection(ApplicationConnection* connection) override {
     if (!requestor_url_.empty() &&
         requestor_url_ != connection->GetRemoteApplicationURL()) {
       context_->set_tester_called_quit();
@@ -363,17 +366,10 @@ class Tester : public ApplicationDelegate,
     return true;
   }
 
-  bool ConfigureOutgoingConnection(ApplicationConnection* connection) override {
-    // If we're connecting to B, then add C.
-    if (connection->GetRemoteApplicationURL() == kTestBURLString)
-      connection->AddService<TestC>(this);
-    return true;
-  }
-
   void Create(ApplicationConnection* connection,
               InterfaceRequest<TestA> request) override {
     a_bindings_.push_back(
-        new TestAImpl(app_.get(), context_, std::move(request)));
+        new TestAImpl(app_.get(), context_, std::move(request), this));
   }
 
   void Create(ApplicationConnection* connection,

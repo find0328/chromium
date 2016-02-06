@@ -4,7 +4,9 @@
 
 #include "core/layout/ScrollAnchor.h"
 
-#include "platform/scroll/ScrollableArea.h"
+#include "core/frame/FrameView.h"
+#include "core/layout/LayoutView.h"
+#include "core/paint/PaintLayerScrollableArea.h"
 #include "wtf/Assertions.h"
 
 namespace blink {
@@ -21,25 +23,52 @@ ScrollAnchor::~ScrollAnchor()
 {
 }
 
+static LayoutBox* scrollerLayoutBox(const ScrollableArea* scroller)
+{
+    LayoutBox* box = scroller->isFrameView()
+        ? toFrameView(scroller)->layoutView()
+        : &toPaintLayerScrollableArea(scroller)->box();
+    ASSERT(box);
+    return box;
+}
+
 static LayoutObject* findAnchor(const ScrollableArea* scroller)
 {
-    // TODO(skobes): implement.
-    return nullptr;
+    LayoutBox* scrollerBox = scrollerLayoutBox(scroller);
+
+    FloatRect absoluteVisibleRect = scroller->isFrameView()
+        ? scroller->visibleContentRect()
+        : scrollerBox->localToAbsoluteQuad(
+            FloatQuad(FloatRect(scrollerBox->overflowClipRect(LayoutPoint())))).boundingBox();
+
+    LayoutObject* child = scrollerBox->nextInPreOrder(scrollerBox);
+    LayoutObject* candidate = nullptr;
+    while (child) {
+        // TODO(skobes): Compute scroller-relative bounds instead of absolute bounds.
+        FloatRect childRect = child->absoluteBoundingBoxFloatRect();
+        if (absoluteVisibleRect.intersects(childRect))
+            candidate = child;
+        if (absoluteVisibleRect.contains(childRect))
+            break;
+        child = child->nextInPreOrder(scrollerBox);
+    }
+    return candidate;
 }
 
 static DoublePoint computeRelativeOffset(const ScrollableArea* scroller, const LayoutObject* layoutObject)
 {
-    // TODO(skobes): implement.
-    return DoublePoint();
+    return DoublePoint(layoutObject->localToAbsolute() - scrollerLayoutBox(scroller)->localToAbsolute());
 }
 
 void ScrollAnchor::save()
 {
-    if (!m_anchorObject)
-        m_anchorObject = findAnchor(m_scroller);
-
     if (m_anchorObject)
-        m_savedRelativeOffset = computeRelativeOffset(m_scroller, m_anchorObject);
+        return;
+    m_anchorObject = findAnchor(m_scroller);
+    if (!m_anchorObject)
+        return;
+    m_anchorObject->setIsScrollAnchorObject();
+    m_savedRelativeOffset = computeRelativeOffset(m_scroller, m_anchorObject);
 }
 
 void ScrollAnchor::restore()
@@ -50,6 +79,15 @@ void ScrollAnchor::restore()
     DoubleSize adjustment = computeRelativeOffset(m_scroller, m_anchorObject) - m_savedRelativeOffset;
     if (!adjustment.isZero())
         m_scroller->setScrollPosition(m_scroller->scrollPositionDouble() + adjustment, AnchoringScroll);
+}
+
+void ScrollAnchor::clear()
+{
+    LayoutObject* anchorObject = m_anchorObject;
+    m_anchorObject = nullptr;
+
+    if (anchorObject)
+        anchorObject->maybeClearIsScrollAnchorObject();
 }
 
 } // namespace blink

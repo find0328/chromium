@@ -124,8 +124,9 @@ class CookieStoreIOS : public net::CookieStore,
                                  const std::string& value,
                                  const std::string& domain,
                                  const std::string& path,
-                                 const base::Time creation_time,
-                                 const base::Time expiration_time,
+                                 base::Time creation_time,
+                                 base::Time expiration_time,
+                                 base::Time last_access_time,
                                  bool secure,
                                  bool http_only,
                                  bool same_site,
@@ -141,6 +142,9 @@ class CookieStoreIOS : public net::CookieStore,
   void DeleteCookieAsync(const GURL& url,
                          const std::string& cookie_name,
                          const base::Closure& callback) override;
+  void DeleteCanonicalCookieAsync(
+      const CanonicalCookie& cookie,
+      const DeleteCallback& callback) override;
   net::CookieMonster* GetCookieMonster() override;
   void DeleteAllCreatedBetweenAsync(const base::Time& delete_begin,
                                     const base::Time& delete_end,

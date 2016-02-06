@@ -46,6 +46,7 @@
 #include "core/imagebitmap/ImageBitmapOptions.h"
 #include "core/layout/LayoutHTMLCanvas.h"
 #include "core/paint/PaintLayer.h"
+#include "platform/Histogram.h"
 #include "platform/MIMETypeRegistry.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/graphics/Canvas2DImageBufferSurface.h"
@@ -237,8 +238,10 @@ CanvasRenderingContext* HTMLCanvasElement::getCanvasRenderingContext(const Strin
         return nullptr;
 
     // Log the aliased context type used.
-    if (!m_context)
-        Platform::current()->histogramEnumeration("Canvas.ContextType", contextType, CanvasRenderingContext::ContextTypeCount);
+    if (!m_context) {
+        DEFINE_STATIC_LOCAL(EnumerationHistogram, contextTypeHistogram, ("Canvas.ContextType", CanvasRenderingContext::ContextTypeCount));
+        contextTypeHistogram.count(contextType);
+    }
 
     contextType = CanvasRenderingContext::resolveContextTypeAliases(contextType);
 
@@ -436,7 +439,7 @@ void HTMLCanvasElement::notifyListenersCanvasChanged()
 
     if (listenerNeedsNewFrameCapture) {
         SourceImageStatus status;
-        RefPtr<Image> sourceImage = getSourceImageForCanvas(&status, PreferAcceleration);
+        RefPtr<Image> sourceImage = getSourceImageForCanvas(&status, PreferNoAcceleration, SnapshotReasonCanvasListenerCapture);
         if (status != NormalSourceImageStatus)
             return;
         RefPtr<SkImage> image = sourceImage->imageForCurrentFrame();
@@ -517,7 +520,7 @@ void HTMLCanvasElement::prepareSurfaceForPaintingIfNeeded() const
         m_imageBuffer->prepareSurfaceForPaintingIfNeeded();
 }
 
-ImageData* HTMLCanvasElement::toImageData(SourceDrawingBuffer sourceBuffer) const
+ImageData* HTMLCanvasElement::toImageData(SourceDrawingBuffer sourceBuffer, SnapshotReason reason) const
 {
     ImageData* imageData;
     if (is3D()) {
@@ -528,7 +531,7 @@ ImageData* HTMLCanvasElement::toImageData(SourceDrawingBuffer sourceBuffer) cons
 
         m_context->paintRenderingResultsToCanvas(sourceBuffer);
         imageData = ImageData::create(m_size);
-        RefPtr<SkImage> snapshot = buffer()->newSkImageSnapshot(PreferNoAcceleration);
+        RefPtr<SkImage> snapshot = buffer()->newSkImageSnapshot(PreferNoAcceleration, reason);
         if (snapshot) {
             SkImageInfo imageInfo = SkImageInfo::Make(width(), height(), kRGBA_8888_SkColorType, kUnpremul_SkAlphaType);
             snapshot->readPixels(imageInfo, imageData->data()->data(), imageInfo.minRowBytes(), 0, 0);
@@ -542,7 +545,7 @@ ImageData* HTMLCanvasElement::toImageData(SourceDrawingBuffer sourceBuffer) cons
         return imageData;
 
     ASSERT(m_context->is2d());
-    RefPtr<SkImage> snapshot = buffer()->newSkImageSnapshot(PreferNoAcceleration);
+    RefPtr<SkImage> snapshot = buffer()->newSkImageSnapshot(PreferNoAcceleration, reason);
     if (snapshot) {
         SkImageInfo imageInfo = SkImageInfo::Make(width(), height(), kRGBA_8888_SkColorType, kUnpremul_SkAlphaType);
         snapshot->readPixels(imageInfo, imageData->data()->data(), imageInfo.minRowBytes(), 0, 0);
@@ -558,7 +561,7 @@ String HTMLCanvasElement::toDataURLInternal(const String& mimeType, const double
 
     String encodingMimeType = toEncodingMimeType(mimeType);
 
-    ImageData* imageData = toImageData(sourceBuffer);
+    ImageData* imageData = toImageData(sourceBuffer, SnapshotReasonToDataURL);
     ScopedDisposal<ImageData> disposer(imageData);
 
     return ImageDataBuffer(imageData->size(), imageData->data()->data()).toDataURL(encodingMimeType, quality);
@@ -580,7 +583,7 @@ String HTMLCanvasElement::toDataURL(const String& mimeType, const ScriptValue& q
     return toDataURLInternal(mimeType, quality, BackBuffer);
 }
 
-void HTMLCanvasElement::toBlob(ScriptState* scriptState, BlobCallback* callback, const String& mimeType, const ScriptValue& qualityArgument, ExceptionState& exceptionState)
+void HTMLCanvasElement::toBlob(BlobCallback* callback, const String& mimeType, const ScriptValue& qualityArgument, ExceptionState& exceptionState)
 {
     if (!originClean()) {
         exceptionState.throwSecurityError("Tainted canvases may not be exported.");
@@ -603,15 +606,15 @@ void HTMLCanvasElement::toBlob(ScriptState* scriptState, BlobCallback* callback,
 
     String encodingMimeType = toEncodingMimeType(mimeType);
 
-    ImageData* imageData = toImageData(BackBuffer);
+    ImageData* imageData = toImageData(BackBuffer, SnapshotReasonToBlob);
     // imageData unref its data, which we still keep alive for the async toBlob thread
     ScopedDisposal<ImageData> disposer(imageData);
     // Add a ref to keep image data alive until completion of encoding
     RefPtr<DOMUint8ClampedArray> imageDataRef(imageData->data());
 
-    RefPtr<CanvasAsyncBlobCreator> asyncCreatorRef = CanvasAsyncBlobCreator::create(imageDataRef.release(), encodingMimeType, imageData->size(), callback, scriptState->executionContext());
+    RefPtr<CanvasAsyncBlobCreator> asyncCreatorRef = CanvasAsyncBlobCreator::create(imageDataRef.release(), encodingMimeType, imageData->size(), callback);
 
-    if (Platform::current()->isThreadedCompositingEnabled() && (encodingMimeType == DefaultMimeType)) {
+    if (encodingMimeType == DefaultMimeType) {
         asyncCreatorRef->scheduleAsyncBlobCreation(true);
     } else {
         asyncCreatorRef->scheduleAsyncBlobCreation(false, quality);
@@ -853,10 +856,10 @@ SkCanvas* HTMLCanvasElement::drawingCanvas() const
     return buffer() ? m_imageBuffer->canvas() : nullptr;
 }
 
-void HTMLCanvasElement::disableDeferral() const
+void HTMLCanvasElement::disableDeferral(DisableDeferralReason reason) const
 {
     if (buffer())
-        m_imageBuffer->disableDeferral();
+        m_imageBuffer->disableDeferral(reason);
 }
 
 SkCanvas* HTMLCanvasElement::existingDrawingCanvas() const
@@ -937,6 +940,7 @@ void HTMLCanvasElement::didChangeVisibilityState(PageVisibilityState visibility)
 {
     if (!m_context)
         return;
+
     bool hidden = visibility != PageVisibilityStateVisible;
     m_context->setIsHidden(hidden);
     if (hidden) {
@@ -945,6 +949,12 @@ void HTMLCanvasElement::didChangeVisibilityState(PageVisibilityState visibility)
             discardImageBuffer();
         }
     }
+}
+
+void HTMLCanvasElement::willDetachDocument()
+{
+    if (m_context)
+        m_context->stop();
 }
 
 void HTMLCanvasElement::styleDidChange(const ComputedStyle* oldStyle, const ComputedStyle& newStyle)
@@ -956,12 +966,10 @@ void HTMLCanvasElement::styleDidChange(const ComputedStyle* oldStyle, const Comp
 void HTMLCanvasElement::didMoveToNewDocument(Document& oldDocument)
 {
     setObservedDocument(document());
-    if (m_context)
-        m_context->didMoveToNewDocument(&document());
     HTMLElement::didMoveToNewDocument(oldDocument);
 }
 
-PassRefPtr<Image> HTMLCanvasElement::getSourceImageForCanvas(SourceImageStatus* status, AccelerationHint hint) const
+PassRefPtr<Image> HTMLCanvasElement::getSourceImageForCanvas(SourceImageStatus* status, AccelerationHint hint, SnapshotReason reason) const
 {
     if (!width() || !height()) {
         *status = ZeroSizeCanvasSourceImageStatus;
@@ -982,7 +990,7 @@ PassRefPtr<Image> HTMLCanvasElement::getSourceImageForCanvas(SourceImageStatus* 
         m_context->paintRenderingResultsToCanvas(BackBuffer);
     }
 
-    RefPtr<SkImage> image = buffer()->newSkImageSnapshot(hint);
+    RefPtr<SkImage> image = buffer()->newSkImageSnapshot(hint, reason);
     if (image) {
         *status = NormalSourceImageStatus;
         return StaticBitmapImage::create(image.release());

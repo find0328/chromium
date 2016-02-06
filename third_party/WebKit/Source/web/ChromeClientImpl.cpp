@@ -56,13 +56,13 @@
 #include "modules/accessibility/AXObject.h"
 #include "platform/Cursor.h"
 #include "platform/FileChooser.h"
+#include "platform/Histogram.h"
 #include "platform/KeyboardCodes.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/exported/WrappedResourceRequest.h"
 #include "platform/geometry/IntRect.h"
 #include "platform/graphics/GraphicsLayer.h"
 #include "platform/weborigin/SecurityOrigin.h"
-#include "public/platform/Platform.h"
 #include "public/platform/WebCursorInfo.h"
 #include "public/platform/WebFloatRect.h"
 #include "public/platform/WebFrameScheduler.h"
@@ -868,7 +868,8 @@ bool ChromeClientImpl::shouldOpenModalDialogDuringPageDismissal(const DialogType
     ASSERT_WITH_SECURITY_IMPLICATION(0 <= dismissal);
     ASSERT_WITH_SECURITY_IMPLICATION(dismissal < static_cast<int>(WTF_ARRAY_LENGTH(kDismissals)));
 
-    Platform::current()->histogramEnumeration("Renderer.ModalDialogsDuringPageDismissal", dismissal * WTF_ARRAY_LENGTH(kDialogs) + dialog, WTF_ARRAY_LENGTH(kDialogs) * WTF_ARRAY_LENGTH(kDismissals));
+    DEFINE_STATIC_LOCAL(EnumerationHistogram, dialogDismissalHistogram, ("Renderer.ModalDialogsDuringPageDismissal", WTF_ARRAY_LENGTH(kDialogs) * WTF_ARRAY_LENGTH(kDismissals)));
+    dialogDismissalHistogram.count(dismissal * WTF_ARRAY_LENGTH(kDialogs) + dialog);
 
     String message = String("Blocked ") + kDialogs[dialog] + "('" + dialogMessage + "') during " + kDismissals[dismissal] + ".";
     m_webView->mainFrame()->addMessageToConsole(WebConsoleMessage(WebConsoleMessage::LevelError, message));
@@ -876,22 +877,20 @@ bool ChromeClientImpl::shouldOpenModalDialogDuringPageDismissal(const DialogType
     return false;
 }
 
-void ChromeClientImpl::needTouchEvents(bool needsTouchEvents)
+void ChromeClientImpl::setEventListenerProperties(WebEventListenerClass eventClass, WebEventListenerProperties properties)
 {
-    m_webView->hasTouchEventHandlers(needsTouchEvents);
+    if (eventClass == WebEventListenerClass::Touch)
+        m_webView->hasTouchEventHandlers(properties != WebEventListenerProperties::Nothing);
+
+    if (WebLayerTreeView* treeView = m_webView->layerTreeView())
+        treeView->setEventListenerProperties(eventClass, properties);
 }
 
-void ChromeClientImpl::setHaveWheelEventHandlers(bool hasEventHandlers)
+WebEventListenerProperties ChromeClientImpl::eventListenerProperties(WebEventListenerClass eventClass) const
 {
     if (WebLayerTreeView* treeView = m_webView->layerTreeView())
-        treeView->setHaveWheelEventHandlers(hasEventHandlers);
-}
-
-bool ChromeClientImpl::haveWheelEventHandlers() const
-{
-    if (WebLayerTreeView* treeView = m_webView->layerTreeView())
-        return treeView->haveWheelEventHandlers();
-    return false;
+        return treeView->eventListenerProperties(eventClass);
+    return WebEventListenerProperties::Nothing;
 }
 
 void ChromeClientImpl::setHaveScrollEventHandlers(bool hasEventHandlers)

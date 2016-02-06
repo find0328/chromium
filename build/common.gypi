@@ -1590,10 +1590,6 @@
     'libjpeg_ijg_gyp_path': '<(DEPTH)/third_party/libjpeg/libjpeg.gyp',
     'libjpeg_turbo_gyp_path': '<(DEPTH)/third_party/libjpeg_turbo/libjpeg.gyp',
 
-    # Whether to disable handle verifier hooks.
-    # Hookless parts of the handle verifier will still function.
-    'win_disable_handle_verifier_hooks%': '0',
-
     'conditions': [
       ['buildtype=="Official"', {
         # Continue to embed build meta data in Official builds, basically the
@@ -2292,6 +2288,10 @@
       # TODO(rnk): Kill off variables that no one else uses and just implement
       # them under a build_for_tool== condition.
       ['build_for_tool=="memcheck" or build_for_tool=="tsan"', {
+
+        # tcmalloc causes Valgrind failures. Discussion in crrev.com/1642383002.
+        'use_allocator%': 'none',
+
         # gcc flags
         'mac_debug_optimization': '1',
         'mac_release_optimization': '1',
@@ -2319,8 +2319,6 @@
       # TODO(rnk): Combine with tsan config to share the builder.
       # http://crbug.com/108155
       ['build_for_tool=="drmemory"', {
-        # Disable the hook based handle verifier, as DrMemory does this job.
-        'win_disable_handle_verifier_hooks': '1',
         # These runtime checks force initialization of stack vars which blocks
         # DrMemory's uninit detection.
         'win_debug_RuntimeChecks': '0',

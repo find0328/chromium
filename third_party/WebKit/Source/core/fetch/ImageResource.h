@@ -84,6 +84,10 @@ public:
 
     void updateImageAnimationPolicy();
 
+    // If this ImageResource has the Lo-Fi response headers, reload it with
+    // the Lo-Fi state set to off and bypassing the cache.
+    void reloadIfLoFi(ResourceFetcher*);
+
     void didAddClient(ResourceClient*) override;
     void didRemoveClient(ResourceClient*) override;
 
@@ -114,8 +118,6 @@ protected:
     void destroyDecodedDataForFailedRevalidation() override;
 
 private:
-    friend class PaintLayerTest;
-
     class ImageResourceFactory : public ResourceFactory {
     public:
         ImageResourceFactory()

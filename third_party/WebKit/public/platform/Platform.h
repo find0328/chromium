@@ -166,7 +166,7 @@ public:
 
     // Creates a device for audio I/O.
     // Pass in (numberOfInputChannels > 0) if live/local audio input is desired.
-    virtual WebAudioDevice* createAudioDevice(size_t bufferSize, unsigned numberOfInputChannels, unsigned numberOfChannels, double sampleRate, WebAudioDevice::RenderCallback*, const WebString& deviceId) { return nullptr; }
+    virtual WebAudioDevice* createAudioDevice(size_t bufferSize, unsigned numberOfInputChannels, unsigned numberOfChannels, double sampleRate, WebAudioDevice::RenderCallback*, const WebString& deviceId, const WebSecurityOrigin&) { return nullptr; }
 
 
     // MIDI ----------------------------------------------------------------
@@ -441,12 +441,6 @@ public:
 
     // Get a pointer to testing support interfaces. Will not be available in production builds.
     virtual WebUnitTestSupport* unitTestSupport() { return nullptr; }
-
-    // Callbacks for reporting histogram data.
-    // CustomCounts histogram has exponential bucket sizes, so that min=1, max=1000000, bucketCount=50 would do.
-    virtual void histogramCustomCounts(const char* name, int sample, int min, int max, int bucketCount) { }
-    // Enumeration histogram buckets are linear, boundaryValue should be larger than any possible sample value.
-    virtual void histogramEnumeration(const char* name, int sample, int boundaryValue) { }
 
     // Record to a RAPPOR privacy-preserving metric, see: https://www.chromium.org/developers/design-documents/rappor.
     // recordRappor records a sample string, while recordRapporURL records the domain and registry of a url.

@@ -320,6 +320,10 @@ void LocalFrame::detach(FrameDetachType type)
     // detached, so protect a reference to it.
     RefPtrWillBeRawPtr<LocalFrame> protect(this);
     m_loader.stopAllLoaders();
+    // Don't allow any new child frames to load in this frame: attaching a new
+    // child frame during or after detaching children results in an attached
+    // frame on a detached DOM tree, which is bad.
+    SubframeLoadingDisabler disabler(*document());
     m_loader.dispatchUnloadEvent();
     detachChildren();
     m_frameScheduler.clear();
@@ -354,28 +358,7 @@ void LocalFrame::detach(FrameDetachType type)
     // Signal frame destruction here rather than in the destructor.
     // Main motivation is to avoid being dependent on its exact timing (Oilpan.)
     LocalFrameLifecycleNotifier::notifyContextDestroyed();
-    // TODO(dcheng): Temporary, to debug https://crbug.com/531291.
-    // If this is true, we somehow re-entered LocalFrame::detach. But this is
-    // probably OK?
-    if (m_supplementStatus == SupplementStatus::Cleared)
-        RELEASE_ASSERT(m_supplements.isEmpty());
-    // If this is true, we somehow re-entered LocalFrame::detach in the middle
-    // of cleaning up supplements.
-    RELEASE_ASSERT(m_supplementStatus != SupplementStatus::Clearing);
-    RELEASE_ASSERT(m_supplementStatus == SupplementStatus::Uncleared);
-    m_supplementStatus = SupplementStatus::Clearing;
-
-    // TODO(haraken): Temporary code to debug https://crbug.com/531291.
-    // Check that m_supplements doesn't duplicate OwnPtrs.
-    HashSet<void*> supplementPointers;
-    for (auto& it : m_supplements) {
-        void* pointer = reinterpret_cast<void*>(it.value.get());
-        RELEASE_ASSERT(!supplementPointers.contains(pointer));
-        supplementPointers.add(pointer);
-    }
-
     m_supplements.clear();
-    m_supplementStatus = SupplementStatus::Cleared;
     WeakIdentifierMap<LocalFrame>::notifyObjectDestroyed(this);
 }
 

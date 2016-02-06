@@ -47,6 +47,7 @@ import org.chromium.chrome.browser.banners.AppBannerManager;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.contextmenu.ContextMenuPopulator;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchTabHelper;
+import org.chromium.chrome.browser.crash.MinidumpDirectoryObserver;
 import org.chromium.chrome.browser.crash.MinidumpUploadService;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.download.ChromeDownloadDelegate;
@@ -76,6 +77,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.components.navigation_interception.InterceptNavigationDelegate;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
+import org.chromium.components.variations.VariationsAssociatedData;
 import org.chromium.content.browser.ActivityContentVideoViewEmbedder;
 import org.chromium.content.browser.ContentVideoViewEmbedder;
 import org.chromium.content.browser.ContentView;
@@ -355,6 +357,9 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
     protected Handler mHandler;
 
     private LoFiBarPopupController mLoFiBarPopupController;
+
+    /** Whether or not the tab closing the tab can send the user back to the app that opened it. */
+    private boolean mIsAllowedToReturnToExternalApp;
 
     private class TabContentViewClient extends ContentViewClient {
         @Override
@@ -920,6 +925,16 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
     public void reloadDisableLoFi() {
         if (getWebContents() != null) {
             getWebContents().getNavigationController().reloadDisableLoFi(true);
+        }
+    }
+
+    /**
+     * Reloads all the Lo-Fi images in this Tab's WebContents.
+     * This version ignores the cache and reloads from the network.
+     */
+    public void reloadLoFiImages() {
+        if (getWebContents() != null) {
+            getWebContents().reloadLoFiImages();
         }
     }
 
@@ -2461,22 +2476,26 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
 
         if (mTabUma != null) mTabUma.onRendererCrashed();
 
-        try {
-            // Update the most recent minidump file with the logcat. Doing this asynchronously
-            // adds a race condition in the case of multiple simultaneously renderer crashses
-            // but because the data will be the same for all of them it is innocuous. We can
-            // attempt to do this regardless of whether it was a foreground tab in the event
-            // that it's a real crash and not just android killing the tab.
-            Context context = getApplicationContext();
-            Intent intent = MinidumpUploadService.createFindAndUploadLastCrashIntent(context);
-            context.startService(intent);
-            RecordUserAction.record("MobileBreakpadUploadAttempt");
-        } catch (SecurityException e) {
-            // For KitKat and below, there was a framework bug which cause us to not be able to
-            // find our own crash uploading service. Ignore a SecurityException here on older
-            // OS versions since the crash will eventually get uploaded on next start. crbug/542533
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                throw e;
+        if (!TextUtils.equals("true", VariationsAssociatedData.getVariationParamValue(
+                MinidumpDirectoryObserver.MINIDUMP_EXPERIMENT_NAME, "Enabled"))) {
+            try {
+                // Update the most recent minidump file with the logcat. Doing this asynchronously
+                // adds a race condition in the case of multiple simultaneously renderer crashses
+                // but because the data will be the same for all of them it is innocuous. We can
+                // attempt to do this regardless of whether it was a foreground tab in the event
+                // that it's a real crash and not just android killing the tab.
+                Context context = getApplicationContext();
+                Intent intent = MinidumpUploadService.createFindAndUploadLastCrashIntent(context);
+                context.startService(intent);
+                RecordUserAction.record("MobileBreakpadUploadAttempt");
+            } catch (SecurityException e) {
+                // For KitKat and below, there was a framework bug which cause us to not be able to
+                // find our own crash uploading service. Ignore a SecurityException here on older
+                // OS versions since the crash will eventually get uploaded on next start.
+                // crbug/542533
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    throw e;
+                }
             }
         }
     }
@@ -2883,6 +2902,29 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
         if (mSwipeRefreshHandler != null) {
             mSwipeRefreshHandler.didStopRefreshing();
         }
+    }
+
+    /**
+     * Set whether closing this Tab should return the user to the app that spawned Chrome.
+     */
+    public void setIsAllowedToReturnToExternalApp(boolean state) {
+        mIsAllowedToReturnToExternalApp = state;
+    }
+
+    /**
+     * @return Whether closing this Tab should return the user to the app that spawned Chrome.
+     */
+    public boolean isAllowedToReturnToExternalApp() {
+        return mIsAllowedToReturnToExternalApp;
+    }
+
+    /**
+     * @return Whether or not the tab was opened by an app other than Chrome.
+     */
+    public boolean isCreatedForExternalApp() {
+        String packageName = ApplicationStatus.getApplicationContext().getPackageName();
+        return getLaunchType() == TabLaunchType.FROM_EXTERNAL_APP
+                && !TextUtils.equals(getAppAssociatedWith(), packageName);
     }
 
     private native void nativeInit();

@@ -305,12 +305,14 @@ interface BluetoothCharacteristicProperties
     getter write
     getter writeWithoutResponse
     method constructor
-interface BluetoothDevice
+interface BluetoothDevice : EventTarget
     getter adData
     getter deviceClass
+    getter gatt
     getter id
     getter instanceID
     getter name
+    getter ongattserverdisconnected
     getter productID
     getter productVersion
     getter uuids
@@ -318,6 +320,7 @@ interface BluetoothDevice
     getter vendorIDSource
     method connectGATT
     method constructor
+    setter ongattserverdisconnected
 interface BluetoothGATTCharacteristic : EventTarget
     getter oncharacteristicvaluechanged
     getter properties
@@ -331,6 +334,8 @@ interface BluetoothGATTCharacteristic : EventTarget
     setter oncharacteristicvaluechanged
 interface BluetoothGATTRemoteServer
     getter connected
+    getter device
+    method connect
     method constructor
     method disconnect
     method getPrimaryService
@@ -3141,6 +3146,9 @@ interface InputDeviceCapabilities
     getter firesTouchEvents
     method constructor
 interface IntersectionObserver
+    getter root
+    getter rootMargin
+    getter thresholds
     method constructor
     method disconnect
     method observe
@@ -3357,6 +3365,7 @@ interface MediaQueryListEvent : Event
     method constructor
 interface MediaRecorder : EventTarget
     static method isTypeSupported
+    getter audioBitsPerSecond
     getter ignoreMutedMedia
     getter mimeType
     getter ondataavailable
@@ -3367,6 +3376,7 @@ interface MediaRecorder : EventTarget
     getter onstop
     getter state
     getter stream
+    getter videoBitsPerSecond
     method constructor
     method pause
     method requestData
@@ -5561,6 +5571,8 @@ interface USBDevice
     method controlTransferIn
     method controlTransferOut
     method getConfiguration
+    method isochronousTransferIn
+    method isochronousTransferOut
     method open
     method releaseInterface
     method reset
@@ -5581,6 +5593,21 @@ interface USBInTransferResult
 interface USBInterface
     getter alternates
     getter interfaceNumber
+    method constructor
+interface USBIsochronousInTransferPacket
+    getter data
+    getter status
+    method constructor
+interface USBIsochronousInTransferResult
+    getter data
+    getter packets
+    method constructor
+interface USBIsochronousOutTransferPacket
+    getter bytesWritten
+    getter status
+    method constructor
+interface USBIsochronousOutTransferResult
+    getter packets
     method constructor
 interface USBOutTransferResult
     getter bytesWritten
