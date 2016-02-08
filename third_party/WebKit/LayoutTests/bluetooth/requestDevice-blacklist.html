@@ -10,28 +10,7 @@ test(t => { assert_true(window.testRunner instanceof Object); t.done(); },
      'window.testRunner is required for the following tests.');
 
 promise_test(() => {
-  testRunner.setBluetoothMockDataSet('FailStartDiscoveryAdapter');
-  testRunner.setBluetoothManualChooser();
-  let requestDevicePromise =
-      requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]});
-  return getBluetoothManualChooserEvents(3)
-    .then(events => {
-      assert_array_equals(events,
-                          ['chooser-opened(file://)',
-                           'discovering',
-                           'discovery-failed-to-start'],
-                          events);
-      testRunner.sendBluetoothManualChooserEvent('cancelled', '');
-      return assert_promise_rejects_with_message(
-        requestDevicePromise,
-        new DOMException('User cancelled the requestDevice() chooser.',
-                         'NotFoundError'),
-        'The adapter failed to start a discovery session.');
-    });
-}, 'Discovery session fails to start.');
-
-promise_test(() => {
-  testRunner.setBluetoothMockDataSet('NotPresentAdapter');
+  testRunner.setBluetoothMockDataSet('HeartRateAdapter');
   return assert_promise_rejects_with_message(
     requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]}),
     new DOMException('Bluetooth adapter not available.', 'NotFoundError'),
@@ -113,21 +92,6 @@ promise_test(() => {
     assert_not_equals(devices[1], devices[2]);
   });
 }, 'Returned device should always be the same.');
-
-promise_test(() => {
-  testRunner.setBluetoothMockDataSet('ScanFilterCheckingAdapter');
-  // The work of this test is done in the ScanFilterCheckingAdapter. It asserts
-  // that this requestDevice() call tells the platform to scan for only devices
-  // that include the Battery, Glucose, or Heart Rate services.
-  return requestDeviceWithKeyDown({
-    filters: [
-      {services: ['battery_service']},
-      {services: ['glucose', 'heart_rate']}
-    ],
-    // The optionalServices shouldn't affect the platform's scan.
-    optionalServices: ['cycling_power']
-  });
-}, 'Filters restrict the platform\'s Bluetooth scan.');
 
 promise_test(() => {
   testRunner.setBluetoothMockDataSet('GlucoseHeartRateAdapter');
