@@ -94,8 +94,6 @@ void BluetoothBlacklist::PopulateWithDefaultValues() {
   DCHECK(BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb") ==
          BluetoothUUID("1800"));
   // ## Services
-  AddOrDie(BluetoothUUID("1800"), Value::EXCLUDE);
-  AddOrDie(BluetoothUUID("1801"), Value::EXCLUDE);
   AddOrDie(BluetoothUUID("1812"), Value::EXCLUDE);
   // ## Characteristics
   AddOrDie(BluetoothUUID("2a25"), Value::EXCLUDE);
