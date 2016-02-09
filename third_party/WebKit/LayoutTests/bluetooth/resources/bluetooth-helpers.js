@@ -7,11 +7,6 @@ var generic_access = {
   name: 'generic_access',
   uuid: '00001800-0000-1000-8000-00805f9b34fb'
 };
-var device_name = {
-  alias: 0x2a00,
-  name: 'gap.device_name',
-  uuid: '00002a00-0000-1000-8000-00805f9b34fb'
-};
 var reconnection_address = {
   alias: 0x2a03,
   name: 'gap.reconnection_address',
@@ -21,6 +16,11 @@ var heart_rate = {
   alias: 0x180d,
   name: 'heart_rate',
   uuid: '0000180d-0000-1000-8000-00805f9b34fb'
+};
+var heart_rate_measurement = {
+  alias: 0x2a37,
+  name: 'heart_rate_measurement',
+  uuid: '00002a37-0000-1000-8000-00805f9b34fb'
 };
 var glucose = {
   alias: 0x1808,
