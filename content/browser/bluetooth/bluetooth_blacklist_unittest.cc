@@ -219,29 +219,23 @@ TEST_F(BluetoothBlacklistTest, VerifyDefaultBlacklistSize) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
   // When adding items to the blacklist the new values should be added in the
   // tests below for each exclusion type.
-  EXPECT_EQ(6u, blacklist.size());
+  EXPECT_EQ(4u, blacklist.size());
 }
 
 TEST_F(BluetoothBlacklistTest, VerifyDefaultExcludeList) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
-  EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("1800")));
-  EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("1801")));
   EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("1812")));
   EXPECT_TRUE(blacklist.IsExcluded(BluetoothUUID("2a25")));
 }
 
 TEST_F(BluetoothBlacklistTest, VerifyDefaultExcludeReadList) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
-  EXPECT_TRUE(blacklist.IsExcludedFromReads(BluetoothUUID("1800")));
-  EXPECT_TRUE(blacklist.IsExcludedFromReads(BluetoothUUID("1801")));
   EXPECT_TRUE(blacklist.IsExcludedFromReads(BluetoothUUID("1812")));
   EXPECT_TRUE(blacklist.IsExcludedFromReads(BluetoothUUID("2a25")));
 }
 
 TEST_F(BluetoothBlacklistTest, VerifyDefaultExcludeWriteList) {
   BluetoothBlacklist& blacklist = BluetoothBlacklist::Get();
-  EXPECT_TRUE(blacklist.IsExcludedFromWrites(BluetoothUUID("1800")));
-  EXPECT_TRUE(blacklist.IsExcludedFromWrites(BluetoothUUID("1801")));
   EXPECT_TRUE(blacklist.IsExcludedFromWrites(BluetoothUUID("1812")));
   EXPECT_TRUE(blacklist.IsExcludedFromWrites(BluetoothUUID("2a25")));
   EXPECT_TRUE(blacklist.IsExcludedFromWrites(BluetoothUUID("2902")));
