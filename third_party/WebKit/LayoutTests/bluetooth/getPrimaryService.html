@@ -10,7 +10,8 @@ test(t => { assert_true(window.testRunner instanceof Object); t.done(); },
 
 promise_test(() => {
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
-  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
+  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}],
+                                   optionalServices: ['generic_access']})
     .then(device => device.gatt.connect())
     .then(gattServer => {
       testRunner.setBluetoothMockDataSet('EmptyAdapter');
@@ -99,15 +100,16 @@ promise_test(() => {
 
 promise_test(function() {
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
-  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
+  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}],
+                                   optionalServices: ['generic_access']})
     .then(device => device.gatt.connect())
     .then(gattServer => Promise.all(
-      [gattServer.getPrimaryService(heart_rate_measurement.alias),
-       gattServer.getPrimaryService(heart_rate_measurement.name),
-       gattServer.getPrimaryService(heart_rate_measurement.uuid)]))
+      [gattServer.getPrimaryService(generic_access.alias),
+       gattServer.getPrimaryService(generic_access.name),
+       gattServer.getPrimaryService(generic_access.uuid)]))
     .then(services => {
       services.forEach(service => {
-        assert_equals(service.uuid, heart_rate_measurement.uuid,
+        assert_equals(service.uuid, generic_access.uuid,
                       'Service UUID should be the same as requested UUID.');
         assert_true(service.isPrimary,
                     'getPrimaryService should return a primary service.');
@@ -117,15 +119,16 @@ promise_test(function() {
 
 promise_test(() => {
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
-  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]})
+  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}],
+                                   optionalServices: ['generic_access']})
     .then(device => device.gatt.connect())
     .then(gattServer => Promise.all(
-      [gattServer.getPrimaryService(heart_rate_measurement.alias),
-       gattServer.getPrimaryService(heart_rate_measurement.alias),
-       gattServer.getPrimaryService(heart_rate_measurement.name),
-       gattServer.getPrimaryService(heart_rate_measurement.name),
-       gattServer.getPrimaryService(heart_rate_measurement.uuid),
-       gattServer.getPrimaryService(heart_rate_measurement.uuid)]))
+      [gattServer.getPrimaryService(generic_access.alias),
+       gattServer.getPrimaryService(generic_access.alias),
+       gattServer.getPrimaryService(generic_access.name),
+       gattServer.getPrimaryService(generic_access.name),
+       gattServer.getPrimaryService(generic_access.uuid),
+       gattServer.getPrimaryService(generic_access.uuid)]))
     .then(services => {
       // getPrimaryService should return the same object if it was created
       // earlier. https://crbug.com/495270
