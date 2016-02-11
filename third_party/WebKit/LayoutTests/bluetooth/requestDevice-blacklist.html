@@ -12,9 +12,11 @@ test(t => { assert_true(window.testRunner instanceof Object); t.done(); },
 promise_test(() => {
   testRunner.setBluetoothMockDataSet('HeartRateAdapter');
   return assert_promise_rejects_with_message(
-    requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}]}),
-    new DOMException('Bluetooth adapter not available.', 'NotFoundError'),
-    'Bluetooth adapter is not present.');
-}, 'Reject with NotFoundError if the adapter is not present.');
+    requestDeviceWithKeyDown({filters: [{services: ['human_interface_device']}]}),
+    new DOMException(
+      'requestDevice() called with a filter containing a blacklisted UUID.',
+      'SecurityError'),
+    'Requesting blacklisted service rejects.');
+}, 'Reject with SecurityError if requesting a blacklisted service.');
 
 </script>
