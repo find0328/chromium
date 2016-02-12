@@ -27,17 +27,10 @@ promise_test(() => {
     .then(gattServer => {
       return assert_promise_rejects_with_message(
         gattServer.getPrimaryService('human_interface_device'), new DOMException(
-          'Failed to execute \'getPrimaryService\' on ' +
-          '\'BluetoothGATTRemoteServer\': Invalid Service name: ' +
-          '\'wrong_name\'. ' +
-          'It must be a valid UUID alias (e.g. 0x1234), ' +
-          'UUID (lowercase hex characters e.g. ' +
-          '\'00001234-0000-1000-8000-00805f9b34fb\'), ' +
-          'or recognized standard name from ' +
-          'https://developer.bluetooth.org/gatt/services/Pages/ServicesHome.aspx' +
-          ' e.g. \'alert_notification\'.',
-          'SyntaxError'),
-        'Wrong Service name passed.');
+          'Origin is not allowed to access the service. Remember to add the ' +
+          'service to a filter or to optionalServices in requestDevice().',
+          'SecurityError'),
+        'Blacklisted service not accessible.');
     });
 }, 'Blacklisted UUID in optionalServices is removed and access not granted.');
 
