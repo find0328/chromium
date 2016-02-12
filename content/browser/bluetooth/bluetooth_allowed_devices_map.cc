@@ -141,7 +141,7 @@ bool BluetoothAllowedDevicesMap::IsOriginAllowedToAccessService(
     const url::Origin& origin,
     const std::string& device_id,
     const std::string& service_uuid) const {
-  if (BluetoothBlacklist::Get().IsExcluded(service_uuid))
+  if (BluetoothBlacklist::Get().IsExcluded(BluetoothUUID(service_uuid)))
     return false;
 
   auto id_map_iter = origin_to_device_id_to_services_map_.find(origin);
