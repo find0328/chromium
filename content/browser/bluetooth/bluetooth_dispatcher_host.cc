@@ -993,11 +993,12 @@ void BluetoothDispatcherHost::OnRequestDeviceImpl(
     int request_id,
     int frame_routing_id,
     const std::vector<BluetoothScanFilter>& filters,
-    // Use local optional_services_blacklist_filtered in this method.
-    const std::vector<BluetoothUUID>& optional_services) {
+    const std::vector<BluetoothUUID>&
+        optional_services_before_being_filtered_by_blacklist) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   RecordWebBluetoothFunctionCall(UMAWebBluetoothFunction::REQUEST_DEVICE);
-  RecordRequestDeviceArguments(filters, optional_services);
+  RecordRequestDeviceArguments(
+      filters, optional_services_before_being_filtered_by_blacklist);
 
   VLOG(1) << "requestDevice called with the following filters: ";
   for (const BluetoothScanFilter& filter : filters) {
@@ -1011,18 +1012,21 @@ void BluetoothDispatcherHost::OnRequestDeviceImpl(
   }
 
   VLOG(1) << "requestDevice called with the following optional services: ";
-  for (const BluetoothUUID& service : optional_services)
+  for (const BluetoothUUID& service :
+       optional_services_before_being_filtered_by_blacklist)
     VLOG(1) << "\t" << service.value();
 
   // Check blacklist to reject invalid filters and adjust optional_services.
   if (BluetoothBlacklist::Get().IsExcluded(filters)) {
+    RecordRequestDeviceOutcome(
+        UMARequestDeviceOutcome::BLACKLISTED_SERVICE_IN_FILTER);
     Send(new BluetoothMsg_RequestDeviceError(
         thread_id, request_id,
         WebBluetoothError::RequestDeviceWithBlacklistedUUID));
     return;
   }
   std::vector<BluetoothUUID> optional_services_blacklist_filtered(
-      optional_services);
+      optional_services_before_being_filtered_by_blacklist);
   BluetoothBlacklist::Get().RemoveExcludedUuids(
       &optional_services_blacklist_filtered);
 
