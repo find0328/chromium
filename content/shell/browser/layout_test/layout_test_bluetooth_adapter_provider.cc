@@ -497,7 +497,7 @@ LayoutTestBluetoothAdapterProvider::GetHeartRateAndHIDAdapter() {
   uuids.push_back(BluetoothUUID(kHumanInterfaceDeviceServiceUUID));
 
   scoped_ptr<NiceMockBluetoothDevice> device(
-  GetConnectableDevice(adapter.get(), "Heart Rate And HID Device", uuids));
+      GetConnectableDevice(adapter.get(), "Heart Rate And HID Device", uuids));
 
   device->AddMockService(GetGenericAccessService(adapter.get(), device.get()));
   device->AddMockService(GetHeartRateService(adapter.get(), device.get()));
