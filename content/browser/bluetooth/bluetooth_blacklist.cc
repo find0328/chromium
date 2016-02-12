@@ -88,7 +88,7 @@ BluetoothBlacklist::BluetoothBlacklist() {
 void BluetoothBlacklist::PopulateWithDefaultValues() {
   blacklisted_uuids_.clear();
 
-  // Blacklist UUIDs updated 2016-01-30 from:
+  // Blacklist UUIDs updated 2016-02-12 from:
   // https://github.com/WebBluetoothCG/registries/blob/master/gatt_blacklist.txt
   // Short UUIDs are used for readability of this list.
   DCHECK(BluetoothUUID("00001800-0000-1000-8000-00805f9b34fb") ==
