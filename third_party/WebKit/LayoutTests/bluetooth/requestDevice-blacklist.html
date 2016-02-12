@@ -19,4 +19,27 @@ promise_test(() => {
     'Requesting blacklisted service rejects.');
 }, 'Reject with SecurityError if requesting a blacklisted service.');
 
+promise_test(() => {
+  testRunner.setBluetoothMockDataSet('HeartRateAndHIDAdapter');
+  return requestDeviceWithKeyDown({filters: [{services: ['heart_rate']}],
+                                   optionalServices: ['human_interface_device']})
+    .then(device => device.gatt.connect())
+    .then(gattServer => {
+      return assert_promise_rejects_with_message(
+        gattServer.getPrimaryService('human_interface_device'), new DOMException(
+          'Failed to execute \'getPrimaryService\' on ' +
+          '\'BluetoothGATTRemoteServer\': Invalid Service name: ' +
+          '\'wrong_name\'. ' +
+          'It must be a valid UUID alias (e.g. 0x1234), ' +
+          'UUID (lowercase hex characters e.g. ' +
+          '\'00001234-0000-1000-8000-00805f9b34fb\'), ' +
+          'or recognized standard name from ' +
+          'https://developer.bluetooth.org/gatt/services/Pages/ServicesHome.aspx' +
+          ' e.g. \'alert_notification\'.',
+          'SyntaxError'),
+        'Wrong Service name passed.');
+    });
+}, 'Blacklisted UUID in optionalServices is removed and access not granted.');
+
+
 </script>
