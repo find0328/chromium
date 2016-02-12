@@ -96,6 +96,8 @@ void BluetoothBlacklist::PopulateWithDefaultValues() {
   // ## Services
   AddOrDie(BluetoothUUID("1812"), Value::EXCLUDE);
   // ## Characteristics
+  AddOrDie(BluetoothUUID("2a02"), Value::EXCLUDE_WRITES);
+  AddOrDie(BluetoothUUID("2a03"), Value::EXCLUDE);
   AddOrDie(BluetoothUUID("2a25"), Value::EXCLUDE);
   // ## Descriptors
   AddOrDie(BluetoothUUID("2902"), Value::EXCLUDE_WRITES);
