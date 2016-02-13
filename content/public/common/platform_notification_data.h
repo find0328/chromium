@@ -27,6 +27,9 @@ struct CONTENT_EXPORT PlatformNotificationAction {
 
   // Title of the button.
   base::string16 title;
+
+  // URL of the icon for the button. May be empty if no url was specified.
+  GURL icon;
 };
 
 // Structure representing the information associated with a Web Notification.
@@ -73,6 +76,10 @@ struct CONTENT_EXPORT PlatformNotificationData {
 
   // The time at which the event the notification represents took place.
   base::Time timestamp;
+
+  // Whether default notification indicators (sound, vibration, light) should
+  // be played again if the notification is replacing an older notification.
+  bool renotify = false;
 
   // Whether default notification indicators (sound, vibration, light) should
   // be suppressed.

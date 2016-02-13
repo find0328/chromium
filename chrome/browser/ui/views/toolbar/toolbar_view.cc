@@ -488,7 +488,7 @@ void ToolbarView::Layout() {
     return;
 
   if (!is_display_mode_normal()) {
-    location_bar_->SetBounds(0, PopupTopSpacing(), width(),
+    location_bar_->SetBounds(0, 0, width(),
                              location_bar_->GetPreferredSize().height());
     return;
   }
@@ -687,13 +687,6 @@ void ToolbarView::UpdateBadgeSeverity(AppMenuBadgeController::BadgeType type,
   }
 }
 
-int ToolbarView::PopupTopSpacing() const {
-  const int kAdditionalPopupTopSpacingNonGlass = 2;
-  return views::NonClientFrameView::kClientEdgeThickness +
-      (GetWidget()->ShouldWindowContentsBeTransparent() ?
-          0 : kAdditionalPopupTopSpacingNonGlass);
-}
-
 gfx::Size ToolbarView::GetSizeInternal(
     gfx::Size (View::*get_size)() const) const {
   gfx::Size size((location_bar_->*get_size)());
@@ -735,16 +728,6 @@ gfx::Size ToolbarView::SizeForContentSize(gfx::Size size) const {
       size.SetToMax(
           gfx::Size(0, normal_background->height() - content_shadow_height()));
     }
-  } else if (size.height() == 0) {
-    // Location mode with a 0 height location bar. If on ash, expand by one
-    // pixel to show a border in the title bar, otherwise leave the size as zero
-    // height.
-    const int kAshBorderSpacing = 1;
-    if (browser_->host_desktop_type() == chrome::HOST_DESKTOP_TYPE_ASH)
-      size.Enlarge(0, kAshBorderSpacing);
-  } else {
-    size.Enlarge(
-        0, PopupTopSpacing() + views::NonClientFrameView::kClientEdgeThickness);
   }
   return size;
 }

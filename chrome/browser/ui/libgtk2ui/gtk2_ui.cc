@@ -538,10 +538,17 @@ gfx::Image Gtk2UI::GetThemeImageNamed(int id) const {
 }
 
 bool Gtk2UI::GetTint(int id, color_utils::HSL* tint) const {
-  // We don't set any tints and the default tints don't work so well so make
-  // sure this is never called by mistake. All colors that might make use of
-  // tint should have an entry in |colors_|.
-  NOTREACHED();
+  switch (id) {
+    case ThemeProperties::TINT_BACKGROUND_TAB:
+      // Tints for which the cross-platform default is fine. Before adding new
+      // values here, specifically verify they work well on Linux.
+      break;
+    default:
+      // Assume any tints not specifically verified on Linux aren't usable.
+      // TODO(pkasting): Try to remove values from |colors_| that could just be
+      // added to the group above instead.
+      NOTREACHED();
+  }
   return false;
 }
 
@@ -1101,15 +1108,9 @@ SkBitmap Gtk2UI::GenerateGtkThemeBitmap(int id) const {
       return bitmap;
     }
 
-    // TODO(erg): We list both the normal and *_DESKTOP versions of these
-    // images because in some contexts, we don't go through the
-    // chrome::MapThemeImage interface. That should be fixed, but tracking that
-    // down is Hard.
     case IDR_THEME_TAB_BACKGROUND:
-    case IDR_THEME_TAB_BACKGROUND_DESKTOP:
       return GenerateTabImage(IDR_THEME_FRAME);
     case IDR_THEME_TAB_BACKGROUND_INCOGNITO:
-    case IDR_THEME_TAB_BACKGROUND_INCOGNITO_DESKTOP:
       return GenerateTabImage(IDR_THEME_FRAME_INCOGNITO);
     case IDR_FRAME:
     case IDR_THEME_FRAME:

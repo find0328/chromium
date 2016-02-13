@@ -140,6 +140,8 @@
 #include "media/blink/webmediaplayer_impl.h"
 #include "media/renderers/gpu_video_accelerator_factories.h"
 #include "mojo/common/url_type_converters.h"
+#include "mojo/edk/js/core.h"
+#include "mojo/edk/js/support.h"
 #include "net/base/data_url.h"
 #include "net/base/net_errors.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
@@ -178,8 +180,6 @@
 #include "third_party/WebKit/public/web/WebSurroundingText.h"
 #include "third_party/WebKit/public/web/WebUserGestureIndicator.h"
 #include "third_party/WebKit/public/web/WebView.h"
-#include "third_party/mojo/src/mojo/edk/js/core.h"
-#include "third_party/mojo/src/mojo/edk/js/support.h"
 #include "url/url_util.h"
 
 #if defined(ENABLE_PLUGINS)
@@ -198,7 +198,6 @@
 #include <cpu-features.h>
 
 #include "content/common/gpu/client/context_provider_command_buffer.h"
-#include "content/renderer/android/synchronous_compositor_factory.h"
 #include "content/renderer/java/gin_java_bridge_dispatcher.h"
 #include "content/renderer/media/android/renderer_media_player_manager.h"
 #include "content/renderer/media/android/renderer_media_session_manager.h"
@@ -209,7 +208,6 @@
 #include "third_party/WebKit/public/platform/WebFloatPoint.h"
 #else
 #include "cc/blink/context_provider_web_context.h"
-#include "device/devices_app/public/cpp/constants.h"
 #endif
 
 #if defined(ENABLE_PEPPER_CDMS)
@@ -429,15 +427,30 @@ NOINLINE void MaybeTriggerAsanError(const GURL& url) {
 
   std::string crash_type(url.path());
   if (crash_type == kHeapOverflow) {
+    LOG(ERROR)
+        << "Intentionally causing ASAN heap overflow"
+        << " because user navigated to " << url.spec();
     base::debug::AsanHeapOverflow();
   } else if (crash_type == kHeapUnderflow) {
+    LOG(ERROR)
+        << "Intentionally causing ASAN heap underflow"
+        << " because user navigated to " << url.spec();
     base::debug::AsanHeapUnderflow();
   } else if (crash_type == kUseAfterFree) {
+    LOG(ERROR)
+        << "Intentionally causing ASAN heap use-after-free"
+        << " because user navigated to " << url.spec();
     base::debug::AsanHeapUseAfterFree();
 #if defined(SYZYASAN)
   } else if (crash_type == kCorruptHeapBlock) {
+    LOG(ERROR)
+        << "Intentionally causing ASAN corrupt heap block"
+        << " because user navigated to " << url.spec();
     base::debug::AsanCorruptHeapBlock();
   } else if (crash_type == kCorruptHeap) {
+    LOG(ERROR)
+        << "Intentionally causing ASAN corrupt heap"
+        << " because user navigated to " << url.spec();
     base::debug::AsanCorruptHeap();
 #endif
   }
@@ -448,8 +461,13 @@ void MaybeHandleDebugURL(const GURL& url) {
   if (!url.SchemeIs(kChromeUIScheme))
     return;
   if (url == GURL(kChromeUIBadCastCrashURL)) {
+    LOG(ERROR)
+        << "Intentionally crashing (with bad cast)"
+        << " because user navigated to " << url.spec();
     BadCastCrashIntentionally();
   } else if (url == GURL(kChromeUICrashURL)) {
+    LOG(ERROR) << "Intentionally crashing (with null pointer dereference)"
+               << " because user navigated to " << url.spec();
     CrashIntentionally();
   } else if (url == GURL(kChromeUIDumpURL)) {
     // This URL will only correctly create a crash dump file if content is
@@ -458,12 +476,18 @@ void MaybeHandleDebugURL(const GURL& url) {
     // of base::debug::DumpWithoutCrashing for more details.
     base::debug::DumpWithoutCrashing();
   } else if (url == GURL(kChromeUIKillURL)) {
+    LOG(ERROR) << "Intentionally issuing kill signal to current process"
+               << " because user navigated to " << url.spec();
     base::Process::Current().Terminate(1, false);
   } else if (url == GURL(kChromeUIHangURL)) {
+    LOG(ERROR) << "Intentionally hanging ourselves with sleep infinite loop"
+               << " because user navigated to " << url.spec();
     for (;;) {
       base::PlatformThread::Sleep(base::TimeDelta::FromSeconds(1));
     }
   } else if (url == GURL(kChromeUIShorthangURL)) {
+    LOG(ERROR) << "Intentionally sleeping renderer for 20 seconds"
+               << " because user navigated to " << url.spec();
     base::PlatformThread::Sleep(base::TimeDelta::FromSeconds(20));
   }
 
@@ -496,6 +520,7 @@ WebURLRequest CreateURLRequestForNavigation(
 
   RequestExtraData* extra_data = new RequestExtraData();
   extra_data->set_stream_override(std::move(stream_override));
+  extra_data->set_lofi_state(common_params.lofi_state);
   request.setExtraData(extra_data);
 
   // Set the ui timestamp for this navigation. Currently the timestamp here is
@@ -567,7 +592,7 @@ CommonNavigationParams MakeCommonNavigationParams(
   return CommonNavigationParams(
       request->url(), referrer, extra_data->transition_type(),
       FrameMsg_Navigate_Type::NORMAL, true, should_replace_current_entry,
-      ui_timestamp, report_type, GURL(), GURL(), LOFI_UNSPECIFIED,
+      ui_timestamp, report_type, GURL(), GURL(), extra_data->lofi_state(),
       base::TimeTicks::Now());
 }
 
@@ -1472,8 +1497,8 @@ void RenderFrameImpl::NavigateToSwappedOutURL() {
 }
 
 void RenderFrameImpl::BindServiceRegistry(
-    mojo::InterfaceRequest<mojo::ServiceProvider> services,
-    mojo::ServiceProviderPtr exposed_services) {
+    mojo::shell::mojom::InterfaceProviderRequest services,
+    mojo::shell::mojom::InterfaceProviderPtr exposed_services) {
   service_registry_.Bind(std::move(services));
   service_registry_.BindRemoteServiceProvider(std::move(exposed_services));
 }
@@ -2134,7 +2159,7 @@ void RenderFrameImpl::OnReloadLoFiImages() {
   GetWebFrame()->reloadLoFiImages();
 }
 
-void RenderFrameImpl::OnTextSurroundingSelectionRequest(size_t max_length) {
+void RenderFrameImpl::OnTextSurroundingSelectionRequest(uint32_t max_length) {
   blink::WebSurroundingText surroundingText;
   surroundingText.initialize(frame_->selectionRange(), max_length);
 
@@ -2347,7 +2372,7 @@ void RenderFrameImpl::SetSelectedText(const base::string16& selection_text,
   // Use the routing id of Render Widget Host.
   Send(new ViewHostMsg_SelectionChanged(GetRenderWidget()->routing_id(),
                                         selection_text,
-                                        offset,
+                                        static_cast<uint32_t>(offset),
                                         range));
 }
 
@@ -2355,15 +2380,14 @@ void RenderFrameImpl::EnsureMojoBuiltinsAreAvailable(
     v8::Isolate* isolate,
     v8::Local<v8::Context> context) {
   gin::ModuleRegistry* registry = gin::ModuleRegistry::From(context);
-  if (registry->available_modules().count(mojo::js::Core::kModuleName))
+  if (registry->available_modules().count(mojo::edk::js::Core::kModuleName))
     return;
 
   v8::HandleScope handle_scope(isolate);
-  registry->AddBuiltinModule(
-      isolate, mojo::js::Core::kModuleName, mojo::js::Core::GetModule(isolate));
-  registry->AddBuiltinModule(isolate,
-                             mojo::js::Support::kModuleName,
-                             mojo::js::Support::GetModule(isolate));
+  registry->AddBuiltinModule(isolate, mojo::edk::js::Core::kModuleName,
+                             mojo::edk::js::Core::GetModule(isolate));
+  registry->AddBuiltinModule(isolate, mojo::edk::js::Support::kModuleName,
+                             mojo::edk::js::Support::GetModule(isolate));
   registry->AddBuiltinModule(
       isolate,
       ServiceRegistryJsWrapper::kModuleName,
@@ -2825,7 +2849,7 @@ void RenderFrameImpl::didAddMessageToConsole(
     FOR_EACH_OBSERVER(RenderFrameObserver, observers_,
                       DetailedConsoleMessageAdded(
                           message.text, source_name, stack_trace, source_line,
-                          static_cast<int32_t>(log_severity)));
+                          static_cast<uint32_t>(log_severity)));
   }
 
   Send(new FrameHostMsg_AddMessageToConsole(
@@ -4338,7 +4362,8 @@ void RenderFrameImpl::unregisterProtocolHandler(const WebString& scheme,
 }
 
 blink::WebBluetooth* RenderFrameImpl::bluetooth() {
-  if (!bluetooth_) {
+  // ChildThreadImpl::current() is null in some tests.
+  if (!bluetooth_ && ChildThreadImpl::current()) {
     bluetooth_.reset(new WebBluetoothImpl(
         ChildThreadImpl::current()->thread_safe_sender(), routing_id_));
   }
@@ -5057,10 +5082,11 @@ void RenderFrameImpl::OnFind(int request_id,
   // Start searching in the focused frame.
   WebLocalFrame* search_frame = focused_frame;
 
-  bool multi_frame = (main_frame->traverseNext(true) != main_frame);
+  // Check for multiple searchable frames.
+  bool multi_frame = (main_frame->traverseNextLocal(true) != main_frame);
 
   // If we have multiple frames, we don't want to wrap the search within the
-  // frame, so we check here if we only have main_frame in the chain.
+  // frame, so we check here if we only have |main_frame| in the chain.
   bool wrap_within_frame = !multi_frame;
 
   WebRect selection_rect;
@@ -5083,10 +5109,9 @@ void RenderFrameImpl::OnFind(int request_id,
       do {
         // What is the next frame to search (we might be going backwards)? Note
         // that we specify wrap=true so that search_frame never becomes NULL.
-        search_frame =
-            options.forward
-                ? search_frame->traverseNext(true)->toWebLocalFrame()
-                : search_frame->traversePrevious(true)->toWebLocalFrame();
+        search_frame = options.forward
+                ? search_frame->traverseNextLocal(true)
+                : search_frame->traversePreviousLocal(true);
       } while (!search_frame->hasVisibleContent() &&
                search_frame != focused_frame);
 
@@ -5146,7 +5171,7 @@ void RenderFrameImpl::OnFind(int request_id,
 
       // Iterate to the next frame. The frame will not necessarily scope, for
       // example if it is not visible.
-      search_frame = search_frame->traverseNext(true)->toWebLocalFrame();
+      search_frame = search_frame->traverseNextLocal(true);
     } while (search_frame != main_frame);
   }
 }
@@ -5175,10 +5200,10 @@ void RenderFrameImpl::OnStopFinding(StopFindAction action) {
                                          GetFocusedElement());
   }
 
-  WebFrame* frame = GetWebFrame();
+  WebLocalFrame* frame = GetWebFrame();
   while (frame) {
-    frame->toWebLocalFrame()->stopFinding(clear_selection);
-    frame = frame->traverseNext(false);
+    frame->stopFinding(clear_selection);
+    frame = frame->traverseNextLocal(false);
   }
 
   if (action == STOP_FIND_ACTION_ACTIVATE_SELECTION) {
@@ -5930,23 +5955,15 @@ WebMediaPlayer* RenderFrameImpl::CreateAndroidWebMediaPlayer(
     WebMediaPlayerClient* client,
     WebMediaPlayerEncryptedMediaClient* encrypted_client,
     const media::WebMediaPlayerParams& params) {
-  scoped_refptr<StreamTextureFactory> stream_texture_factory;
-  bool enable_texture_copy = false;
-  if (SynchronousCompositorFactory* factory =
-          SynchronousCompositorFactory::GetInstance()) {
-    stream_texture_factory = factory->CreateStreamTextureFactory(routing_id_);
-  } else {
-    stream_texture_factory =
-        RenderThreadImpl::current()->GetStreamTexureFactory();
-    enable_texture_copy =
-        RenderThreadImpl::current()->sync_compositor_message_filter() !=
-        nullptr;
-    if (!stream_texture_factory.get()) {
-      LOG(ERROR) << "Failed to get stream texture factory!";
-      return NULL;
-    }
+  scoped_refptr<StreamTextureFactory> stream_texture_factory =
+      RenderThreadImpl::current()->GetStreamTexureFactory();
+  if (!stream_texture_factory.get()) {
+    LOG(ERROR) << "Failed to get stream texture factory!";
+    return NULL;
   }
 
+  bool enable_texture_copy =
+      RenderThreadImpl::current()->EnableStreamTextureCopy();
   return new WebMediaPlayerAndroid(frame_, client, encrypted_client,
                                    GetWebMediaPlayerDelegate()->AsWeakPtr(),
                                    GetMediaPlayerManager(), GetCdmFactory(),
@@ -5971,7 +5988,7 @@ RendererMediaSessionManager* RenderFrameImpl::GetMediaSessionManager() {
 media::MediaPermission* RenderFrameImpl::GetMediaPermission() {
   if (!media_permission_dispatcher_) {
     media_permission_dispatcher_.reset(new MediaPermissionDispatcher(
-        base::Bind(&RenderFrameImpl::ConnectToService<PermissionService>,
+        base::Bind(&RenderFrameImpl::GetInterface<PermissionService>,
                    base::Unretained(this))));
   }
   return media_permission_dispatcher_.get();
@@ -5980,9 +5997,9 @@ media::MediaPermission* RenderFrameImpl::GetMediaPermission() {
 #if defined(ENABLE_MOJO_MEDIA)
 media::interfaces::ServiceFactory* RenderFrameImpl::GetMediaServiceFactory() {
   if (!media_service_factory_) {
-    mojo::ServiceProviderPtr service_provider =
+    mojo::shell::mojom::InterfaceProviderPtr service_provider =
         ConnectToApplication(GURL("mojo:media"));
-    mojo::ConnectToService(service_provider.get(), &media_service_factory_);
+    mojo::GetInterface(service_provider.get(), &media_service_factory_);
     media_service_factory_.set_connection_error_handler(
         base::Bind(&RenderFrameImpl::OnMediaServiceFactoryConnectionError,
                    base::Unretained(this)));
@@ -6045,16 +6062,15 @@ void RenderFrameImpl::RegisterMojoServices() {
 }
 
 template <typename Interface>
-void RenderFrameImpl::ConnectToService(
-    mojo::InterfaceRequest<Interface> request) {
+void RenderFrameImpl::GetInterface(mojo::InterfaceRequest<Interface> request) {
   GetServiceRegistry()->ConnectToRemoteService(std::move(request));
 }
 
-mojo::ServiceProviderPtr RenderFrameImpl::ConnectToApplication(
+mojo::shell::mojom::InterfaceProviderPtr RenderFrameImpl::ConnectToApplication(
     const GURL& url) {
   if (!mojo_shell_)
     GetServiceRegistry()->ConnectToRemoteService(mojo::GetProxy(&mojo_shell_));
-  mojo::ServiceProviderPtr service_provider;
+  mojo::shell::mojom::InterfaceProviderPtr service_provider;
   mojo::URLRequestPtr request(mojo::URLRequest::New());
   request->url = mojo::String::From(url);
   mojo::shell::mojom::CapabilityFilterPtr filter(

@@ -64,7 +64,7 @@ namespace media {
 namespace {
 
 const char kOutputDeviceDefaultName[] = "default";
-const int kNumOutputChannels = 2;
+const int kDefaultNumOutputChannels = 2;
 
 const int kDefaultOutputBufferSizeFrames = 4096;
 const bool kPcmRecoverIsSilent = false;
@@ -205,6 +205,9 @@ StreamMixerAlsa::StreamMixerAlsa()
             switches::kAlsaOutputDevice);
   }
 
+  GetSwitchValueAsNonNegativeInt(switches::kAlsaNumOutputChannels,
+                                 kDefaultNumOutputChannels,
+                                 &num_output_channels_);
   DefineAlsaParameters();
 }
 
@@ -261,6 +264,7 @@ void StreamMixerAlsa::DefineAlsaParameters() {
 int StreamMixerAlsa::SetAlsaPlaybackParams() {
   int err = 0;
   // Set hardware parameters.
+  DCHECK(pcm_);
   DCHECK(!pcm_hw_params_);
   RETURN_ERROR_CODE(PcmHwParamsMalloc, &pcm_hw_params_);
   RETURN_ERROR_CODE(PcmHwParamsAny, pcm_, pcm_hw_params_);
@@ -285,13 +289,11 @@ int StreamMixerAlsa::SetAlsaPlaybackParams() {
 
   RETURN_ERROR_CODE(PcmHwParamsSetFormat, pcm_, pcm_hw_params_, pcm_format_);
   RETURN_ERROR_CODE(PcmHwParamsSetChannels, pcm_, pcm_hw_params_,
-                    kNumOutputChannels);
+                    num_output_channels_);
 
   // Set output rate, allow resampling with a warning if the device doesn't
   // support the rate natively.
-  RETURN_ERROR_CODE(PcmHwParamsSetRateResample,
-                    pcm_,
-                    pcm_hw_params_,
+  RETURN_ERROR_CODE(PcmHwParamsSetRateResample, pcm_, pcm_hw_params_,
                     false /* Don't allow resampling. */);
   unsigned int requested_rate =
       static_cast<unsigned int>(requested_output_samples_per_second_);
@@ -334,11 +336,8 @@ int StreamMixerAlsa::SetAlsaPlaybackParams() {
   }
   LOG_IF(ERROR, err != 0) << "Even the fallback sample rate isn't supported! "
                           << "Have you tried /bin/alsa_api_test on-device?";
-  RETURN_ERROR_CODE(PcmHwParamsSetRateNear,
-                    pcm_,
-                    pcm_hw_params_,
-                    &unsigned_output_samples_per_second,
-                    kAlsaDirDontCare);
+  RETURN_ERROR_CODE(PcmHwParamsSetRateNear, pcm_, pcm_hw_params_,
+                    &unsigned_output_samples_per_second, kAlsaDirDontCare);
   if (requested_rate != unsigned_output_samples_per_second) {
     LOG(ERROR) << "Requested sample rate (" << requested_rate
                << " Hz) does not match the actual sample rate ("
@@ -421,12 +420,16 @@ StreamMixerAlsa::~StreamMixerAlsa() {
 
 void StreamMixerAlsa::FinalizeOnMixerThread() {
   RUN_ON_MIXER_THREAD(&StreamMixerAlsa::FinalizeOnMixerThread);
-  retry_write_frames_timer_.reset();
-  check_close_timer_.reset();
-
   Stop();
   ClosePcm();
 
+  // Post a task to allow any pending input deletions to run.
+  POST_TASK_TO_MIXER_THREAD(&StreamMixerAlsa::FinishFinalize);
+}
+
+void StreamMixerAlsa::FinishFinalize() {
+  retry_write_frames_timer_.reset();
+  check_close_timer_.reset();
   inputs_.clear();
   ignored_inputs_.clear();
 }
@@ -434,8 +437,8 @@ void StreamMixerAlsa::FinalizeOnMixerThread() {
 void StreamMixerAlsa::Start() {
   DCHECK(mixer_task_runner_->BelongsToCurrentThread());
   if (!pcm_) {
-    RETURN_REPORT_ERROR(
-        PcmOpen, &pcm_, alsa_device_name_.c_str(), SND_PCM_STREAM_PLAYBACK, 0);
+    RETURN_REPORT_ERROR(PcmOpen, &pcm_, alsa_device_name_.c_str(),
+                        SND_PCM_STREAM_PLAYBACK, 0);
     LOG(INFO) << "snd_pcm_open: handle=" << pcm_;
   }
 
@@ -617,8 +620,7 @@ void StreamMixerAlsa::DeleteInputQueueInternal(InputQueue* input) {
 
   if (inputs_.empty()) {
     check_close_timer_->Start(
-        FROM_HERE,
-        base::TimeDelta::FromMilliseconds(check_close_timeout_),
+        FROM_HERE, base::TimeDelta::FromMilliseconds(check_close_timeout_),
         base::Bind(&StreamMixerAlsa::CheckClose, base::Unretained(this)));
   }
 }
@@ -632,11 +634,12 @@ void StreamMixerAlsa::CheckClose() {
 }
 
 void StreamMixerAlsa::OnFramesQueued() {
+  if (state_ != kStateNormalPlayback)
+    return;
   if (retry_write_frames_timer_->IsRunning())
     return;
   retry_write_frames_timer_->Start(
-      FROM_HERE,
-      base::TimeDelta(),
+      FROM_HERE, base::TimeDelta(),
       base::Bind(&StreamMixerAlsa::WriteFrames, base::Unretained(this)));
 }
 
@@ -644,8 +647,7 @@ void StreamMixerAlsa::WriteFrames() {
   retry_write_frames_timer_->Stop();
   if (TryWriteFrames()) {
     retry_write_frames_timer_->Start(
-        FROM_HERE,
-        base::TimeDelta(),
+        FROM_HERE, base::TimeDelta(),
         base::Bind(&StreamMixerAlsa::WriteFrames, base::Unretained(this)));
   }
 }
@@ -675,7 +677,7 @@ bool StreamMixerAlsa::TryWriteFrames() {
     // If we have no inputs, fill with silence to avoid underrun.
     chunk_size = kPreventUnderrunChunkSize;
     if (!mixed_ || mixed_->frames() < chunk_size)
-      mixed_ = ::media::AudioBus::Create(kNumOutputChannels, chunk_size);
+      mixed_ = ::media::AudioBus::Create(num_output_channels_, chunk_size);
     mixed_->Zero();
     WriteMixedPcm(*mixed_, chunk_size);
     return true;
@@ -683,21 +685,21 @@ bool StreamMixerAlsa::TryWriteFrames() {
 
   // If |mixed_| has not been allocated, or it is too small, allocate a buffer.
   if (!mixed_ || mixed_->frames() < chunk_size)
-    mixed_ = ::media::AudioBus::Create(kNumOutputChannels, chunk_size);
+    mixed_ = ::media::AudioBus::Create(num_output_channels_, chunk_size);
   // If |temp_| has not been allocated, or is too small, allocate a buffer.
   if (!temp_ || temp_->frames() < chunk_size)
-    temp_ = ::media::AudioBus::Create(kNumOutputChannels, chunk_size);
+    temp_ = ::media::AudioBus::Create(num_output_channels_, chunk_size);
 
   mixed_->ZeroFramesPartial(0, chunk_size);
 
   // Loop through active inputs, polling them for data, and mixing them.
   for (InputQueue* input : active_inputs) {
     input->GetResampledData(temp_.get(), chunk_size);
-    for (int c = 0; c < kNumOutputChannels; ++c) {
+    for (int c = 0; c < num_output_channels_; ++c) {
       float volume_scalar = input->volume_multiplier();
       DCHECK(volume_scalar >= 0.0 && volume_scalar <= 1.0) << volume_scalar;
-      ::media::vector_math::FMAC(
-          temp_->channel(c), volume_scalar, chunk_size, mixed_->channel(c));
+      ::media::vector_math::FMAC(temp_->channel(c), volume_scalar, chunk_size,
+                                 mixed_->channel(c));
     }
   }
 
@@ -714,9 +716,9 @@ void StreamMixerAlsa::WriteMixedPcm(const ::media::AudioBus& mixed,
   DCHECK(mixer_task_runner_->BelongsToCurrentThread());
   CHECK_PCM_INITIALIZED();
 
-  if (interleaved_.size() < static_cast<size_t>(frames * kNumOutputChannels) *
+  if (interleaved_.size() < static_cast<size_t>(frames * num_output_channels_) *
                                 BytesPerOutputFormatSample()) {
-    interleaved_.resize(frames * kNumOutputChannels *
+    interleaved_.resize(frames * num_output_channels_ *
                         BytesPerOutputFormatSample());
   }
   mixed.ToInterleaved(frames, BytesPerOutputFormatSample(), &interleaved_[0]);
@@ -731,12 +733,13 @@ void StreamMixerAlsa::WriteMixedPcm(const ::media::AudioBus& mixed,
   while (frames_left) {
     int frames_or_error;
     while ((frames_or_error = alsa_->PcmWritei(pcm_, data, frames_left)) < 0) {
-      RETURN_REPORT_ERROR(
-          PcmRecover, pcm_, frames_or_error, kPcmRecoverIsSilent);
+      RETURN_REPORT_ERROR(PcmRecover, pcm_, frames_or_error,
+                          kPcmRecoverIsSilent);
     }
     frames_left -= frames_or_error;
     DCHECK_GE(frames_left, 0);
-    data += frames_or_error * kNumOutputChannels * BytesPerOutputFormatSample();
+    data +=
+        frames_or_error * num_output_channels_ * BytesPerOutputFormatSample();
   }
   UpdateRenderingDelay(frames);
   for (InputQueue* input : inputs_)

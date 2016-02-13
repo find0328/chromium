@@ -56,6 +56,10 @@ struct WebPluginParams;
 struct WebURLError;
 }
 
+namespace cc {
+class ImageSerializationProcessor;
+}
+
 namespace media {
 class GpuVideoAcceleratorFactories;
 class MediaLog;
@@ -256,6 +260,9 @@ class CONTENT_EXPORT ContentRendererClient {
   virtual scoped_ptr<MediaStreamRendererFactory>
   CreateMediaStreamRendererFactory();
 
+  // Allows an embedder to provde a cc::ImageSerializationProcessor.
+  virtual cc::ImageSerializationProcessor* GetImageSerializationProcessor();
+
   // Gives the embedder a chance to register the key system(s) it supports by
   // populating |key_systems|.
   virtual void AddKeySystems(std::vector<media::KeySystemInfo>* key_systems);
@@ -320,6 +327,10 @@ class CONTENT_EXPORT ContentRendererClient {
   // Whether this renderer should enforce preferences related to the WebRTC
   // routing logic, i.e. allowing multiple routes and non-proxied UDP.
   virtual bool ShouldEnforceWebRTCRoutingPreferences();
+
+  // Returns the public key to be used for origin trials, or an empty string if
+  // origin trials are not enabled in this context.
+  virtual base::StringPiece GetOriginTrialPublicKey();
 };
 
 }  // namespace content

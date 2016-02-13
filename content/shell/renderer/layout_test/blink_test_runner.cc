@@ -170,26 +170,6 @@ class ProxyToRenderViewVisitor : public RenderViewVisitor {
   DISALLOW_COPY_AND_ASSIGN(ProxyToRenderViewVisitor);
 };
 
-class NavigateAwayVisitor : public RenderViewVisitor {
- public:
-  explicit NavigateAwayVisitor(RenderView* main_render_view)
-      : main_render_view_(main_render_view) {}
-  ~NavigateAwayVisitor() override {}
-
-  bool Visit(RenderView* render_view) override {
-    if (render_view == main_render_view_)
-      return true;
-    render_view->GetWebView()->mainFrame()->loadRequest(
-        WebURLRequest(GURL(url::kAboutBlankURL)));
-    return true;
-  }
-
- private:
-  RenderView* main_render_view_;
-
-  DISALLOW_COPY_AND_ASSIGN(NavigateAwayVisitor);
-};
-
 class UseSynchronousResizeModeVisitor : public RenderViewVisitor {
  public:
   explicit UseSynchronousResizeModeVisitor(bool enable) : enable_(enable) {}
@@ -517,6 +497,12 @@ void BlinkTestRunner::SimulateWebNotificationClick(const std::string& title,
                                                           action_index));
 }
 
+void BlinkTestRunner::SimulateWebNotificationClose(const std::string& title,
+                                                   bool by_user) {
+  Send(new LayoutTestHostMsg_SimulateWebNotificationClose(routing_id(), title,
+                                                          by_user));
+}
+
 void BlinkTestRunner::SetDeviceScaleFactor(float factor) {
   content::SetDeviceScaleFactor(render_view(), factor);
 }
@@ -640,8 +626,6 @@ void BlinkTestRunner::TestFinished() {
 }
 
 void BlinkTestRunner::CloseRemainingWindows() {
-  NavigateAwayVisitor visitor(render_view());
-  RenderView::ForEach(&visitor);
   Send(new ShellViewHostMsg_CloseRemainingWindows(routing_id()));
 }
 

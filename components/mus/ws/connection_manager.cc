@@ -17,7 +17,7 @@
 #include "mojo/converters/geometry/geometry_type_converters.h"
 #include "mojo/converters/input_events/input_events_type_converters.h"
 #include "mojo/converters/surfaces/surfaces_type_converters.h"
-#include "mojo/shell/public/cpp/application_connection.h"
+#include "mojo/shell/public/cpp/connection.h"
 #include "ui/gfx/geometry/size_conversions.h"
 
 namespace mus {
@@ -341,6 +341,13 @@ void ConnectionManager::ProcessClientAreaChanged(
     pair.second->service()->ProcessClientAreaChanged(
         window, new_client_area, new_additional_client_areas,
         IsOperationSource(pair.first));
+  }
+}
+
+void ConnectionManager::ProcessLostCapture(const ServerWindow* window) {
+  for (auto& pair : connection_map_) {
+    pair.second->service()->ProcessLostCapture(window,
+                                               IsOperationSource(pair.first));
   }
 }
 

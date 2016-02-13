@@ -133,6 +133,10 @@ const char kDisableFlashStage3d[]           = "disable-flash-stage3d";
 const char kDisableGestureRequirementForMediaPlayback[] =
     "disable-gesture-requirement-for-media-playback";
 
+// Disable user gesture requirement for presentation.
+const char kDisableGestureRequirementForPresentation[] =
+    "disable-gesture-requirement-for-presentation";
+
 // Disables GPU hardware acceleration.  If software renderer is not in place,
 // then the GPU process won't launch.
 const char kDisableGpu[]                    = "disable-gpu";
@@ -492,6 +496,10 @@ const char kEnableViewport[]                = "enable-viewport";
 // Enable the Vtune profiler support.
 const char kEnableVtune[]                   = "enable-vtune-support";
 
+// Enable WebFonts intervention and trigger the signal always.
+const char kEnableWebFontsInterventionTrigger[] =
+    "enable-webfonts-intervention-trigger";
+
 // Enables WebGL extensions not yet approved by the community.
 const char kEnableWebGLDraftExtensions[] = "enable-webgl-draft-extensions";
 
@@ -617,6 +625,9 @@ const char kMaxUntiledLayerWidth[]          = "max-untiled-layer-width";
 // Sample memory usage with high frequency and store the results to the
 // Renderer.Memory histogram. Used in memory tests.
 const char kMemoryMetrics[]                 = "memory-metrics";
+
+// Use a Mojo-based LocalStorage implementation.
+const char kMojoLocalStorage[]              = "mojo-local-storage";
 
 // Mutes audio sent to the audio device so it is not audible during
 // automated testing.

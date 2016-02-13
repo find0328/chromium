@@ -17,7 +17,6 @@
 #include "mojo/edk/embedder/embedder_internal.h"
 #include "mojo/edk/embedder/platform_channel_pair.h"
 #include "mojo/edk/embedder/process_delegate.h"
-#include "mojo/edk/embedder/simple_platform_support.h"
 #include "mojo/edk/system/core.h"
 
 namespace mojo {
@@ -29,7 +28,6 @@ class PlatformSupport;
 namespace internal {
 
 Core* g_core;
-PlatformSupport* g_platform_support;
 ProcessDelegate* g_process_delegate;
 
 Core* GetCore() { return g_core; }
@@ -37,12 +35,6 @@ Core* GetCore() { return g_core; }
 }  // namespace internal
 
 void SetMaxMessageSize(size_t bytes) {
-}
-
-void PreInitializeParentProcess() {
-}
-
-void PreInitializeChildProcess() {
 }
 
 ScopedPlatformHandle ChildProcessLaunched(base::ProcessHandle child_process) {
@@ -64,7 +56,6 @@ void SetParentPipeHandle(ScopedPlatformHandle pipe) {
 
 void Init() {
   internal::g_core = new Core();
-  internal::g_platform_support = new SimplePlatformSupport();
 }
 
 MojoResult AsyncWait(MojoHandle handle,
@@ -87,6 +78,15 @@ MojoResult PassWrappedPlatformHandle(MojoHandle platform_handle_wrapper_handle,
       platform_handle_wrapper_handle, platform_handle);
 }
 
+MojoResult CreateSharedBufferWrapper(
+    base::SharedMemoryHandle shared_memory_handle,
+    size_t num_bytes,
+    bool read_only,
+    MojoHandle* mojo_wrapper_handle) {
+  return internal::g_core->CreateSharedBufferWrapper(
+      shared_memory_handle, num_bytes, read_only, mojo_wrapper_handle);
+}
+
 void InitIPCSupport(ProcessDelegate* process_delegate,
                     scoped_refptr<base::TaskRunner> io_thread_task_runner) {
   CHECK(internal::g_core);
@@ -107,29 +107,18 @@ void ShutdownIPCSupport() {
 
 ScopedMessagePipeHandle CreateMessagePipe(
     ScopedPlatformHandle platform_handle) {
-  NOTREACHED();
-  return ScopedMessagePipeHandle();
+  DCHECK(internal::g_core);
+  return internal::g_core->CreateMessagePipe(std::move(platform_handle));
 }
 
-void CreateMessagePipe(
-    ScopedPlatformHandle platform_handle,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
+ScopedMessagePipeHandle CreateParentMessagePipe(const std::string& token) {
   DCHECK(internal::g_core);
-  internal::g_core->CreateMessagePipe(std::move(platform_handle), callback);
+  return internal::g_core->CreateParentMessagePipe(token);
 }
 
-void CreateParentMessagePipe(
-    const std::string& token,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
+ScopedMessagePipeHandle CreateChildMessagePipe(const std::string& token) {
   DCHECK(internal::g_core);
-  internal::g_core->CreateParentMessagePipe(token, callback);
-}
-
-void CreateChildMessagePipe(
-    const std::string& token,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
-  DCHECK(internal::g_core);
-  internal::g_core->CreateChildMessagePipe(token, callback);
+  return internal::g_core->CreateChildMessagePipe(token);
 }
 
 std::string GenerateRandomToken() {

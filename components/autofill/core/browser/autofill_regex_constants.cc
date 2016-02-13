@@ -29,7 +29,7 @@ const char kCompanyRe[] =
     "|单位|公司"  // zh-CN
     "|회사|직장";  // ko-KR
 const char kAddressLine1Re[] =
-    "^address$|address.*line|address1|addr1|street"
+    "^address$|address[_-]?line(one)?|address1|addr1|street"
     "|(?:shipping|billing)address$"
     "|strasse|straße|hausnummer|housenumber"  // de-DE
     "|house.?name"  // en-GB
@@ -49,7 +49,7 @@ const char kAddressLine1LabelRe[] =
     "|地址"  // zh-CN
     "|주소";  // ko-KR
 const char kAddressLine2Re[] =
-    "address.*line2|address2|addr2|street|suite|unit"
+    "address[_-]?line(2|two)|address2|addr2|street|suite|unit"
     "|adresszusatz|ergänzende.?angaben"  // de-DE
     "|direccion2|colonia|adicional"  // es
     "|addresssuppl|complementnom|appartement"  // fr-FR
@@ -137,7 +137,7 @@ const char kNameOnCardRe[] =
 const char kNameOnCardContextualRe[] =
     "name";
 const char kCardNumberRe[] =
-    "(?:card|cc|acct).?(?:number|#|no|num)"
+    "(add)?(?:card|cc|acct).?(?:number|#|no|num|field)"
     "|nummer"  // de-DE
     "|credito|numero|número"  // es
     "|numéro"  // fr-FR
@@ -148,7 +148,7 @@ const char kCardNumberRe[] =
     "|카드";  // ko-KR
 const char kCardCvcRe[] =
     "verification|card.?identification|security.?code|card.?code"
-    "|cvn|cvv|cvc|csc|cvd|cid|ccv"
+    "|(cvn|cvv|cvc|csc|cvd|cid|ccv)(field)?"
     "|\\bcid\\b";
 
 // "Expiration date" is the most common label here, but some pages have
@@ -164,7 +164,7 @@ const char kCardCvcRe[] =
 //   https://rps.fidelity.com/ftgw/rps/RtlCust/CreatePIN/Init.
 // Instead, we match only words beginning with "month".
 const char kExpirationMonthRe[] =
-    "expir|exp.*mo|exp.*date|ccmonth|cardmonth"
+    "expir|exp.*mo|exp.*date|ccmonth|cardmonth|addmonth"
     "|gueltig|gültig|monat"  // de-DE
     "|fecha"  // es
     "|date.*exp"  // fr-FR
@@ -174,7 +174,7 @@ const char kExpirationMonthRe[] =
     "|Срок действия карты"  // ru
     "|月";  // zh-CN
 const char kExpirationYearRe[] =
-    "exp|^/|year"
+    "exp|^/|(add)?year"
     "|ablaufdatum|gueltig|gültig|jahr"  // de-DE
     "|fecha"  // es
     "|scadenza"  // it-IT
@@ -189,7 +189,7 @@ const char kExpirationDate2DigitYearRe[] =
 const char kExpirationDate4DigitYearRe[] =
     "^mm\\s*[-/]\\syyyy$";
 const char kExpirationDateRe[] =
-    "expir|exp.*date"
+    "expir|exp.*date|^expfield$"
     "|gueltig|gültig"  // de-DE
     "|fecha"  // es
     "|date.*exp"  // fr-FR

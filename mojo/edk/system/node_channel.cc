@@ -25,9 +25,11 @@ T Align(T t) {
 enum class MessageType : uint32_t {
   ACCEPT_CHILD,
   ACCEPT_PARENT,
+  ADD_BROKER_CLIENT,
+  BROKER_CLIENT_ADDED,
+  ACCEPT_BROKER_CLIENT,
   PORTS_MESSAGE,
-  REQUEST_PORT_CONNECTION,
-  CONNECT_TO_PORT,
+  REQUEST_PORT_MERGE,
   REQUEST_INTRODUCTION,
   INTRODUCE,
 #if defined(OS_WIN)
@@ -53,22 +55,34 @@ struct AcceptParentData {
   ports::NodeName child_name;
 };
 
-// This is followed by arbitrary payload data which is interpreted as a token
-// string for port location.
-struct RequestPortConnectionData {
-  ports::PortName connector_port_name;
+// This message may include a process handle on plaforms that require it.
+struct AddBrokerClientData {
+  ports::NodeName client_name;
 };
 
-struct ConnectToPortData {
+// This data is followed by a platform channel handle to the broker.
+struct BrokerClientAddedData {
+  ports::NodeName client_name;
+};
+
+// This data may be followed by a platform channel handle to the broker. If not,
+// then the parent is the broker and its channel should be used as such.
+struct AcceptBrokerClientData {
+  ports::NodeName broker_name;
+};
+
+// This is followed by arbitrary payload data which is interpreted as a token
+// string for port location.
+struct RequestPortMergeData {
   ports::PortName connector_port_name;
-  ports::PortName connectee_port_name;
 };
 
 // Used for both REQUEST_INTRODUCTION and INTRODUCE.
 //
-// For INTRODUCE the message must also include a platform handle the recipient
-// can use to communicate with the named node. If said handle is omitted, the
-// peer cannot be introduced.
+// For INTRODUCE the message also includes a valid platform handle for a channel
+// the receiver may use to communicate with the named node directly, or an
+// invalid platform handle if the node is unknown to the sender or otherwise
+// cannot be introduced.
 struct IntroductionData {
   ports::NodeName name;
 };
@@ -148,6 +162,33 @@ void NodeChannel::SetRemoteProcessHandle(base::ProcessHandle process_handle) {
 #endif
 }
 
+bool NodeChannel::HasRemoteProcessHandle() {
+#if defined(OS_WIN)
+  base::AutoLock lock(remote_process_handle_lock_);
+  return remote_process_handle_ != base::kNullProcessHandle;
+#else
+  return false;
+#endif
+}
+
+ScopedPlatformHandle NodeChannel::CopyRemoteProcessHandle() {
+#if defined(OS_WIN)
+  base::AutoLock lock(remote_process_handle_lock_);
+  if (remote_process_handle_ != base::kNullProcessHandle) {
+    // Privileged nodes use this to pass their childrens' process handles to the
+    // broker on launch.
+    HANDLE handle = remote_process_handle_;
+    BOOL result = DuplicateHandle(
+        base::GetCurrentProcessHandle(), remote_process_handle_,
+        base::GetCurrentProcessHandle(), &handle, 0, FALSE,
+        DUPLICATE_SAME_ACCESS);
+    DCHECK(result);
+    return ScopedPlatformHandle(PlatformHandle(handle));
+  }
+#endif
+  return ScopedPlatformHandle();
+}
+
 void NodeChannel::SetRemoteNodeName(const ports::NodeName& name) {
   DCHECK(io_task_runner_->RunsTasksOnCurrentThread());
   remote_node_name_ = name;
@@ -173,29 +214,61 @@ void NodeChannel::AcceptParent(const ports::NodeName& token,
   WriteChannelMessage(std::move(message));
 }
 
+void NodeChannel::AddBrokerClient(const ports::NodeName& client_name,
+                                  ScopedPlatformHandle process_handle) {
+  AddBrokerClientData* data;
+  ScopedPlatformHandleVectorPtr handles(new PlatformHandleVector());
+#if defined(OS_WIN)
+  handles->push_back(process_handle.release());
+#endif
+  Channel::MessagePtr message = CreateMessage(
+      MessageType::ADD_BROKER_CLIENT, sizeof(AddBrokerClientData),
+      handles->size(), &data);
+  message->SetHandles(std::move(handles));
+  data->client_name = client_name;
+  WriteChannelMessage(std::move(message));
+}
+
+void NodeChannel::BrokerClientAdded(const ports::NodeName& client_name,
+                                    ScopedPlatformHandle broker_channel) {
+  BrokerClientAddedData* data;
+  ScopedPlatformHandleVectorPtr handles(new PlatformHandleVector());
+  if (broker_channel.is_valid())
+    handles->push_back(broker_channel.release());
+  Channel::MessagePtr message = CreateMessage(
+      MessageType::BROKER_CLIENT_ADDED, sizeof(BrokerClientAddedData),
+      handles->size(), &data);
+  message->SetHandles(std::move(handles));
+  data->client_name = client_name;
+  WriteChannelMessage(std::move(message));
+}
+
+void NodeChannel::AcceptBrokerClient(const ports::NodeName& broker_name,
+                                     ScopedPlatformHandle broker_channel) {
+  AcceptBrokerClientData* data;
+  ScopedPlatformHandleVectorPtr handles(new PlatformHandleVector());
+  if (broker_channel.is_valid())
+    handles->push_back(broker_channel.release());
+  Channel::MessagePtr message = CreateMessage(
+      MessageType::ACCEPT_BROKER_CLIENT, sizeof(AcceptBrokerClientData),
+      handles->size(), &data);
+  message->SetHandles(std::move(handles));
+  data->broker_name = broker_name;
+  WriteChannelMessage(std::move(message));
+}
+
 void NodeChannel::PortsMessage(Channel::MessagePtr message) {
   WriteChannelMessage(std::move(message));
 }
 
-void NodeChannel::RequestPortConnection(
-    const ports::PortName& connector_port_name,
-    const std::string& token) {
-  RequestPortConnectionData* data;
+void NodeChannel::RequestPortMerge(const ports::PortName& connector_port_name,
+                                   const std::string& token) {
+  RequestPortMergeData* data;
   Channel::MessagePtr message = CreateMessage(
-      MessageType::REQUEST_PORT_CONNECTION,
-      sizeof(RequestPortConnectionData) + token.size(), 0, &data);
+      MessageType::REQUEST_PORT_MERGE,
+      sizeof(RequestPortMergeData) + token.size(), 0, &data);
   data->connector_port_name = connector_port_name;
   memcpy(data + 1, token.data(), token.size());
-  WriteChannelMessage(std::move(message));
-}
-
-void NodeChannel::ConnectToPort(const ports::PortName& connector_port_name,
-                                const ports::PortName& connectee_port_name) {
-  ConnectToPortData* data;
-  Channel::MessagePtr message = CreateMessage(
-      MessageType::CONNECT_TO_PORT, sizeof(ConnectToPortData), 0, &data);
-  data->connector_port_name = connector_port_name;
-  data->connectee_port_name = connectee_port_name;
   WriteChannelMessage(std::move(message));
 }
 
@@ -208,15 +281,13 @@ void NodeChannel::RequestIntroduction(const ports::NodeName& name) {
 }
 
 void NodeChannel::Introduce(const ports::NodeName& name,
-                            ScopedPlatformHandle handle) {
+                            ScopedPlatformHandle channel_handle) {
   IntroductionData* data;
-  ScopedPlatformHandleVectorPtr handles;
-  if (handle.is_valid()) {
-    handles.reset(new PlatformHandleVector(1));
-    handles->at(0) = handle.release();
-  }
+  ScopedPlatformHandleVectorPtr handles(new PlatformHandleVector());
+  if (channel_handle.is_valid())
+    handles->push_back(channel_handle.release());
   Channel::MessagePtr message = CreateMessage(
-      MessageType::INTRODUCE, sizeof(IntroductionData), handles ? 1 : 0, &data);
+      MessageType::INTRODUCE, sizeof(IntroductionData), handles->size(), &data);
   message->SetHandles(std::move(handles));
   data->name = name;
   WriteChannelMessage(std::move(message));
@@ -266,6 +337,22 @@ void NodeChannel::OnChannelMessage(const void* payload,
                                    ScopedPlatformHandleVectorPtr handles) {
   DCHECK(io_task_runner_->RunsTasksOnCurrentThread());
 
+#if defined(OS_WIN)
+  // If we receive handles from a known process, rewrite them to our own
+  // process. This can occur when a privileged node receives handles directly
+  // from a privileged descendant.
+  {
+    base::AutoLock lock(remote_process_handle_lock_);
+    if (handles && remote_process_handle_ != base::kNullProcessHandle) {
+      if (!Channel::Message::RewriteHandles(remote_process_handle_,
+                                            base::GetCurrentProcessHandle(),
+                                            handles->data(), handles->size())) {
+        DLOG(ERROR) << "Received one or more invalid handles.";
+      }
+    }
+  }
+#endif
+
   const Header* header = static_cast<const Header*>(payload);
   switch (header->type) {
     case MessageType::ACCEPT_CHILD: {
@@ -284,6 +371,60 @@ void NodeChannel::OnChannelMessage(const void* payload,
       break;
     }
 
+    case MessageType::ADD_BROKER_CLIENT: {
+      const AddBrokerClientData* data;
+      GetMessagePayload(payload, &data);
+      ScopedPlatformHandle process_handle;
+#if defined(OS_WIN)
+      if (!handles || handles->size() != 1) {
+        DLOG(ERROR) << "Dropping invalid AddBrokerClient message.";
+        break;
+      }
+      process_handle = ScopedPlatformHandle(handles->at(0));
+      handles->clear();
+#else
+      if (handles && handles->size() != 0) {
+        DLOG(ERROR) << "Dropping invalid AddBrokerClient message.";
+        break;
+      }
+#endif
+      delegate_->OnAddBrokerClient(remote_node_name_, data->client_name,
+                                   std::move(process_handle));
+      break;
+    }
+
+    case MessageType::BROKER_CLIENT_ADDED: {
+      const BrokerClientAddedData* data;
+      GetMessagePayload(payload, &data);
+      ScopedPlatformHandle broker_channel;
+      if (!handles || handles->size() != 1) {
+        DLOG(ERROR) << "Dropping invalid BrokerClientAdded message.";
+        break;
+      }
+      broker_channel = ScopedPlatformHandle(handles->at(0));
+      handles->clear();
+      delegate_->OnBrokerClientAdded(remote_node_name_, data->client_name,
+                                     std::move(broker_channel));
+      break;
+    }
+
+    case MessageType::ACCEPT_BROKER_CLIENT: {
+      const AcceptBrokerClientData* data;
+      GetMessagePayload(payload, &data);
+      ScopedPlatformHandle broker_channel;
+      if (handles && handles->size() > 1) {
+        DLOG(ERROR) << "Dropping invalid AcceptBrokerClient message.";
+        break;
+      }
+      if (handles && handles->size() == 1) {
+        broker_channel = ScopedPlatformHandle(handles->at(0));
+        handles->clear();
+      }
+      delegate_->OnAcceptBrokerClient(remote_node_name_, data->broker_name,
+                                      std::move(broker_channel));
+      break;
+    }
+
     case MessageType::PORTS_MESSAGE: {
       size_t num_handles = handles ? handles->size() : 0;
       Channel::MessagePtr message(
@@ -294,24 +435,16 @@ void NodeChannel::OnChannelMessage(const void* payload,
       break;
     }
 
-    case MessageType::REQUEST_PORT_CONNECTION: {
-      const RequestPortConnectionData* data;
+    case MessageType::REQUEST_PORT_MERGE: {
+      const RequestPortMergeData* data;
       GetMessagePayload(payload, &data);
 
       const char* token_data = reinterpret_cast<const char*>(data + 1);
       const size_t token_size = payload_size - sizeof(*data) - sizeof(Header);
       std::string token(token_data, token_size);
 
-      delegate_->OnRequestPortConnection(remote_node_name_,
-                                         data->connector_port_name, token);
-      break;
-    }
-
-    case MessageType::CONNECT_TO_PORT: {
-      const ConnectToPortData* data;
-      GetMessagePayload(payload, &data);
-      delegate_->OnConnectToPort(remote_node_name_, data->connector_port_name,
-                                 data->connectee_port_name);
+      delegate_->OnRequestPortMerge(remote_node_name_,
+                                    data->connector_port_name, token);
       break;
     }
 
@@ -325,12 +458,17 @@ void NodeChannel::OnChannelMessage(const void* payload,
     case MessageType::INTRODUCE: {
       const IntroductionData* data;
       GetMessagePayload(payload, &data);
-      ScopedPlatformHandle handle;
-      if (handles && !handles->empty()) {
-        handle = ScopedPlatformHandle(handles->at(0));
+      if (handles && handles->size() > 1) {
+        DLOG(ERROR) << "Dropping invalid introduction message.";
+        break;
+      }
+      ScopedPlatformHandle channel_handle;
+      if (handles && handles->size() == 1) {
+        channel_handle = ScopedPlatformHandle(handles->at(0));
         handles->clear();
       }
-      delegate_->OnIntroduce(remote_node_name_, data->name, std::move(handle));
+      delegate_->OnIntroduce(remote_node_name_, data->name,
+                             std::move(channel_handle));
       break;
     }
 
@@ -378,10 +516,11 @@ void NodeChannel::OnChannelError() {
 
 void NodeChannel::WriteChannelMessage(Channel::MessagePtr message) {
 #if defined(OS_WIN)
-  // Map handles to the destination process. Note: only messages from the parent
-  // node should contain handles on Windows. If a child node needs to send
-  // handles, it should do so via RelayPortsMessage, which stashes the handles
-  // in the message in such a way that they go undetected here.
+  // Map handles to the destination process. Note: only messages from a
+  // privileged node should contain handles on Windows. If an unprivileged
+  // node needs to send handles, it should do so via RelayPortsMessage which
+  // stashes the handles in the message in such a way that they go undetected
+  // here (they'll be unpacked and duplicated by a privileged parent.)
 
   if (message->has_handles()) {
     base::ProcessHandle remote_process_handle;
@@ -390,17 +529,12 @@ void NodeChannel::WriteChannelMessage(Channel::MessagePtr message) {
       remote_process_handle = remote_process_handle_;
     }
 
-    if (remote_process_handle == base::kNullProcessHandle) {
-      DLOG(ERROR) << "Sending a message with handles as a non-parent. "
-                  << "This is most likely broken.";
-    } else {
-      for (size_t i = 0; i < message->num_handles(); ++i) {
-        BOOL result = DuplicateHandle(
-            base::GetCurrentProcessHandle(), message->handles()[i].handle,
-            remote_process_handle,
-            reinterpret_cast<HANDLE*>(message->handles() + i), 0, FALSE,
-            DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-        DCHECK(result);
+    // Rewrite outgoing handles if we have a handle to the destination process.
+    if (remote_process_handle != base::kNullProcessHandle) {
+      if (!message->RewriteHandles(base::GetCurrentProcessHandle(),
+                                   remote_process_handle, message->handles(),
+                                   message->num_handles())) {
+        DLOG(ERROR) << "Failed to duplicate one or more outgoing handles.";
       }
     }
   }

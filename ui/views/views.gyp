@@ -374,8 +374,6 @@
       'bubble/tray_bubble_view.cc',
       'bubble/tray_bubble_view.h',
       'controls/menu/display_change_listener_aura.cc',
-      'controls/menu/menu_event_dispatcher.cc',
-      'controls/menu/menu_event_dispatcher.h',
       'controls/menu/menu_key_event_handler.cc',
       'controls/menu/menu_key_event_handler.h',
       'controls/menu/menu_message_loop_aura.cc',
@@ -582,6 +580,8 @@
       'layout/grid_layout_unittest.cc',
       'rect_based_targeting_utils_unittest.cc',
       'run_all_unittests.cc',
+      'run_all_unittests.h',
+      'run_all_unittests_main.cc',
       'style/mac/dialog_button_border_mac_unittest.cc',
       'view_model_unittest.cc',
       'view_model_utils_unittest.cc',
@@ -663,7 +663,7 @@
         '<@(views_sources)',
       ],
       'conditions': [
-        ['use_ash==0', {
+        ['use_aura==0', {
           'sources!': [
             'bubble/tray_bubble_view.cc',
             'bubble/tray_bubble_view.h',
@@ -953,6 +953,8 @@
           'sources': [
             'cocoa/bridged_native_widget_interactive_uitest.mm',
             'run_all_unittests.cc',
+            'run_all_unittests.h',
+            'run_all_unittests_main.cc',
             'widget/native_widget_mac_interactive_uitest.mm',
           ],
           'conditions': [

@@ -49,7 +49,8 @@ ContentLayerDelegate::~ContentLayerDelegate()
 {
 }
 
-static void paintArtifactToWebDisplayItemList(WebDisplayItemList* list, const PaintArtifact& artifact, const gfx::Rect& bounds)
+static void paintArtifactToWebDisplayItemList(WebDisplayItemList* list, const GraphicsLayer* graphicsLayer,
+    const PaintArtifact& artifact, const gfx::Rect& bounds)
 {
     if (RuntimeEnabledFeatures::slimmingPaintV2Enabled()) {
         // This is a temporary path to paint the artifact using the paint chunk
@@ -61,7 +62,7 @@ static void paintArtifactToWebDisplayItemList(WebDisplayItemList* list, const Pa
         list->appendDrawingItem(WebRect(bounds.x(), bounds.y(), bounds.width(), bounds.height()), picture.get());
         return;
     }
-    artifact.appendToWebDisplayItemList(list);
+    artifact.appendToWebDisplayItemList(list, graphicsLayer);
 }
 
 gfx::Rect ContentLayerDelegate::paintableRegion()
@@ -84,6 +85,7 @@ void ContentLayerDelegate::paintContents(
     // We also disable caching when Painting or Construction are disabled. In both cases we would like
     // to compare assuming the full cost of recording, not the cost of re-using cached content.
     if (paintingControl != WebContentLayerClient::PaintDefaultBehavior
+        && paintingControl != WebContentLayerClient::PaintDefaultBehaviorForTest
         && paintingControl != WebContentLayerClient::SubsequenceCachingDisabled)
         paintController.invalidateAll();
 
@@ -92,8 +94,14 @@ void ContentLayerDelegate::paintContents(
         || paintingControl == WebContentLayerClient::DisplayListConstructionDisabled)
         disabledMode = GraphicsContext::FullyDisabled;
 
-    m_graphicsLayer->paint(nullptr, disabledMode);
-    paintArtifactToWebDisplayItemList(webDisplayItemList, paintController.paintArtifact(), paintableRegion());
+    // Anything other than PaintDefaultBehavior is for testing. In non-testing scenarios,
+    // it is an error to call GraphicsLayer::paint. Actual painting occurs in FrameView::synchronizedPaint;
+    // this method merely copies the painted output to the WebDisplayItemList.
+    if (paintingControl != PaintDefaultBehavior)
+        m_graphicsLayer->paint(nullptr, disabledMode);
+
+    paintArtifactToWebDisplayItemList(webDisplayItemList, m_graphicsLayer, paintController.paintArtifact(), paintableRegion());
+
     paintController.setDisplayItemConstructionIsDisabled(false);
     paintController.setSubsequenceCachingIsDisabled(false);
 }

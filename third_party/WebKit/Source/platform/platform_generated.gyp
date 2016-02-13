@@ -52,6 +52,11 @@
       'target_name': 'make_platform_generated',
       'type': 'none',
       'hard_dependency': 1,
+      'dependencies': [
+        'inspector_protocol/protocol.gyp:protocol_sources',
+        'v8_inspector/v8_inspector.gyp:inspector_debugger_script',
+        'v8_inspector/v8_inspector.gyp:inspector_injected_script',
+      ],
       'conditions': [
         ['generate_character_data==1', {
           'dependencies': [

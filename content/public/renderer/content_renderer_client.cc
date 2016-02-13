@@ -176,6 +176,11 @@ ContentRendererClient::CreateMediaStreamRendererFactory() {
   return nullptr;
 }
 
+cc::ImageSerializationProcessor*
+ContentRendererClient::GetImageSerializationProcessor() {
+  return nullptr;
+}
+
 bool ContentRendererClient::ShouldReportDetailedMessageForSource(
     const base::string16& source) const {
   return false;
@@ -218,6 +223,10 @@ ContentRendererClient::CreateAppBannerClient(RenderFrame* render_frame) {
 
 bool ContentRendererClient::ShouldEnforceWebRTCRoutingPreferences() {
   return true;
+}
+
+base::StringPiece ContentRendererClient::GetOriginTrialPublicKey() {
+  return base::StringPiece();
 }
 
 }  // namespace content

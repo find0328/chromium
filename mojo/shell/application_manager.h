@@ -12,19 +12,19 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "mojo/common/weak_interface_ptr_set.h"
 #include "mojo/public/cpp/bindings/interface_ptr_info.h"
 #include "mojo/public/cpp/bindings/interface_request.h"
+#include "mojo/public/cpp/bindings/weak_interface_ptr_set.h"
 #include "mojo/shell/application_loader.h"
 #include "mojo/shell/capability_filter.h"
 #include "mojo/shell/connect_to_application_params.h"
 #include "mojo/shell/fetcher.h"
 #include "mojo/shell/identity.h"
 #include "mojo/shell/native_runner.h"
-#include "mojo/shell/public/interfaces/application.mojom.h"
 #include "mojo/shell/public/interfaces/application_manager.mojom.h"
-#include "mojo/shell/public/interfaces/service_provider.mojom.h"
+#include "mojo/shell/public/interfaces/interface_provider.mojom.h"
 #include "mojo/shell/public/interfaces/shell.mojom.h"
+#include "mojo/shell/public/interfaces/shell_client.mojom.h"
 #include "url/gurl.h"
 
 namespace base {
@@ -114,10 +114,10 @@ class ApplicationManager {
   bool ConnectToRunningApplication(
       scoped_ptr<ConnectToApplicationParams>* params);
 
-  InterfaceRequest<mojom::Application> CreateAndConnectToInstance(
+  InterfaceRequest<mojom::ShellClient> CreateAndConnectToInstance(
       scoped_ptr<ConnectToApplicationParams> params,
       ApplicationInstance** instance);
-  InterfaceRequest<mojom::Application> CreateInstance(
+  InterfaceRequest<mojom::ShellClient> CreateInstance(
       const Identity& target_id,
       const base::Closure& on_application_end,
       ApplicationInstance** resulting_instance);
@@ -128,13 +128,12 @@ class ApplicationManager {
   void HandleFetchCallback(scoped_ptr<ConnectToApplicationParams> params,
                            scoped_ptr<Fetcher> fetcher);
 
-  void RunNativeApplication(
-      InterfaceRequest<mojom::Application> application_request,
-      bool start_sandboxed,
-      scoped_ptr<Fetcher> fetcher,
-      ApplicationInstance* instance,
-      const base::FilePath& file_path,
-      bool path_exists);
+  void RunNativeApplication(InterfaceRequest<mojom::ShellClient> request,
+                            bool start_sandboxed,
+                            scoped_ptr<Fetcher> fetcher,
+                            ApplicationInstance* instance,
+                            const base::FilePath& file_path,
+                            bool path_exists);
 
   // Returns the appropriate loader for |url|, or the default loader if there is
   // no loader configured for the URL.

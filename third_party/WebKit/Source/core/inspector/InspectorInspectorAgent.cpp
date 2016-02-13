@@ -32,11 +32,8 @@
 
 #include "bindings/core/v8/DOMWrapperWorld.h"
 #include "bindings/core/v8/ScriptController.h"
-#include "core/InspectorFrontend.h"
 #include "core/dom/Document.h"
 #include "core/frame/LocalFrame.h"
-#include "core/inspector/v8/InjectedScriptHost.h"
-#include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/page/Page.h"
 #include "platform/weborigin/SecurityOrigin.h"
@@ -48,9 +45,8 @@ namespace InspectorAgentState {
 static const char inspectorAgentEnabled[] = "inspectorAgentEnabled";
 }
 
-InspectorInspectorAgent::InspectorInspectorAgent(InjectedScriptManager* injectedScriptManager)
-    : InspectorBaseAgent<InspectorInspectorAgent, InspectorFrontend::Inspector>("Inspector")
-    , m_injectedScriptManager(injectedScriptManager)
+InspectorInspectorAgent::InspectorInspectorAgent()
+    : InspectorBaseAgent<InspectorInspectorAgent, protocol::Frontend::Inspector>("Inspector")
 {
 }
 
@@ -70,16 +66,6 @@ void InspectorInspectorAgent::disable(ErrorString*)
 {
     m_state->setBoolean(InspectorAgentState::inspectorAgentEnabled, false);
     m_pendingEvaluateTestCommands.clear();
-    m_injectedScriptManager->injectedScriptHost()->clearInspectedObjects();
-    m_injectedScriptManager->discardInjectedScripts();
-}
-
-void InspectorInspectorAgent::didCommitLoadForLocalFrame(LocalFrame* frame)
-{
-    if (frame != frame->localFrameRoot())
-        return;
-
-    m_injectedScriptManager->injectedScriptHost()->clearInspectedObjects();
 }
 
 void InspectorInspectorAgent::restore()
@@ -100,7 +86,7 @@ void InspectorInspectorAgent::evaluateForTestInFrontend(long callId, const Strin
     }
 }
 
-void InspectorInspectorAgent::inspect(PassRefPtr<TypeBuilder::Runtime::RemoteObject> objectToInspect, PassRefPtr<JSONObject> hints)
+void InspectorInspectorAgent::inspect(PassRefPtr<protocol::TypeBuilder::Runtime::RemoteObject> objectToInspect, PassRefPtr<JSONObject> hints)
 {
     if (frontend() && m_state->booleanProperty(InspectorAgentState::inspectorAgentEnabled, false))
         frontend()->inspect(objectToInspect, hints);

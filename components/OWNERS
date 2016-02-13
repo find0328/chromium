@@ -20,8 +20,8 @@ per-file autofill.gypi=mathp@chromium.org
 per-file autofill.gypi=vabr@chromium.org
 per-file autofill_strings.grdp=estade@chromium.org
 per-file autofill_strings.grdp=isherman@chromium.org
-per-file autofill_strings.gypi=mathp@chromium.org
-per-file autofill_strings.gypi=vabr@chromium.org
+per-file autofill_strings.grdp=mathp@chromium.org
+per-file autofill_strings.grdp=vabr@chromium.org
 
 per-file bookmark_bar_strings.grdp=sky@chromium.org
 per-file bookmarks.gypi=sky@chromium.org
@@ -111,8 +111,7 @@ per-file dom_distiller*=nyquist@chromium.org
 per-file dom_distiller*=wychen@chromium.org
 
 per-file domain_reliability.gypi=davidben@chromium.org
-per-file domain_reliability.gypi=mmenke@chromium.org
-per-file domain_reliability.gypi=szym@chromium.org
+per-file domain_reliability.gypi=rdsmith@chromium.org
 per-file domain_reliability.gypi=ttuttle@chromium.org
 
 per-file drive.gypi=fukino@chromium.org
@@ -122,10 +121,6 @@ per-file drive.gypi=hirono@chromium.org
 per-file drive.gypi=kinaba@chromium.org
 per-file drive.gypi=mtomasz@chromium.org
 per-file drive.gypi=yoshiki@chromium.org
-
-per-file enhanced_bookmarks*=kkimlabs@chromium.org
-per-file enhanced_bookmarks*=noyau@chromium.org
-per-file enhanced_bookmarks*=sky@chromium.org
 
 per-file error_page*=mmenke@chromium.org
 per-file error_page*=ttuttle@chromium.org
@@ -285,9 +280,7 @@ per-file safe_browsing_db.gypi=nparker@chromium.org
 per-file safe_json.gypi=bauerb@chromium.org
 per-file safe_json.gypi=rsesek@chromium.org
 
-per-file search.gypi=kmadhusu@chromium.org
-per-file search.gypi=jered@chromium.org
-per-file search.gypi=samarth@chromium.org
+per-file search.gypi=file://components/search/OWNERS
 
 per-file search_engines.gypi=pkasting@chromium.org
 per-file search_engines.gypi=stevet@chromium.org

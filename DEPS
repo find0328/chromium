@@ -39,11 +39,11 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling Skia
   # and whatever else without interference from each other.
-  'skia_revision': 'f1036b2c6610e106b299a1e2b69b814ff18b60f5',
+  'skia_revision': '1751dc74f95a409fdb8cdc5c4efae20b1c39509a',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling V8
   # and whatever else without interference from each other.
-  'v8_revision': '3f8edd56affda4c6c13a570144769de33ff2ac52',
+  'v8_revision': 'eaed3912f99e3240995700e3a8f7673de0299573',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling swarming_client
   # and whatever else without interference from each other.
@@ -51,15 +51,15 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling ANGLE
   # and whatever else without interference from each other.
-  'angle_revision': '7718c05b7966967bb01b28a93b7a677b4b31642a',
+  'angle_revision': '8613f4946861a52fd39d3d5c37ca4742d6ef9f55',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling build tools
   # and whatever else without interference from each other.
-  'buildtools_revision': 'e27b1f1459452013ce59c9d5dbc93c88982cb76e',
+  'buildtools_revision': 'ef3e530703353ba8ad094694ba7c156daddbddeb',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling PDFium
   # and whatever else without interference from each other.
-  'pdfium_revision': '5ef071fe48737c9e5d6165825404755ce2c877c9',
+  'pdfium_revision': '0db900952c2aa76db801c9198923ce1b3d7c017d',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling openmax_dl
   # and whatever else without interference from each other.
@@ -67,7 +67,7 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling BoringSSL
   # and whatever else without interference from each other.
-  'boringssl_revision': 'd057454f900f3f5f9538986579b5600e00000736',
+  'boringssl_revision': '894a47df2423f0d2b6be57e6d90f2bea88213382',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling nss
   # and whatever else without interference from each other.
@@ -87,7 +87,7 @@ vars = {
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling NaCl
   # and whatever else without interference from each other.
-  'nacl_revision': '003407c34cce91fa423ca843656c8eb1bf46a60a',
+  'nacl_revision': '5e27c212d3514b77f4fd2c603cb63497ef1b7b4f',
   # Three lines of non-changing comments so that
   # the commit queue can handle CLs rolling dEQP
   # and whatever else without interference from each other.
@@ -110,7 +110,7 @@ allowed_hosts = [
 
 deps = {
   'src/breakpad/src':
-   Var('chromium_git') + '/breakpad/breakpad/src.git' + '@' + '60f99d4c6de8187b65f4999cc42f30e168655086',
+   Var('chromium_git') + '/breakpad/breakpad/src.git' + '@' + '7fef95a322beedaddcca627e1a88b54411f586da',
 
   'src/buildtools':
    Var('chromium_git') + '/chromium/buildtools.git' + '@' +  Var('buildtools_revision'),
@@ -149,7 +149,7 @@ deps = {
     Var('chromium_git') + '/external/snappy.git' + '@' + '762bb32f0c9d2f31ba4958c7c0933d22e80c20bf',
 
   'src/tools/gyp':
-    Var('chromium_git') + '/external/gyp.git' + '@' + '57190fa278689da857c6dfd6b4886dbfddce98ce',
+    Var('chromium_git') + '/external/gyp.git' + '@' + 'b25bbc1f942d75783bf4c236219035beff46453d',
 
   'src/tools/swarming_client':
    Var('chromium_git') + '/external/swarming.client.git' + '@' +  Var('swarming_revision'),
@@ -179,28 +179,28 @@ deps = {
     Var('chromium_git') + '/external/bidichecker/lib.git' + '@' + '97f2aa645b74c28c57eca56992235c79850fa9e0',
 
   'src/third_party/webgl/src':
-   Var('chromium_git') + '/external/khronosgroup/webgl.git' + '@' + '29258490ea902efba0cd3ef8200299b5c31d5d26',
+   Var('chromium_git') + '/external/khronosgroup/webgl.git' + '@' + '0d20df7173fa33334c9295458ee361597a9a1f12',
 
   'src/third_party/webdriver/pylib':
     Var('chromium_git') + '/external/selenium/py.git' + '@' + '5fd78261a75fe08d27ca4835fb6c5ce4b42275bd',
 
   'src/third_party/libvpx_new/source/libvpx':
-   Var('chromium_git') + '/webm/libvpx.git' + '@' +  'f51dd8c2ac7dcdbc269918b0d0fe30920f5641f7',
+   Var('chromium_git') + '/webm/libvpx.git' + '@' +  'f288c943c4d6c3fb03266dee821df797fb99bde0',
 
   'src/third_party/ffmpeg':
    Var('chromium_git') + '/chromium/third_party/ffmpeg.git' + '@' + 'e6e47f514216bbcdbfe796eb1f398c9afece93c8',
 
   'src/third_party/libjingle/source/talk':
-    Var('chromium_git') + '/external/webrtc/trunk/talk.git' + '@' + 'd89324aa3d7d705c3d8704dd6f57409920f2c647', # commit position 11498
+    Var('chromium_git') + '/external/webrtc/trunk/talk.git' + '@' + '761433d1de0c48512861d6077f821fb328456cda', # commit position 11592
 
   'src/third_party/usrsctp/usrsctplib':
     Var('chromium_git') + '/external/github.com/sctplab/usrsctp' + '@' + 'c60ec8b35c3fe6027d7a3faae89d1c8d7dd3ce98',
 
   'src/third_party/libsrtp':
-   Var('chromium_git') + '/chromium/deps/libsrtp.git' + '@' + '9cc4f2f799887e5d64bd28c159ea34b413f6be31', # from svn revision 295151
+   Var('chromium_git') + '/chromium/deps/libsrtp.git' + '@' + '8eecac0feef4c65e2debb42718a10eab91551f35', # from svn revision 295151
 
   'src/third_party/yasm/source/patched-yasm':
-   Var('chromium_git') + '/chromium/deps/yasm/patched-yasm.git' + '@' + '4671120cd8558ce62ee8672ebf3eb6f5216f909b',
+   Var('chromium_git') + '/chromium/deps/yasm/patched-yasm.git' + '@' + '7da28c6c7c6a1387217352ce02b31754deb54d2a',
 
   'src/third_party/libjpeg_turbo':
    Var('chromium_git') + '/chromium/deps/libjpeg_turbo.git' + '@' + 'e4e75037f29745f1546b6ebf5cf532e841c04c2c',
@@ -215,7 +215,7 @@ deps = {
    Var('chromium_git') + '/native_client/src/third_party/scons-2.0.1.git' + '@' + '1c1550e17fc26355d08627fbdec13d8291227067',
 
   'src/third_party/webrtc':
-    Var('chromium_git') + '/external/webrtc/trunk/webrtc.git' + '@' + '4e5c0a064d09fcdcb1883ed7ff682a9aec817dc9', # commit position 11510
+    Var('chromium_git') + '/external/webrtc/trunk/webrtc.git' + '@' + '4056bb64bd32ea1cc1dc55ebcbcb66829b64eb7b', # commit position 11592
 
   'src/third_party/openmax_dl':
     Var('chromium_git') + '/external/webrtc/deps/third_party/openmax.git' + '@' +  Var('openmax_dl_revision'),
@@ -275,7 +275,7 @@ deps = {
 
   'src/third_party/catapult':
     Var('chromium_git') + '/external/github.com/catapult-project/catapult.git' + '@' +
-    'a0ffaf72adc7e22c29d120fce2276b147ed30c65',
+    'e26797f24e90bac9118d1b18195804000da67b51',
 
   'src/third_party/openh264/src':
     Var('chromium_git') + '/external/github.com/cisco/openh264' + '@' + 'b37cda248234162033e3e11b0335f3131cdfe488',
@@ -391,7 +391,7 @@ deps_os = {
 
     # For Linux and Chromium OS.
     'src/third_party/cros_system_api':
-     Var('chromium_git') + '/chromiumos/platform/system_api.git' + '@' + 'd9ecb3bd87504815d4c58a6a8b9031deb2498d19',
+     Var('chromium_git') + '/chromiumos/platform/system_api.git' + '@' + 'ac14fd16fbb0710d07f0f3a7e9824249c83646c7',
 
     # Note that this is different from Android's freetype repo.
     'src/third_party/freetype2/src':
@@ -430,6 +430,10 @@ deps_os = {
     # Wayland protocols that add functionality not available in the core protocol.
     'src/third_party/wayland-protocols/src':
      Var('chromium_git') + '/external/anongit.freedesktop.org/git/wayland/wayland-protocols.git' + '@' + '3543bb755c8858b0a70dfd20fd1beb74d865751d',
+
+    # Wireless Display Software. Used on Chrome OS.
+    'src/third_party/wds/src':
+     Var('chromium_git') + '/external/github.com/01org/wds' + '@' + 'f187dda5fccaad08e168dc6657109325f42c648e',
   },
   'android': {
     'src/third_party/android_protobuf/src':
@@ -772,7 +776,7 @@ hooks = [
     'action': ['python',
                'src/build/get_syzygy_binaries.py',
                '--output-dir=src/third_party/syzygy/binaries',
-               '--revision=01e87c0a88eee6b5d289fa03ae7e0174739b742a',
+               '--revision=2d774f05a05cbc2f0dd929170c7a62fd549b2c5f',
                '--overwrite',
     ],
   },

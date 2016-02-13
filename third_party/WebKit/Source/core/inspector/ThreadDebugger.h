@@ -6,8 +6,8 @@
 #define ThreadDebugger_h
 
 #include "core/CoreExport.h"
-#include "core/inspector/v8/V8Debugger.h"
-#include "core/inspector/v8/V8DebuggerClient.h"
+#include "platform/v8_inspector/public/V8Debugger.h"
+#include "platform/v8_inspector/public/V8DebuggerClient.h"
 #include "wtf/Forward.h"
 
 #include <v8.h>
@@ -23,7 +23,9 @@ public:
     ~ThreadDebugger() override;
 
     // V8DebuggerClient implementation.
-    void eventListeners(v8::Local<v8::Value>, EventListenerInfoMap&) override;
+    void muteWarningsAndDeprecations() override { };
+    void unmuteWarningsAndDeprecations() override { };
+    void eventListeners(v8::Local<v8::Value>, V8EventListenerInfoMap&) override;
     v8::MaybeLocal<v8::Object> instantiateObject(v8::Local<v8::Function>) override;
     v8::MaybeLocal<v8::Value> runCompiledScript(v8::Local<v8::Context>, v8::Local<v8::Script>) override;
     v8::MaybeLocal<v8::Value> compileAndRunInternalScript(v8::Local<v8::String>) override;
@@ -31,6 +33,7 @@ public:
     v8::MaybeLocal<v8::Value> callInternalFunction(v8::Local<v8::Function>, v8::Local<v8::Value> receiver, int argc, v8::Local<v8::Value> info[]) override;
     String valueSubtype(v8::Local<v8::Value>) override;
     bool formatAccessorsAsProperties(v8::Local<v8::Value>) override;
+    bool hasRecursionLevel() override;
 
     V8Debugger* debugger() const { return m_debugger.get(); }
     virtual bool isWorker() { return true; }

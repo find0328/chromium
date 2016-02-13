@@ -13,11 +13,11 @@
     'linux_link_pulseaudio%': 0,
     'conditions': [
       # Enable ALSA and Pulse for runtime selection.
-      ['(OS=="linux" or OS=="freebsd" or OS=="solaris") and ((embedded!=1 and chromecast==0) or is_cast_desktop_build==1)', {
+      ['(OS=="linux" or OS=="freebsd" or OS=="solaris") and (embedded==0 or chromecast==1)', {
         # ALSA is always needed for Web MIDI even if the cras is enabled.
         'use_alsa%': 1,
         'conditions': [
-          ['use_cras==1', {
+          ['use_cras==1 or chromecast==1', {
             'use_pulseaudio%': 0,
           }, {
             'use_pulseaudio%': 1,
@@ -764,6 +764,10 @@
             'filters/ffmpeg_video_decoder.cc',
             'filters/ffmpeg_video_decoder.h',
           ],
+          'sources': [
+            'filters/android/media_codec_audio_decoder.cc',
+            'filters/android/media_codec_audio_decoder.h',
+          ],
           'defines': [
             'DISABLE_USER_INPUT_MONITOR',
           ],
@@ -852,6 +856,15 @@
                 'audio/cras/cras_input.h',
                 'audio/cras/cras_unified.cc',
                 'audio/cras/cras_unified.h',
+              ],
+            }],
+            ['use_udev==1', {
+              'dependencies': [
+                '../device/udev_linux/udev.gyp:udev_linux',
+              ],
+              'sources': [
+                'capture/device_monitor_udev.cc',
+                'capture/device_monitor_udev.h',
               ],
             }],
           ],
@@ -1869,21 +1882,19 @@
             'base/android/android_cdm_factory.h',
             'base/android/audio_decoder_job.cc',
             'base/android/audio_decoder_job.h',
+            'base/android/audio_media_codec_decoder.cc',
+            'base/android/audio_media_codec_decoder.h',
             'base/android/demuxer_android.h',
             'base/android/demuxer_stream_player_params.cc',
             'base/android/demuxer_stream_player_params.h',
             'base/android/media_client_android.cc',
             'base/android/media_client_android.h',
-            'base/android/media_codec_audio_decoder.cc',
-            'base/android/media_codec_audio_decoder.h',
             'base/android/media_codec_bridge.cc',
             'base/android/media_codec_bridge.h',
             'base/android/media_codec_decoder.cc',
             'base/android/media_codec_decoder.h',
             'base/android/media_codec_player.cc',
             'base/android/media_codec_player.h',
-            'base/android/media_codec_video_decoder.cc',
-            'base/android/media_codec_video_decoder.h',
             'base/android/media_codec_util.cc',
             'base/android/media_codec_util.h',
             'base/android/media_common_android.h',
@@ -1916,6 +1927,8 @@
             'base/android/sdk_media_codec_bridge.h',
             'base/android/video_decoder_job.cc',
             'base/android/video_decoder_job.h',
+            'base/android/video_media_codec_decoder.cc',
+            'base/android/video_media_codec_decoder.h',
           ],
           'conditions': [
             # Only 64 bit builds are using android-21 NDK library, check common.gypi

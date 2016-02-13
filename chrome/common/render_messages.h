@@ -24,7 +24,6 @@
 #include "ipc/ipc_message_macros.h"
 #include "ipc/ipc_platform_file.h"
 #include "third_party/WebKit/public/platform/modules/app_banner/WebAppBannerPromptReply.h"
-#include "third_party/WebKit/public/web/WebCache.h"
 #include "third_party/WebKit/public/web/WebConsoleMessage.h"
 
 // Singly-included section for enums and custom IPC traits.
@@ -160,14 +159,6 @@ IPC_STRUCT_TRAITS_BEGIN(ThemeBackgroundInfo)
   IPC_STRUCT_TRAITS_MEMBER(image_height)
   IPC_STRUCT_TRAITS_MEMBER(has_attribution)
   IPC_STRUCT_TRAITS_MEMBER(logo_alternate)
-IPC_STRUCT_TRAITS_END()
-
-IPC_STRUCT_TRAITS_BEGIN(blink::WebCache::UsageStats)
-  IPC_STRUCT_TRAITS_MEMBER(minDeadCapacity)
-  IPC_STRUCT_TRAITS_MEMBER(maxDeadCapacity)
-  IPC_STRUCT_TRAITS_MEMBER(capacity)
-  IPC_STRUCT_TRAITS_MEMBER(liveSize)
-  IPC_STRUCT_TRAITS_MEMBER(deadSize)
 IPC_STRUCT_TRAITS_END()
 
 IPC_ENUM_TRAITS_MAX_VALUE(NTPLoggingEventType,
@@ -361,8 +352,12 @@ IPC_MESSAGE_ROUTED1(ChromeViewHostMsg_LoadOfflineCopy, GURL /* url */)
 // Misc messages
 // These are messages sent from the renderer to the browser process.
 
-IPC_MESSAGE_CONTROL1(ChromeViewHostMsg_UpdatedCacheStats,
-                     blink::WebCache::UsageStats /* stats */)
+IPC_MESSAGE_CONTROL5(ChromeViewHostMsg_UpdatedCacheStats,
+                     uint64_t /* min_dead_capacity */,
+                     uint64_t /* max_dead_capacity */,
+                     uint64_t /* capacity */,
+                     uint64_t /* live_size */,
+                     uint64_t /* dead_size */)
 
 // Sent by the renderer process to check whether access to FileSystem is
 // granted by content settings.

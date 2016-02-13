@@ -285,6 +285,13 @@ void BrowserMediaPlayerManager::SetVideoSurface(
   if (empty_surface)
     return;
 
+  // If we already know the size, set it now. Otherwise it will be set when the
+  // player gets it.
+  if (player->IsPlayerReady()) {
+    video_view_->OnVideoSizeChanged(player->GetVideoWidth(),
+                                    player->GetVideoHeight());
+  }
+
 #if !defined(USE_AURA)
   if (RenderWidgetHostViewAndroid* view_android =
       static_cast<RenderWidgetHostViewAndroid*>(
@@ -323,15 +330,6 @@ void BrowserMediaPlayerManager::OnSeekRequest(
     int player_id,
     const base::TimeDelta& time_to_seek) {
   Send(new MediaPlayerMsg_SeekRequest(RoutingID(), player_id, time_to_seek));
-}
-
-void BrowserMediaPlayerManager::ReleaseAllMediaPlayers() {
-  for (ScopedVector<MediaPlayerAndroid>::iterator it = players_.begin();
-      it != players_.end(); ++it) {
-    if ((*it)->player_id() == fullscreen_player_id_)
-      fullscreen_player_is_released_ = true;
-    (*it)->Release();
-  }
 }
 
 void BrowserMediaPlayerManager::OnSeekComplete(
@@ -503,11 +501,6 @@ void BrowserMediaPlayerManager::OnEnterFullscreen(int player_id) {
   if (video_view_) {
     fullscreen_player_id_ = player_id;
     video_view_->OpenVideo();
-    MediaPlayerAndroid* player = GetPlayer(player_id);
-    if (player && player->IsPlayerReady()) {
-      video_view_->OnVideoSizeChanged(player->GetVideoWidth(),
-                                      player->GetVideoHeight());
-    }
     return;
   }
 

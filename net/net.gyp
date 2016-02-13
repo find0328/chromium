@@ -276,6 +276,7 @@
           'sources!': [
             'base/directory_lister_unittest.cc',
             'base/directory_listing_unittest.cc',
+	    'url_request/url_request_file_dir_job_unittest.cc',
             'url_request/url_request_file_job_unittest.cc',
           ],
         }],
@@ -319,7 +320,7 @@
               'net_with_v8',
               'net_browser_services',
               'net_utility_services',
-              '../third_party/mojo/mojo_edk.gyp:mojo_system_impl',
+              '../mojo/mojo_edk.gyp:mojo_system_impl',
             ],
           }, {  # else
             'sources!': [
@@ -906,7 +907,7 @@
             'interfaces/proxy_resolver_service.mojom',
           ],
           'includes': [
-            '../third_party/mojo/mojom_bindings_generator.gypi',
+            '../mojo/mojom_bindings_generator.gypi',
           ],
         },
         {
@@ -931,7 +932,7 @@
             '../mojo/mojo_base.gyp:mojo_common_lib',
             '../mojo/mojo_base.gyp:mojo_environment_chromium',
             '../mojo/mojo_base.gyp:mojo_url_type_converters',
-            '../third_party/mojo/mojo_public.gyp:mojo_cpp_bindings',
+            '../mojo/mojo_public.gyp:mojo_cpp_bindings',
 
             # NOTE(amistry): As long as we support in-process Mojo v8 PAC, we
             # need this dependency since in_process_mojo_proxy_resolver_factory
@@ -959,7 +960,7 @@
             'net_interfaces',
             'net_with_v8',
             '../mojo/mojo_base.gyp:mojo_url_type_converters',
-            '../third_party/mojo/mojo_public.gyp:mojo_cpp_bindings',
+            '../mojo/mojo_public.gyp:mojo_cpp_bindings',
           ],
         },
         {
@@ -975,7 +976,7 @@
           'dependencies': [
             'net',
             'net_interfaces',
-            '../third_party/mojo/mojo_public.gyp:mojo_cpp_bindings',
+            '../mojo/mojo_public.gyp:mojo_cpp_bindings',
           ],
         },
       ],
@@ -1211,8 +1212,6 @@
             'tools/flip_server/acceptor_thread.cc',
             'tools/flip_server/acceptor_thread.h',
             'tools/flip_server/constants.h',
-            'tools/flip_server/create_listener.cc',
-            'tools/flip_server/create_listener.h',
             'tools/flip_server/flip_config.cc',
             'tools/flip_server/flip_config.h',
             'tools/flip_server/http_interface.cc',
@@ -1234,6 +1233,8 @@
             'tools/flip_server/spdy_util.h',
             'tools/flip_server/streamer_interface.cc',
             'tools/flip_server/streamer_interface.h',
+            'tools/flip_server/tcp_socket_util.cc',
+            'tools/flip_server/tcp_socket_util.h',
             'tools/flip_server/url_to_filename_encoder.cc',
             'tools/flip_server/url_to_filename_encoder.h',
             'tools/flip_server/url_utilities.cc',

@@ -5,7 +5,6 @@
 #ifndef InspectorCacheStorageAgent_h
 #define InspectorCacheStorageAgent_h
 
-#include "core/InspectorFrontend.h"
 #include "core/inspector/InspectorBaseAgent.h"
 #include "modules/ModulesExport.h"
 #include "wtf/PassOwnPtr.h"
@@ -15,7 +14,7 @@ namespace blink {
 
 typedef String ErrorString;
 
-class MODULES_EXPORT InspectorCacheStorageAgent final : public InspectorBaseAgent<InspectorCacheStorageAgent, InspectorFrontend::CacheStorage>, public InspectorBackendDispatcher::CacheStorageCommandHandler {
+class MODULES_EXPORT InspectorCacheStorageAgent final : public InspectorBaseAgent<InspectorCacheStorageAgent, protocol::Frontend::CacheStorage>, public protocol::Dispatcher::CacheStorageCommandHandler {
     WTF_MAKE_NONCOPYABLE(InspectorCacheStorageAgent);
 
 public:
@@ -28,10 +27,10 @@ public:
 
     DECLARE_VIRTUAL_TRACE();
 
-    void requestCacheNames(ErrorString*, const String& securityOrigin, PassRefPtrWillBeRawPtr<RequestCacheNamesCallback>) override;
-    void requestEntries(ErrorString*, const String& cacheId, int skipCount, int pageSize, PassRefPtrWillBeRawPtr<RequestEntriesCallback>) override;
-    void deleteCache(ErrorString*, const String& cacheId, PassRefPtrWillBeRawPtr<DeleteCacheCallback>) override;
-    void deleteEntry(ErrorString*, const String& cacheId, const String& request, PassRefPtrWillBeRawPtr<DeleteEntryCallback>) override;
+    void requestCacheNames(ErrorString*, const String& securityOrigin, PassRefPtr<RequestCacheNamesCallback>) override;
+    void requestEntries(ErrorString*, const String& cacheId, int skipCount, int pageSize, PassRefPtr<RequestEntriesCallback>) override;
+    void deleteCache(ErrorString*, const String& cacheId, PassRefPtr<DeleteCacheCallback>) override;
+    void deleteEntry(ErrorString*, const String& cacheId, const String& request, PassRefPtr<DeleteEntryCallback>) override;
 
 private:
     explicit InspectorCacheStorageAgent();

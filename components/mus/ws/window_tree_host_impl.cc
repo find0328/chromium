@@ -87,7 +87,7 @@ WindowTreeHostImpl::QueuedEvent::~QueuedEvent() {}
 
 WindowTreeHostImpl::WindowTreeHostImpl(
     ConnectionManager* connection_manager,
-    mojo::ApplicationImpl* app_impl,
+    mojo::Shell* shell,
     const scoped_refptr<GpuState>& gpu_state,
     const scoped_refptr<SurfacesState>& surfaces_state)
     : id_(next_id++),
@@ -95,7 +95,7 @@ WindowTreeHostImpl::WindowTreeHostImpl(
       connection_manager_(connection_manager),
       event_dispatcher_(this),
       display_manager_(
-          DisplayManager::Create(app_impl, gpu_state, surfaces_state)),
+          DisplayManager::Create(shell, gpu_state, surfaces_state)),
       tree_awaiting_input_ack_(nullptr),
       last_cursor_(0) {
   frame_decoration_values_ = mojom::FrameDecorationValues::New();
@@ -159,6 +159,14 @@ void WindowTreeHostImpl::ScheduleSurfaceDestruction(ServerWindow* window) {
 
 const mojom::ViewportMetrics& WindowTreeHostImpl::GetViewportMetrics() const {
   return display_manager_->GetViewportMetrics();
+}
+
+void WindowTreeHostImpl::SetCapture(ServerWindow* window,
+                                    bool in_nonclient_area) {
+  ServerWindow* capture_window = event_dispatcher_.capture_window();
+  if (capture_window == window)
+    return;
+  event_dispatcher_.SetCaptureWindow(window, in_nonclient_area);
 }
 
 mojom::Rotation WindowTreeHostImpl::GetRotation() const {
@@ -343,6 +351,10 @@ void WindowTreeHostImpl::OnEvent(const ui::Event& event) {
   event_dispatcher_.ProcessEvent(std::move(mojo_event));
 }
 
+void WindowTreeHostImpl::OnNativeCaptureLost() {
+  SetCapture(nullptr, false);
+}
+
 void WindowTreeHostImpl::OnDisplayClosed() {
   if (delegate_)
     delegate_->OnDisplayClosed();
@@ -472,6 +484,19 @@ void WindowTreeHostImpl::SetFocusedWindowFromEventDispatcher(
 
 ServerWindow* WindowTreeHostImpl::GetFocusedWindowForEventDispatcher() {
   return GetFocusedWindow();
+}
+
+void WindowTreeHostImpl::SetNativeCapture() {
+  display_manager_->SetCapture();
+}
+
+void WindowTreeHostImpl::ReleaseNativeCapture() {
+  display_manager_->ReleaseCapture();
+}
+
+void WindowTreeHostImpl::OnServerWindowCaptureLost(ServerWindow* window) {
+  DCHECK(window);
+  connection_manager_->ProcessLostCapture(window);
 }
 
 void WindowTreeHostImpl::DispatchInputEventToWindow(ServerWindow* target,

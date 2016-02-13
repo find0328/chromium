@@ -44,6 +44,7 @@
         '<(DEPTH)/base/base.gyp:test_support_base',
         '<(DEPTH)/content/content_shell_and_tests.gyp:test_support_content',
         'blink_platform.gyp:blink_platform',
+        'blink_platform_test_support',
       ],
       'defines': [
         'INSIDE_BLINK',
@@ -109,6 +110,7 @@
         '../config.gyp:config',
         '../wtf/wtf.gyp:wtf',
         'blink_platform.gyp:blink_platform',
+        '<(DEPTH)/testing/gmock.gyp:gmock',
       ],
       'defines': [
         'INSIDE_BLINK',

@@ -84,7 +84,7 @@ void AppListControllerDelegateImpl::CreateNewWindow(Profile* profile,
                                                    bool incognito) {
   Profile* window_profile = incognito ?
       profile->GetOffTheRecordProfile() : profile;
-  chrome::NewEmptyWindow(window_profile, chrome::HOST_DESKTOP_TYPE_NATIVE);
+  chrome::NewEmptyWindow(window_profile);
 }
 
 void AppListControllerDelegateImpl::OpenURL(Profile* profile,
@@ -124,7 +124,6 @@ void AppListControllerDelegateImpl::LaunchApp(
         AppListSourceToString(source));
   }
 
-  FillLaunchParams(&params);
   OpenApplication(params);
 }
 
@@ -137,8 +136,6 @@ void AppListControllerDelegateImpl::ShowForProfileByPath(
 bool AppListControllerDelegateImpl::ShouldShowUserIcon() {
   return g_browser_process->profile_manager()->GetNumberOfProfiles() > 1;
 }
-
-void AppListControllerDelegateImpl::FillLaunchParams(AppLaunchParams* params) {}
 
 void AppListControllerDelegateImpl::OnCloseCreateShortcutsPrompt(
     bool created) {

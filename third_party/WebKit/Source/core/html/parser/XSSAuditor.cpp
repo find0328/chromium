@@ -42,7 +42,6 @@
 #include "core/inspector/ConsoleMessage.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/MixedContentChecker.h"
-#include "platform/JSONValues.h"
 #include "platform/network/EncodedFormData.h"
 #include "platform/text/DecodeEscapeSequences.h"
 #include "wtf/ASCIICType.h"
@@ -196,10 +195,12 @@ static void truncateForSrcLikeAttribute(String& decodedSnippet)
     // In HTTP URLs, characters following the first ?, #, or third slash may come from
     // the page itself and can be merely ignored by an attacker's server when a remote
     // script or script-like resource is requested. In DATA URLS, the payload starts at
-    // the first comma, and the the first /*, //, or <!-- may introduce a comment. Characters
-    // following this may come from the page itself and may be ignored when the script is
-    // executed. For simplicity, we don't differentiate based on URL scheme, and stop at
-    // the first # or ?, the third slash, or the first slash or < once a comma is seen.
+    // the first comma, and the the first /*, //, or <!-- may introduce a comment. Also,
+    // DATA URLs may use the same string literal tricks as with script content itself.
+    // In either case, content following this may come from the page and may be ignored
+    // when the script is executed.
+    // For simplicity, we don't differentiate based on URL scheme, and stop at the first
+    // # or ?, the third slash, or the first slash, <, ', or " once a comma is seen.
     int slashCount = 0;
     bool commaSeen = false;
     for (size_t currentLength = 0; currentLength < decodedSnippet.length(); ++currentLength) {
@@ -207,7 +208,9 @@ static void truncateForSrcLikeAttribute(String& decodedSnippet)
         if (currentChar == '?'
             || currentChar == '#'
             || ((currentChar == '/' || currentChar == '\\') && (commaSeen || ++slashCount > 2))
-            || (currentChar == '<' && commaSeen)) {
+            || (currentChar == '<' && commaSeen)
+            || (currentChar == '\'' && commaSeen)
+            || (currentChar == '"' && commaSeen)) {
             decodedSnippet.truncate(currentLength);
             return;
         }
@@ -491,6 +494,7 @@ bool XSSAuditor::filterScriptToken(const FilterTokenRequest& request)
     m_scriptTagFoundInRequest = isContainedInRequest(canonicalizedSnippetForTagName(request));
     if (m_scriptTagFoundInRequest) {
         didBlockScript |= eraseAttributeIfInjected(request, srcAttr, blankURL().string(), SrcLikeAttributeTruncation);
+        didBlockScript |= eraseAttributeIfInjected(request, SVGNames::hrefAttr, blankURL().string(), SrcLikeAttributeTruncation);
         didBlockScript |= eraseAttributeIfInjected(request, XLinkNames::hrefAttr, blankURL().string(), SrcLikeAttributeTruncation);
     }
     return didBlockScript;

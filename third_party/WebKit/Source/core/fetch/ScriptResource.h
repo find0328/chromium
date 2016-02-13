@@ -34,6 +34,12 @@
 
 namespace blink {
 
+enum class ScriptIntegrityDisposition {
+    NotChecked = 0,
+    Failed,
+    Passed
+};
+
 class FetchRequest;
 class ScriptResource;
 
@@ -49,10 +55,13 @@ public:
 class CORE_EXPORT ScriptResource final : public TextResource {
 public:
     using ClientType = ScriptResourceClient;
-    static ResourcePtr<ScriptResource> fetch(FetchRequest&, ResourceFetcher*);
+    static PassRefPtrWillBeRawPtr<ScriptResource> fetch(FetchRequest&, ResourceFetcher*);
 
     // Public for testing
-    ScriptResource(const ResourceRequest&, const String& charset);
+    static PassRefPtrWillBeRawPtr<ScriptResource> create(const ResourceRequest& request, const String& charset)
+    {
+        return adoptRefWillBeNoop(new ScriptResource(request, charset));
+    }
 
     ~ScriptResource() override;
 
@@ -71,8 +80,9 @@ public:
 
     void setIntegrityMetadata(const IntegrityMetadataSet& metadata) { m_integrityMetadata = metadata; }
     const IntegrityMetadataSet& integrityMetadata() const { return m_integrityMetadata; }
-    void setIntegrityAlreadyChecked(bool checked) { m_integrityChecked = checked; }
-    bool integrityAlreadyChecked() { return m_integrityChecked; }
+    // The argument must never be |NotChecked|.
+    void setIntegrityDisposition(ScriptIntegrityDisposition);
+    ScriptIntegrityDisposition integrityDisposition() { return m_integrityDisposition; }
     bool mustRefetchDueToIntegrityMetadata(const FetchRequest&) const override;
 
 private:
@@ -81,13 +91,15 @@ private:
         ScriptResourceFactory()
             : ResourceFactory(Resource::Script) { }
 
-        Resource* create(const ResourceRequest& request, const String& charset) const override
+        PassRefPtrWillBeRawPtr<Resource> create(const ResourceRequest& request, const String& charset) const override
         {
-            return new ScriptResource(request, charset);
+            return adoptRefWillBeNoop(new ScriptResource(request, charset));
         }
     };
 
-    bool m_integrityChecked;
+    ScriptResource(const ResourceRequest&, const String& charset);
+
+    ScriptIntegrityDisposition m_integrityDisposition;
     IntegrityMetadataSet m_integrityMetadata;
 
     CompressibleString m_script;

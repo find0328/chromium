@@ -186,7 +186,11 @@ BrowserOptionsHandler::BrowserOptionsHandler()
 #endif  // defined(OS_CHROMEOS)
       signin_observer_(this),
       weak_ptr_factory_(this) {
-  default_browser_worker_ = new ShellIntegration::DefaultBrowserWorker(this);
+  // The worker pointer is reference counted. While it is running, the
+  // message loops of the FILE and UI thread will hold references to it
+  // and it will be automatically freed once all its tasks have finished.
+  default_browser_worker_ = new shell_integration::DefaultBrowserWorker(
+      this, /*delete_observer=*/false);
 
 #if defined(ENABLE_SERVICE_DISCOVERY)
   cloud_print_mdns_ui_enabled_ = true;
@@ -1011,7 +1015,6 @@ void BrowserOptionsHandler::InitializePage() {
   SetupPageZoomSelector();
   SetupAutoOpenFileTypes();
   SetupProxySettingsSection();
-  SetupManageCertificatesSection();
   SetupManagingSupervisedUsers();
   SetupEasyUnlock();
   SetupExtensionControlledIndicators();
@@ -1110,42 +1113,38 @@ void BrowserOptionsHandler::BecomeDefaultBrowser(const base::ListValue* args) {
 }
 
 int BrowserOptionsHandler::StatusStringIdForState(
-    ShellIntegration::DefaultWebClientState state) {
-  if (state == ShellIntegration::IS_DEFAULT)
+    shell_integration::DefaultWebClientState state) {
+  if (state == shell_integration::IS_DEFAULT)
     return IDS_OPTIONS_DEFAULTBROWSER_DEFAULT;
-  if (state == ShellIntegration::NOT_DEFAULT)
+  if (state == shell_integration::NOT_DEFAULT)
     return IDS_OPTIONS_DEFAULTBROWSER_NOTDEFAULT;
   return IDS_OPTIONS_DEFAULTBROWSER_UNKNOWN;
 }
 
 void BrowserOptionsHandler::SetDefaultWebClientUIState(
-    ShellIntegration::DefaultWebClientUIState state) {
+    shell_integration::DefaultWebClientUIState state) {
   int status_string_id;
 
-  if (state == ShellIntegration::STATE_IS_DEFAULT) {
+  if (state == shell_integration::STATE_IS_DEFAULT) {
     status_string_id = IDS_OPTIONS_DEFAULTBROWSER_DEFAULT;
     // Notify the user in the future if Chrome ceases to be the user's chosen
     // default browser.
     PrefService* prefs = Profile::FromWebUI(web_ui())->GetPrefs();
     prefs->SetBoolean(prefs::kCheckDefaultBrowser, true);
-  } else if (state == ShellIntegration::STATE_NOT_DEFAULT) {
-    if (ShellIntegration::CanSetAsDefaultBrowser() ==
-            ShellIntegration::SET_DEFAULT_NOT_ALLOWED) {
+  } else if (state == shell_integration::STATE_NOT_DEFAULT) {
+    if (shell_integration::CanSetAsDefaultBrowser() ==
+        shell_integration::SET_DEFAULT_NOT_ALLOWED) {
       status_string_id = IDS_OPTIONS_DEFAULTBROWSER_SXS;
     } else {
       status_string_id = IDS_OPTIONS_DEFAULTBROWSER_NOTDEFAULT;
     }
-  } else if (state == ShellIntegration::STATE_UNKNOWN) {
+  } else if (state == shell_integration::STATE_UNKNOWN) {
     status_string_id = IDS_OPTIONS_DEFAULTBROWSER_UNKNOWN;
   } else {
     return;  // Still processing.
   }
 
   SetDefaultBrowserUIString(status_string_id);
-}
-
-bool BrowserOptionsHandler::IsInteractiveSetDefaultPermitted() {
-  return true;  // This is UI so we can allow it.
 }
 
 void BrowserOptionsHandler::SetDefaultBrowserUIString(int status_string_id) {
@@ -1970,23 +1969,14 @@ void BrowserOptionsHandler::SetupAutoOpenFileTypes() {
 
 void BrowserOptionsHandler::SetupProxySettingsSection() {
 #if !defined(OS_CHROMEOS)
-  // Disable the button if proxy settings are managed by a sysadmin, overridden
-  // by an extension, or the browser is running in Windows Ash (on Windows the
-  // proxy settings dialog will open on the Windows desktop and be invisible
-  // to a user in Ash).
-  bool is_win_ash = false;
-#if defined(OS_WIN)
-  chrome::HostDesktopType desktop_type = helper::GetDesktopType(web_ui());
-  is_win_ash = (desktop_type == chrome::HOST_DESKTOP_TYPE_ASH);
-#endif
   PrefService* pref_service = Profile::FromWebUI(web_ui())->GetPrefs();
   const PrefService::Preference* proxy_config =
       pref_service->FindPreference(proxy_config::prefs::kProxy);
   bool is_extension_controlled = (proxy_config &&
                                   proxy_config->IsExtensionControlled());
 
-  base::FundamentalValue disabled(is_win_ash || (proxy_config &&
-                                  !proxy_config->IsUserModifiable()));
+  base::FundamentalValue disabled(proxy_config &&
+                                  !proxy_config->IsUserModifiable());
   base::FundamentalValue extension_controlled(is_extension_controlled);
   web_ui()->CallJavascriptFunction("BrowserOptions.setupProxySettingsButton",
                                    disabled, extension_controlled);
@@ -1996,19 +1986,6 @@ void BrowserOptionsHandler::SetupProxySettingsSection() {
 #endif  // defined(OS_WIN)
 
 #endif  // !defined(OS_CHROMEOS)
-}
-
-void BrowserOptionsHandler::SetupManageCertificatesSection() {
-#if defined(OS_WIN)
-  // Disable the button if the settings page is displayed in Windows Ash,
-  // otherwise the proxy settings dialog will open on the Windows desktop and
-  // be invisible to a user in Ash.
-  if (helper::GetDesktopType(web_ui()) == chrome::HOST_DESKTOP_TYPE_ASH) {
-    base::FundamentalValue enabled(false);
-    web_ui()->CallJavascriptFunction("BrowserOptions.enableCertificateButton",
-                                     enabled);
-  }
-#endif  // defined(OS_WIN)
 }
 
 void BrowserOptionsHandler::SetupManagingSupervisedUsers() {
@@ -2117,7 +2094,7 @@ void BrowserOptionsHandler::HandleMetricsReportingChange(
   InitiateMetricsReportingChange(
       enable,
       base::Bind(&BrowserOptionsHandler::NotifyUIOfMetricsReportingChange,
-                 base::Unretained(this)));
+                 weak_ptr_factory_.GetWeakPtr()));
 }
 
 void BrowserOptionsHandler::NotifyUIOfMetricsReportingChange(bool enabled) {

@@ -150,8 +150,8 @@ void PackageManagerImpl::FetchRequest(
     // LocalFetcher uses the network service to infer MIME types from URLs.
     // Skip this for mojo URLs to avoid recursively loading the network service.
     if (!network_service_ && !url.SchemeIs("mojo") && !url.SchemeIs("exe")) {
-      ConnectToService(application_manager_, GURL("mojo:network_service"),
-                       &network_service_);
+      ConnectToInterface(application_manager_, GURL("mojo:network_service"),
+                         &network_service_);
     }
     // Ownership of this object is transferred to |loader_callback|.
     // TODO(beng): this is eff'n weird.
@@ -166,8 +166,8 @@ void PackageManagerImpl::FetchRequest(
   }
 
   if (!url_loader_factory_) {
-    ConnectToService(application_manager_, GURL("mojo:network_service"),
-                     &url_loader_factory_);
+    ConnectToInterface(application_manager_, GURL("mojo:network_service"),
+                       &url_loader_factory_);
   }
 
   // Ownership of this object is transferred to |loader_callback|.
@@ -181,7 +181,7 @@ uint32_t PackageManagerImpl::HandleWithContentHandler(
     const Identity& source,
     const GURL& target_url,
     const CapabilityFilter& target_filter,
-    InterfaceRequest<mojom::Application>* application_request) {
+    InterfaceRequest<mojom::ShellClient>* request) {
   Identity content_handler_identity;
   URLResponsePtr response;
   if (ShouldHandleWithContentHandler(fetcher,
@@ -191,8 +191,7 @@ uint32_t PackageManagerImpl::HandleWithContentHandler(
                                      &response)) {
     ContentHandlerConnection* connection =
         GetContentHandler(content_handler_identity, source);
-    connection->StartApplication(std::move(*application_request),
-                                 std::move(response));
+    connection->StartApplication(std::move(*request), std::move(response));
     return connection->id();
   }
   return mojom::Shell::kInvalidApplicationID;
@@ -229,8 +228,8 @@ bool PackageManagerImpl::ShouldHandleWithContentHandler(
   // Why doesn't that happen when running different apps? Because
   // your_thing.mojo!base::AtExitManager and
   // my_thing.mojo!base::AtExitManager are different symbols.
-  bool use_real_qualifier = base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kEnableMultiprocess);
+  bool use_real_qualifier = !base::CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kMojoSingleProcess);
 
   GURL content_handler_url;
   // The response begins with a #!mojo <content-handler-url>.

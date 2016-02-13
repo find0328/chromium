@@ -9,7 +9,8 @@
 #include "mojo/shell/application_loader.h"
 #include "mojo/shell/application_manager.h"
 #include "mojo/shell/capability_filter_unittest.mojom.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
+#include "mojo/shell/public/cpp/shell_client.h"
+#include "mojo/shell/public/cpp/shell_connection.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace mojo {
@@ -21,38 +22,39 @@ class ConnectionValidator;
 // This class models an application who will use the shell to interact with a
 // system service. The shell may limit this application's visibility of the full
 // set of interfaces exposed by that service.
-class TestApplication : public ApplicationDelegate {
+class TestApplication : public ShellClient {
  public:
   TestApplication();
   ~TestApplication() override;
 
  private:
-  // Overridden from ApplicationDelegate:
-  void Initialize(ApplicationImpl* app) override;
-  bool AcceptConnection(ApplicationConnection* connection) override;
+  // Overridden from ShellClient:
+  void Initialize(Shell* shell, const std::string& url, uint32_t id) override;
+  bool AcceptConnection(Connection* connection) override;
 
   void ConnectionClosed(const std::string& service_url);
 
-  ApplicationImpl* app_;
+  Shell* shell_;
+  std::string url_;
   ValidatorPtr validator_;
-  scoped_ptr<ApplicationConnection> connection1_;
-  scoped_ptr<ApplicationConnection> connection2_;
+  scoped_ptr<Connection> connection1_;
+  scoped_ptr<Connection> connection2_;
 
   DISALLOW_COPY_AND_ASSIGN(TestApplication);
 };
 
 class TestLoader : public ApplicationLoader {
  public:
-  explicit TestLoader(ApplicationDelegate* delegate);
+  explicit TestLoader(ShellClient* delegate);
   ~TestLoader() override;
 
  private:
   // Overridden from ApplicationLoader:
   void Load(const GURL& url,
-            InterfaceRequest<mojom::Application> request) override;
+            InterfaceRequest<mojom::ShellClient> request) override;
 
-  scoped_ptr<ApplicationDelegate> delegate_;
-  scoped_ptr<ApplicationImpl> app_;
+  scoped_ptr<ShellClient> delegate_;
+  scoped_ptr<ShellConnection> app_;
 
   DISALLOW_COPY_AND_ASSIGN(TestLoader);
 };
@@ -92,8 +94,8 @@ class CapabilityFilterTest : public testing::Test {
   void RunTest();
 
   template<class T>
-  scoped_ptr<ApplicationDelegate> CreateApplicationDelegate() {
-    return scoped_ptr<ApplicationDelegate>(new T);
+  scoped_ptr<ShellClient> CreateShellClient() {
+    return scoped_ptr<ShellClient>(new T);
   }
 
   base::ShadowingAtExitManager at_exit_;

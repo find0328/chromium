@@ -684,8 +684,10 @@ gfx::ImageSkia BrowserView::GetOTRAvatarIcon() const {
   if (ui::MaterialDesignController::IsModeMaterial()) {
     SkColor icon_color = SK_ColorWHITE;
 #if defined(OS_WIN)
-    // On Windows 10, we can't change the frame color so must assume it's white.
-    if (base::win::GetVersion() == base::win::VERSION_WIN10)
+    // On Windows 10+, we assume the native frame color is white.
+    // TODO(pkasting): Read the correct frame color from the registry or APIs.
+    if (GetWidget() && GetWidget()->ShouldUseNativeFrame() &&
+        (base::win::GetVersion() >= base::win::VERSION_WIN10))
       icon_color = gfx::kChromeIconGrey;
 #endif
     return gfx::CreateVectorIcon(gfx::VectorIconId::INCOGNITO, 24, icon_color);
@@ -1412,7 +1414,7 @@ void BrowserView::ShowWebsiteSettings(
   // the location bar.
   views::View* popup_anchor = frame_->GetLocationIconView();
   if (!popup_anchor)
-    popup_anchor = GetLocationBarView()->location_icon_view();
+    popup_anchor = GetLocationBarView()->location_icon_view()->GetImageView();
 
   WebsiteSettingsPopupView::ShowPopup(popup_anchor, gfx::Rect(), profile,
                                       web_contents, url, security_info);

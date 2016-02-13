@@ -2246,10 +2246,22 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="Autofill.CardUploadDecision" enum="AutofillCardUploadDecision">
+  <obsolete>
+    Deprecated as of 2/2016, replaced by Autofill.CardUploadDecisionExpanded.
+  </obsolete>
   <owner>jdonnelly@chromium.org</owner>
   <summary>
     Whether upload was offered upon detecting a form submission with credit card
     data and a reason if it wasn't.
+  </summary>
+</histogram>
+
+<histogram name="Autofill.CardUploadDecisionExpanded"
+    enum="AutofillCardUploadDecisionExpanded">
+  <owner>jdonnelly@chromium.org</owner>
+  <summary>
+    Whether upload was offered upon detecting a form submission with credit card
+    data and a detailed reason if it wasn't.
   </summary>
 </histogram>
 
@@ -3153,11 +3165,22 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Blink.MemoryCache.RevalidationPolicy.Dead"
+    enum="RevalidationPolicy">
+  <owner>hiroshige@chromium.org</owner>
+  <summary>
+    RevalidationPolicy used for requests that hit Resource only referenced from
+    MemoryCache for each resource type. https://crbug.com/579496 Requests
+    counted by this are also counted by Blink.MemoryCache.RevalidationPolicy or
+    Blink.MemoryCache.RevalidationPolicy.Preload.
+  </summary>
+</histogram>
+
 <histogram name="Blink.MemoryCache.RevalidationPolicy.Preload"
     enum="RevalidationPolicy">
   <owner>hiroshige@chromium.org</owner>
   <summary>
-    RevalidationPolicy of used for preloading requests for each resource type.
+    RevalidationPolicy used for preloading requests for each resource type.
     https://crbug.com/579496
   </summary>
 </histogram>
@@ -3178,6 +3201,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>kouhei@chromium.org</owner>
   <summary>
     On each link stylesheet tag resolve, record which cache Blink hit.
+  </summary>
+</histogram>
+
+<histogram name="Blink.ScanPendingActivityDuration" units="ms">
+  <owner>haraken@chromium.org</owner>
+  <summary>
+    Duration of time taken to scan pending activities of all V8 wrappers in a
+    worker thread.
   </summary>
 </histogram>
 
@@ -3728,6 +3759,11 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>An open bubble was forced to close.</summary>
 </histogram>
 
+<histogram name="Bubbles.Close.FrameDestroyed" enum="BubbleType">
+  <owner>hcarmona@chromium.org</owner>
+  <summary>An open bubble was dismissed because a frame was destroyed.</summary>
+</histogram>
+
 <histogram name="Bubbles.Close.FullscreenToggled" enum="BubbleType">
   <owner>hcarmona@chromium.org</owner>
   <summary>
@@ -4036,6 +4072,18 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     Records events and user interactions related to the Cast overlay shown on
     video elements.
+  </summary>
+</histogram>
+
+<histogram name="Cast.Sender.SessionTimeWithoutMediaElementPercentage"
+    units="%">
+  <owner>aberent@chromium.org</owner>
+  <owner>avayvod@chromium.org</owner>
+  <summary>
+    Records the ratio of the time the media element was detached from the remote
+    playback session to the total duration of the session (as from when the
+    element has been attached till when the session stopped or disconnected), in
+    percents.
   </summary>
 </histogram>
 
@@ -5616,6 +5664,22 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>The option that the user selected from a context menu.</summary>
 </histogram>
 
+<histogram name="ContextMenu.Shown" enum="BooleanPresent">
+  <owner>mpearson@chromium.org</owner>
+  <summary>
+    Recorded when a context menu is shown, sliced by whether a web contents was
+    present.  (It generally should be; indeed, this code path should not be
+    followed when it is absent.  For instance, invoking a context menu from the
+    new tab page or from the sad tab page will not cause an emission to this
+    histogram.)  Note that this refers to link context menus, not the
+    cut-copy-paste context menus that can appear during long presses on text on
+    a web page or long presses in the omnibox.  The value of this histogram for
+    &quot;present&quot; could be usefully compared with the total count of
+    ContextMenu.SelectedOption to determine the clickthrough rate for context
+    menus.
+  </summary>
+</histogram>
+
 <histogram name="Cookie.BackingStoreUpdateResults" enum="BackingStoreResults">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <summary>
@@ -6432,6 +6496,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="DataReductionProxy.ConfigFetchLostBytesCL">
+  <obsolete>
+    Removed in Feb. 2016
+  </obsolete>
   <owner>bengr@chromium.org</owner>
   <summary>
     Size of the response body. This is the actual number of bytes received,
@@ -6442,6 +6509,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="DataReductionProxy.ConfigFetchLostBytesDiff">
+  <obsolete>
+    Removed in Feb. 2016
+  </obsolete>
   <owner>bengr@chromium.org</owner>
   <summary>
     The difference between the size specified in the X-Original-Content-Length
@@ -6454,6 +6524,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="DataReductionProxy.ConfigFetchLostBytesOCL">
+  <obsolete>
+    Removed in Feb. 2016
+  </obsolete>
   <owner>bengr@chromium.org</owner>
   <summary>
     Size specified in the X-Original-Content-Length header. If this header is
@@ -6469,6 +6542,10 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     Total number of authentication required responses received from the Data
     Reduction Proxy.
+
+    An &quot;Unexpired&quot; value is recorded every time a new client config is
+    fetched and parsed successfully. An &quot;Expired&quot; value is recorded
+    every time Chrome receives 407 from the data saver proxy.
   </summary>
 </histogram>
 
@@ -6478,6 +6555,10 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     The number of failed attempts when retrieving the configuration from the
     Data Reduction Proxy API before a successful attempt took place.
+
+    Recorded every time a new client config is fetched and parsed successfully.
+    If the device has a valid connection type but no Internet connectivity, this
+    count will keep increasing.
   </summary>
 </histogram>
 
@@ -6486,6 +6567,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     Time from when the Data Reduction Proxy configuration request starts until
     it completes.
+
+    Recorded every time a new client config is fetched and parsed successfully.
   </summary>
 </histogram>
 
@@ -8827,6 +8910,10 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="DomDistiller.PageDistillable" enum="DistillableType">
+  <obsolete>
+    PageDistillableAfterLoading and PageDistillableAfterParsing provide more
+    details since 02/2016.
+  </obsolete>
   <owner>cjhopman@chromium.org</owner>
   <summary>
     Records the &quot;Distillable Type&quot; (not distillable, mobile-friendly
@@ -8834,7 +8921,30 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="DomDistiller.PageDistillableAfterLoading"
+    enum="DistillableType2">
+  <owner>wychen@chromium.org</owner>
+  <summary>
+    Records the &quot;Distillable Type&quot; (mobile-friendly not distillable,
+    mobile-friendly distillable, non-mobile-friendly not distillable,
+    non-mobile-friendly distillable) for each analyzed page after loading.
+  </summary>
+</histogram>
+
+<histogram name="DomDistiller.PageDistillableAfterParsing"
+    enum="DistillableType2">
+  <owner>wychen@chromium.org</owner>
+  <summary>
+    Records the &quot;Distillable Type&quot; (mobile-friendly not distillable,
+    mobile-friendly distillable, non-mobile-friendly not distillable,
+    non-mobile-friendly distillable) for each analyzed page after parsing.
+  </summary>
+</histogram>
+
 <histogram name="DomDistiller.PageDistilledType" enum="DistillableType">
+  <obsolete>
+    Not collected anymore.
+  </obsolete>
   <owner>cjhopman@chromium.org</owner>
   <summary>
     Records the &quot;Distillable Type&quot; (not distillable, mobile-friendly
@@ -17683,6 +17793,36 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram
+    name="JSDialogs.FineTiming.TimeBetweenDialogClosedAndNextDialogCreated"
+    units="ms">
+  <owner>joenotcharles@chromium.org</owner>
+  <summary>
+    Fine-grained (in msec) time between closing a Javascript dialog and opening
+    another, to track very frequent dialogs.
+  </summary>
+</histogram>
+
+<histogram
+    name="JSDialogs.FineTiming.TimeBetweenDialogCreatedAndNextDialogCreated"
+    units="ms">
+  <owner>joenotcharles@chromium.org</owner>
+  <summary>
+    Fine-grained (in msec) time between opening a Javascript dialog and opening
+    another, to track very frequent dialogs.
+  </summary>
+</histogram>
+
+<histogram
+    name="JSDialogs.FineTiming.TimeBetweenDialogCreatedAndSameDialogClosed"
+    units="ms">
+  <owner>joenotcharles@chromium.org</owner>
+  <summary>
+    Fine-grained (in msec) time between opening a Javascript dialog and closing
+    it, to track very short-lived dialogs.
+  </summary>
+</histogram>
+
 <histogram name="Keyboard.KeystrokeDeltas" units="ms">
   <owner>Please list the metric's owners. Add more owner tags as needed.</owner>
   <summary>
@@ -17713,6 +17853,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>dominickn@chromium.org</owner>
   <summary>
     Records the source of an Android Home screen shortcut used to launch Chrome.
+  </summary>
+</histogram>
+
+<histogram name="Launch.IntentFlags" enum="LaunchIntentFlags">
+  <owner>dfalcantara@chromium.org</owner>
+  <summary>
+    Records flags (and combinations of flags) that were attached to the Intent
+    that started ChromeLauncherActivity.
   </summary>
 </histogram>
 
@@ -18580,6 +18728,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Media.Audio.ActualInputBufferFrameSizeMac">
+  <owner>henrika@chromium.org</owner>
+  <summary>
+    Size (in audio frames) of native I/O buffers that is set by the audio
+    manager when calling AUAudioInputStream::Open(). I.e., it is the actual
+    buffer size and it can differ from the one that the client requested. Only
+    sampled when Media.Audio.InputStartupSuccessMac reports 'Failure'.
+  </summary>
+</histogram>
+
 <histogram name="Media.Audio.AutomaticGainControlMac" enum="BooleanEnabled">
   <owner>henrika@chromium.org</owner>
   <summary>
@@ -18676,6 +18834,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
     know in particular for audio processing such as echo cancellation. This
     value is logged when an audio output stream that has suffered glitches is
     stopped.
+  </summary>
+</histogram>
+
+<histogram name="Media.Audio.RequestedInputBufferFrameSizeMac">
+  <owner>henrika@chromium.org</owner>
+  <summary>
+    Size (in audio frames) the client has asked for when creating an
+    AUAudioInputStream object. It might not be able to fulfill this request. The
+    actual size is given by Media.Audio.ActualInputBufferFrameSizeMac. Only
+    sampled when Media.Audio.InputStartupSuccessMac reports 'Failure'.
   </summary>
 </histogram>
 
@@ -19336,6 +19504,9 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </histogram>
 
 <histogram name="Media.InputInvalidSampleRateMac" units="Hz">
+  <obsolete>
+    Deprecated and removed from code as of 02/2016.
+  </obsolete>
   <owner>henrika@chromium.org</owner>
   <summary>
     Invalid input sample rate when calling AUAudioInputStream::Open on Mac.
@@ -25655,6 +25826,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Net.ProxyService.GetProxyUsingScriptResult"
+    enum="NetErrorCodes">
+  <owner>eroman@chromium.org</owner>
+  <summary>
+    The network error code of resolving a URL by forwarding the request to the
+    proxy resolver and executing the PAC script.
+  </summary>
+</histogram>
+
 <histogram name="Net.ProxyService.GetProxyUsingScriptTime"
     units="100s of microseconds">
   <owner>eroman@chromium.org</owner>
@@ -25879,6 +26059,14 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <owner>rch@chromium.org</owner>
   <summary>
     The number of stream frames per stream ID within a received packet.
+  </summary>
+</histogram>
+
+<histogram name="Net.QuicReadAvailableData.NullStream" enum="BooleanNullStream">
+  <owner>rtenneti@chromium.org</owner>
+  <summary>
+    The number of times QuicHttpStream's stream_ is a nullptr before
+    IsDoneReading() is called.
   </summary>
 </histogram>
 
@@ -32499,6 +32687,12 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 <histogram name="PageLoad.Events.Provisional" enum="ProvisionalLoadEvent">
   <owner>csharrison@chromium.org</owner>
   <owner>bmcquade@chromium.org</owner>
+  <obsolete>
+    Deprecated Feb 2016 in favor of PageLoad.AbortTiming and
+    PageLoad.Timing2.NavigationToFailedProvisionalLoad. Note that the
+    corresponding background enumerations are no longer being tracked in the
+    timing histograms.
+  </obsolete>
   <summary>
     Captures counts of provisional load events. These include aborted, failed,
     and successful (committed) provisional loads.
@@ -32558,6 +32752,16 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     Measures the time from navigation timing's navigation start to the time the
     DOMContentLoaded event is fired, for main frame documents.
+  </summary>
+</histogram>
+
+<histogram name="PageLoad.Timing2.NavigationToFailedProvisionalLoad" units="ms">
+  <owner>bmcquade@chromium.org</owner>
+  <owner>shivanisha@chromium.org</owner>
+  <summary>
+    Measures the time from navigation timing's navigation start to the time the
+    provisional load failed. Only measures provisional loads that failed in the
+    foreground.
   </summary>
 </histogram>
 
@@ -46674,11 +46878,26 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="SiteIsolation.ProxyCount">
+  <owner>nick@chromium.org</owner>
+  <summary>
+    The count of all RenderFrameProxyHosts.  Recorded once per UMA ping.
+  </summary>
+</histogram>
+
+<histogram name="SiteIsolation.ProxyCountPerBrowsingInstance">
+  <owner>nick@chromium.org</owner>
+  <summary>
+    The count of RenderFrameProxyHosts in each BrowsingInstance.  Recorded each
+    UMA ping, once per BrowsingInstance.
+  </summary>
+</histogram>
+
 <histogram name="SiteIsolation.SiteInstancesPerBrowsingInstance">
   <owner>nasko@chromium.org</owner>
   <summary>
-    The count of SiteInstances in a single BrowsingInstance. Recorded once per
-    UMA ping.
+    The count of SiteInstances in a single BrowsingInstance. Recorded each UMA
+    ping, once per BrowsingInstance.
   </summary>
 </histogram>
 
@@ -50408,6 +50627,11 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Sync.YoungestForeignTabAgeOnNTP" units="seconds">
+  <owner>skym@chromium.org</owner>
+  <summary>Upon NTP load, the age of the youngest synced foreign tab.</summary>
+</histogram>
+
 <histogram name="SyncedNotifications.Actions"
     enum="SyncedNotificationActionType">
   <owner>petewil@chromium.org</owner>
@@ -50992,6 +51216,33 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="Tabs.FineTiming.TimeBetweenTabClosedAndNextTabCreated"
+    units="ms">
+  <owner>joenotcharles@chromium.org</owner>
+  <summary>
+    Fine-grained (in msec) time between closing a tab and opening another, to
+    track very frequent tabs.
+  </summary>
+</histogram>
+
+<histogram name="Tabs.FineTiming.TimeBetweenTabCreatedAndNextTabCreated"
+    units="ms">
+  <owner>joenotcharles@chromium.org</owner>
+  <summary>
+    Fine-grained (in msec) time between opening a tab and opening another, to
+    track very frequent tabs.
+  </summary>
+</histogram>
+
+<histogram name="Tabs.FineTiming.TimeBetweenTabCreatedAndSameTabClosed"
+    units="ms">
+  <owner>joenotcharles@chromium.org</owner>
+  <summary>
+    Fine-grained (in msec) time between opening a tab and closing it, to track
+    very short-lived tabs.
+  </summary>
+</histogram>
+
 <histogram name="Tabs.ForegroundTabAgeAtStartup" units="minutes">
   <owner>lliabraa@chromium.org</owner>
   <summary>
@@ -51556,6 +51807,17 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
+<histogram name="TrafficStatsAmortizer.ConcurrentTabs" units="count">
+  <owner>sclittle@chromium.org</owner>
+  <owner>bengr@chromium.org</owner>
+  <summary>
+    The number of unique tabs seen across all DataUse objects buffered for a
+    single amortization run by the TrafficStatsAmortizer. This is recorded even
+    if TrafficStats byte counts are unavailable, but not recorded if no DataUse
+    objects have been buffered.
+  </summary>
+</histogram>
+
 <histogram name="TrafficStatsAmortizer.PostAmortizationRunDataUseBytes"
     units="bytes">
   <owner>sclittle@chromium.org</owner>
@@ -52082,6 +52344,24 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <summary>
     A count of successes and various failure modes related to collecting and
     processing performance data obtained through &quot;perf&quot; on Chrome OS.
+  </summary>
+</histogram>
+
+<histogram name="UMA.PersistentAllocator.BrowserMetrics.Allocs" units="bytes">
+  <owner>bcwhite@chromium.org</owner>
+  <owner>asvitkine@chromium.org</owner>
+  <summary>
+    Size, before padding, of objects allocated from persistent memory. This is
+    updated with every allocation.
+  </summary>
+</histogram>
+
+<histogram name="UMA.PersistentAllocator.BrowserMetrics.UsedPct" units="%">
+  <owner>bcwhite@chromium.org</owner>
+  <owner>asvitkine@chromium.org</owner>
+  <summary>
+    Percentage of persistent memory segment that has been allocated. This is
+    updated only once per reporting cycle.
   </summary>
 </histogram>
 
@@ -56820,7 +57100,7 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   </summary>
 </histogram>
 
-<histogram name="WrenchMenu.MenuAction" enum="WretchMenuAction">
+<histogram name="WrenchMenu.MenuAction" enum="WrenchMenuAction">
   <owner>ainslie@chromium.org</owner>
   <owner>edwardjung@chromium.org</owner>
   <summary>Number of times that each menu item is clicked.</summary>
@@ -57633,10 +57913,24 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 </enum>
 
 <enum name="AutofillCardUploadDecision" type="int">
+  <obsolete>
+    Deprecated as of 2/2016, replaced by AutofillCardUploadDecisionExpanded.
+  </obsolete>
   <int value="0" label="Upload offered"/>
   <int value="1" label="Upload not offered, no CVC detected"/>
   <int value="2" label="Upload not offered, no valid address available"/>
   <int value="3" label="Upload not offered, get upload details RPC failed"/>
+</enum>
+
+<enum name="AutofillCardUploadDecisionExpanded" type="int">
+  <int value="0" label="Upload offered"/>
+  <int value="1" label="Upload not offered, no CVC detected"/>
+  <int value="2" label="Upload not offered, no address available"/>
+  <int value="3" label="Upload not offered, no name available"/>
+  <int value="4"
+      label="Upload not offered, addresses had conflicting zip codes"/>
+  <int value="5" label="Upload not offered, no zip code available"/>
+  <int value="6" label="Upload not offered, get upload details RPC failed"/>
 </enum>
 
 <enum name="AutofillCreditCardInfoBar" type="int">
@@ -58110,6 +58404,8 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="107" label="RDHI_WRONG_STORAGE_PARTITION"/>
   <int value="108" label="RDH_INVALID_REQUEST_ID"/>
   <int value="109" label="BDH_SERVICE_NOT_ALLOWED_FOR_ORIGIN"/>
+  <int value="110" label="WSH_SEND_BLOB_DURING_BLOB_SEND"/>
+  <int value="111" label="WSH_SEND_FRAME_DURING_BLOB_SEND"/>
 </enum>
 
 <enum name="BadMessageReasonExtensions" type="int">
@@ -58580,6 +58876,11 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 <enum name="BooleanMissingFromDiskCache" type="int">
   <int value="0" label="Has data in disk cache"/>
   <int value="1" label="Missing data in disk cache"/>
+</enum>
+
+<enum name="BooleanNullStream" type="int">
+  <int value="0" label="Stream is not a nullptr"/>
+  <int value="1" label="Stream is a nullptr"/>
 </enum>
 
 <enum name="BooleanNullVisitor" type="int">
@@ -60816,6 +61117,12 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="7" label="Audits"/>
   <int value="8" label="Console"/>
   <int value="9" label="Layers"/>
+  <int value="10" label="Drawer - Console"/>
+  <int value="11" label="Drawer - Animations"/>
+  <int value="12" label="Drawer - Network config"/>
+  <int value="13" label="Drawer - Rendering"/>
+  <int value="14" label="Drawer - Sensors"/>
+  <int value="15" label="Drawer - Search"/>
 </enum>
 
 <enum name="DevToolsSetting" type="int">
@@ -60895,8 +61202,15 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
 
 <enum name="DistillableType" type="int">
   <int value="0" label="Not distillable"/>
-  <int value="1" label="Non-mobile-friendly Distillable"/>
+  <int value="1" label="Non-mobile-friendly distillable"/>
   <int value="2" label="Mobile-friendly distillable"/>
+</enum>
+
+<enum name="DistillableType2" type="int">
+  <int value="0" label="Non-mobile-friendly, not distillable"/>
+  <int value="1" label="Mobile-friendly, not distillable"/>
+  <int value="2" label="Non-mobile-friendly, distillable"/>
+  <int value="3" label="Mobile-friendly, distillable"/>
 </enum>
 
 <enum name="DllHash" type="int">
@@ -62527,6 +62841,10 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="313" label="Default key generation setting"/>
   <int value="314" label="Allow key generation on these sites"/>
   <int value="315" label="Block key generation on these sites"/>
+  <int value="316"
+      label="Configure the required domain name for remote access clients"/>
+  <int value="317" label="ARC Enabled"/>
+  <int value="318" label="Configure ARC apps"/>
 </enum>
 
 <enum name="EnterprisePolicyInvalidations" type="int">
@@ -66203,6 +66521,10 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="1153" label="CSSSelectorIndirectAdjacent"/>
   <int value="1154" label="NodeTreeRoot"/>
   <int value="1155" label="BluetoothDeviceConnectGATT"/>
+  <int value="1156" label="CreateImageBitmap"/>
+  <int value="1157" label="PresentationConnectionConnectEventListener"/>
+  <int value="1158" label="PresentationConnectionCloseEventListener"/>
+  <int value="1159" label="PresentationConnectionTerminateEventListener"/>
 </enum>
 
 <enum name="FetchRequestMode" type="int">
@@ -69837,6 +70159,13 @@ http://cs/file:chrome/histograms.xml - but prefer this file for new entries.
   <int value="4" label="Bookmark shortcut widget"/>
 </enum>
 
+<enum name="LaunchIntentFlags" type="int">
+  <int value="0" label="No flags"/>
+  <int value="524288" label="NEW_DOCUMENT"/>
+  <int value="268435456" label="NEW_TASK"/>
+  <int value="268959744" label="NEW_TASK | NEW_DOCUMENT"/>
+</enum>
+
 <enum name="LevelDBCorruptionRestoreValue" type="int">
   <int value="0" label="Database Delete Success"/>
   <int value="1" label="Database Delete Failure"/>
@@ -70249,6 +70578,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="-1925117279" label="disable-quic-https"/>
   <int value="-1915854488" label="enable-offline-pages"/>
   <int value="-1911153473" label="enable-easy-signin"/>
+  <int value="-1892555086" label="disable-compositor-animation-timelines"/>
   <int value="-1888273969" label="tab-capture-upscale-quality"/>
   <int value="-1887053262"
       label="enable-zero-suggest-most-visited-without-serp"/>
@@ -70402,6 +70732,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="-795600188" label="disable-async-dns"/>
   <int value="-780798969" label="disable-single-click-autofill"/>
   <int value="-770319039" label="enable-touch-editing"/>
+  <int value="-763759697" label="enable-audio-support-for-desktop-share"/>
   <int value="-759830869" label="enable-tab-discarding"/>
   <int value="-749048160" label="enable-panels"/>
   <int value="-744159181" label="disable-spdy-proxy-dev-auth-origin"/>
@@ -70523,6 +70854,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="274103741" label="enable-ntp-popular-sites"/>
   <int value="278756320" label="disable-app-list-app-info"/>
   <int value="280322118" label="enable-unsafe-es3-apis"/>
+  <int value="323605372" label="ui-disable-compositor-animation-timelines"/>
   <int value="324631366" label="enable-drive-search-in-app-launcher"/>
   <int value="330138076" label="enable-clear-browsing-data-counters"/>
   <int value="346711293" label="enable-save-password-bubble"/>
@@ -70734,6 +71066,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="1819536169" label="disable-cast-streaming-hw-encoding"/>
   <int value="1820451991" label="enable-offline-auto-reload"/>
   <int value="1821723343" label="disable-saml-signin"/>
+  <int value="1828660283" label="enable-webfonts-intervention-trigger"/>
   <int value="1844110073" label="enable-app-view"/>
   <int value="1847024354" label="enable-hotword-hardware"/>
   <int value="1855524566" label="allow-insecure-websocket-from-https-origin"/>
@@ -76657,6 +76990,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="69" label="IDC_CONTENT_CONTEXT_COPYLINKTEXT"/>
   <int value="70" label="IDC_CONTENT_CONTEXT_OPENLINKINPROFILE"/>
   <int value="71" label="IDC_OPEN_LINK_IN_PROFILE_FIRST"/>
+  <int value="72" label="IDC_CONTENT_CONTEXT_GENERATEPASSWORD"/>
 </enum>
 
 <enum name="ReportProcessingResult" type="int">
@@ -76986,7 +77320,6 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="6" label="NETWORK_ERROR"/>
   <int value="7" label="HTTP_ERROR"/>
   <int value="8" label="BACKOFF_ERROR"/>
-  <int value="9" label="MIN_WAIT_DURATION_ERROR"/>
 </enum>
 
 <enum name="SB2InterstitialAction" type="int">
@@ -81208,6 +81541,12 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="13" label="RGB32"/>
   <int value="14" label="MJPEG"/>
   <int value="15" label="MT21"/>
+  <int value="16" label="YUV420P9"/>
+  <int value="17" label="YUV420P10"/>
+  <int value="18" label="YUV422P9"/>
+  <int value="19" label="YUV422P10"/>
+  <int value="20" label="YUV444P9"/>
+  <int value="21" label="YUV444P10"/>
 </enum>
 
 <enum name="VideoPlayerCastAPIExtensionStatus" type="int">
@@ -81896,7 +82235,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="2" label="People"/>
 </enum>
 
-<enum name="WretchMenuAction" type="int">
+<enum name="WrenchMenuAction" type="int">
   <int value="0" label="New tab"/>
   <int value="1" label="New window"/>
   <int value="2" label="New incognito window"/>
@@ -81941,6 +82280,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <int value="41" label="Recent tab"/>
   <int value="42" label="Open a bookmark"/>
   <int value="43" label="Exit"/>
+  <int value="44" label="Upgrade browser"/>
 </enum>
 
 <enum name="XMLHttpRequestHeaderValueCategoryInRFC7230" type="int">
@@ -82968,6 +83308,9 @@ To add a new entry, add it with any value and run test to compute valid value.
 </histogram_suffixes>
 
 <histogram_suffixes name="DataReductionProxyConfigFetchLostBytes" separator="_">
+  <obsolete>
+    Removed in Feb 2016.
+  </obsolete>
   <suffix name="0" label="Bucket 0 for gathering multiple data points."/>
   <suffix name="1" label="Bucket 1 for gathering multiple data points."/>
   <suffix name="2" label="Bucket 2 for gathering multiple data points."/>
@@ -86677,6 +87020,7 @@ To add a new entry, add it with any value and run test to compute valid value.
   <suffix name="Media"/>
   <suffix name="Manifest"/>
   <affected-histogram name="Blink.MemoryCache.RevalidationPolicy"/>
+  <affected-histogram name="Blink.MemoryCache.RevalidationPolicy.Dead"/>
   <affected-histogram name="Blink.MemoryCache.RevalidationPolicy.Preload"/>
 </histogram_suffixes>
 

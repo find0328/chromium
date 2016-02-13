@@ -145,7 +145,7 @@
 #endif
 
 #if defined(OS_LINUX) && defined(USE_UDEV)
-#include "content/browser/device_monitor_udev.h"
+#include "media/capture/device_monitor_udev.h"
 #elif defined(OS_MACOSX) && !defined(OS_IOS)
 #include "content/browser/device_monitor_mac.h"
 #endif
@@ -179,8 +179,7 @@
 #if defined(MOJO_SHELL_CLIENT)
 #include "content/common/mojo/mojo_shell_connection_impl.h"
 #include "mojo/converters/network/network_type_converters.h"
-#include "mojo/shell/public/cpp/application_impl.h"
-#include "third_party/mojo/src/mojo/edk/embedder/embedder.h"
+#include "mojo/shell/public/cpp/shell.h"
 #include "ui/views/mus/window_manager_connection.h"
 #endif
 
@@ -874,7 +873,9 @@ int BrowserMainLoop::CreateThreads() {
             "BrowserMainLoop::CreateThreads:start",
             "Thread", "BrowserThread::CACHE");
         thread_to_start = &cache_thread_;
+#if defined(OS_WIN)
         options = io_message_loop_options;
+#endif  // defined(OS_WIN)
         options.timer_slack = base::TIMER_SLACK_MAXIMUM;
         break;
       case BrowserThread::IO:
@@ -916,12 +917,11 @@ int BrowserMainLoop::CreateThreads() {
 int BrowserMainLoop::PreMainMessageLoopRun() {
 #if defined(MOJO_SHELL_CLIENT)
   if (IsRunningInMojoShell()) {
-    mojo::embedder::PreInitializeChildProcess();
     MojoShellConnectionImpl::Create();
     MojoShellConnectionImpl::Get()->BindToCommandLinePlatformChannel();
 #if defined(USE_AURA)
     views::WindowManagerConnection::Create(
-        MojoShellConnection::Get()->GetApplication());
+        MojoShellConnection::Get()->GetShell());
 #endif
   }
 #endif
@@ -1245,7 +1245,8 @@ int BrowserMainLoop::BrowserThreadsStarted() {
   }
 
 #if defined(OS_LINUX) && defined(USE_UDEV)
-  device_monitor_linux_.reset(new DeviceMonitorLinux());
+  device_monitor_linux_.reset(
+      new media::DeviceMonitorLinux(io_thread_->task_runner()));
 #elif defined(OS_MACOSX)
   device_monitor_mac_.reset(new DeviceMonitorMac());
 #endif

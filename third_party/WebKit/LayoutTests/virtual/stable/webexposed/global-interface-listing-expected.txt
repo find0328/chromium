@@ -3027,6 +3027,7 @@ interface Navigator
     getter appCodeName
     getter appName
     getter appVersion
+    getter bluetooth
     getter cookieEnabled
     getter doNotTrack
     getter geolocation
@@ -3155,6 +3156,7 @@ interface Notification : EventTarget
     getter onclose
     getter onerror
     getter onshow
+    getter renotify
     getter requireInteraction
     getter silent
     getter tag
@@ -3321,18 +3323,28 @@ interface PresentationAvailability : EventTarget
 interface PresentationConnection : EventTarget
     getter binaryType
     getter id
+    getter onclose
+    getter onconnect
     getter onmessage
     getter onstatechange
+    getter onterminate
     getter state
     method close
     method constructor
     method send
     method terminate
     setter binaryType
+    setter onclose
+    setter onconnect
     setter onmessage
     setter onstatechange
+    setter onterminate
 interface PresentationConnectionAvailableEvent : Event
     getter connection
+    method constructor
+interface PresentationConnectionCloseEvent : Event
+    getter message
+    getter reason
     method constructor
 interface PresentationRequest : EventTarget
     getter onconnectionavailable
@@ -5494,10 +5506,6 @@ interface XMLHttpRequestEventTarget : EventTarget
     setter onloadstart
     setter onprogress
     setter ontimeout
-interface XMLHttpRequestProgressEvent : ProgressEvent
-    getter position
-    getter totalSize
-    method constructor
 interface XMLHttpRequestUpload : XMLHttpRequestEventTarget
     method constructor
 interface XMLSerializer
@@ -5828,6 +5836,13 @@ interface webkitURL
     setter search
     setter username
 [GLOBAL OBJECT]
+    attribute BluetoothAdvertisingData
+    attribute BluetoothCharacteristicProperties
+    attribute BluetoothDevice
+    attribute BluetoothGATTCharacteristic
+    attribute BluetoothGATTRemoteServer
+    attribute BluetoothGATTService
+    attribute BluetoothUUID
     attribute GCController
     attribute accessibilityController
     attribute applicationCache
@@ -5878,6 +5893,7 @@ interface webkitURL
     attribute ondblclick
     attribute ondevicemotion
     attribute ondeviceorientation
+    attribute ondeviceorientationabsolute
     attribute ondrag
     attribute ondragend
     attribute ondragenter

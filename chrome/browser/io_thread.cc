@@ -297,60 +297,6 @@ const std::string& GetVariationParam(
   return it->second;
 }
 
-// Parse kUseSpdy command line flag options, which may contain the following:
-//
-//   "off"                      : Disables SPDY support entirely.
-//   "no-ping"                  : Disables SPDY ping connection testing.
-//   "exclude=<host>"           : Disables SPDY support for the host <host>.
-//   "no-compress"              : Disables SPDY header compression.
-//   "init-max-streams=<limit>" : Specifies the maximum number of concurrent
-//                                streams for a SPDY session, unless the
-//                                specifies a different value via SETTINGS.
-void ConfigureSpdyGlobalsFromUseSpdyArgument(const std::string& mode,
-                                             IOThread::Globals* globals) {
-  static const char kOff[] = "off";
-  static const char kDisablePing[] = "no-ping";
-  static const char kExclude[] = "exclude";  // Hosts to exclude
-  static const char kDisableCompression[] = "no-compress";
-  static const char kInitialMaxConcurrentStreams[] = "init-max-streams";
-
-  for (const base::StringPiece& element : base::SplitStringPiece(
-           mode, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL)) {
-    std::vector<base::StringPiece> name_value = base::SplitStringPiece(
-        element, "=", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
-    const base::StringPiece option =
-        name_value.size() > 0 ? name_value[0] : base::StringPiece();
-    const base::StringPiece value =
-        name_value.size() > 1 ? name_value[1] : base::StringPiece();
-
-    if (option == kOff) {
-      net::HttpStreamFactory::set_spdy_enabled(false);
-      continue;
-    }
-    if (option == kDisablePing) {
-      globals->enable_spdy_ping_based_connection_checking.set(false);
-      continue;
-    }
-    if (option == kExclude) {
-      globals->forced_spdy_exclusions.insert(
-          net::HostPortPair::FromURL(GURL(value.as_string())));
-      continue;
-    }
-    if (option == kDisableCompression) {
-      globals->enable_spdy_compression.set(false);
-      continue;
-    }
-    if (option == kInitialMaxConcurrentStreams) {
-      int streams;
-      if (base::StringToInt(value, &streams)) {
-        globals->initial_max_spdy_concurrent_streams.set(streams);
-        continue;
-      }
-    }
-    LOG(DFATAL) << "Unrecognized spdy option: " << option.as_string();
-  }
-}
-
 }  // namespace
 
 class IOThread::LoggingNetworkChangeObserver
@@ -849,6 +795,9 @@ void IOThread::Init() {
     globals_->testing_fixed_https_port =
         GetSwitchValueAsInt(command_line, switches::kTestingFixedHttpsPort);
   }
+  ConfigureAltSvcGlobals(
+      command_line, base::FieldTrialList::FindFullName(kAltSvcFieldTrialName),
+      globals_);
   // TODO(erikchen): Remove ScopedTracker below once http://crbug.com/466432
   // is fixed.
   tracked_objects::ScopedTracker tracking_profile12_5(
@@ -935,8 +884,8 @@ void IOThread::CleanUp() {
 }
 
 void IOThread::InitializeNetworkOptions(const base::CommandLine& command_line) {
-  // Only handle use-spdy command line flags if "spdy.disabled" preference is
-  // not disabled via policy.
+  // Only handle SPDY field trial parameters and command line flags if
+  // "spdy.disabled" preference is not forced via policy.
   if (is_spdy_disabled_by_policy_) {
     base::FieldTrial* trial = base::FieldTrialList::Find(kSpdyFieldTrialName);
     if (trial)
@@ -949,10 +898,6 @@ void IOThread::InitializeNetworkOptions(const base::CommandLine& command_line) {
     }
     ConfigureSpdyGlobals(command_line, group, params, globals_);
   }
-
-  ConfigureAltSvcGlobals(
-      command_line, base::FieldTrialList::FindFullName(kAltSvcFieldTrialName),
-      globals_);
 
   ConfigureTCPFastOpen(command_line);
 
@@ -986,12 +931,7 @@ void IOThread::ConfigureSpdyGlobals(
   if (command_line.HasSwitch(switches::kIgnoreUrlFetcherCertRequests))
     net::URLFetcher::SetIgnoreCertificateRequests(true);
 
-  if (command_line.HasSwitch(switches::kUseSpdy)) {
-    std::string spdy_mode =
-        command_line.GetSwitchValueASCII(switches::kUseSpdy);
-    ConfigureSpdyGlobalsFromUseSpdyArgument(spdy_mode, globals);
-    // TODO(bnc): https://crbug.com/547781
-    // This command line flag is broken.
+  if (command_line.HasSwitch(switches::kDisableHttp2)) {
     globals->enable_spdy31.set(false);
     globals->enable_http2.set(false);
     return;
@@ -1155,17 +1095,10 @@ void IOThread::InitializeNetworkSessionParamsFromGlobals(
   globals.enable_tcp_fast_open_for_ssl.CopyToIfSet(
       &params->enable_tcp_fast_open_for_ssl);
 
-  globals.initial_max_spdy_concurrent_streams.CopyToIfSet(
-      &params->spdy_initial_max_concurrent_streams);
-  globals.enable_spdy_compression.CopyToIfSet(
-      &params->enable_spdy_compression);
-  globals.enable_spdy_ping_based_connection_checking.CopyToIfSet(
-      &params->enable_spdy_ping_based_connection_checking);
   globals.spdy_default_protocol.CopyToIfSet(
       &params->spdy_default_protocol);
   globals.enable_spdy31.CopyToIfSet(&params->enable_spdy31);
   globals.enable_http2.CopyToIfSet(&params->enable_http2);
-  params->forced_spdy_exclusions = globals.forced_spdy_exclusions;
   globals.parse_alternative_services.CopyToIfSet(
       &params->parse_alternative_services);
   globals.enable_alternative_service_with_different_host.CopyToIfSet(
@@ -1312,9 +1245,15 @@ void IOThread::ConfigureQuicGlobals(
   bool enable_quic_for_proxies = ShouldEnableQuicForProxies(
       command_line, quic_trial_group, quic_allowed_by_policy);
   globals->enable_quic_for_proxies.set(enable_quic_for_proxies);
-  globals->enable_alternative_service_with_different_host.set(
-      ShouldQuicEnableAlternativeServicesForDifferentHost(command_line,
-                                                          quic_trial_params));
+
+  if (ShouldQuicEnableAlternativeServicesForDifferentHost(command_line,
+                                                          quic_trial_params)) {
+    globals->enable_alternative_service_with_different_host.set(true);
+    globals->parse_alternative_services.set(true);
+  } else {
+    globals->enable_alternative_service_with_different_host.set(false);
+  }
+
   if (enable_quic) {
     globals->quic_always_require_handshake_confirmation.set(
         ShouldQuicAlwaysRequireHandshakeConfirmation(quic_trial_params));

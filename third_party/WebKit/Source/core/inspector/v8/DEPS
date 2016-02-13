@@ -1,9 +1,0 @@
-include_rules = [
-    "-bindings/core",
-    "+bindings/core/v8/V8RecursionScope.h",
-    "-platform",
-    "+platform/JSONParser.h",
-    "+platform/JSONValues.h",
-    "+platform/JSONValuesForV8.h",
-    "+platform/weborigin/KURL.h",
-]

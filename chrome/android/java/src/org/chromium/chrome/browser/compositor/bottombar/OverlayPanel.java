@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.compositor.bottombar;
 
 import android.app.Activity;
 import android.content.Context;
+import android.view.View;
 import android.view.View.MeasureSpec;
 
 import org.chromium.base.ActivityState;
@@ -17,6 +18,7 @@ import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager.Pane
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
 import org.chromium.chrome.browser.compositor.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.content.browser.ContentVideoViewEmbedder;
 import org.chromium.content.browser.ContentViewClient;
 import org.chromium.content.browser.ContentViewCore;
 import org.chromium.content_public.common.TopControlsState;
@@ -76,42 +78,29 @@ public class OverlayPanel extends OverlayPanelAnimation implements ActivityState
         INFOBAR_HIDDEN,
         CONTENT_CHANGED,
         KEYBOARD_SHOWN,
-        KEYBOARD_HIDDEN;
+        KEYBOARD_HIDDEN,
+        TAB_NAVIGATION;
     }
 
-    /**
-     * The activity this panel is in.
-     */
+    /** The activity this panel is in. */
     protected ChromeActivity mActivity;
 
-    /**
-     * The initial height of the Overlay Panel.
-     */
+    /** The initial height of the Overlay Panel. */
     private float mInitialPanelHeight;
 
-    /**
-     * Whether a touch gesture has been detected.
-     */
+    /** Whether a touch gesture has been detected. */
     private boolean mHasDetectedTouchGesture;
 
-    /**
-     * That factory that creates OverlayPanelContents.
-     */
+    /** That factory that creates OverlayPanelContents. */
     private OverlayPanelContentFactory mContentFactory;
 
-    /**
-     * Container for content the panel will show.
-     */
+    /** Container for content the panel will show. */
     private OverlayPanelContent mContent;
 
-    /**
-     * The {@link OverlayPanelHost} used to communicate with the supported layout.
-     */
+    /** The {@link OverlayPanelHost} used to communicate with the supported layout. */
     private OverlayPanelHost mOverlayPanelHost;
 
-    /**
-     * OverlayPanel manager handle for notifications of opening and closing.
-     */
+    /** OverlayPanel manager handle for notifications of opening and closing. */
     protected OverlayPanelManager mPanelManager;
 
     // ============================================================================================
@@ -240,9 +229,12 @@ public class OverlayPanel extends OverlayPanelAnimation implements ActivityState
 
     /**
      * Notify the panel's content that it has been touched.
+     * @param x The X position of the touch in dp.
      */
-    public void notifyPanelTouched() {
-        getOverlayPanelContent().notifyPanelTouched();
+    public void notifyBarTouched(float x) {
+        if (!isCoordinateInsideCloseButton(x)) {
+            getOverlayPanelContent().notifyBarTouched();
+        }
     }
 
     /**
@@ -343,6 +335,27 @@ public class OverlayPanel extends OverlayPanelAnimation implements ActivityState
                             getContentViewHeightPx(),
                             MeasureSpec.EXACTLY);
                 }
+            }
+
+            @Override
+            public ContentVideoViewEmbedder getContentVideoViewEmbedder() {
+                // TODO(mdjones): Possibly enable fullscreen video in overlay panels rather than
+                // passing an empty implementation.
+                return new ContentVideoViewEmbedder() {
+                    @Override
+                    public void enterFullscreenVideo(View view) {}
+
+                    @Override
+                    public void exitFullscreenVideo() {}
+
+                    @Override
+                    public View getVideoLoadingProgressView() {
+                        return null;
+                    }
+
+                    @Override
+                    public void setSystemUiVisibility(boolean enterFullscreen) {}
+                };
             }
         });
 

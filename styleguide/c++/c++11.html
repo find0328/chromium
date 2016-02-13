@@ -357,13 +357,10 @@ Note that &lt;algorithm&gt; contains a range-based <code>move</code> method.  Th
 <tr>
 <td>Begin and End Non-Member Functions</td>
 <td><code>std::begin()</code> and <code>std::end()</code></td>
-<td>Allows use of free functions on any container, including
-fixed-size arrays</td>
-<td><a href="http://en.cppreference.com/w/cpp/iterator/begin">
-std::begin</a> and
-<a href="http://en.cppreference.com/w/cpp/iterator/end">
-std::end</a></td>
-<td>Useful for fixed-size arrays. <a href="https://groups.google.com/a/chromium.org/d/topic/cxx/5iFNE8P5qT4/discussion">Discussion thread</a></td>
+<td>Allows use of free functions on any container, including fixed-size arrays</td>
+<td><a href="http://en.cppreference.com/w/cpp/iterator/begin">std::begin</a> and <a href="http://en.cppreference.com/w/cpp/iterator/end">std::end</a></td>
+<td>Useful for fixed-size arrays. <a href="https://groups.google.com/a/chromium.org/d/topic/cxx/5iFNE8P5qT4/discussion">Discussion thread</a><br>
+Note that non-member <code>cbegin()</code> and <code>cend()</code> are not available until C++14.</td>
 </tr>
 
 <tr>
@@ -372,6 +369,14 @@ std::end</a></td>
 <td>Enables compile-time conditional type selection</td>
 <td><a href="http://en.cppreference.com/w/cpp/types/enable_if">std::enable_if</a> and <a href="http://en.cppreference.com/w/cpp/types/conditional">conditional</a></td>
 <td>Usage should be rare. <a href='https://groups.google.com/a/chromium.org/forum/#!topic/cxx/vCxo4tZNd_M'>Discussion thread</a></td>
+</tr>
+
+<tr>
+<td>Constant Iterator Methods on Containers</td>
+<td><code>std::vector::cbegin()</code>, <code>std::vector::cend()</code></td>
+<td>Allows more widespread use of <code>const_iterator</code></td>
+<td>E.g. <a href="http://en.cppreference.com/w/cpp/container/vector/begin">std::vector::cbegin<a> and <a href="http://en.cppreference.com/w/cpp/container/vector/end">std::vector::cend<a></td>
+<td>Applies to all containers, not just <code>vector</code>.  Consider using <code>const_iterator</code> over <code>iterator</code> where possible for the same reason as using <code>const</code> variables and functions where possible; see Effective Modern C++ item 13 for motivation.  <a href="https://groups.google.com/a/chromium.org/d/topic/cxx/cS83F_buqLM/discussion">Discussion thread</a></td>
 </tr>
 
 <tr>
@@ -471,6 +476,16 @@ std::basic_string::back</a></td>
 and <a href="http://en.cppreference.com/w/cpp/container/unordered_set">std::unordered_set</a>
 </td>
 <td>Per the <a href="https://google.github.io/styleguide/cppguide.html#std_hash">Google style guide</a>, specify custom hashers instead of specializing <code>std::hash</code> for custom types. <a href="https://groups.google.com/a/chromium.org/forum/#!topic/cxx/nCdjQqnouO4">Discussion thread</a>.</td>
+</tr>
+
+<tr>
+<td>Tuples</td>
+<td><code>std::tuple</code></td>
+<td>A fixed-size ordered collection of values of mixed types</td>
+<td><a href="http://en.cppreference.com/w/cpp/utility/tuple">std::tuple</a></td>
+<td><a href="https://crbug.com/554987">Tracking bug</a> to plan moving from <code>base::Tuple</code> to <code>std::tuple</code>. See also <code>std::tie</code>.
+<code>base::Tuple</code> is now an alias for <code>std::tuple</code>. In class template specializations, use <code>std::tuple</code> instead of <code>base::Tuple</code> to work around a MSVS2013 internal compiler error (Error code: C1001).
+</td>
 </tr>
 
 </tbody>
@@ -846,14 +861,6 @@ the <code>&lt;complex&gt;</code> library.</td>
 </tr>
 
 <tr>
-<td>Constant Iterator Methods on Containers</td>
-<td><code>std::vector::cbegin()</code> and <code>std::vector::cend()</code></td>
-<td>Enforces iteration methods that don't change container contents</td>
-<td><a href="http://en.cppreference.com/w/cpp/container/vector/begin">std::vector::cbegin<a></td>
-<td>This applies to all containers, std::vector is just an example. <a href="https://groups.google.com/a/chromium.org/d/topic/cxx/cS83F_buqLM/discussion">Discussion thread</a></td>
-</tr>
-
-<tr>
 <td>Container Compaction Functions</td>
 <td><code>std::vector::shrink_to_fit()</code>,
 <code>std::deque::shrink_to_fit()</code>, and
@@ -1026,14 +1033,6 @@ std::stof, std::stod, std::stold</a> </td>
 <td><a href="http://en.cppreference.com/w/cpp/language/function">
 Declaring functions</a></td>
 <td><a href="https://groups.google.com/a/chromium.org/forum/#!topic/chromium-dev/OQyYSfH9m2M">Discussion thread</a></td>
-</tr>
-
-<tr>
-<td>Tuples</td>
-<td><code>std::tuple</code></td>
-<td>A fixed-size ordered collection of values of mixed types</td>
-<td><a href="http://en.cppreference.com/w/cpp/utility/tuple">std::tuple</a></td>
-<td><a href="https://crbug.com/554987">Tracking bug</a> to plan moving from <code>base::Tuple</code> to <code>std::tuple</code>. See also <code>std::tie</code></td>
 </tr>
 
 <tr>

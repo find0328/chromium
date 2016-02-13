@@ -11,11 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "mojo/services/tracing/public/cpp/tracing_impl.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-
-namespace mojo {
-class ApplicationConnection;
-}
+#include "mojo/shell/public/cpp/shell_client.h"
 
 namespace views {
 class AuraInit;
@@ -24,14 +20,15 @@ class AuraInit;
 namespace mash {
 namespace task_viewer {
 
-class TaskViewerApplicationDelegate : public mojo::ApplicationDelegate {
+class TaskViewerApplicationDelegate : public mojo::ShellClient {
  public:
   TaskViewerApplicationDelegate();
   ~TaskViewerApplicationDelegate() override;
 
  private:
-  // mojo::ApplicationDelegate:
-  void Initialize(mojo::ApplicationImpl* app) override;
+  // mojo::ShellClient:
+  void Initialize(mojo::Shell* shell, const std::string& url,
+                  uint32_t id) override;
 
   mojo::TracingImpl tracing_;
   scoped_ptr<views::AuraInit> aura_init_;

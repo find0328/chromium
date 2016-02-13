@@ -24,7 +24,6 @@
 #include "cc/animation/animation_host.h"
 #include "cc/animation/animation_timeline.h"
 #include "cc/base/switches.h"
-#include "cc/blink/web_compositor_animation_timeline_impl.h"
 #include "cc/blink/web_layer_impl.h"
 #include "cc/debug/layer_tree_debug_state.h"
 #include "cc/debug/micro_benchmark.h"
@@ -44,6 +43,7 @@
 #include "components/scheduler/renderer/renderer_scheduler.h"
 #include "content/common/content_switches_internal.h"
 #include "content/common/gpu/client/context_provider_command_buffer.h"
+#include "content/common/input/input_event_utils.h"
 #include "content/public/common/content_switches.h"
 #include "content/renderer/gpu/render_widget_compositor_delegate.h"
 #include "content/renderer/input/input_handler_manager.h"
@@ -257,8 +257,7 @@ void RenderWidgetCompositor::Initialize(float device_scale_factor) {
   blink::WebRuntimeFeatures::enableCompositorAnimationTimelines(
       settings.use_compositor_animation_timelines);
 
-  settings.use_mouse_wheel_gestures =
-      cmd->HasSwitch(switches::kEnableWheelGestures);
+  settings.use_mouse_wheel_gestures = UseGestureBasedWheelScrolling();
 
   settings.default_tile_size = CalculateDefaultTileSize(device_scale_factor);
   if (cmd->HasSwitch(switches::kDefaultTileWidth)) {
@@ -505,7 +504,8 @@ void RenderWidgetCompositor::Initialize(float device_scale_factor) {
   params.external_begin_frame_source = std::move(external_begin_frame_source);
   if (use_remote_compositing) {
     DCHECK(!compositor_thread_task_runner.get());
-
+    params.image_serialization_processor =
+        compositor_deps_->GetImageSerializationProcessor();
     layer_tree_host_ = cc::LayerTreeHost::CreateRemoteServer(this, &params);
   } else if (compositor_thread_task_runner.get()) {
     layer_tree_host_ = cc::LayerTreeHost::CreateThreaded(
@@ -608,21 +608,16 @@ void RenderWidgetCompositor::clearRootLayer() {
 }
 
 void RenderWidgetCompositor::attachCompositorAnimationTimeline(
-    blink::WebCompositorAnimationTimeline* compositor_timeline) {
-  DCHECK(compositor_timeline);
+    cc::AnimationTimeline* compositor_timeline) {
   DCHECK(layer_tree_host_->animation_host());
-  layer_tree_host_->animation_host()->AddAnimationTimeline(
-      static_cast<const cc_blink::WebCompositorAnimationTimelineImpl*>(
-          compositor_timeline)->animation_timeline());
+  layer_tree_host_->animation_host()->AddAnimationTimeline(compositor_timeline);
 }
 
 void RenderWidgetCompositor::detachCompositorAnimationTimeline(
-    blink::WebCompositorAnimationTimeline* compositor_timeline) {
-  DCHECK(compositor_timeline);
+    cc::AnimationTimeline* compositor_timeline) {
   DCHECK(layer_tree_host_->animation_host());
   layer_tree_host_->animation_host()->RemoveAnimationTimeline(
-      static_cast<const cc_blink::WebCompositorAnimationTimelineImpl*>(
-          compositor_timeline)->animation_timeline());
+      compositor_timeline);
 }
 
 void RenderWidgetCompositor::setViewportSize(
@@ -766,6 +761,10 @@ static_assert(static_cast<cc::EventListenerProperties>(
 static_assert(static_cast<cc::EventListenerProperties>(
                   blink::WebEventListenerProperties::Blocking) ==
                   cc::EventListenerProperties::kBlocking,
+              "EventListener and WebEventListener enums must match");
+static_assert(static_cast<cc::EventListenerProperties>(
+                  blink::WebEventListenerProperties::BlockingAndPassive) ==
+                  cc::EventListenerProperties::kBlockingAndPassive,
               "EventListener and WebEventListener enums must match");
 
 void RenderWidgetCompositor::setEventListenerProperties(

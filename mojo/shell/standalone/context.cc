@@ -13,7 +13,6 @@
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
-#include "base/i18n/icu_util.h"
 #include "base/lazy_instance.h"
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
@@ -25,9 +24,8 @@
 #include "base/strings/string_util.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
-#include "components/devtools_service/public/cpp/switches.h"
-#include "components/devtools_service/public/interfaces/devtools_service.mojom.h"
 #include "components/tracing/tracing_switches.h"
+#include "mojo/edk/embedder/embedder.h"
 #include "mojo/public/cpp/bindings/strong_binding.h"
 #include "mojo/services/tracing/public/cpp/switches.h"
 #include "mojo/services/tracing/public/cpp/trace_provider_impl.h"
@@ -36,9 +34,6 @@
 #include "mojo/shell/application_loader.h"
 #include "mojo/shell/connect_to_application_params.h"
 #include "mojo/shell/package_manager/package_manager_impl.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/query_util.h"
 #include "mojo/shell/runner/host/in_process_native_runner.h"
 #include "mojo/shell/runner/host/out_of_process_native_runner.h"
@@ -47,7 +42,6 @@
 #include "mojo/shell/standalone/tracer.h"
 #include "mojo/shell/switches.h"
 #include "mojo/util/filename_util.h"
-#include "third_party/mojo/src/mojo/edk/embedder/embedder.h"
 #include "url/gurl.h"
 
 namespace mojo {
@@ -57,10 +51,7 @@ namespace {
 // Used to ensure we only init once.
 class Setup {
  public:
-  Setup() {
-    embedder::PreInitializeParentProcess();
-    embedder::Init();
-  }
+  Setup() { edk::Init(); }
 
   ~Setup() {}
 
@@ -121,47 +112,17 @@ void InitContentHandlers(PackageManagerImpl* manager,
   }
 }
 
-void InitDevToolsServiceIfNeeded(ApplicationManager* manager,
-                                 const base::CommandLine& command_line) {
-  if (!command_line.HasSwitch(devtools_service::kRemoteDebuggingPort))
-    return;
-
-  std::string port_str =
-      command_line.GetSwitchValueASCII(devtools_service::kRemoteDebuggingPort);
-  unsigned port;
-  if (!base::StringToUint(port_str, &port) || port > 65535) {
-    LOG(ERROR) << "Invalid value for switch "
-               << devtools_service::kRemoteDebuggingPort << ": '" << port_str
-               << "' is not a valid port number.";
-    return;
-  }
-
-  ServiceProviderPtr devtools_service_provider;
-  scoped_ptr<ConnectToApplicationParams> params(new ConnectToApplicationParams);
-  params->set_source(Identity(GURL("mojo:shell"), std::string(),
-                              GetPermissiveCapabilityFilter()));
-  params->SetTarget(Identity(GURL("mojo:devtools_service"), std::string(),
-                             GetPermissiveCapabilityFilter()));
-  params->set_services(GetProxy(&devtools_service_provider));
-  manager->ConnectToApplication(std::move(params));
-
-  devtools_service::DevToolsCoordinatorPtr devtools_coordinator;
-  devtools_service_provider->ConnectToService(
-      devtools_service::DevToolsCoordinator::Name_,
-      GetProxy(&devtools_coordinator).PassMessagePipe());
-  devtools_coordinator->Initialize(static_cast<uint16_t>(port));
-}
-
-class TracingServiceProvider : public ServiceProvider {
+class TracingInterfaceProvider : public shell::mojom::InterfaceProvider {
  public:
-  TracingServiceProvider(Tracer* tracer,
-                         InterfaceRequest<ServiceProvider> request)
+  TracingInterfaceProvider(Tracer* tracer,
+                           shell::mojom::InterfaceProviderRequest request)
       : tracer_(tracer), binding_(this, std::move(request)) {}
-  ~TracingServiceProvider() override {}
+  ~TracingInterfaceProvider() override {}
 
-  void ConnectToService(const mojo::String& service_name,
-                        ScopedMessagePipeHandle client_handle) override {
-    if (tracer_ && service_name == tracing::TraceProvider::Name_) {
+  // shell::mojom::InterfaceProvider:
+  void GetInterface(const mojo::String& interface_name,
+                    ScopedMessagePipeHandle client_handle) override {
+    if (tracer_ && interface_name == tracing::TraceProvider::Name_) {
       tracer_->ConnectToProvider(
           MakeRequest<tracing::TraceProvider>(std::move(client_handle)));
     }
@@ -169,9 +130,9 @@ class TracingServiceProvider : public ServiceProvider {
 
  private:
   Tracer* tracer_;
-  StrongBinding<ServiceProvider> binding_;
+  StrongBinding<shell::mojom::InterfaceProvider> binding_;
 
-  DISALLOW_COPY_AND_ASSIGN(TracingServiceProvider);
+  DISALLOW_COPY_AND_ASSIGN(TracingInterfaceProvider);
 };
 
 }  // namespace
@@ -194,26 +155,20 @@ void Context::Init(const base::FilePath& shell_file_root) {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
 
-  bool trace_startup = command_line.HasSwitch(switches::kTraceStartup);
+  bool trace_startup = command_line.HasSwitch(::switches::kTraceStartup);
   if (trace_startup) {
     tracer_.Start(
-        command_line.GetSwitchValueASCII(switches::kTraceStartup),
-        command_line.GetSwitchValueASCII(switches::kTraceStartupDuration),
+        command_line.GetSwitchValueASCII(::switches::kTraceStartup),
+        command_line.GetSwitchValueASCII(::switches::kTraceStartupDuration),
         "mojo_runner.trace");
   }
-
-  // ICU data is a thing every part of the system needs. This here warms
-  // up the copy of ICU in the mojo runner.
-  CHECK(base::i18n::InitializeICU());
 
   EnsureEmbedderIsInitialized();
   task_runners_.reset(
       new TaskRunners(base::MessageLoop::current()->task_runner()));
 
   // TODO(vtl): This should be MASTER, not NONE.
-  embedder::InitIPCSupport(embedder::ProcessType::NONE, this,
-                           task_runners_->io_runner(),
-                           embedder::ScopedPlatformHandle());
+  edk::InitIPCSupport(this, task_runners_->io_runner());
 
   package_manager_ = new PackageManagerImpl(
       shell_file_root, task_runners_->blocking_pool(), nullptr);
@@ -238,24 +193,24 @@ void Context::Init(const base::FilePath& shell_file_root) {
       make_scoped_ptr(package_manager_), std::move(runner_factory),
       task_runners_->blocking_pool()));
 
-  ServiceProviderPtr tracing_services;
-  ServiceProviderPtr tracing_exposed_services;
-  new TracingServiceProvider(&tracer_, GetProxy(&tracing_exposed_services));
+  shell::mojom::InterfaceProviderPtr tracing_remote_interfaces;
+  shell::mojom::InterfaceProviderPtr tracing_local_interfaces;
+  new TracingInterfaceProvider(&tracer_, GetProxy(&tracing_local_interfaces));
 
   scoped_ptr<ConnectToApplicationParams> params(new ConnectToApplicationParams);
   params->set_source(Identity(GURL("mojo:shell"), std::string(),
                               GetPermissiveCapabilityFilter()));
   params->SetTarget(Identity(GURL("mojo:tracing"), std::string(),
                              GetPermissiveCapabilityFilter()));
-  params->set_services(GetProxy(&tracing_services));
-  params->set_exposed_services(std::move(tracing_exposed_services));
+  params->set_remote_interfaces(GetProxy(&tracing_remote_interfaces));
+  params->set_local_interfaces(std::move(tracing_local_interfaces));
   application_manager_->ConnectToApplication(std::move(params));
 
   if (command_line.HasSwitch(tracing::kTraceStartup)) {
     tracing::TraceCollectorPtr coordinator;
     auto coordinator_request = GetProxy(&coordinator);
-    tracing_services->ConnectToService(tracing::TraceCollector::Name_,
-                                       coordinator_request.PassMessagePipe());
+    tracing_remote_interfaces->GetInterface(
+        tracing::TraceCollector::Name_, coordinator_request.PassMessagePipe());
     tracer_.StartCollectingFromTracingService(std::move(coordinator));
   }
 
@@ -263,7 +218,7 @@ void Context::Init(const base::FilePath& shell_file_root) {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           tracing::kEnableStatsCollectionBindings)) {
     tracing::StartupPerformanceDataCollectorPtr collector;
-    tracing_services->ConnectToService(
+    tracing_remote_interfaces->GetInterface(
         tracing::StartupPerformanceDataCollector::Name_,
         GetProxy(&collector).PassMessagePipe());
 #if defined(OS_MACOSX) || defined(OS_WIN) || defined(OS_LINUX)
@@ -273,8 +228,6 @@ void Context::Init(const base::FilePath& shell_file_root) {
 #endif
     collector->SetShellMainEntryPointTime(main_entry_time_.ToInternalValue());
   }
-
-  InitDevToolsServiceIfNeeded(application_manager_.get(), command_line);
 }
 
 void Context::Shutdown() {
@@ -287,8 +240,8 @@ void Context::Shutdown() {
   DCHECK_EQ(base::MessageLoop::current()->task_runner(),
             task_runners_->shell_runner());
   // Post a task in case OnShutdownComplete is called synchronously.
-  base::MessageLoop::current()->PostTask(
-      FROM_HERE, base::Bind(embedder::ShutdownIPCSupport));
+  base::MessageLoop::current()->PostTask(FROM_HERE,
+                                         base::Bind(edk::ShutdownIPCSupport));
   // We'll quit when we get OnShutdownComplete().
   base::MessageLoop::current()->Run();
 }
@@ -301,16 +254,16 @@ void Context::OnShutdownComplete() {
 
 void Context::Run(const GURL& url) {
   DCHECK(app_complete_callback_.is_null());
-  ServiceProviderPtr services;
-  ServiceProviderPtr exposed_services;
+  shell::mojom::InterfaceProviderPtr remote_interfaces;
+  shell::mojom::InterfaceProviderPtr local_interfaces;
 
   app_urls_.insert(url);
 
   scoped_ptr<ConnectToApplicationParams> params(new ConnectToApplicationParams);
   params->SetTarget(
       Identity(url, std::string(), GetPermissiveCapabilityFilter()));
-  params->set_services(GetProxy(&services));
-  params->set_exposed_services(std::move(exposed_services));
+  params->set_remote_interfaces(GetProxy(&remote_interfaces));
+  params->set_local_interfaces(std::move(local_interfaces));
   params->set_on_application_end(
       base::Bind(&Context::OnApplicationEnd, base::Unretained(this), url));
   application_manager_->ConnectToApplication(std::move(params));

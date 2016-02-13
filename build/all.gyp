@@ -55,17 +55,17 @@
             '../mojo/mojo_base.gyp:mojo_common_lib',
             '../mojo/mojo_base.gyp:mojo_common_unittests',
             '../mojo/mojo_base.gyp:mojo_environment_chromium',
+            '../mojo/mojo_edk.gyp:mojo_system_impl',
+            '../mojo/mojo_edk_tests.gyp:mojo_public_bindings_unittests',
+            '../mojo/mojo_edk_tests.gyp:mojo_public_environment_unittests',
+            '../mojo/mojo_edk_tests.gyp:mojo_public_system_unittests',
+            '../mojo/mojo_edk_tests.gyp:mojo_public_utility_unittests',
+            '../mojo/mojo_edk_tests.gyp:mojo_system_unittests',
+            '../mojo/mojo_public.gyp:mojo_cpp_bindings',
+            '../mojo/mojo_public.gyp:mojo_public_test_utils',
+            '../mojo/mojo_public.gyp:mojo_system',
             '../google_apis/google_apis.gyp:google_apis_unittests',
             '../skia/skia_tests.gyp:skia_unittests',
-            '../third_party/mojo/mojo_edk.gyp:mojo_system_impl',
-            '../third_party/mojo/mojo_edk_tests.gyp:mojo_public_bindings_unittests',
-            '../third_party/mojo/mojo_edk_tests.gyp:mojo_public_environment_unittests',
-            '../third_party/mojo/mojo_edk_tests.gyp:mojo_public_system_unittests',
-            '../third_party/mojo/mojo_edk_tests.gyp:mojo_public_utility_unittests',
-            '../third_party/mojo/mojo_edk_tests.gyp:mojo_system_unittests',
-            '../third_party/mojo/mojo_public.gyp:mojo_cpp_bindings',
-            '../third_party/mojo/mojo_public.gyp:mojo_public_test_utils',
-            '../third_party/mojo/mojo_public.gyp:mojo_system',
             '../ui/base/ui_base_tests.gyp:ui_base_unittests',
             '../ui/gfx/gfx_tests.gyp:gfx_unittests',
           ],
@@ -241,13 +241,9 @@
         }],
         ['use_aura==1', {
           'dependencies': [
+            '../ash/ash.gyp:*',
             '../ui/aura/aura.gyp:*',
             '../ui/aura_extra/aura_extra.gyp:*',
-          ],
-        }],
-        ['use_ash==1', {
-          'dependencies': [
-            '../ash/ash.gyp:*',
           ],
         }],
         ['remoting==1', {
@@ -469,6 +465,7 @@
         }],
         ['use_aura==1', {
           'dependencies': [
+            '../ash/ash.gyp:ash_unittests',
             '../ui/app_list/app_list.gyp:app_list_unittests',
             '../ui/aura/aura.gyp:aura_unittests',
             '../ui/compositor/compositor.gyp:compositor_unittests',
@@ -483,11 +480,6 @@
         ['use_aura==1 or toolkit_views==1', {
           'dependencies': [
             '../ui/events/events_unittests.gyp:events_unittests',
-          ],
-        }],
-        ['use_ash==1', {
-          'dependencies': [
-            '../ash/ash.gyp:ash_unittests',
           ],
         }],
         ['disable_nacl==0', {
@@ -1307,6 +1299,8 @@
           'target_name': 'aura_builder',
           'type': 'none',
           'dependencies': [
+            '../ash/ash.gyp:ash_shell_with_content',
+            '../ash/ash.gyp:ash_unittests',
             '../cc/blink/cc_blink_tests.gyp:cc_blink_unittests',
             '../cc/cc_tests.gyp:cc_unittests',
             '../components/components_tests.gyp:components_unittests',
@@ -1341,12 +1335,6 @@
             ['OS=="win" and target_arch=="ia32"', {
               'dependencies': [
                 '../chrome/chrome.gyp:crash_service_win64',
-              ],
-            }],
-            ['use_ash==1', {
-              'dependencies': [
-                '../ash/ash.gyp:ash_shell_with_content',
-                '../ash/ash.gyp:ash_unittests',
               ],
             }],
             ['OS=="linux"', {

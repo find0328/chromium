@@ -31,14 +31,12 @@ if config.target_os != config.OS_ANDROID:
 # WARNING: If you add a test make sure the gn target mojo_apptests depends upon
 # it.
 tests = [
-  {
-    'test': 'mojo:clipboard_apptests',
-    'type': 'gtest_isolated',
-  },
-  {
-    'test': 'mojo:network_service_apptests',
-    'type': 'gtest_isolated',
-  },
+    # TODO(rockot): Flaky. Failing with "Unrecognized --gtest_list_tests output"
+    # http://crbug.com/569367.
+#  {
+#    'test': 'mojo:network_service_apptests',
+#    'type': 'gtest_isolated',
+#  },
   {
     'test': 'mojo:resource_provider_apptests',
     'type': 'gtest_isolated',
@@ -55,27 +53,6 @@ if config.target_os != config.OS_ANDROID:
   tests += [
     {
       'test': 'mojo:filesystem_apptests',
-      'type': 'gtest_isolated',
-    },
-    {
-      'test': 'mojo:html_viewer_apptests',
-      'name': 'mojo:html_viewer_apptests',
-      'type': 'gtest_isolated',
-      'args': ['--enable-html-viewer-test-interface',
-               '--use-x11-test-config',
-               '--override-use-gl-with-osmesa-for-tests']
-    },
-    {
-      'test': 'mojo:html_viewer_apptests',
-      'name': 'mojo:html_viewer_apptests new frame',
-      'type': 'gtest_isolated',
-      'args': ['--oopif-always-create-new-frame-tree',
-               '--enable-html-viewer-test-interface',
-               '--use-x11-test-config',
-               '--override-use-gl-with-osmesa-for-tests']
-    },
-    {
-      'test': 'mojo:mandoline_browser_apptests',
       'type': 'gtest_isolated',
     },
     {
@@ -112,10 +89,4 @@ if config.target_os != config.OS_ANDROID:
 #      'args': ['--use-x11-test-config',
 #               '--override-use-gl-with-osmesa-for-tests', '--enable-logging']
 #    },
-    {
-      'test': 'mojo:web_view_apptests',
-      'type': 'gtest_isolated',
-      'args': ['--use-x11-test-config',
-               '--override-use-gl-with-osmesa-for-tests']
-    },
   ]

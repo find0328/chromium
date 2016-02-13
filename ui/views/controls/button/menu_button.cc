@@ -62,16 +62,16 @@ MenuButton::PressedLock::~PressedLock() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MenuButton::MenuButton(ButtonListener* listener,
-                       const base::string16& text,
+MenuButton::MenuButton(const base::string16& text,
                        MenuButtonListener* menu_button_listener,
                        bool show_menu_marker)
-    : LabelButton(listener, text),
+    : LabelButton(nullptr, text),
       menu_offset_(kDefaultMenuOffsetX, kDefaultMenuOffsetY),
       listener_(menu_button_listener),
       show_menu_marker_(show_menu_marker),
-      menu_marker_(ui::ResourceBundle::GetSharedInstance().GetImageNamed(
-          IDR_MENU_DROPARROW).ToImageSkia()),
+      menu_marker_(ui::ResourceBundle::GetSharedInstance()
+                       .GetImageNamed(IDR_MENU_DROPARROW)
+                       .ToImageSkia()),
       destroyed_flag_(NULL),
       pressed_lock_count_(0),
       should_disable_after_press_(false),
@@ -269,6 +269,13 @@ bool MenuButton::OnKeyReleased(const ui::KeyEvent& event) {
   // you press space and clicks it when you release space.  For a MenuButton
   // we always activate the menu on key press.
   return false;
+}
+
+bool MenuButton::AcceleratorPressed(const ui::Accelerator& accelerator) {
+  // CustomButton::AcceleratorPressed ends up in NotifyClick, which doesn't work
+  // for menu buttons.
+  Activate();
+  return true;
 }
 
 void MenuButton::GetAccessibleState(ui::AXViewState* state) {

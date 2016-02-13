@@ -31,7 +31,6 @@
 #ifndef InspectorFileSystemAgent_h
 #define InspectorFileSystemAgent_h
 
-#include "core/InspectorFrontend.h"
 #include "core/inspector/InspectorBaseAgent.h"
 #include "modules/ModulesExport.h"
 #include "wtf/PassOwnPtr.h"
@@ -43,7 +42,7 @@ class ExecutionContext;
 class InspectedFrames;
 class SecurityOrigin;
 
-class MODULES_EXPORT InspectorFileSystemAgent final : public InspectorBaseAgent<InspectorFileSystemAgent, InspectorFrontend::FileSystem>, public InspectorBackendDispatcher::FileSystemCommandHandler {
+class MODULES_EXPORT InspectorFileSystemAgent final : public InspectorBaseAgent<InspectorFileSystemAgent, protocol::Frontend::FileSystem>, public protocol::Dispatcher::FileSystemCommandHandler {
 public:
     static PassOwnPtrWillBeRawPtr<InspectorFileSystemAgent> create(InspectedFrames*);
     ~InspectorFileSystemAgent() override;
@@ -51,11 +50,11 @@ public:
 
     void enable(ErrorString*) override;
 
-    void requestFileSystemRoot(ErrorString*, const String& origin, const String& typeString, PassRefPtrWillBeRawPtr<RequestFileSystemRootCallback>) override;
-    void requestDirectoryContent(ErrorString*, const String& url, PassRefPtrWillBeRawPtr<RequestDirectoryContentCallback>) override;
-    void requestMetadata(ErrorString*, const String& url, PassRefPtrWillBeRawPtr<RequestMetadataCallback>) override;
-    void requestFileContent(ErrorString*, const String& url, bool readAsText, const int* start, const int* end, const String* charset, PassRefPtrWillBeRawPtr<RequestFileContentCallback>) override;
-    void deleteEntry(ErrorString*, const String& url, PassRefPtrWillBeRawPtr<DeleteEntryCallback>) override;
+    void requestFileSystemRoot(ErrorString*, const String& origin, const String& typeString, PassRefPtr<RequestFileSystemRootCallback>) override;
+    void requestDirectoryContent(ErrorString*, const String& url, PassRefPtr<RequestDirectoryContentCallback>) override;
+    void requestMetadata(ErrorString*, const String& url, PassRefPtr<RequestMetadataCallback>) override;
+    void requestFileContent(ErrorString*, const String& url, bool readAsText, const int* start, const int* end, const String* charset, PassRefPtr<RequestFileContentCallback>) override;
+    void deleteEntry(ErrorString*, const String& url, PassRefPtr<DeleteEntryCallback>) override;
 
     void disable(ErrorString*) override;
     void restore() override;

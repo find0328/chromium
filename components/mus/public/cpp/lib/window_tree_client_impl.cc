@@ -19,10 +19,7 @@
 #include "components/mus/public/cpp/window_tree_connection_observer.h"
 #include "components/mus/public/cpp/window_tree_delegate.h"
 #include "mojo/converters/geometry/geometry_type_converters.h"
-#include "mojo/shell/public/cpp/application_impl.h"
-#include "mojo/shell/public/cpp/connect.h"
-#include "mojo/shell/public/cpp/service_provider_impl.h"
-#include "mojo/shell/public/interfaces/service_provider.mojom.h"
+#include "mojo/shell/public/cpp/shell.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -83,10 +80,10 @@ Window* BuildWindowTree(WindowTreeClientImpl* client,
 }
 
 WindowTreeConnection* WindowTreeConnection::Create(WindowTreeDelegate* delegate,
-                                                   mojo::ApplicationImpl* app) {
+                                                   mojo::Shell* shell) {
   WindowTreeClientImpl* client =
       new WindowTreeClientImpl(delegate, nullptr, nullptr);
-  client->ConnectViaWindowTreeFactory(app);
+  client->ConnectViaWindowTreeFactory(shell);
   return client;
 }
 
@@ -161,7 +158,7 @@ WindowTreeClientImpl::~WindowTreeClientImpl() {
 }
 
 void WindowTreeClientImpl::ConnectViaWindowTreeFactory(
-    mojo::ApplicationImpl* app) {
+    mojo::Shell* shell) {
   // Clients created with no root shouldn't delete automatically.
   delete_on_no_roots_ = false;
 
@@ -169,7 +166,7 @@ void WindowTreeClientImpl::ConnectViaWindowTreeFactory(
   connection_id_ = 101;
 
   mojom::WindowTreeFactoryPtr factory;
-  app->ConnectToService("mojo:mus", &factory);
+  shell->ConnectToInterface("mojo:mus", &factory);
   factory->CreateWindowTree(GetProxy(&tree_ptr_),
                             binding_.CreateInterfacePtrAndBind());
   tree_ = tree_ptr_.get();
@@ -243,6 +240,14 @@ void WindowTreeClientImpl::SetBounds(Window* window,
   tree_->SetWindowBounds(change_id, window->id(), mojo::Rect::From(bounds));
 }
 
+void WindowTreeClientImpl::SetCapture(Window* window) {
+  NOTIMPLEMENTED();
+}
+
+void WindowTreeClientImpl::ReleaseCapture(Window* window) {
+  NOTIMPLEMENTED();
+}
+
 void WindowTreeClientImpl::SetClientArea(
     Id window_id,
     const gfx::Insets& client_area,
@@ -294,7 +299,7 @@ void WindowTreeClientImpl::SetProperty(Window* window,
                                        mojo::Array<uint8_t> data) {
   DCHECK(tree_);
 
-  mojo::Array<uint8_t> old_value;
+  mojo::Array<uint8_t> old_value(nullptr);
   if (window->HasSharedProperty(name))
     old_value = mojo::Array<uint8_t>::From(window->properties_[name]);
 
@@ -430,8 +435,6 @@ Window* WindowTreeClientImpl::NewWindowImpl(
   if (properties) {
     transport_properties =
         mojo::Map<mojo::String, mojo::Array<uint8_t>>::From(*properties);
-  } else {
-    transport_properties.mark_non_null();
   }
   if (type == NewWindowType::CHILD) {
     tree_->NewWindow(change_id, window->id(), std::move(transport_properties));
@@ -552,6 +555,10 @@ void WindowTreeClientImpl::OnUnembed(Id window_id) {
 
   delegate_->OnUnembed(window);
   WindowPrivate(window).LocalDestroy();
+}
+
+void WindowTreeClientImpl::OnLostCapture(Id window_id) {
+  NOTIMPLEMENTED();
 }
 
 void WindowTreeClientImpl::OnTopLevelCreated(uint32_t change_id,

@@ -180,16 +180,18 @@ URLRequestContextBuilder::HttpNetworkSessionParams::HttpNetworkSessionParams()
       testing_fixed_https_port(0),
       enable_spdy31(true),
       enable_http2(true),
-      parse_alternative_services(true),
-      enable_alternative_service_with_different_host(true),
+      parse_alternative_services(false),
+      enable_alternative_service_with_different_host(false),
       enable_quic(false),
       quic_max_server_configs_stored_in_properties(0),
       quic_delay_tcp_race(false),
       quic_max_number_of_lossy_connections(0),
+      quic_prefer_aes(false),
       quic_packet_loss_threshold(1.0f),
       quic_idle_connection_timeout_seconds(kIdleConnectionTimeoutSeconds),
       quic_close_sessions_on_ip_change(false),
-      quic_migrate_sessions_on_network_change(false) {}
+      quic_migrate_sessions_on_network_change(false),
+      quic_migrate_sessions_early(false) {}
 
 URLRequestContextBuilder::HttpNetworkSessionParams::~HttpNetworkSessionParams()
 {}
@@ -416,6 +418,12 @@ scoped_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
       http_network_session_params_.quic_close_sessions_on_ip_change;
   network_session_params.quic_migrate_sessions_on_network_change =
       http_network_session_params_.quic_migrate_sessions_on_network_change;
+  network_session_params.quic_user_agent_id =
+      http_network_session_params_.quic_user_agent_id;
+  network_session_params.quic_prefer_aes =
+      http_network_session_params_.quic_prefer_aes;
+  network_session_params.quic_migrate_sessions_early =
+      http_network_session_params_.quic_migrate_sessions_early;
 
   storage->set_http_network_session(
       make_scoped_ptr(new HttpNetworkSession(network_session_params)));

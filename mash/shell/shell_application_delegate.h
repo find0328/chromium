@@ -11,20 +11,20 @@
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "mash/shell/public/interfaces/shell.mojom.h"
-#include "mojo/common/weak_binding_set.h"
-#include "mojo/common/weak_interface_ptr_set.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
+#include "mojo/public/cpp/bindings/weak_binding_set.h"
+#include "mojo/public/cpp/bindings/weak_interface_ptr_set.h"
 #include "mojo/shell/public/cpp/interface_factory.h"
+#include "mojo/shell/public/cpp/shell_client.h"
 
 namespace mojo {
-class ApplicationConnection;
+class Connection;
 }
 
 namespace mash {
 namespace shell {
 
 class ShellApplicationDelegate
-    : public mojo::ApplicationDelegate,
+    : public mojo::ShellClient,
       public mash::shell::mojom::Shell,
       public mojo::InterfaceFactory<mash::shell::mojom::Shell> {
  public:
@@ -32,10 +32,10 @@ class ShellApplicationDelegate
   ~ShellApplicationDelegate() override;
 
  private:
-  // mojo::ApplicationDelegate:
-  void Initialize(mojo::ApplicationImpl* app) override;
-  bool AcceptConnection(
-      mojo::ApplicationConnection* connection) override;
+  // mojo::ShellClient:
+  void Initialize(mojo::Shell* shell, const std::string& url,
+                  uint32_t id) override;
+  bool AcceptConnection(mojo::Connection* connection) override;
 
   // mash::shell::mojom::Shell:
   void AddScreenlockStateListener(
@@ -44,10 +44,11 @@ class ShellApplicationDelegate
   void UnlockScreen() override;
 
   // mojo::InterfaceFactory<mash::shell::mojom::Shell>:
-  void Create(mojo::ApplicationConnection* connection,
+  void Create(mojo::Connection* connection,
               mojo::InterfaceRequest<mash::shell::mojom::Shell> r) override;
 
   void StartWindowManager();
+  void StartSystemUI();
   void StartWallpaper();
   void StartShelf();
   void StartBrowserDriver();
@@ -61,8 +62,8 @@ class ShellApplicationDelegate
   void StartRestartableService(const std::string& url,
                                const base::Closure& restart_callback);
 
-  mojo::ApplicationImpl* app_;
-  std::map<std::string, scoped_ptr<mojo::ApplicationConnection>> connections_;
+  mojo::Shell* shell_;
+  std::map<std::string, scoped_ptr<mojo::Connection>> connections_;
   bool screen_locked_;
   mojo::WeakBindingSet<mash::shell::mojom::Shell> bindings_;
   mojo::WeakInterfacePtrSet<mojom::ScreenlockStateListener>

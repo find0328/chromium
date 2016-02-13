@@ -67,6 +67,7 @@ template<typename T>
 class ObjectAliveTrait<T, true> {
     STATIC_ONLY(ObjectAliveTrait);
 public:
+    NO_LAZY_SWEEP_SANITIZE_ADDRESS
     static bool isHeapObjectAlive(T* object)
     {
         static_assert(sizeof(T), "T must be fully defined");
@@ -266,6 +267,7 @@ public:
     static double estimatedMarkingTime();
     static void reportMemoryUsageHistogram();
     static void reportMemoryUsageForTracing();
+    static bool isLowEndDevice() { return s_isLowEndDevice; }
 
 #if ENABLE(ASSERT)
     static uint16_t gcGeneration() { return s_gcGeneration; }
@@ -297,6 +299,7 @@ private:
     static size_t s_collectedWrapperCount;
     static size_t s_partitionAllocSizeAtLastGC;
     static double s_estimatedMarkingTimePerByte;
+    static bool s_isLowEndDevice;
 #if ENABLE(ASSERT)
     static uint16_t s_gcGeneration;
 #endif

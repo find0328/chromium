@@ -177,7 +177,8 @@ _BANNED_CPP_FUNCTIONS = (
             r"simple_platform_shared_buffer_posix\.cc$",
         r"^net[\\\/]disk_cache[\\\/]cache_util\.cc$",
         r"^net[\\\/]url_request[\\\/]test_url_fetcher_factory\.cc$",
-        r"^remoting[\\\/]host[\\\/]gnubby_auth_handler_posix\.cc$",
+        r"^remoting[\\\/]host[\\\/]security_key[\\\/]"
+            "gnubby_auth_handler_linux\.cc$",
         r"^ui[\\\/]ozone[\\\/]platform[\\\/]drm[\\\/]host[\\\/]"
             "drm_display_host_manager\.cc$",
       ),
@@ -1544,6 +1545,24 @@ def _CheckSingletonInHeaders(input_api, output_api):
   return []
 
 
+def _CheckNoDeprecatedCompiledResourcesGYP(input_api, output_api):
+  """Checks for old style compiled_resources.gyp files."""
+  is_compiled_resource = lambda fp: fp.endswith('compiled_resources.gyp')
+
+  added_compiled_resources = filter(is_compiled_resource, [
+    f.LocalPath() for f in input_api.AffectedFiles() if f.Action() == 'A'
+  ])
+
+  if not added_compiled_resources:
+    return []
+
+  return [output_api.PresubmitError(
+      "Found new compiled_resources.gyp files:\n%s\n\n"
+      "compiled_resources.gyp files are deprecated,\n"
+      "please use compiled_resources2.gyp instead" %
+      "\n".join(added_compiled_resources))]
+
+
 _DEPRECATED_CSS = [
   # Values
   ( "-webkit-box", "flex" ),
@@ -1675,6 +1694,7 @@ def _CommonChecks(input_api, output_api):
   results.extend(_CheckForCopyrightedCode(input_api, output_api))
   results.extend(_CheckForWindowsLineEndings(input_api, output_api))
   results.extend(_CheckSingletonInHeaders(input_api, output_api))
+  results.extend(_CheckNoDeprecatedCompiledResourcesGYP(input_api, output_api))
 
   if any('PRESUBMIT.py' == f.LocalPath() for f in input_api.AffectedFiles()):
     results.extend(input_api.canned_checks.RunUnitTestsInDirectory(

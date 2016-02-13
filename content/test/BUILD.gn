@@ -43,6 +43,7 @@ source_set("test_support") {
     "//ui/accessibility:ax_gen",
     "//ui/base",
     "//ui/base:test_support",
+    "//ui/base:ui_data_pack",
     "//ui/base/ime",
     "//ui/events:dom_keycode_converter",
     "//ui/events:events_base",
@@ -98,11 +99,11 @@ source_set("test_support") {
       "//ipc:test_support",
       "//ipc/mojo",
       "//media",
+      "//mojo/edk/test:test_support",
       "//mojo/environment:chromium",
       "//mojo/shell/public/cpp:cpp_for_chromium",
       "//storage/browser",
       "//storage/common",
-      "//third_party/mojo/src/mojo/edk/test:test_support",
       "//ui/compositor:test_support",
       "//ui/surface",
       "//v8",
@@ -286,8 +287,8 @@ if (!is_ios) {
       "//cc/blink",
       "//components/test_runner:test_runner",
       "//content/public/common",
+      "//mojo/edk/test:test_support",
       "//skia",
-      "//third_party/mojo/src/mojo/edk/test:test_support",
       "//ui/accessibility:ax_gen",
       "//v8",
     ]
@@ -388,7 +389,9 @@ test("content_browsertests") {
         ]
       }
       if (is_win) {
-        data += [ "$root_out_dir/plugins/np_test_netscape_plugin.dll" ]
+        # TODO(GYP): Add this once //content/shell:copy_test_netscape_plugin
+        # exists.
+        #data += [ "$root_out_dir/plugins/np_test_netscape_plugin.dll" ]
       }
     }
   }
@@ -426,6 +429,8 @@ test("content_browsertests") {
     "//media:test_support",
     "//media/audio:test_support",
     "//media/base:test_support",
+    "//mojo/edk/system",
+    "//mojo/edk/test:test_support",
     "//mojo/environment:chromium",
     "//mojo/public/cpp/bindings",
     "//mojo/public/js",
@@ -437,8 +442,6 @@ test("content_browsertests") {
     "//third_party/WebKit/public:blink",
     "//third_party/leveldatabase",
     "//third_party/mesa:osmesa",
-    "//third_party/mojo/src/mojo/edk/system",
-    "//third_party/mojo/src/mojo/edk/test:test_support",
     "//third_party/zlib",
     "//ui/accessibility",
     "//ui/accessibility:ax_gen",
@@ -601,6 +604,7 @@ test("content_unittests") {
     "//device/battery",
     "//device/battery:mojo_bindings",
     "//device/bluetooth",
+    "//mojo/edk/test:test_support",
     "//mojo/environment:chromium",
     "//mojo/public/cpp/bindings",
     "//net:extras",
@@ -610,7 +614,6 @@ test("content_unittests") {
     "//sql:test_support",
     "//testing/gmock",
     "//testing/gtest",
-    "//third_party/mojo/src/mojo/edk/test:test_support",
     "//third_party/re2",
     "//ui/accessibility",
     "//ui/base",
@@ -677,6 +680,7 @@ test("content_unittests") {
       "//third_party/libjingle:libjingle_webrtc",
       "//third_party/libjingle:libpeerconnection",
       "//third_party/webrtc/modules/video_capture",
+      "//ui/shell_dialogs:shell_dialogs",
     ]
 
     if (is_linux || is_mac || is_win) {

@@ -24,7 +24,7 @@ const char devtoolsMetadataEventCategory[] = TRACE_DISABLED_BY_DEFAULT("devtools
 }
 
 InspectorTracingAgent::InspectorTracingAgent(Client* client, InspectorWorkerAgent* workerAgent, InspectedFrames* inspectedFrames)
-    : InspectorBaseAgent<InspectorTracingAgent, InspectorFrontend::Tracing>("Tracing")
+    : InspectorBaseAgent<InspectorTracingAgent, protocol::Frontend::Tracing>("Tracing")
     , m_layerTreeId(0)
     , m_client(client)
     , m_workerAgent(workerAgent)
@@ -44,7 +44,7 @@ void InspectorTracingAgent::restore()
     emitMetadataEvents();
 }
 
-void InspectorTracingAgent::start(ErrorString*, const String* categoryFilter, const String*, const double*, const String*, PassRefPtrWillBeRawPtr<StartCallback> callback)
+void InspectorTracingAgent::start(ErrorString*, const String* categoryFilter, const String*, const double*, const String*, PassRefPtr<StartCallback> callback)
 {
     ASSERT(sessionId().isEmpty());
     m_state->setString(TracingAgentState::sessionId, IdentifiersFactory::createIdentifier());
@@ -53,7 +53,7 @@ void InspectorTracingAgent::start(ErrorString*, const String* categoryFilter, co
     callback->sendSuccess();
 }
 
-void InspectorTracingAgent::end(ErrorString* errorString, PassRefPtrWillBeRawPtr<EndCallback> callback)
+void InspectorTracingAgent::end(ErrorString* errorString, PassRefPtr<EndCallback> callback)
 {
     m_client->disableTracing();
     resetSessionId();

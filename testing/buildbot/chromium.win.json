@@ -63,6 +63,12 @@
         "test": "cc_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
+        "test": "chrome_app_unittests"
+      },
+      {
         "test": "chrome_elf_unittests"
       },
       {
@@ -438,7 +444,7 @@
       "ipc_tests",
       "jingle_unittests",
       "keyboard_unittests",
-      "mandoline:all",
+      "mash:all",
       "media_unittests",
       "media_blink_unittests",
       "message_center_unittests",
@@ -568,6 +574,12 @@
           "can_use_on_swarming_builders": true
         },
         "test": "cc_unittests"
+      },
+      {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
+        "test": "chrome_app_unittests"
       },
       {
         "test": "chrome_elf_unittests"
@@ -971,6 +983,12 @@
         "test": "cc_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
+        "test": "chrome_app_unittests"
+      },
+      {
         "test": "chrome_elf_unittests"
       },
       {
@@ -1302,7 +1320,6 @@
       "ipc_tests",
       "jingle_unittests",
       "keyboard_unittests",
-      "mandoline:all",
       "mash:all",
       "media_unittests",
       "media_blink_unittests",
@@ -1331,9 +1348,6 @@
       },
       {
         "test": "events_unittests"
-      },
-      {
-        "test": "html_viewer_unittests"
       },
       {
         "test": "ipc_mojo_unittests"
@@ -1418,7 +1432,7 @@
       "ipc_tests",
       "jingle_unittests",
       "keyboard_unittests",
-      "mandoline:all",
+      "mash:all",
       "media_unittests",
       "media_blink_unittests",
       "message_center_unittests",

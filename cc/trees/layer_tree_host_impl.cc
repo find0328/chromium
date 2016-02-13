@@ -901,20 +901,6 @@ DrawResult LayerTreeHostImpl::CalculateRenderPasses(
 
         frame->will_draw_layers.push_back(*it);
 
-        if (it->HasContributingDelegatedRenderPasses()) {
-          RenderPassId contributing_render_pass_id =
-              it->FirstContributingRenderPassId();
-          while (true) {
-            RenderPass* pass = FindRenderPassById(frame->render_passes,
-                                                  contributing_render_pass_id);
-            if (!pass)
-              break;
-            it->AppendQuads(pass, &append_quads_data);
-            contributing_render_pass_id =
-                it->NextContributingRenderPassId(contributing_render_pass_id);
-          }
-        }
-
         it->AppendQuads(target_render_pass, &append_quads_data);
 
         // For layers that represent themselves, add composite frame timing
@@ -1471,6 +1457,8 @@ void LayerTreeHostImpl::SetExternalTilePriorityConstraints(
 
   if (tile_priority_params_changed) {
     active_tree_->set_needs_update_draw_properties();
+    if (pending_tree_)
+      pending_tree_->set_needs_update_draw_properties();
 
     // Compositor, not OutputSurface, is responsible for setting damage and
     // triggering redraw for constraint changes.
@@ -2634,8 +2622,12 @@ InputHandler::ScrollStatus LayerTreeHostImpl::ScrollAnimated(
     return scroll_status;
   }
 
-  ScrollState scroll_state(0, 0, viewport_point.x(), viewport_point.y(), 0, 0,
-                           false, true, false);
+  ScrollStateData scroll_state_data;
+  scroll_state_data.start_position_x = viewport_point.x();
+  scroll_state_data.start_position_y = viewport_point.y();
+  scroll_state_data.is_in_inertial_phase = true;
+  ScrollState scroll_state(scroll_state_data);
+
   // ScrollAnimated is used for animated wheel scrolls. We find the first layer
   // that can scroll and set up an animation of its scroll offset. Note that
   // this does not currently go through the scroll customization and viewport
@@ -3854,7 +3846,8 @@ void LayerTreeHostImpl::LayerTransformIsPotentiallyAnimatingChanged(
 
 void LayerTreeHostImpl::ScrollOffsetAnimationFinished() {
   // TODO(majidvp): We should pass in the original starting scroll position here
-  ScrollState scroll_state(0, 0, 0, 0, 0, 0, false, false, false);
+  ScrollStateData scroll_state_data;
+  ScrollState scroll_state(scroll_state_data);
   ScrollEnd(&scroll_state);
 }
 

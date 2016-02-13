@@ -95,6 +95,11 @@ void WebRuntimeFeatures::forceDisplayList2dCanvas(bool enable)
     RuntimeEnabledFeatures::setForceDisplayList2dCanvasEnabled(enable);
 }
 
+void WebRuntimeFeatures::forceDisable2dCanvasCopyOnWrite(bool enable)
+{
+    RuntimeEnabledFeatures::setForceDisable2dCanvasCopyOnWriteEnabled(enable);
+}
+
 void WebRuntimeFeatures::enableDisplayList2dCanvas(bool enable)
 {
     RuntimeEnabledFeatures::setDisplayList2dCanvasEnabled(enable);
@@ -320,9 +325,19 @@ void WebRuntimeFeatures::enableWebFontsIntervention(bool enable)
     RuntimeEnabledFeatures::setWebFontsInterventionEnabled(enable);
 }
 
+void WebRuntimeFeatures::enableWebFontsInterventionTrigger(bool enable)
+{
+    RuntimeEnabledFeatures::setWebFontsInterventionTriggerEnabled(enable);
+}
+
 void WebRuntimeFeatures::enableScrollAnchoring(bool enable)
 {
     RuntimeEnabledFeatures::setScrollAnchoringEnabled(enable);
+}
+
+bool WebRuntimeFeatures::isServiceWorkerExtendableMessageEventEnabled()
+{
+    return RuntimeEnabledFeatures::serviceWorkerExtendableMessageEventEnabled();
 }
 
 } // namespace blink

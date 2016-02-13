@@ -31,29 +31,6 @@
 #include "ipc/ipc_param_traits.h"
 #include "ipc/ipc_sync_message.h"
 
-#if defined(COMPILER_GCC)
-// GCC "helpfully" tries to inline template methods in release mode. Except we
-// want the majority of the template junk being expanded once in the
-// implementation file (and only provide the definitions in
-// ipc_message_utils_impl.h in those files) and exported, instead of expanded
-// at every call site. Special note: GCC happily accepts the attribute before
-// the method declaration, but only acts on it if it is after.
-#if (__GNUC__ * 10000 + __GNUC_MINOR__ * 100) >= 40500
-// Starting in gcc 4.5, the noinline no longer implies the concept covered by
-// the introduced noclone attribute, which will create specialized versions of
-// functions/methods when certain types are constant.
-// www.gnu.org/software/gcc/gcc-4.5/changes.html
-#define IPC_MSG_NOINLINE  __attribute__((noinline, noclone));
-#else
-#define IPC_MSG_NOINLINE  __attribute__((noinline));
-#endif
-#elif defined(COMPILER_MSVC)
-// MSVC++ doesn't do this.
-#define IPC_MSG_NOINLINE
-#else
-#error "Please add the noinline property for your new compiler here."
-#endif
-
 namespace base {
 class DictionaryValue;
 class FilePath;
@@ -205,14 +182,27 @@ struct ParamTraits<unsigned int> {
   IPC_EXPORT static void Log(const param_type& p, std::string* l);
 };
 
+// long isn't safe to send over IPC because it's 4 bytes on 32 bit builds but
+// 8 bytes on 64 bit builds. So if a 32 bit and 64 bit process have a channel
+// that would cause problem.
+// We need to keep this on for a few configs:
+//   1) Windows because DWORD is typedef'd to it, which is fine because we have
+//      very few IPCs that cross this boundary.
+//   2) We also need to keep it for Linux for two reasons: int64_t is typedef'd
+//      to long, and gfx::PluginWindow is long and is used in one GPU IPC.
+//   3) Android 64 bit also has int64_t typedef'd to long.
+// Since we want to support Android 32<>64 bit IPC, as long as we don't have
+// these traits for 32 bit ARM then that'll catch any errors.
+#if defined(OS_WIN) || defined(OS_LINUX) || \
+    (defined(OS_ANDROID) && defined(ARCH_CPU_64_BITS))
 template <>
 struct ParamTraits<long> {
   typedef long param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
-    sizer->AddLongUsingDangerousNonPortableLessPersistableForm();
+    sizer->AddLong();
   }
   static void Write(base::Pickle* m, const param_type& p) {
-    m->WriteLongUsingDangerousNonPortableLessPersistableForm(p);
+    m->WriteLong(p);
   }
   static bool Read(const base::Pickle* m,
                    base::PickleIterator* iter,
@@ -226,10 +216,10 @@ template <>
 struct ParamTraits<unsigned long> {
   typedef unsigned long param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
-    sizer->AddLongUsingDangerousNonPortableLessPersistableForm();
+    sizer->AddLong();
   }
   static void Write(base::Pickle* m, const param_type& p) {
-    m->WriteLongUsingDangerousNonPortableLessPersistableForm(p);
+    m->WriteLong(p);
   }
   static bool Read(const base::Pickle* m,
                    base::PickleIterator* iter,
@@ -238,6 +228,7 @@ struct ParamTraits<unsigned long> {
   }
   IPC_EXPORT static void Log(const param_type& p, std::string* l);
 };
+#endif
 
 template <>
 struct ParamTraits<long long> {
@@ -658,8 +649,8 @@ struct IPC_EXPORT ParamTraits<base::TimeTicks> {
 };
 
 template <>
-struct ParamTraits<base::Tuple<>> {
-  typedef base::Tuple<> param_type;
+struct ParamTraits<std::tuple<>> {
+  typedef std::tuple<> param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {}
   static void Write(base::Pickle* m, const param_type& p) {}
   static bool Read(const base::Pickle* m,
@@ -672,8 +663,8 @@ struct ParamTraits<base::Tuple<>> {
 };
 
 template <class A>
-struct ParamTraits<base::Tuple<A>> {
-  typedef base::Tuple<A> param_type;
+struct ParamTraits<std::tuple<A>> {
+  typedef std::tuple<A> param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
     GetParamSize(sizer, base::get<0>(p));
   }
@@ -691,8 +682,8 @@ struct ParamTraits<base::Tuple<A>> {
 };
 
 template <class A, class B>
-struct ParamTraits<base::Tuple<A, B>> {
-  typedef base::Tuple<A, B> param_type;
+struct ParamTraits<std::tuple<A, B>> {
+  typedef std::tuple<A, B> param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
     GetParamSize(sizer, base::get<0>(p));
     GetParamSize(sizer, base::get<1>(p));
@@ -715,8 +706,8 @@ struct ParamTraits<base::Tuple<A, B>> {
 };
 
 template <class A, class B, class C>
-struct ParamTraits<base::Tuple<A, B, C>> {
-  typedef base::Tuple<A, B, C> param_type;
+struct ParamTraits<std::tuple<A, B, C>> {
+  typedef std::tuple<A, B, C> param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
     GetParamSize(sizer, base::get<0>(p));
     GetParamSize(sizer, base::get<1>(p));
@@ -744,8 +735,8 @@ struct ParamTraits<base::Tuple<A, B, C>> {
 };
 
 template <class A, class B, class C, class D>
-struct ParamTraits<base::Tuple<A, B, C, D>> {
-  typedef base::Tuple<A, B, C, D> param_type;
+struct ParamTraits<std::tuple<A, B, C, D>> {
+  typedef std::tuple<A, B, C, D> param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
     GetParamSize(sizer, base::get<0>(p));
     GetParamSize(sizer, base::get<1>(p));
@@ -778,8 +769,8 @@ struct ParamTraits<base::Tuple<A, B, C, D>> {
 };
 
 template <class A, class B, class C, class D, class E>
-struct ParamTraits<base::Tuple<A, B, C, D, E>> {
-  typedef base::Tuple<A, B, C, D, E> param_type;
+struct ParamTraits<std::tuple<A, B, C, D, E>> {
+  typedef std::tuple<A, B, C, D, E> param_type;
   static void GetSize(base::PickleSizer* sizer, const param_type& p) {
     GetParamSize(sizer, base::get<0>(p));
     GetParamSize(sizer, base::get<1>(p));
@@ -1051,17 +1042,6 @@ struct IPC_EXPORT ParamTraits<MSG> {
 //-----------------------------------------------------------------------------
 // Generic message subclasses
 
-// Used for asynchronous messages.
-template <class ParamType>
-class MessageSchema {
- public:
-  typedef ParamType Param;
-  typedef typename base::TupleTypes<ParamType>::ParamTuple RefParam;
-
-  static void Write(Message* msg, const RefParam& p) IPC_MSG_NOINLINE;
-  static bool Read(const Message* msg, Param* p) IPC_MSG_NOINLINE;
-};
-
 // defined in ipc_logging.cc
 IPC_EXPORT void GenerateLogData(const std::string& channel,
                                 const Message& message,
@@ -1107,79 +1087,6 @@ inline void LogReplyParamsToMessage(const ReplyParamType& reply_params,
 
 inline void ConnectMessageAndReply(const Message* msg, Message* reply) {}
 #endif
-
-// This class assumes that its template argument is a RefTuple (a Tuple with
-// reference elements). This would go into ipc_message_utils_impl.h, but it is
-// also used by chrome_frame.
-template <class RefTuple>
-class ParamDeserializer : public MessageReplyDeserializer {
- public:
-  explicit ParamDeserializer(const RefTuple& out) : out_(out) { }
-
-  bool SerializeOutputParameters(const IPC::Message& msg,
-                                 base::PickleIterator iter) override {
-    return ReadParam(&msg, &iter, &out_);
-  }
-
-  RefTuple out_;
-};
-
-// Used for synchronous messages.
-template <class SendParamType, class ReplyParamType>
-class SyncMessageSchema {
- public:
-  typedef SendParamType SendParam;
-  typedef typename base::TupleTypes<SendParam>::ParamTuple RefSendParam;
-  typedef ReplyParamType ReplyParam;
-
-  static void Write(Message* msg, const RefSendParam& send) IPC_MSG_NOINLINE;
-  static bool ReadSendParam(const Message* msg, SendParam* p) IPC_MSG_NOINLINE;
-  static bool ReadReplyParam(
-      const Message* msg,
-      typename base::TupleTypes<ReplyParam>::ValueTuple* p) IPC_MSG_NOINLINE;
-
-  template<class T, class S, class Method>
-  static bool DispatchWithSendParams(bool ok, const SendParam& send_params,
-                                     const Message* msg, T* obj, S* sender,
-                                     Method func) {
-    Message* reply = SyncMessage::GenerateReply(msg);
-    if (ok) {
-      typename base::TupleTypes<ReplyParam>::ValueTuple reply_params;
-      base::DispatchToMethod(obj, func, send_params, &reply_params);
-      WriteParam(reply, reply_params);
-      LogReplyParamsToMessage(reply_params, msg);
-    } else {
-      NOTREACHED() << "Error deserializing message " << msg->type();
-      reply->set_reply_error();
-    }
-    sender->Send(reply);
-    return ok;
-  }
-
-  template<class T, class Method>
-  static bool DispatchDelayReplyWithSendParams(bool ok,
-                                               const SendParam& send_params,
-                                               const Message* msg, T* obj,
-                                               Method func) {
-    Message* reply = SyncMessage::GenerateReply(msg);
-    if (ok) {
-      base::Tuple<Message&> t = base::MakeRefTuple(*reply);
-      ConnectMessageAndReply(msg, reply);
-      base::DispatchToMethod(obj, func, send_params, &t);
-    } else {
-      NOTREACHED() << "Error deserializing message " << msg->type();
-      reply->set_reply_error();
-      obj->Send(reply);
-    }
-    return ok;
-  }
-
-  template <typename... Ts>
-  static void WriteReplyParams(Message* reply, Ts... args) {
-    ReplyParam p(args...);
-    WriteParam(reply, p);
-  }
-};
 
 }  // namespace IPC
 

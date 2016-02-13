@@ -11,9 +11,8 @@
 #include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/threading/simple_thread.h"
-#include "mojo/common/weak_binding_set.h"
+#include "mojo/public/cpp/bindings/weak_binding_set.h"
 #include "mojo/shell/application_package_apptest.mojom.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/cpp/application_runner.h"
 #include "mojo/shell/public/cpp/application_test_base.h"
 #include "mojo/shell/public/cpp/interface_factory.h"
@@ -31,13 +30,13 @@ using GetNameCallback =
     test::mojom::ApplicationPackageApptestService::GetNameCallback;
 
 class ProvidedApplicationDelegate
-    : public ApplicationDelegate,
+    : public ShellClient,
       public InterfaceFactory<test::mojom::ApplicationPackageApptestService>,
       public test::mojom::ApplicationPackageApptestService,
       public base::SimpleThread {
  public:
   ProvidedApplicationDelegate(const std::string& name,
-                              InterfaceRequest<mojom::Application> request,
+                              InterfaceRequest<mojom::ShellClient> request,
                               const Callback<void()>& destruct_callback)
       : base::SimpleThread(name),
         name_(name),
@@ -51,16 +50,17 @@ class ProvidedApplicationDelegate
   }
 
  private:
-  // ApplicationDelegate:
-  void Initialize(ApplicationImpl* app) override {}
-  bool AcceptConnection(ApplicationConnection* connection) override {
-    connection->AddService<test::mojom::ApplicationPackageApptestService>(this);
+  // mojo::ShellClient:
+  void Initialize(Shell* shell, const std::string& url, uint32_t id) override {}
+  bool AcceptConnection(Connection* connection) override {
+    connection->AddInterface<test::mojom::ApplicationPackageApptestService>(
+        this);
     return true;
   }
 
   // InterfaceFactory<test::mojom::ApplicationPackageApptestService>:
   void Create(
-      ApplicationConnection* connection,
+      Connection* connection,
       InterfaceRequest<test::mojom::ApplicationPackageApptestService> request)
           override {
     bindings_.AddBinding(this, std::move(request));
@@ -79,7 +79,7 @@ class ProvidedApplicationDelegate
   }
 
   const std::string name_;
-  InterfaceRequest<mojom::Application> request_;
+  InterfaceRequest<mojom::ShellClient> request_;
   const Callback<void()> destruct_callback_;
   WeakBindingSet<test::mojom::ApplicationPackageApptestService> bindings_;
 
@@ -87,7 +87,7 @@ class ProvidedApplicationDelegate
 };
 
 class ApplicationPackageApptestDelegate
-    : public ApplicationDelegate,
+    : public ShellClient,
       public InterfaceFactory<mojom::ContentHandler>,
       public InterfaceFactory<test::mojom::ApplicationPackageApptestService>,
       public mojom::ContentHandler,
@@ -97,29 +97,30 @@ class ApplicationPackageApptestDelegate
   ~ApplicationPackageApptestDelegate() override {}
 
  private:
-  // ApplicationDelegate:
-  void Initialize(ApplicationImpl* app) override {}
-  bool AcceptConnection(ApplicationConnection* connection) override {
-    connection->AddService<ContentHandler>(this);
-    connection->AddService<test::mojom::ApplicationPackageApptestService>(this);
+  // mojo::ShellClient:
+  void Initialize(Shell* shell, const std::string& url, uint32_t id) override {}
+  bool AcceptConnection(Connection* connection) override {
+    connection->AddInterface<ContentHandler>(this);
+    connection->AddInterface<test::mojom::ApplicationPackageApptestService>(
+        this);
     return true;
   }
 
   // InterfaceFactory<mojom::ContentHandler>:
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<mojom::ContentHandler> request) override {
     content_handler_bindings_.AddBinding(this, std::move(request));
   }
 
   // InterfaceFactory<test::mojom::ApplicationPackageApptestService>:
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<test::mojom::ApplicationPackageApptestService>
                   request) override {
     bindings_.AddBinding(this, std::move(request));
   }
 
   // mojom::ContentHandler:
-  void StartApplication(InterfaceRequest<mojom::Application> request,
+  void StartApplication(InterfaceRequest<mojom::ShellClient> request,
                         URLResponsePtr response,
                         const Callback<void()>& destruct_callback) override {
     const std::string url = response->url;
@@ -137,7 +138,7 @@ class ApplicationPackageApptestDelegate
     callback.Run("ROOT");
   }
 
-  std::vector<scoped_ptr<ApplicationDelegate>> delegates_;
+  std::vector<scoped_ptr<ShellClient>> delegates_;
   WeakBindingSet<mojom::ContentHandler> content_handler_bindings_;
   WeakBindingSet<test::mojom::ApplicationPackageApptestService> bindings_;
 
@@ -160,7 +161,7 @@ class ApplicationPackageApptest : public mojo::test::ApplicationTestBase {
 
  private:
   // test::ApplicationTestBase:
-  ApplicationDelegate* GetApplicationDelegate() override {
+  ShellClient* GetShellClient() override {
     delegate_ = new ApplicationPackageApptestDelegate;
     return delegate_;
   }
@@ -175,8 +176,7 @@ TEST_F(ApplicationPackageApptest, Basic) {
     // We need to do this to force the shell to read the test app's manifest and
     // register aliases.
     test::mojom::ApplicationPackageApptestServicePtr root_service;
-    application_impl()->ConnectToService("mojo:mojo_shell_apptests",
-                                         &root_service);
+    shell()->ConnectToInterface("mojo:mojo_shell_apptests", &root_service);
     base::RunLoop run_loop;
     std::string root_name;
     root_service->GetName(base::Bind(&ReceiveName, &root_name, &run_loop));
@@ -187,7 +187,7 @@ TEST_F(ApplicationPackageApptest, Basic) {
     // Now subsequent connects to applications provided by the root app will be
     // resolved correctly.
     test::mojom::ApplicationPackageApptestServicePtr service_a;
-    application_impl()->ConnectToService("mojo:package_test_a", &service_a);
+    shell()->ConnectToInterface("mojo:package_test_a", &service_a);
     base::RunLoop run_loop;
     std::string a_name;
     service_a->GetName(base::Bind(&ReceiveName, &a_name, &run_loop));
@@ -197,7 +197,7 @@ TEST_F(ApplicationPackageApptest, Basic) {
 
   {
     test::mojom::ApplicationPackageApptestServicePtr service_b;
-    application_impl()->ConnectToService("mojo:package_test_b", &service_b);
+    shell()->ConnectToInterface("mojo:package_test_b", &service_b);
     base::RunLoop run_loop;
     std::string b_name;
     service_b->GetName(base::Bind(&ReceiveName, &b_name, &run_loop));

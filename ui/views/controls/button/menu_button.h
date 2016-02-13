@@ -47,8 +47,7 @@ class VIEWS_EXPORT MenuButton : public LabelButton {
   static const int kMenuMarkerPaddingRight;
 
   // Create a Button.
-  MenuButton(ButtonListener* listener,
-             const base::string16& text,
+  MenuButton(const base::string16& text,
              MenuButtonListener* menu_button_listener,
              bool show_menu_marker);
   ~MenuButton() override;
@@ -77,6 +76,7 @@ class VIEWS_EXPORT MenuButton : public LabelButton {
   void OnGestureEvent(ui::GestureEvent* event) override;
   bool OnKeyPressed(const ui::KeyEvent& event) override;
   bool OnKeyReleased(const ui::KeyEvent& event) override;
+  bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
   void GetAccessibleState(ui::AXViewState* state) override;
 
  protected:

@@ -61,10 +61,12 @@ CustomSchemeHandler depends_on=NavigatorContentUtils, status=experimental
 Database status=stable
 DecodeToYUV status=experimental
 DeviceLight status=experimental
-DeviceOrientationAbsolute status=experimental
+DeviceOrientationAbsolute status=stable
 DisplayList2dCanvas status=stable
 DurableStorage status=experimental
 ForceDisplayList2dCanvas
+// See crbug.com/585250.
+ForceDisable2dCanvasCopyOnWrite
 EncryptedMedia status=stable
 ExecCommandInJavaScript status=test
 ComputedAccessibilityInfo status=experimental
@@ -124,6 +126,7 @@ NetInfoDownlinkMax status=stable
 NewMediaPlaybackUi
 NotificationConstructor status=stable
 NotificationExperimental status=test
+NotificationActionIcons status=test
 Notifications status=stable
 OrientationEvent
 // For simulating Android's overlay fullscreen video in layout tests on Linux.
@@ -162,7 +165,6 @@ ScrollAnchoring
 // Implements documentElement.scrollTop/Left and bodyElement.scrollTop/Left
 // as per the spec, matching other Web engines.
 ScrollTopLeftInterop status=experimental
-SelectionForComposedTree status=stable
 ServiceWorkerClientAttributes status=stable
 ServiceWorkerExtendableMessageEvent status=experimental
 ServiceWorkerPerformanceTimeline status=stable
@@ -198,7 +200,7 @@ UserSelectAll status=experimental
 WebAnimationsAPI status=experimental
 WebAnimationsSVG status=experimental
 WebAudio status=stable
-WebBluetooth
+WebBluetooth origin_trial_feature_name=WebBluetooth
 WebGLDraftExtensions status=experimental
 WebGLImageChromium
 WebUSB status=experimental
@@ -211,4 +213,5 @@ ScrollCustomization
 ScrollRestoration status=stable
 WakeLock status=experimental
 WebFontsIntervention status=experimental
+WebFontsInterventionTrigger
 Worklet

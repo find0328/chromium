@@ -8,7 +8,6 @@
 #include "base/macros.h"
 #include "base/message_loop/message_loop.h"
 #include "components/mus/gles2/command_buffer_driver.h"
-#include "components/mus/gles2/command_buffer_impl_observer.h"
 #include "components/mus/gles2/command_buffer_type_conversions.h"
 #include "components/mus/gles2/gpu_state.h"
 #include "gpu/command_buffer/service/sync_point_manager.h"
@@ -21,14 +20,14 @@ uint64_t g_next_command_buffer_id = 0;
 
 void RunInitializeCallback(
     const mojom::CommandBuffer::InitializeCallback& callback,
-    mojom::CommandBufferInfoPtr info) {
-  callback.Run(std::move(info));
+    mojom::CommandBufferInitializeResultPtr result) {
+  callback.Run(std::move(result));
 }
 
 void RunMakeProgressCallback(
     const mojom::CommandBuffer::MakeProgressCallback& callback,
     const gpu::CommandBuffer::State& state) {
-  callback.Run(mojom::CommandBufferState::From(state));
+  callback.Run(state);
 }
 
 }  // namespace
@@ -53,7 +52,7 @@ class CommandBufferImpl::CommandBufferDriverClientImpl
 CommandBufferImpl::CommandBufferImpl(
     mojo::InterfaceRequest<mus::mojom::CommandBuffer> request,
     scoped_refptr<GpuState> gpu_state)
-    : gpu_state_(gpu_state), observer_(nullptr) {
+    : gpu_state_(gpu_state) {
   // Bind |CommandBufferImpl| to the |request| in the GPU control thread.
   gpu_state_->control_task_runner()->PostTask(
       FROM_HERE,
@@ -63,23 +62,21 @@ CommandBufferImpl::CommandBufferImpl(
 
 void CommandBufferImpl::DidLoseContext(uint32_t reason) {
   driver_->set_client(nullptr);
-  loss_observer_->DidLoseContext(reason);
+  client_->Destroyed(reason, gpu::error::kLostContext);
 }
 
 CommandBufferImpl::~CommandBufferImpl() {
-  if (observer_)
-    observer_->OnCommandBufferImplDestroyed();
 }
 
 void CommandBufferImpl::Initialize(
-    mus::mojom::CommandBufferLostContextObserverPtr loss_observer,
+    mus::mojom::CommandBufferClientPtr client,
     mojo::ScopedSharedBufferHandle shared_state,
     mojo::Array<int32_t> attribs,
     const mojom::CommandBuffer::InitializeCallback& callback) {
   gpu_state_->command_buffer_task_runner()->task_runner()->PostTask(
       FROM_HERE,
       base::Bind(&CommandBufferImpl::InitializeOnGpuThread,
-                 base::Unretained(this), base::Passed(&loss_observer),
+                 base::Unretained(this), base::Passed(&client),
                  base::Passed(&shared_state), base::Passed(&attribs),
                  base::Bind(&RunInitializeCallback, callback)));
 }
@@ -146,6 +143,37 @@ void CommandBufferImpl::DestroyImage(int32_t id) {
                                 base::Unretained(this), id));
 }
 
+void CommandBufferImpl::CreateStreamTexture(
+    uint32_t client_texture_id,
+    const mojom::CommandBuffer::CreateStreamTextureCallback& callback) {
+  NOTIMPLEMENTED();
+}
+
+void CommandBufferImpl::ProduceFrontBuffer(const gpu::Mailbox& mailbox) {
+  NOTIMPLEMENTED();
+}
+
+void CommandBufferImpl::SignalQuery(uint32_t query, uint32_t signal_id) {
+  NOTIMPLEMENTED();
+}
+
+void CommandBufferImpl::SignalSyncToken(const gpu::SyncToken& sync_token,
+                                        uint32_t signal_id) {
+  NOTIMPLEMENTED();
+}
+
+void CommandBufferImpl::WaitForGetOffsetInRange(
+    int32_t start, int32_t end,
+    const mojom::CommandBuffer::WaitForGetOffsetInRangeCallback& callback) {
+  NOTIMPLEMENTED();
+}
+
+void CommandBufferImpl::WaitForTokenInRange(
+    int32_t start, int32_t end,
+    const mojom::CommandBuffer::WaitForGetOffsetInRangeCallback& callback) {
+  NOTIMPLEMENTED();
+}
+
 void CommandBufferImpl::BindToRequest(
     mojo::InterfaceRequest<mus::mojom::CommandBuffer> request) {
   binding_.reset(
@@ -154,28 +182,28 @@ void CommandBufferImpl::BindToRequest(
 }
 
 void CommandBufferImpl::InitializeOnGpuThread(
-    mojom::CommandBufferLostContextObserverPtr loss_observer,
+    mojom::CommandBufferClientPtr client,
     mojo::ScopedSharedBufferHandle shared_state,
     mojo::Array<int32_t> attribs,
-    const base::Callback<void(mojom::CommandBufferInfoPtr)>& callback) {
+    const base::Callback<
+        void(mojom::CommandBufferInitializeResultPtr)>& callback) {
   DCHECK(!driver_);
   driver_.reset(new CommandBufferDriver(
       gpu::CommandBufferNamespace::MOJO, ++g_next_command_buffer_id,
       gfx::kNullAcceleratedWidget, gpu_state_));
   driver_->set_client(make_scoped_ptr(new CommandBufferDriverClientImpl(this)));
-  loss_observer_ = mojo::MakeProxy(loss_observer.PassInterface());
+  client_ = mojo::MakeProxy(client.PassInterface());
   bool result =
       driver_->Initialize(std::move(shared_state), std::move(attribs));
-  mojom::CommandBufferInfoPtr info;
+  mojom::CommandBufferInitializeResultPtr initialize_result;
   if (result) {
-    info = mojom::CommandBufferInfo::New();
-    info->command_buffer_namespace = driver_->GetNamespaceID();
-    info->command_buffer_id = driver_->GetCommandBufferID();
-    info->capabilities =
-        mojom::GpuCapabilities::From(driver_->GetCapabilities());
+    initialize_result = mojom::CommandBufferInitializeResult::New();
+    initialize_result->command_buffer_namespace = driver_->GetNamespaceID();
+    initialize_result->command_buffer_id = driver_->GetCommandBufferID();
+    initialize_result->capabilities = driver_->GetCapabilities();
   }
   gpu_state_->control_task_runner()->PostTask(
-      FROM_HERE, base::Bind(callback, base::Passed(&info)));
+      FROM_HERE, base::Bind(callback, base::Passed(&initialize_result)));
 }
 
 bool CommandBufferImpl::SetGetBufferOnGpuThread(int32_t buffer) {

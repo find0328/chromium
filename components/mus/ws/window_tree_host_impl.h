@@ -48,7 +48,7 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   // DisplayManagers. We should probably just store these common parameters
   // in the DisplayManagerFactory and pass them along on DisplayManager::Create.
   WindowTreeHostImpl(ConnectionManager* connection_manager,
-                     mojo::ApplicationImpl* app_impl,
+                     mojo::Shell* shell,
                      const scoped_refptr<GpuState>& gpu_state,
                      const scoped_refptr<SurfacesState>& surfaces_state);
   ~WindowTreeHostImpl() override;
@@ -95,6 +95,8 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   ServerWindow* root_window() { return root_.get(); }
   const ServerWindow* root_window() const { return root_.get(); }
 
+  void SetCapture(ServerWindow* window, bool in_nonclient_area);
+
   void SetFocusedWindow(ServerWindow* window);
   ServerWindow* GetFocusedWindow();
   void DestroyFocusController();
@@ -106,6 +108,14 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   void UpdateTextInputState(ServerWindow* window,
                             const ui::TextInputState& state);
   void SetImeVisibility(ServerWindow* window, bool visible);
+
+  // Returns the window that has captured input.
+  ServerWindow* GetCaptureWindow() {
+    return event_dispatcher_.capture_window();
+  }
+  const ServerWindow* GetCaptureWindow() const {
+    return event_dispatcher_.capture_window();
+  }
 
   // Called just before |tree| is destroyed after its connection encounters an
   // error.
@@ -167,6 +177,7 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   // DisplayManagerDelegate:
   ServerWindow* GetRootWindow() override;
   void OnEvent(const ui::Event& event) override;
+  void OnNativeCaptureLost() override;
   void OnDisplayClosed() override;
   void OnViewportMetricsChanged(
       const mojom::ViewportMetrics& old_metrics,
@@ -188,6 +199,9 @@ class WindowTreeHostImpl : public DisplayManagerDelegate,
   void OnAccelerator(uint32_t accelerator_id, mojom::EventPtr event) override;
   void SetFocusedWindowFromEventDispatcher(ServerWindow* window) override;
   ServerWindow* GetFocusedWindowForEventDispatcher() override;
+  void SetNativeCapture() override;
+  void ReleaseNativeCapture() override;
+  void OnServerWindowCaptureLost(ServerWindow* window) override;
   void DispatchInputEventToWindow(ServerWindow* target,
                                   bool in_nonclient_area,
                                   mojom::EventPtr event) override;

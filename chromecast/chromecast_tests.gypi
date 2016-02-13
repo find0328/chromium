@@ -189,22 +189,12 @@
             ],
           },
           'conditions': [
-            # TODO(slan): Reenable this test for Desktop x86 when CQ supports it.
-            # (b/26429268)
-            ['use_alsa==1 and is_cast_desktop_build==0', {
+            ['use_alsa==1', {
               'dependencies': [
                 'media/media.gyp:alsa_cma_backend_unittests',
               ],
             }],
           ],
-        }],
-        ['disable_display==1', {
-          'variables': {
-            'filters': [
-              # These are not supported by the backend right now. b/21737919
-              'cast_media_unittests --gtest_filter=-AudioVideoPipelineDeviceTest.VorbisPlayback:AudioVideoPipelineDeviceTest.WebmPlayback',
-            ],
-          }
         }],
       ],
       'includes': ['build/tests/test_list.gypi'],
@@ -325,8 +315,8 @@
             'cast_shell_core',
             '../content/content_shell_and_tests.gyp:content_browser_test_base',
             '../content/content_shell_and_tests.gyp:content_browser_test_support',
+            '../mojo/mojo_public.gyp:mojo_cpp_bindings',
             '../testing/gtest.gyp:gtest',
-            '../third_party/mojo/mojo_public.gyp:mojo_cpp_bindings',
           ],
           'export_dependent_settings': [
             '../content/content_shell_and_tests.gyp:content_browser_test_base',

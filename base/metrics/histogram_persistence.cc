@@ -4,6 +4,7 @@
 
 #include "base/metrics/histogram_persistence.h"
 
+#include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/metrics/histogram.h"
@@ -67,7 +68,7 @@ struct PersistentHistogramData {
   int flags;
   int minimum;
   int maximum;
-  size_t bucket_count;
+  uint32_t bucket_count;
   PersistentMemoryAllocator::Reference ranges_ref;
   uint32_t ranges_checksum;
   PersistentMemoryAllocator::Reference counts_ref;
@@ -196,7 +197,8 @@ HistogramBase* CreatePersistentHistogram(
                                                     kTypeIdRangesArray);
   if (!ranges_data || histogram_data.bucket_count < 2 ||
       histogram_data.bucket_count + 1 >
-          std::numeric_limits<size_t>::max() / sizeof(HistogramBase::Sample) ||
+          std::numeric_limits<uint32_t>::max() /
+              sizeof(HistogramBase::Sample) ||
       allocator->GetAllocSize(histogram_data.ranges_ref) <
           (histogram_data.bucket_count + 1) * sizeof(HistogramBase::Sample)) {
     RecordCreateHistogramResult(CREATE_HISTOGRAM_INVALID_RANGES_ARRAY);
@@ -378,7 +380,7 @@ HistogramBase* AllocatePersistentHistogram(
     histogram_data->flags = flags;
     histogram_data->minimum = minimum;
     histogram_data->maximum = maximum;
-    histogram_data->bucket_count = bucket_count;
+    histogram_data->bucket_count = static_cast<uint32_t>(bucket_count);
     histogram_data->ranges_ref = ranges_ref;
     histogram_data->ranges_checksum = bucket_ranges->checksum();
     histogram_data->counts_ref = counts_ref;
@@ -411,14 +413,17 @@ HistogramBase* AllocatePersistentHistogram(
 }
 
 void ImportPersistentHistograms() {
-  // Each call resumes from where it last left off so need persistant iterator.
   // The lock protects against concurrent access to the iterator and is created
-  // dynamically so as to not require destruction during program exit.
-  static PersistentMemoryAllocator::Iterator iter;
-  static base::Lock* lock = new base::Lock();
+  // in a thread-safe manner when needed.
+  static base::LazyInstance<base::Lock> lock = LAZY_INSTANCE_INITIALIZER;
 
   if (g_allocator) {
-    base::AutoLock auto_lock(*lock);
+    base::AutoLock auto_lock(lock.Get());
+
+    // Each call resumes from where it last left off so need persistant
+    // iterator. This class has a constructor so even the definition has
+    // to be protected by the lock in order to be thread-safe.
+    static PersistentMemoryAllocator::Iterator iter;
     if (iter.is_clear())
       g_allocator->CreateIterator(&iter);
 

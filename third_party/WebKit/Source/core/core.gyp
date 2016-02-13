@@ -62,46 +62,6 @@
 
   'targets': [
     {
-      # GN version: //third_party/WebKit/Source/core/inspector:protocol_sources
-      'target_name': 'inspector_protocol_sources',
-      'type': 'none',
-      'dependencies': [
-        'generate_inspector_protocol_version'
-      ],
-      'actions': [
-        {
-          'action_name': 'generateInspectorProtocolBackendSources',
-          'inputs': [
-            # The python script in action below.
-            'inspector/CodeGeneratorInspector.py',
-            # The helper script imported by CodeGeneratorInspector.py.
-            'inspector/CodeGeneratorInspectorStrings.py',
-            # Input file for the script.
-            '../devtools/protocol.json',
-          ],
-          'outputs': [
-            '<(blink_core_output_dir)/InspectorBackendDispatcher.cpp',
-            '<(blink_core_output_dir)/InspectorBackendDispatcher.h',
-            '<(blink_core_output_dir)/InspectorFrontend.cpp',
-            '<(blink_core_output_dir)/InspectorFrontend.h',
-            '<(blink_core_output_dir)/InspectorTypeBuilder.cpp',
-            '<(blink_core_output_dir)/InspectorTypeBuilder.h',
-          ],
-          'variables': {
-            'generator_include_dirs': [
-            ],
-          },
-          'action': [
-            'python',
-            'inspector/CodeGeneratorInspector.py',
-            '../devtools/protocol.json',
-            '--output_dir', '<(blink_core_output_dir)',
-          ],
-          'message': 'Generating Inspector protocol backend sources from protocol.json',
-        },
-      ]
-    },
-    {
       # GN version: //third_party/WebKit/Source/core/inspector:instrumentation_sources
       'target_name': 'inspector_instrumentation_sources',
       'type': 'none',
@@ -133,35 +93,6 @@
       ]
     },
     {
-      # GN version: //third_party/WebKit/Source/core/inspector:protocol_version
-      'target_name': 'generate_inspector_protocol_version',
-      'type': 'none',
-      'actions': [
-         {
-          'action_name': 'generateInspectorProtocolVersion',
-          'inputs': [
-            'inspector/generate-inspector-protocol-version',
-            '../devtools/protocol.json',
-          ],
-          'outputs': [
-            '<(blink_core_output_dir)/InspectorProtocolVersion.h',
-          ],
-          'variables': {
-            'generator_include_dirs': [
-            ],
-          },
-          'action': [
-            'python',
-            'inspector/generate-inspector-protocol-version',
-            '-o',
-            '<@(_outputs)',
-            '<@(_inputs)'
-          ],
-          'message': 'Validate inspector protocol for backwards compatibility and generate version file',
-        }
-      ]
-    },
-    {
       # GN version: //third_party/WebKit/Source/core:core_generated
       'target_name': 'webcore_generated',
       'type': 'static_library',
@@ -169,7 +100,6 @@
       'dependencies': [
         'webcore_prerequisites',
         'core_generated.gyp:make_core_generated',
-        'inspector_protocol_sources',
         'inspector_instrumentation_sources',
         '../bindings/core/v8/generated.gyp:bindings_core_v8_generated',
         # FIXME: don't depend on bindings_modules http://crbug.com/358074
@@ -220,11 +150,6 @@
           # XPathGrammar.cpp.cpp.
           'msvs_disabled_warnings': [ 4065, 4267, 4701, 4702 ],
         }],
-        ['OS in ("linux", "android") and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
-          'cflags': [
-            '<!@(pkg-config --cflags-only-I ipp)',
-          ],
-        }],
       ],
     },
     {
@@ -234,7 +159,6 @@
       'target_name': 'webcore_prerequisites',
       'type': 'none',
       'dependencies': [
-        'inspector_protocol_sources',
         'inspector_instrumentation_sources',
         'core_generated.gyp:make_core_generated',
         '../bindings/core/v8/generated.gyp:bindings_core_v8_generated',
@@ -323,13 +247,6 @@
           'sources/': [
             ['exclude', 'accessibility/'],
           ],
-        }],
-        ['OS in ("linux", "android") and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
-          'direct_dependent_settings': {
-            'cflags': [
-              '<!@(pkg-config --cflags-only-I ipp)',
-            ],
-          },
         }],
         ['"WTF_USE_WEBAUDIO_FFMPEG=1" in feature_defines', {
           # This directory needs to be on the include path for multiple sub-targets of webcore.
@@ -575,27 +492,6 @@
           '<@(webcore_include_dirs)',
         ],
       },
-      'conditions': [
-        ['OS=="linux" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
-          'link_settings': {
-            'ldflags': [
-              '<!@(pkg-config --libs-only-L ipp)',
-            ],
-            'libraries': [
-              '-lipps -lippcore',
-            ],
-          },
-        }],
-        # Use IPP static libraries for x86 Android.
-        ['OS=="android" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
-          'link_settings': {
-            'libraries': [
-               '<!@(pkg-config --libs ipp|sed s/-L//)/libipps_l.a',
-               '<!@(pkg-config --libs ipp|sed s/-L//)/libippcore_l.a',
-            ]
-          },
-        }],
-      ],
     },
     {
       # GN version: //third_party/WebKit/Source/core:testing
@@ -649,7 +545,6 @@
 
         # webcore_generated dependency
         'core_generated.gyp:make_core_generated',
-        'inspector_protocol_sources',
         'inspector_instrumentation_sources',
         '../bindings/core/v8/generated.gyp:bindings_core_v8_generated',
         # FIXME: don't depend on bindings_modules http://crbug.com/358074
@@ -659,6 +554,7 @@
 
         '../wtf/wtf.gyp:wtf',
         '<(DEPTH)/base/base.gyp:base',
+        '<(DEPTH)/cc/cc.gyp:cc',
         '<(DEPTH)/gin/gin.gyp:gin',
         '<(DEPTH)/skia/skia.gyp:skia',
         '<(DEPTH)/third_party/libxml/libxml.gyp:libxml',
@@ -808,25 +704,6 @@
               ],
             }],
           ],
-        }],
-        ['OS=="linux" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
-          'link_settings': {
-            'ldflags': [
-              '<!@(pkg-config --libs-only-L ipp)',
-            ],
-            'libraries': [
-              '-lipps -lippcore',
-            ],
-          },
-        }],
-        # Use IPP static libraries for x86 Android.
-        ['OS=="android" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
-          'link_settings': {
-            'libraries': [
-               '<!@(pkg-config --libs ipp|sed s/-L//)/libipps_l.a',
-               '<!@(pkg-config --libs ipp|sed s/-L//)/libippcore_l.a',
-            ]
-          },
         }],
       ],
     },

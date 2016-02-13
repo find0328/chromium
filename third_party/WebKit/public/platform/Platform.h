@@ -53,7 +53,6 @@
 #include "WebString.h"
 #include "WebURLError.h"
 #include "WebVector.h"
-#include "WebWaitableEvent.h"
 
 class GrContext;
 
@@ -259,21 +258,8 @@ public:
         return WebString();
     }
 
-    // Memory --------------------------------------------------------------
-
-    // Returns the current space allocated for the pagefile, in MB.
-    // That is committed size for Windows and virtual memory size for POSIX
-    virtual size_t memoryUsageMB() { return 0; }
-
     // Same as above, but always returns actual value, without any caches.
     virtual size_t actualMemoryUsageMB() { return 0; }
-
-    // Return the physical memory of the current machine, in MB.
-    virtual size_t physicalMemoryMB() { return 0; }
-
-    // Return the available virtual memory of the current machine, in MB. Or
-    // zero, if there is no limit.
-    virtual size_t virtualMemoryLimitMB() { return 0; }
 
     // Return the number of of processors of the current machine.
     virtual size_t numberOfProcessors() { return 0; }
@@ -360,22 +346,6 @@ public:
     // Returns an interface to the current thread. This is owned by the
     // embedder.
     virtual WebThread* currentThread() { return nullptr; }
-
-    // Yield the current thread so another thread can be scheduled.
-    virtual void yieldCurrentThread() { }
-
-    // WaitableEvent -------------------------------------------------------
-
-    // Creates an embedder-defined waitable event object.
-    WebWaitableEvent* createWaitableEvent() { return createWaitableEvent(WebWaitableEvent::ResetPolicy::Auto, WebWaitableEvent::InitialState::NonSignaled); }
-    virtual WebWaitableEvent* createWaitableEvent(WebWaitableEvent::ResetPolicy, WebWaitableEvent::InitialState) { return nullptr; }
-
-    // Waits on multiple events and returns the event object that has been
-    // signaled. This may return nullptr if it fails to wait events.
-    // Any event objects given to this method must not deleted while this
-    // wait is happening.
-    virtual WebWaitableEvent* waitMultipleEvents(const WebVector<WebWaitableEvent*>& events) { return nullptr; }
-
 
     // Resources -----------------------------------------------------------
 

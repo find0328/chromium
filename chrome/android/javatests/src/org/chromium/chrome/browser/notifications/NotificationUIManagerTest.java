@@ -18,7 +18,6 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.preferences.website.ContentSetting;
 import org.chromium.chrome.browser.util.UrlUtilities;
 import org.chromium.chrome.browser.widget.RoundedIconGenerator;
-import org.chromium.chrome.test.util.TestHttpServerClient;
 import org.chromium.chrome.test.util.browser.notifications.MockNotificationManagerProxy.NotificationEntry;
 
 import java.util.List;
@@ -34,7 +33,7 @@ import java.util.List;
 @SuppressWarnings("deprecation")
 public class NotificationUIManagerTest extends NotificationTestBase {
     private static final String NOTIFICATION_TEST_PAGE =
-            TestHttpServerClient.getUrl("chrome/test/data/notifications/android_test.html");
+            "/chrome/test/data/notifications/android_test.html";
 
     /**
      * Verifies that the intended default properties of a notification will indeed be set on the
@@ -43,7 +42,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @MediumTest
     @Feature({"Browser", "Notifications"})
     public void testDefaultNotificationProperties() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         Notification notification = showAndGetNotification("MyNotification", "{ body: 'Hello' }");
@@ -86,8 +85,25 @@ public class NotificationUIManagerTest extends NotificationTestBase {
      */
     @MediumTest
     @Feature({"Browser", "Notifications"})
+    public void testNotificationRenotifyProperty() throws Exception {
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
+        setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
+
+        Notification notification =
+                showAndGetNotification("MyNotification", "{ tag: 'myTag', renotify: true }");
+
+        // Zero indicates that no defaults should be inherited from the system.
+        assertEquals(0, notification.flags & Notification.FLAG_ONLY_ALERT_ONCE);
+    }
+
+    /**
+     * Verifies that notifications created with the "silent" flag do not inherit system defaults
+     * in regards to their sound, vibration and light indicators.
+     */
+    @MediumTest
+    @Feature({"Browser", "Notifications"})
     public void testNotificationSilentProperty() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         Notification notification = showAndGetNotification("MyNotification", "{ silent: true }");
@@ -103,7 +119,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @MediumTest
     @Feature({"Browser", "Notifications"})
     public void testShowNotificationWithIcon() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         Notification notification = showAndGetNotification("MyNotification", "{icon: 'icon.png'}");
@@ -124,7 +140,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @MediumTest
     @Feature({"Browser", "Notifications"})
     public void testShowNotificationWithoutIcon() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         Notification notification = showAndGetNotification("NoIconNotification", "{}");
@@ -156,7 +172,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @MediumTest
     @Feature({"Browser", "Notifications"})
     public void testEnsureNormalizedIconBehavior() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         // Create a notification to ensure that the NotificationUIManager is initialized.
@@ -205,7 +221,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @LargeTest
     @Feature({"Browser", "Notifications"})
     public void testNotificationContentIntentClosesNotification() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         Notification notification = showAndGetNotification("MyNotification", "{}");
@@ -228,7 +244,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @MediumTest
     @Feature({"Browser", "Notifications"})
     public void testNotificationTagReplacement() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         runJavaScriptCodeInCurrentTab("showNotification('MyNotification', {tag: 'myTag'});");
@@ -261,7 +277,7 @@ public class NotificationUIManagerTest extends NotificationTestBase {
     @LargeTest
     @Feature({"Browser", "Notifications"})
     public void testShowAndCloseMultipleNotifications() throws Exception {
-        loadUrl(NOTIFICATION_TEST_PAGE);
+        loadUrl(getTestServer().getURL(NOTIFICATION_TEST_PAGE));
         setNotificationContentSettingForCurrentOrigin(ContentSetting.ALLOW);
 
         // Open the first notification and verify it is displayed.

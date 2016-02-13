@@ -59,8 +59,8 @@
 #include "core/dom/StyleEngine.h"
 #include "core/dom/TreeScope.h"
 #include "core/dom/ViewportDescription.h"
-#include "core/dom/shadow/ComposedTreeTraversal.h"
 #include "core/dom/shadow/ElementShadow.h"
+#include "core/dom/shadow/FlatTreeTraversal.h"
 #include "core/dom/shadow/SelectRuleFeatureSet.h"
 #include "core/dom/shadow/ShadowRoot.h"
 #include "core/editing/Editor.h"
@@ -95,7 +95,6 @@
 #include "core/input/EventHandler.h"
 #include "core/inspector/ConsoleMessageStorage.h"
 #include "core/inspector/InspectorConsoleAgent.h"
-#include "core/inspector/InspectorFrontendChannel.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InstanceCounters.h"
 #include "core/inspector/InstrumentingAgents.h"
@@ -135,6 +134,7 @@
 #include "platform/geometry/LayoutRect.h"
 #include "platform/graphics/GraphicsLayer.h"
 #include "platform/heap/Handle.h"
+#include "platform/inspector_protocol/FrontendChannel.h"
 #include "platform/weborigin/SchemeRegistry.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebConnectionType.h"
@@ -196,7 +196,7 @@ static ScrollableArea* scrollableAreaForNode(Node* node)
     if (node->isDocumentNode()) {
         // This can be removed after root layer scrolling is enabled.
         if (FrameView* frameView = toDocument(node)->view())
-            return frameView->scrollableArea();
+            return frameView->layoutViewportScrollableArea();
     }
 
     LayoutObject* layoutObject = node->layoutObject();
@@ -592,54 +592,54 @@ size_t Internals::countElementShadow(const Node* root, ExceptionState& exception
     return toShadowRoot(root)->childShadowRootCount();
 }
 
-Node* Internals::nextSiblingInComposedTree(Node* node, ExceptionState& exceptionState)
+Node* Internals::nextSiblingInFlatTree(Node* node, ExceptionState& exceptionState)
 {
     ASSERT(node);
-    if (!node->canParticipateInComposedTree()) {
-        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the composed tree.");
+    if (!node->canParticipateInFlatTree()) {
+        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the flat tree.");
         return 0;
     }
-    return ComposedTreeTraversal::nextSibling(*node);
+    return FlatTreeTraversal::nextSibling(*node);
 }
 
-Node* Internals::firstChildInComposedTree(Node* node, ExceptionState& exceptionState)
+Node* Internals::firstChildInFlatTree(Node* node, ExceptionState& exceptionState)
 {
     ASSERT(node);
-    if (!node->canParticipateInComposedTree()) {
-        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the composed tree");
+    if (!node->canParticipateInFlatTree()) {
+        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the flat tree");
         return 0;
     }
-    return ComposedTreeTraversal::firstChild(*node);
+    return FlatTreeTraversal::firstChild(*node);
 }
 
-Node* Internals::lastChildInComposedTree(Node* node, ExceptionState& exceptionState)
+Node* Internals::lastChildInFlatTree(Node* node, ExceptionState& exceptionState)
 {
     ASSERT(node);
-    if (!node->canParticipateInComposedTree()) {
-        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the composed tree.");
+    if (!node->canParticipateInFlatTree()) {
+        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the flat tree.");
         return 0;
     }
-    return ComposedTreeTraversal::lastChild(*node);
+    return FlatTreeTraversal::lastChild(*node);
 }
 
-Node* Internals::nextInComposedTree(Node* node, ExceptionState& exceptionState)
+Node* Internals::nextInFlatTree(Node* node, ExceptionState& exceptionState)
 {
     ASSERT(node);
-    if (!node->canParticipateInComposedTree()) {
-        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the composed tree.");
+    if (!node->canParticipateInFlatTree()) {
+        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the flat tree.");
         return 0;
     }
-    return ComposedTreeTraversal::next(*node);
+    return FlatTreeTraversal::next(*node);
 }
 
-Node* Internals::previousInComposedTree(Node* node, ExceptionState& exceptionState)
+Node* Internals::previousInFlatTree(Node* node, ExceptionState& exceptionState)
 {
     ASSERT(node);
-    if (!node->canParticipateInComposedTree()) {
-        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the composed tree.");
+    if (!node->canParticipateInFlatTree()) {
+        exceptionState.throwDOMException(InvalidAccessError, "The node argument doesn't particite in the flat tree.");
         return 0;
     }
-    return ComposedTreeTraversal::previous(*node);
+    return FlatTreeTraversal::previous(*node);
 }
 
 String Internals::elementLayoutTreeAsText(Element* element, ExceptionState& exceptionState)

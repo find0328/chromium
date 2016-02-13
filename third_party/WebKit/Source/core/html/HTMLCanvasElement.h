@@ -181,6 +181,8 @@ public:
 
     void notifyListenersCanvasChanged();
 
+    bool isSupportedInteractiveCanvasFallback(const Element&);
+
 protected:
     void didMoveToNewDocument(Document& oldDocument) override;
 
@@ -193,7 +195,6 @@ private:
 
     void parseAttribute(const QualifiedName&, const AtomicString&, const AtomicString&) override;
     LayoutObject* createLayoutObject(const ComputedStyle&) override;
-    void didRecalcStyle(StyleRecalcChange) override;
     bool areAuthorShadowsAllowed() const override { return false; }
 
     void reset();

@@ -187,35 +187,35 @@ Resource::Type LinkLoader::getTypeFromAsAttribute(const String& as, Document* do
     return Resource::LinkPreload;
 }
 
-void LinkLoader::createLinkPreloadResourceClient(ResourcePtr<Resource> resource)
+void LinkLoader::createLinkPreloadResourceClient(Resource* resource)
 {
     if (!resource)
         return;
     switch (resource->type()) {
     case Resource::Image:
-        m_linkPreloadResourceClient = LinkPreloadImageResourceClient::create(this, toImageResource(resource.get()));
+        m_linkPreloadResourceClient = LinkPreloadImageResourceClient::create(this, toImageResource(resource));
         break;
     case Resource::Script:
-        m_linkPreloadResourceClient = LinkPreloadScriptResourceClient::create(this, toScriptResource(resource.get()));
+        m_linkPreloadResourceClient = LinkPreloadScriptResourceClient::create(this, toScriptResource(resource));
         break;
     case Resource::CSSStyleSheet:
-        m_linkPreloadResourceClient = LinkPreloadStyleResourceClient::create(this, toCSSStyleSheetResource(resource.get()));
+        m_linkPreloadResourceClient = LinkPreloadStyleResourceClient::create(this, toCSSStyleSheetResource(resource));
         break;
     case Resource::Font:
-        m_linkPreloadResourceClient = LinkPreloadFontResourceClient::create(this, toFontResource(resource.get()));
+        m_linkPreloadResourceClient = LinkPreloadFontResourceClient::create(this, toFontResource(resource));
         break;
     case Resource::Media:
     case Resource::TextTrack:
     case Resource::Raw:
     case Resource::LinkPreload:
-        m_linkPreloadResourceClient = LinkPreloadRawResourceClient::create(this, toRawResource(resource.get()));
+        m_linkPreloadResourceClient = LinkPreloadRawResourceClient::create(this, toRawResource(resource));
         break;
     default:
         ASSERT_NOT_REACHED();
     }
 }
 
-static ResourcePtr<Resource> preloadIfNeeded(const LinkRelAttribute& relAttribute, const KURL& href, Document& document, const String& as, CrossOriginAttributeValue crossOrigin, LinkCaller caller)
+static Resource* preloadIfNeeded(const LinkRelAttribute& relAttribute, const KURL& href, Document& document, const String& as, CrossOriginAttributeValue crossOrigin, LinkCaller caller)
 {
     if (!document.loader() || !relAttribute.isLinkPreload())
         return nullptr;
@@ -244,7 +244,7 @@ static ResourcePtr<Resource> preloadIfNeeded(const LinkRelAttribute& relAttribut
     return document.loader()->startPreload(type, linkRequest);
 }
 
-bool LinkLoader::loadLinkFromHeader(const String& headerValue, Document* document, const NetworkHintsInterface& networkHintsInterface, CanLoadResources canLoadResources)
+bool LinkLoader::loadLinkFromHeader(const String& headerValue, const KURL& baseURL, Document* document, const NetworkHintsInterface& networkHintsInterface, CanLoadResources canLoadResources)
 {
     if (!document)
         return false;
@@ -254,7 +254,7 @@ bool LinkLoader::loadLinkFromHeader(const String& headerValue, Document* documen
             return false;
 
         LinkRelAttribute relAttribute(header.rel());
-        KURL url = document->completeURL(header.url());
+        KURL url(baseURL, header.url());
         if (canLoadResources != OnlyLoadResources) {
             if (RuntimeEnabledFeatures::linkHeaderEnabled())
                 dnsPrefetchIfNeeded(relAttribute, url, *document, networkHintsInterface, LinkCalledFromHeader);

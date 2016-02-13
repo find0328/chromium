@@ -90,6 +90,10 @@ TestRenderFrameHost* TestRenderFrameHost::AppendChild(
       child_creation_observer_.last_created_frame());
 }
 
+void TestRenderFrameHost::Detach() {
+  OnDetach();
+}
+
 void TestRenderFrameHost::SimulateNavigationStart(const GURL& url) {
   if (IsBrowserSideNavigationEnabled()) {
     SendRendererInitiatedNavigationRequest(url, false);
@@ -110,10 +114,8 @@ void TestRenderFrameHost::SimulateRedirect(const GURL& new_url) {
     return;
   }
 
-  // Note that this does not simulate
-  // WebContentsImpl::DidGetRedirectForResourceRequest due to the difficulty in
-  // creating fake ResourceRequestDetails on the UI thread.
-  navigation_handle()->DidRedirectNavigation(new_url);
+  navigation_handle()->CallWillRedirectRequestForTesting(new_url, false, GURL(),
+                                                         false);
 }
 
 void TestRenderFrameHost::SimulateNavigationCommit(const GURL& url) {

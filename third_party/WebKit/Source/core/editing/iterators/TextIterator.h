@@ -44,7 +44,7 @@ class LayoutTextFragment;
 
 CORE_EXPORT String plainText(const EphemeralRange&, TextIteratorBehaviorFlags = TextIteratorDefaultBehavior);
 
-String plainText(const EphemeralRangeInComposedTree&, TextIteratorBehaviorFlags = TextIteratorDefaultBehavior);
+String plainText(const EphemeralRangeInFlatTree&, TextIteratorBehaviorFlags = TextIteratorDefaultBehavior);
 
 // Iterates through the DOM range, returning all the text, and 0-length boundaries
 // at points where replaced elements break up the text flow.  The text comes back in
@@ -82,6 +82,7 @@ public:
     // Calculate the minimum |actualLength >= minLength| such that code units
     // with offset range [position, position + actualLength) are whole code
     // points. Append these code points to |output| and return |actualLength|.
+    // TODO(xiaochengh): Use (start, end) instead of (start, length).
     int copyTextTo(ForwardsTextBuffer* output, int position, int minLength) const;
     // TODO(xiaochengh): Avoid default parameters.
     int copyTextTo(ForwardsTextBuffer* output, int position = 0) const;
@@ -202,10 +203,10 @@ private:
 };
 
 extern template class CORE_EXTERN_TEMPLATE_EXPORT TextIteratorAlgorithm<EditingStrategy>;
-extern template class CORE_EXTERN_TEMPLATE_EXPORT TextIteratorAlgorithm<EditingInComposedTreeStrategy>;
+extern template class CORE_EXTERN_TEMPLATE_EXPORT TextIteratorAlgorithm<EditingInFlatTreeStrategy>;
 
 using TextIterator = TextIteratorAlgorithm<EditingStrategy>;
-using TextIteratorInComposedTree = TextIteratorAlgorithm<EditingInComposedTreeStrategy>;
+using TextIteratorInFlatTree = TextIteratorAlgorithm<EditingInFlatTreeStrategy>;
 
 } // namespace blink
 

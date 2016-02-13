@@ -6,6 +6,7 @@
 #define COMPONENTS_DATA_REDUCTION_PROXY_CORE_BROWSER_DATA_REDUCTION_PROXY_TEST_UTILS_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <string>
 
@@ -47,7 +48,6 @@ namespace data_reduction_proxy {
 class ClientConfig;
 class DataReductionProxyConfigurator;
 class DataReductionProxyEventCreator;
-class DataReductionProxyExperimentsStats;
 class DataReductionProxyMutableConfigValues;
 class DataReductionProxyRequestOptions;
 class DataReductionProxySettings;
@@ -119,6 +119,8 @@ class TestDataReductionProxyConfigServiceClient
 
   void SetConfigServiceURL(const GURL& service_url);
 
+  int32_t failed_attempts_before_success() const;
+
  protected:
   // Overrides of DataReductionProxyConfigServiceClient
   base::Time Now() override;
@@ -173,7 +175,6 @@ class TestDataReductionProxyIOData : public DataReductionProxyIOData {
       scoped_ptr<DataReductionProxyRequestOptions> request_options,
       scoped_ptr<DataReductionProxyConfigurator> configurator,
       scoped_ptr<DataReductionProxyConfigServiceClient> config_client,
-      scoped_ptr<DataReductionProxyExperimentsStats> experiments_stats,
       net::NetLog* net_log,
       bool enabled);
   ~TestDataReductionProxyIOData() override;

@@ -57,6 +57,7 @@ class Thread;
 
 namespace cc {
 class ContextProvider;
+class ImageSerializationProcessor;
 class TaskGraphRunner;
 }
 
@@ -215,6 +216,7 @@ class CONTENT_EXPORT RenderThreadImpl
   cc::ContextProvider* GetSharedMainThreadContextProvider() override;
   scoped_ptr<cc::BeginFrameSource> CreateExternalBeginFrameSource(
       int routing_id) override;
+  cc::ImageSerializationProcessor* GetImageSerializationProcessor() override;
   cc::TaskGraphRunner* GetTaskGraphRunner() override;
   bool AreImageDecodeTasksEnabled() override;
   bool IsThreadedAnimationEnabled() override;
@@ -294,7 +296,11 @@ class CONTENT_EXPORT RenderThreadImpl
     return sync_compositor_message_filter_.get();
   }
 
+  static void SetStreamTextureFactory(
+      scoped_refptr<StreamTextureFactory> factory);
+
   scoped_refptr<StreamTextureFactory> GetStreamTexureFactory();
+  bool EnableStreamTextureCopy();
 #endif
 
   // Creates the embedder implementation of WebMediaStreamCenter.
@@ -446,8 +452,8 @@ class CONTENT_EXPORT RenderThreadImpl
 
   void RegisterPendingRenderFrameConnect(
       int routing_id,
-      mojo::InterfaceRequest<mojo::ServiceProvider> services,
-      mojo::ServiceProviderPtr exposed_services);
+      mojo::shell::mojom::InterfaceProviderRequest services,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services);
 
  protected:
   RenderThreadImpl(const InProcessChildThreadParams& params,
@@ -669,14 +675,16 @@ class CONTENT_EXPORT RenderThreadImpl
    public:
     PendingRenderFrameConnect(
         int routing_id,
-        mojo::InterfaceRequest<mojo::ServiceProvider> services,
-        mojo::ServiceProviderPtr exposed_services);
+        mojo::shell::mojom::InterfaceProviderRequest services,
+        mojo::shell::mojom::InterfaceProviderPtr exposed_services);
 
-    mojo::InterfaceRequest<mojo::ServiceProvider>& services() {
+    mojo::shell::mojom::InterfaceProviderRequest& services() {
       return services_;
     }
 
-    mojo::ServiceProviderPtr& exposed_services() { return exposed_services_; }
+    mojo::shell::mojom::InterfaceProviderPtr& exposed_services() {
+      return exposed_services_;
+    }
 
    private:
     friend class base::RefCounted<PendingRenderFrameConnect>;
@@ -687,8 +695,8 @@ class CONTENT_EXPORT RenderThreadImpl
     void OnConnectionError();
 
     int routing_id_;
-    mojo::InterfaceRequest<mojo::ServiceProvider> services_;
-    mojo::ServiceProviderPtr exposed_services_;
+    mojo::shell::mojom::InterfaceProviderRequest services_;
+    mojo::shell::mojom::InterfaceProviderPtr exposed_services_;
   };
 
   typedef std::map<int, scoped_refptr<PendingRenderFrameConnect>>

@@ -2897,6 +2897,30 @@
    fun:_ZN10extensions12_GLOBAL__N_111TestNatives24GetObjectTemplateBuilderEPN2v87IsolateE
 }
 {
+   bug_431213_e
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN3gin22CreateFunctionTemplateIF*IsolateEN4base8CallbackIT_EEi
+   fun:_ZN3gin12_GLOBAL__N_114CallbackTraitsIF*
+   fun:_ZN3gin21ObjectTemplateBuilder9SetMethodIF*
+   fun:_ZN4mojo3edk2js4Core9GetModuleEPN2v87IsolateE
+   fun:_ZN10extensions18ApiTestEnvironment15RegisterModulesEv
+   fun:_ZN10extensions18ApiTestEnvironmentC1EPNS_27ModuleSystemTestEnvironmentE
+   fun:_ZN10extensions11ApiTestBase5SetUpEv
+}
+{
+   bug_431213_f
+   Memcheck:Leak
+   fun:_Znw*
+   fun:_ZN3gin22CreateFunctionTemplateIF*IsolateEN4base8CallbackIT_EEi
+   fun:_ZN3gin12_GLOBAL__N_114CallbackTraitsIF*
+   fun:_ZN3gin21ObjectTemplateBuilder9SetMethodIF*
+   fun:_ZN4mojo3edk2js7Support9GetModuleEPN2v87IsolateE
+   fun:_ZN10extensions18ApiTestEnvironment15RegisterModulesEv
+   fun:_ZN10extensions18ApiTestEnvironmentC1EPNS_27ModuleSystemTestEnvironmentE
+   fun:_ZN10extensions11ApiTestBase5SetUpEv
+}
+{
    bug_436172
    Memcheck:Leak
    fun:_Znw*
@@ -3489,4 +3513,21 @@
    fun:_ZN10disk_cache15SimpleEntryImplC1EN3net9CacheTypeERKN4base8FilePathEmNS0_14OperationsModeEPNS_17SimpleBackendImplEPNS1_6NetLogE
    fun:_ZN10disk_cache17SimpleBackendImpl23CreateOrFindActiveEntryEmRKSs
    fun:_ZN10disk_cache17SimpleBackendImpl11CreateEntryERKSsPPNS_5EntryERKN4base8CallbackIFviEEE
+}
+{
+   bug_586203
+   Memcheck:Unaddressable
+   fun:XInternAtoms
+   fun:_ZN2ui12X11AtomCacheC1EP9_XDisplayPPKc
+   fun:_ZN2ui20DeviceDataManagerX11C1Ev
+   fun:_ZN2ui20DeviceDataManagerX1114CreateInstanceEv
+   fun:_ZN2ui14X11EventSourceC1EPNS_22X11EventSourceDelegateEP9_XDisplay
+   fun:_ZN2ui18X11EventSourceGlibC1EP9_XDisplay
+}
+{
+   bug_586206
+   Memcheck:Leak
+   fun:calloc
+   fun:_XConnectXCB
+   fun:XOpenDisplay
 }

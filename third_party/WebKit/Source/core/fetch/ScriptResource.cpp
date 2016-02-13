@@ -37,18 +37,18 @@
 
 namespace blink {
 
-ResourcePtr<ScriptResource> ScriptResource::fetch(FetchRequest& request, ResourceFetcher* fetcher)
+PassRefPtrWillBeRawPtr<ScriptResource> ScriptResource::fetch(FetchRequest& request, ResourceFetcher* fetcher)
 {
     ASSERT(request.resourceRequest().frameType() == WebURLRequest::FrameTypeNone);
     request.mutableResourceRequest().setRequestContext(WebURLRequest::RequestContextScript);
-    ResourcePtr<ScriptResource> resource = toScriptResource(fetcher->requestResource(request, ScriptResourceFactory()));
+    RefPtrWillBeRawPtr<ScriptResource> resource = toScriptResource(fetcher->requestResource(request, ScriptResourceFactory()));
     if (resource && !request.integrityMetadata().isEmpty())
         resource->setIntegrityMetadata(request.integrityMetadata());
-    return resource;
+    return resource.release();
 }
 
 ScriptResource::ScriptResource(const ResourceRequest& resourceRequest, const String& charset)
-    : TextResource(resourceRequest, Script, "application/javascript", charset), m_integrityChecked(false)
+    : TextResource(resourceRequest, Script, "application/javascript", charset), m_integrityDisposition(ScriptIntegrityDisposition::NotChecked)
 {
     DEFINE_STATIC_LOCAL(const AtomicString, acceptScript, ("*/*", AtomicString::ConstructFromLiteral));
 
@@ -118,6 +118,11 @@ bool ScriptResource::mimeTypeAllowedByNosniff() const
     return parseContentTypeOptionsHeader(m_response.httpHeaderField(HTTPNames::X_Content_Type_Options)) != ContentTypeOptionsNosniff || MIMETypeRegistry::isSupportedJavaScriptMIMEType(mimeType());
 }
 
+void ScriptResource::setIntegrityDisposition(ScriptIntegrityDisposition disposition)
+{
+    ASSERT(disposition != ScriptIntegrityDisposition::NotChecked);
+    m_integrityDisposition = disposition;
+}
 bool ScriptResource::mustRefetchDueToIntegrityMetadata(const FetchRequest& request) const
 {
     if (request.integrityMetadata().isEmpty())

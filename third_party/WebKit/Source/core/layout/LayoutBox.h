@@ -823,7 +823,21 @@ public:
     bool hasVisualOverflow() const { return m_overflow && !borderBoxRect().contains(m_overflow->visualOverflowRect()); }
 
     virtual bool needsPreferredWidthsRecalculation() const;
-    virtual void computeIntrinsicRatioInformation(FloatSize& /* intrinsicSize */, double& /* intrinsicRatio */) const { }
+
+    struct IntrinsicSizingInfo {
+        STACK_ALLOCATED();
+        IntrinsicSizingInfo() : hasWidth(true), hasHeight(true) {}
+
+        FloatSize size;
+        FloatSize aspectRatio;
+        bool hasWidth;
+        bool hasHeight;
+
+        void transpose();
+    };
+
+    // Computes the logical intrinsic sizing information.
+    virtual void computeIntrinsicSizingInfo(IntrinsicSizingInfo&) const { }
 
     IntSize scrolledContentOffset() const;
     void mapScrollingContentsRectToBoxSpace(LayoutRect&) const;

@@ -11,7 +11,8 @@
 #include "base/memory/scoped_ptr.h"
 #include "content/public/common/mojo_shell_connection.h"
 #include "mojo/public/cpp/system/message_pipe.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
+#include "mojo/shell/public/cpp/shell_client.h"
+#include "mojo/shell/public/cpp/shell_connection.h"
 
 namespace mojo {
 namespace shell {
@@ -25,7 +26,7 @@ namespace content {
 bool IsRunningInMojoShell();
 
 class MojoShellConnectionImpl : public MojoShellConnection,
-                                public mojo::ApplicationDelegate {
+                                public mojo::ShellClient {
  public:
   // Creates an instance of this class and stuffs it in TLS on the calling
   // thread. Retrieve it using MojoShellConnection::Get().
@@ -49,13 +50,13 @@ class MojoShellConnectionImpl : public MojoShellConnection,
   MojoShellConnectionImpl();
   ~MojoShellConnectionImpl() override;
 
-  // mojo::ApplicationDelegate:
-  void Initialize(mojo::ApplicationImpl* application) override;
-  bool AcceptConnection(
-      mojo::ApplicationConnection* connection) override;
+  // mojo::ShellClient:
+  void Initialize(mojo::Shell* shell, const std::string& url,
+                  uint32_t id) override;
+  bool AcceptConnection(mojo::Connection* connection) override;
 
   // MojoShellConnection:
-  mojo::ApplicationImpl* GetApplication() override;
+  mojo::Shell* GetShell() override;
   void AddListener(Listener* listener) override;
   void RemoveListener(Listener* listener) override;
 
@@ -66,7 +67,7 @@ class MojoShellConnectionImpl : public MojoShellConnection,
 
   bool initialized_;
   scoped_ptr<mojo::shell::RunnerConnection> runner_connection_;
-  scoped_ptr<mojo::ApplicationImpl> application_impl_;
+  scoped_ptr<mojo::ShellConnection> shell_connection_;
   std::vector<Listener*> listeners_;
 
   DISALLOW_COPY_AND_ASSIGN(MojoShellConnectionImpl);

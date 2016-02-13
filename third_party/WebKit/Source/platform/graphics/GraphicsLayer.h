@@ -65,7 +65,7 @@ class LinkHighlight;
 class JSONObject;
 class PaintController;
 class ScrollableArea;
-class WebCompositorAnimation;
+class CompositorAnimation;
 class WebLayer;
 
 typedef Vector<GraphicsLayer*, 64> GraphicsLayerVector;
@@ -123,6 +123,7 @@ public:
     // Offset is origin of the layoutObject minus origin of the graphics layer (so either zero or negative).
     IntSize offsetFromLayoutObject() const { return flooredIntSize(m_offsetFromLayoutObject); }
     void setOffsetFromLayoutObject(const IntSize&, ShouldSetNeedsDisplay = SetNeedsDisplay);
+    LayoutSize offsetFromLayoutObjectWithSubpixelAccumulation() const;
 
     // The double version is only used in |updateScrollingLayerGeometry()| for detecting
     // scroll offset change at floating point precision.
@@ -195,7 +196,7 @@ public:
     // Return true if the animation is handled by the compositing system. If this returns
     // false, the animation will be run by AnimationController.
     // These methods handle both transitions and keyframe animations.
-    bool addAnimation(PassOwnPtr<WebCompositorAnimation>);
+    bool addAnimation(PassOwnPtr<CompositorAnimation>);
     void pauseAnimation(int animationId, double /*timeOffset*/);
     void removeAnimation(int animationId);
     void abortAnimation(int animationId);
@@ -264,7 +265,7 @@ public:
 
     // DisplayItemClient methods
     String debugName() const final { return m_client->debugName(this); }
-    IntRect visualRect() const override;
+    LayoutRect visualRect() const override;
 
 protected:
     String debugName(cc::Layer*) const;

@@ -304,7 +304,9 @@ FormStructure::FormStructure(const FormData& form)
       has_author_specified_sections_(false),
       was_parsed_for_autocomplete_attributes_(false),
       has_password_field_(false),
-      is_form_tag_(form.is_form_tag) {
+      is_form_tag_(form.is_form_tag),
+      is_formless_checkout_(form.is_formless_checkout),
+      all_fields_are_passwords_(true) {
   // Copy the form fields.
   std::map<base::string16, size_t> unique_names;
   for (const FormFieldData& field : form.fields) {
@@ -319,6 +321,8 @@ FormStructure::FormStructure(const FormData& form)
 
     if (field.form_control_type == "password")
       has_password_field_ = true;
+    else
+      all_fields_are_passwords_ = false;
 
     // Generate a unique name for this field by appending a counter to the name.
     // Make sure to prepend the counter with a non-numeric digit so that we are
@@ -337,19 +341,19 @@ FormStructure::~FormStructure() {}
 
 void FormStructure::DetermineHeuristicTypes() {
   // First, try to detect field types based on each field's |autocomplete|
-  // attribute value.  If there is at least one form field that specifies an
-  // autocomplete type hint, don't try to apply other heuristics to match fields
-  // in this form.
+  // attribute value.
   if (!was_parsed_for_autocomplete_attributes_)
     ParseFieldTypesFromAutocompleteAttributes();
 
-  if (active_field_count() >= kRequiredFieldsForPredictionRoutines) {
-    ServerFieldTypeMap field_type_map;
-    FormField::ParseFormFields(fields_.get(), is_form_tag_, &field_type_map);
-    for (size_t i = 0; i < field_count(); ++i) {
-      AutofillField* field = fields_[i];
-      ServerFieldTypeMap::iterator iter =
-          field_type_map.find(field->unique_name());
+  // Then if there are enough active fields, and if we are dealing with either a
+  // proper <form> or a <form>-less checkout, run the heuristics and server
+  // prediction routines.
+  if (active_field_count() >= kRequiredFieldsForPredictionRoutines &&
+      (is_form_tag_ || is_formless_checkout_)) {
+    const ServerFieldTypeMap field_type_map =
+        FormField::ParseFormFields(fields_.get(), is_form_tag_);
+    for (AutofillField* field : fields_) {
+      const auto iter = field_type_map.find(field->unique_name());
       if (iter != field_type_map.end())
         field->set_heuristic_type(iter->second);
     }
@@ -549,6 +553,8 @@ std::vector<FormDataPredictions> FormStructure::GetFieldTypePredictions(
       annotated_field.server_type =
           AutofillType(field->server_type()).ToString();
       annotated_field.overall_type = field->Type().ToString();
+      annotated_field.parseable_name =
+          base::UTF16ToUTF8(field->parseable_name());
       form.fields.push_back(annotated_field);
     }
 
@@ -578,6 +584,8 @@ void FormStructure::UpdateAutofillCount() {
 
 bool FormStructure::ShouldBeParsed() const {
   if (active_field_count() < kRequiredFieldsForPredictionRoutines &&
+      (!all_fields_are_passwords() ||
+       active_field_count() < kRequiredFieldsForFormsWithOnlyPasswordFields) &&
       !has_author_specified_types_) {
     return false;
   }

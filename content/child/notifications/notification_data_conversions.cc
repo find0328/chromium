@@ -44,6 +44,7 @@ PlatformNotificationData ToPlatformNotificationData(
   platform_data.vibration_pattern.assign(web_data.vibrate.begin(),
                                          web_data.vibrate.end());
   platform_data.timestamp = base::Time::FromJsTime(web_data.timestamp);
+  platform_data.renotify = web_data.renotify;
   platform_data.silent = web_data.silent;
   platform_data.require_interaction = web_data.requireInteraction;
   platform_data.data.assign(web_data.data.begin(), web_data.data.end());
@@ -52,6 +53,8 @@ PlatformNotificationData ToPlatformNotificationData(
     platform_data.actions[i].action =
         base::UTF16ToUTF8(base::StringPiece16(web_data.actions[i].action));
     platform_data.actions[i].title = web_data.actions[i].title;
+    platform_data.actions[i].icon =
+        blink::WebStringToGURL(web_data.actions[i].icon.string());
   }
 
   return platform_data;
@@ -80,6 +83,7 @@ WebNotificationData ToWebNotificationData(
   web_data.icon = blink::WebURL(platform_data.icon);
   web_data.vibrate = platform_data.vibration_pattern;
   web_data.timestamp = platform_data.timestamp.ToJsTime();
+  web_data.renotify = platform_data.renotify;
   web_data.silent = platform_data.silent;
   web_data.requireInteraction = platform_data.require_interaction;
   web_data.data = platform_data.data;
@@ -90,6 +94,7 @@ WebNotificationData ToWebNotificationData(
     web_data.actions[i].action =
         blink::WebString::fromUTF8(platform_data.actions[i].action);
     web_data.actions[i].title = platform_data.actions[i].title;
+    web_data.actions[i].icon = blink::WebURL(platform_data.actions[i].icon);
   }
 
   return web_data;

@@ -779,21 +779,7 @@ system call NtCreateNamedPipeFile
 *!mojo::edk::PlatformChannelPair::PlatformChannelPair
 ...
 *!mojo::edk::ChildProcessLaunched
-*!mojo::embedder::ChildProcessLaunched
 *!content::*::OnProcessLaunched
-*!content::ChildProcessLauncher::Notify
-*!content::ChildProcessLauncher::DidLaunch
-*!base::internal::InvokeHelper<>::MakeItSo
-
-HANDLE LEAK
-name=bug_561803_b
-system call NtDuplicateObject
-*!DuplicateHandle
-*!DuplicateHandle
-*!mojo::edk::ChildBrokerHost::ChildBrokerHost
-*!mojo::edk::ChildProcessLaunched
-*!mojo::embedder::ChildProcessLaunched
-...
 *!content::ChildProcessLauncher::Notify
 *!content::ChildProcessLauncher::DidLaunch
 *!base::internal::InvokeHelper<>::MakeItSo
@@ -811,3 +797,13 @@ system call NtDuplicateObject
 KERNELBASE.dll!DuplicateHandle
 ...
 *!IPC::internal::HandleAttachmentWin::HandleAttachmentWin
+
+HANDLE LEAK
+name=bug_586668
+system call NtDuplicateObject
+KERNELBASE.dll!DuplicateHandle
+KERNEL32.dll!DuplicateHandle
+mojo_system_impl.dll!mojo::edk::Channel::Message::RewriteHandles
+mojo_system_impl.dll!mojo::edk::NodeController::OnRelayPortsMessage
+mojo_system_impl.dll!mojo::edk::NodeChannel::OnChannelMessage
+mojo_system_impl.dll!mojo::edk::Channel::OnReadComplete

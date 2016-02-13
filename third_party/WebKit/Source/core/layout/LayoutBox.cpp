@@ -51,6 +51,7 @@
 #include "core/layout/LayoutScrollbarPart.h"
 #include "core/layout/LayoutTableCell.h"
 #include "core/layout/LayoutView.h"
+#include "core/layout/api/LineLayoutBox.h"
 #include "core/layout/compositing/PaintLayerCompositor.h"
 #include "core/layout/shapes/ShapeOutsideInfo.h"
 #include "core/page/AutoscrollController.h"
@@ -639,7 +640,7 @@ LayoutUnit LayoutBox::constrainContentBoxLogicalHeightByMinMax(LayoutUnit logica
     // to avoid recursing up through our containing blocks again to determine it.
     const ComputedStyle& styleToUse = styleRef();
     if (!styleToUse.logicalMaxHeight().isMaxSizeNone()) {
-        if (styleToUse.logicalMaxHeight().hasPercent() && styleToUse.logicalHeight().hasPercent()) {
+        if (styleToUse.logicalMaxHeight().type() == Percent && styleToUse.logicalHeight().type() == Percent) {
             LayoutUnit availableLogicalHeight(logicalHeight / styleToUse.logicalHeight().value() * 100);
             logicalHeight = std::min(logicalHeight, valueForLength(styleToUse.logicalMaxHeight(), availableLogicalHeight));
         } else {
@@ -649,7 +650,7 @@ LayoutUnit LayoutBox::constrainContentBoxLogicalHeightByMinMax(LayoutUnit logica
         }
     }
 
-    if (styleToUse.logicalMinHeight().hasPercent() && styleToUse.logicalHeight().hasPercent()) {
+    if (styleToUse.logicalMinHeight().type() == Percent && styleToUse.logicalHeight().type() == Percent) {
         LayoutUnit availableLogicalHeight(logicalHeight / styleToUse.logicalHeight().value() * 100);
         logicalHeight = std::max(logicalHeight, valueForLength(styleToUse.logicalMinHeight(), availableLogicalHeight));
     } else {
@@ -1817,7 +1818,7 @@ void LayoutBox::positionLineBox(InlineBox* box)
             // our object was inline originally, since otherwise it would have ended up underneath
             // the inlines.
             RootInlineBox& root = box->root();
-            root.block().setStaticInlinePositionForChild(*this, box->logicalLeft());
+            root.block().setStaticInlinePositionForChild(LineLayoutBox(this), box->logicalLeft());
         } else {
             // Our object was a block originally, so we make our normal flow position be
             // just below the line box (as though all the inlines that came before us got
@@ -4465,7 +4466,7 @@ LayoutObject* LayoutBox::splitAnonymousBoxesAroundChild(LayoutObject* beforeChil
                 collapseLoneAnonymousBlockChild(child);
             child = boxToSplit->slowFirstChild();
             ASSERT(child);
-            if (child && !child->previousSibling())
+            if (child && !child->nextSibling())
                 collapseLoneAnonymousBlockChild(child);
 
             markBoxForRelayoutAfterSplit(boxToSplit);
@@ -4717,6 +4718,13 @@ void LayoutBox::clearPercentHeightDescendants()
         if (curr->isBox())
             toLayoutBox(curr)->removeFromPercentHeightContainer();
     }
+}
+
+void LayoutBox::IntrinsicSizingInfo::transpose()
+{
+    size = size.transposedSize();
+    aspectRatio = aspectRatio.transposedSize();
+    std::swap(hasWidth, hasHeight);
 }
 
 } // namespace blink

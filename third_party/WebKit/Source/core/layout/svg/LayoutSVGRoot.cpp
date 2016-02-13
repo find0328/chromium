@@ -39,6 +39,15 @@
 
 namespace blink {
 
+namespace {
+
+FloatSize calculateIntrinsicSize(const SVGSVGElement& svg)
+{
+    return FloatSize(floatValueForLength(svg.intrinsicWidth(), 0), floatValueForLength(svg.intrinsicHeight(), 0));
+}
+
+} // namespace
+
 LayoutSVGRoot::LayoutSVGRoot(SVGElement* node)
     : LayoutReplaced(node)
     , m_objectBoundingBoxValid(false)
@@ -48,10 +57,13 @@ LayoutSVGRoot::LayoutSVGRoot(SVGElement* node)
     , m_hasNonIsolatedBlendingDescendants(false)
     , m_hasNonIsolatedBlendingDescendantsDirty(false)
 {
-    LayoutSize intrinsicSize(calculateIntrinsicSize());
-    if (!intrinsicSize.width())
+    SVGSVGElement* svg = toSVGSVGElement(node);
+    ASSERT(svg);
+
+    LayoutSize intrinsicSize(calculateIntrinsicSize(*svg));
+    if (!svg->hasIntrinsicWidth())
         intrinsicSize.setWidth(LayoutUnit(defaultWidth));
-    if (!intrinsicSize.height())
+    if (!svg->hasIntrinsicHeight())
         intrinsicSize.setHeight(LayoutUnit(defaultHeight));
     setIntrinsicSize(intrinsicSize);
 }
@@ -60,36 +72,29 @@ LayoutSVGRoot::~LayoutSVGRoot()
 {
 }
 
-FloatSize LayoutSVGRoot::calculateIntrinsicSize() const
+void LayoutSVGRoot::computeIntrinsicSizingInfo(IntrinsicSizingInfo& intrinsicSizingInfo) const
 {
+    // https://www.w3.org/TR/SVG/coords.html#IntrinsicSizing
+
     SVGSVGElement* svg = toSVGSVGElement(node());
     ASSERT(svg);
 
-    return FloatSize(floatValueForLength(svg->intrinsicWidth(), 0), floatValueForLength(svg->intrinsicHeight(), 0));
-}
+    intrinsicSizingInfo.size = calculateIntrinsicSize(*svg);
+    intrinsicSizingInfo.hasWidth = svg->hasIntrinsicWidth();
+    intrinsicSizingInfo.hasHeight = svg->hasIntrinsicHeight();
 
-void LayoutSVGRoot::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, double& intrinsicRatio) const
-{
-    // https://www.w3.org/TR/SVG/coords.html#IntrinsicSizing
-    intrinsicSize = calculateIntrinsicSize();
-
-    if (!isHorizontalWritingMode())
-        intrinsicSize = intrinsicSize.transposedSize();
-
-    if (!intrinsicSize.isEmpty()) {
-        intrinsicRatio = intrinsicSize.width() / static_cast<double>(intrinsicSize.height());
+    if (!intrinsicSizingInfo.size.isEmpty()) {
+        intrinsicSizingInfo.aspectRatio = intrinsicSizingInfo.size;
     } else {
-        SVGSVGElement* svg = toSVGSVGElement(node());
-        ASSERT(svg);
-
         FloatSize viewBoxSize = svg->viewBox()->currentValue()->value().size();
         if (!viewBoxSize.isEmpty()) {
             // The viewBox can only yield an intrinsic ratio, not an intrinsic size.
-            intrinsicRatio = viewBoxSize.width() / static_cast<double>(viewBoxSize.height());
-            if (!isHorizontalWritingMode())
-                intrinsicRatio = 1 / intrinsicRatio;
+            intrinsicSizingInfo.aspectRatio = viewBoxSize;
         }
     }
+
+    if (!isHorizontalWritingMode())
+        intrinsicSizingInfo.transpose();
 }
 
 bool LayoutSVGRoot::isEmbeddedThroughSVGImage() const

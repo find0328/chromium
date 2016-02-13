@@ -598,7 +598,6 @@ interface ChannelMergerNode : AudioNode
 interface ChannelSplitterNode : AudioNode
     method constructor
 interface CharacterData : Node
-    getter assignedSlot
     getter data
     getter length
     getter nextElementSibling
@@ -1615,6 +1614,7 @@ interface HTMLAreaElement : HTMLElement
     getter ping
     getter port
     getter protocol
+    getter referrerpolicy
     getter search
     getter shape
     getter target
@@ -1633,6 +1633,7 @@ interface HTMLAreaElement : HTMLElement
     setter ping
     setter port
     setter protocol
+    setter referrerpolicy
     setter search
     setter shape
     setter target
@@ -3138,6 +3139,10 @@ interface ImageBitmap
     getter width
     method close
     method constructor
+interface ImageBitmapRenderingContext
+    getter canvas
+    method constructor
+    method transferImageBitmap
 interface ImageData
     getter height
     getter width
@@ -3249,7 +3254,7 @@ interface MIDIPort : EventTarget
     method constructor
     method open
     setter onstatechange
-interface MatrixTransformComponent : TransformComponent
+interface Matrix : TransformComponent
     getter a
     getter b
     getter c
@@ -3688,6 +3693,7 @@ interface Notification : EventTarget
     getter onclose
     getter onerror
     getter onshow
+    getter renotify
     getter requireInteraction
     getter silent
     getter tag
@@ -3703,7 +3709,6 @@ interface Notification : EventTarget
 interface NumberValue : StyleValue
     getter value
     method constructor
-    setter value
 interface OffScreenCanvas
     getter height
     getter width
@@ -3867,7 +3872,7 @@ interface Permissions
     method request
     method requestAll
     method revoke
-interface PerspectiveTransformComponent : TransformComponent
+interface Perspective : TransformComponent
     getter length
     method constructor
 interface Plugin
@@ -3909,18 +3914,28 @@ interface PresentationAvailability : EventTarget
 interface PresentationConnection : EventTarget
     getter binaryType
     getter id
+    getter onclose
+    getter onconnect
     getter onmessage
     getter onstatechange
+    getter onterminate
     getter state
     method close
     method constructor
     method send
     method terminate
     setter binaryType
+    setter onclose
+    setter onconnect
     setter onmessage
     setter onstatechange
+    setter onterminate
 interface PresentationConnectionAvailableEvent : Event
     getter connection
+    method constructor
+interface PresentationConnectionCloseEvent : Event
+    getter message
+    getter reason
     method constructor
 interface PresentationReceiver : EventTarget
     getter onconnectionavailable
@@ -4065,7 +4080,7 @@ interface Response
     method constructor
     method json
     method text
-interface RotationTransformComponent : TransformComponent
+interface Rotation : TransformComponent
     getter angle
     getter x
     getter y
@@ -5070,7 +5085,7 @@ interface SVGZoomEvent : UIEvent
     getter previousTranslate
     getter zoomRectScreen
     method constructor
-interface ScaleTransformComponent : TransformComponent
+interface Scale : TransformComponent
     getter x
     getter y
     getter z
@@ -5219,7 +5234,7 @@ interface SimpleLength : LengthValue
     getter value
     method constructor
     setter value
-interface SkewTransformComponent : TransformComponent
+interface Skew : TransformComponent
     getter ax
     getter ay
     method constructor
@@ -5330,6 +5345,7 @@ interface SyncManager
     method getTags
     method register
 interface Text : CharacterData
+    getter assignedSlot
     getter wholeText
     method constructor
     method getDestinationInsertionPoints
@@ -5457,6 +5473,7 @@ interface TrackEvent : Event
     method constructor
 interface TransformComponent
     getter cssString
+    method asMatrix
     method constructor
     method is2DComponent
 interface TransformValue : StyleValue
@@ -5470,6 +5487,11 @@ interface TransitionEvent : Event
     getter elapsedTime
     getter propertyName
     getter pseudoElement
+    method constructor
+interface Translation : TransformComponent
+    getter x
+    getter y
+    getter z
     method constructor
 interface TreeWalker
     getter currentNode
@@ -6363,10 +6385,6 @@ interface XMLHttpRequestEventTarget : EventTarget
     setter onloadstart
     setter onprogress
     setter ontimeout
-interface XMLHttpRequestProgressEvent : ProgressEvent
-    getter position
-    getter totalSize
-    method constructor
 interface XMLHttpRequestUpload : XMLHttpRequestEventTarget
     method constructor
 interface XMLSerializer

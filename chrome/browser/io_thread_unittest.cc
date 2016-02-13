@@ -188,8 +188,8 @@ TEST_F(IOThreadTest, SpdyFieldTrialParametrized) {
   EXPECT_TRUE(params.enable_http2);
 }
 
-TEST_F(IOThreadTest, SpdyCommandLineUseSpdyOff) {
-  command_line_.AppendSwitchASCII("use-spdy", "off");
+TEST_F(IOThreadTest, SpdyCommandLineDisableHttp2) {
+  command_line_.AppendSwitch("disable-http2");
   // Command line should overwrite field trial group.
   field_trial_group_ = "Spdy4Enabled";
   ConfigureSpdyGlobals();
@@ -564,6 +564,8 @@ TEST_F(IOThreadTest, QuicEnableAlternativeServicesFromFieldTrialParams) {
   net::HttpNetworkSession::Params params;
   InitializeNetworkSessionParams(&params);
   EXPECT_TRUE(params.enable_alternative_service_with_different_host);
+  // QUIC AltSvc pooling parameter should also enable AltSvc parsing.
+  EXPECT_TRUE(params.parse_alternative_services);
 }
 
 TEST_F(IOThreadTest, QuicMaxNumberOfLossyConnectionsFieldTrialParams) {

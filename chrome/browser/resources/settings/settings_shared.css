@@ -8,7 +8,7 @@
  */
 
 h2 {
-  color: #9e9e9e;
+  color: var(--paper-grey-500);
   font-size: 100%;
   font-weight: normal;
   margin-bottom: 20px;
@@ -19,9 +19,14 @@ iron-icon {
   color: #969696;
 }
 
+iron-icon[icon=done] {
+  color: rgb(0, 128, 0);
+}
+
 paper-button {
   margin: 0;
   min-width: auto;
+  padding: 0;
 }
 
 paper-button[toggles][active] {
@@ -30,6 +35,38 @@ paper-button[toggles][active] {
 
 span ~ a {
   -webkit-margin-start: 4px;
+}
+
+paper-button.primary-button {
+  --paper-button: {
+    color: rgb(66, 133, 244);
+    text-align: start;
+    text-transform: none;
+    font-weight: 500;
+  };
+}
+
+paper-button.secondary-button {
+  --paper-button: {
+    color: #5a5a5a;
+    text-decoration: none;
+    font-weight: 500;
+  };
+}
+
+paper-button.tertiary-button {
+  --paper-button: {
+    color: rgb(51, 103, 214);
+    text-decoration: none;
+    font-weight: 400;
+  };
+}
+
+paper-radio-button {
+  --paper-radio-button-label-spacing: 18px;
+  --paper-radio-button-checked-color: var(--google-blue-500);
+  --paper-radio-button-unchecked-color: #969696;
+  -webkit-margin-start: 2px;
 }
 
 .text-elide {
@@ -50,7 +87,10 @@ span ~ a {
 .list-frame {
   @apply(--layout-center);
   display: block;
-  padding: 0 20px 0 48px;
+  -webkit-padding-end: 20px;
+  -webkit-padding-start: 48px;
+  padding-bottom: 0;
+  padding-top: 0;
 }
 
 .list-frame select {
@@ -64,7 +104,22 @@ span ~ a {
 .list-item {
   @apply(--layout-center);
   display: flex;
+  min-height: 40px;
   padding: 0;
+}
+
+/* This button has no ink ripple */
+.list-item.list-button {
+  @apply(--layout-center);
+  color: rgb(66, 133, 244);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.list-item iron-icon {
+  @apply(--layout-center);
+  height: 20px;
+  width: 20px;
 }
 
 .list-item > .middle {
@@ -84,12 +139,19 @@ span ~ a {
   padding: 0;
 }
 
+/* This button has no ink ripple. */
+.list-item.list-button {
+  @apply(--layout-center);
+  color: rgb(66, 133, 244);
+  font-weight: 500;
+  padding: 0;
+  text-decoration: none;
+  text-transform: none;
+}
+
 .link-button {
   color: rgb(61, 130, 243);
-  padding-bottom: 6px;
-  padding-left: 0;
-  padding-right: 0;
-  padding-top: 6px;
+  padding: 6px 0;
   text-transform: none;
 }
 
@@ -99,7 +161,7 @@ span ~ a {
 
 .settings-box {
   @apply(--layout-center);
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--paper-grey-300);
   display: flex;
   min-height: 40px;
   padding: 0 20px;
@@ -117,12 +179,41 @@ span ~ a {
   min-height: 52px;
 }
 
+.settings-box iron-icon {
+  @apply(--layout-center);
+  height: 20px;
+  width: 20px;
+}
+
 .settings-box .secondary {
   color: #969696;
+  font-weight: 400;
+}
+
+.settings-box .middle {
+  -webkit-margin-start: 16px;
+  align-items: center;
+  flex: auto;
 }
 
 .settings-box .start {
+  align-items: center;
   flex: auto;
+}
+
+/* The secondary-action wraps a clickable sub-area of a .settings-box.
+ * An example is the |sign out| button on the People settings.
+ * Here is an example with and without a secondary action box:
+ *
+ *  +-------------------------------------------------------+
+ *  | Main action area .settings-box    | .secondary-action |
+ *  +-------------------------------------------------------+
+ *  | Another setting-box without a secondary-action        |
+ *  +-------------------------------------------------------+
+ */
+.settings-box .secondary-action {
+  -webkit-border-start: 1px solid var(--paper-grey-300);
+  -webkit-padding-start: 20px;
 }
 
 .settings-box paper-item iron-icon {
@@ -135,5 +226,5 @@ span ~ a {
 }
 
 .vertical-list > div {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--paper-grey-300);
 }

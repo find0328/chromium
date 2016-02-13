@@ -178,25 +178,18 @@ group("both_gn_and_gyp") {
       "//media/midi:midi_unittests",
       "//mojo",
       "//mojo/common:mojo_common_unittests",
+      "//mojo/edk/system:mojo_system_unittests",
+      "//mojo/edk/test:mojo_public_bindings_unittests",
+      "//mojo/edk/test:mojo_public_environment_unittests",
+      "//mojo/edk/test:mojo_public_system_unittests",
+      "//mojo/edk/test:mojo_public_utility_unittests",
       "//mojo/shell/public/cpp",
       "//net:net_perftests",
-
-      # TODO(use-new-edk):
-      #"//mojo/edk/system:mojo_system_unittests",
-      #"//mojo/edk/test:mojo_public_bindings_unittests",
-      #"//mojo/edk/test:mojo_public_environment_unittests",
-      #"//mojo/edk/test:mojo_public_system_unittests",
-      #"//mojo/edk/test:mojo_public_utility_unittests",
       "//third_party/WebKit/Source/platform:blink_heap_unittests",
       "//third_party/WebKit/Source/platform:blink_platform_unittests",
       "//third_party/WebKit/Source/web:webkit_unit_tests",
       "//third_party/WebKit/Source/wtf:wtf_unittests",
       "//third_party/catapult/telemetry:bitmaptools($host_toolchain)",
-      "//third_party/mojo/src/mojo/edk/system:mojo_system_unittests",
-      "//third_party/mojo/src/mojo/edk/test:mojo_public_bindings_unittests",
-      "//third_party/mojo/src/mojo/edk/test:mojo_public_environment_unittests",
-      "//third_party/mojo/src/mojo/edk/test:mojo_public_system_unittests",
-      "//third_party/mojo/src/mojo/edk/test:mojo_public_utility_unittests",
       "//third_party/smhasher:pmurhash",
       "//tools/imagediff($host_toolchain)",
       "//ui/display:display_unittests",
@@ -472,15 +465,10 @@ group("both_gn_and_gyp") {
       deps += [ "//media:ffmpeg_regression_tests" ]
     }
 
-    if (use_ash) {
+    if (use_aura) {
       deps += [
         "//ash:ash_shell_with_content",
         "//ash:ash_unittests",
-      ]
-    }
-
-    if (use_aura) {
-      deps += [
         "//ui/aura:aura_unittests",
         "//ui/aura:bench",
         "//ui/aura:demo",
@@ -504,13 +492,10 @@ group("both_gn_and_gyp") {
       # TODO(GYP): Remove this when the gles2 tests work
       "//gpu/command_buffer/client:gles2_implementation_no_check",
       "//gpu/khronos_glcts_support:khronos_glcts_test",  # TODO(GYP) crbug.com/471903 to make this complete.
+      "//mojo/edk/test:mojo_public_system_perftests",
       "//mojo/shell/public/cpp",
       "//testing/gmock:gmock_main",
-
-      # TODO(use-new-edk):
-      #"//mojo/edk/test:mojo_public_system_perftests",
       "//third_party/codesighs:nm2tsv",
-      "//third_party/mojo/src/mojo/edk/test:mojo_public_system_perftests",
     ]
 
     if (!is_android) {
@@ -613,11 +598,21 @@ group("mojo_apptests") {
 
   if (is_win || is_linux) {
     deps += [
-      "//mandoline:tests",
+      "//components/filesystem:apptests",
+      "//components/mus/ws:tests",
+      "//components/resource_provider:apptests",
+      "//components/resource_provider:resource_provider_unittests",
       "//mash/wm:tests",
       "//media/mojo/services:tests",
+      "//mojo/services/network:apptests",
+      "//mojo/shell:apptests",
+      "//sql/mojo:apptests",
       "//ui/views/mus:tests",
     ]
+  }
+
+  if (is_android) {
+    deps += [ "//mojo/shell/standalone:mojo_shell_standalone_apptests_apk" ]
   }
 }
 
@@ -630,10 +625,6 @@ group("gn_only") {
     deps += [ "//mojo/common:mojo_common_perftests" ]
   }
 
-  if (!is_mac && !is_ios && !is_chromecast) {
-    deps += [ "//mandoline:all" ]
-  }
-
   if (!is_android && !is_ios && !is_chromeos) {
     deps += [ "//components/proximity_auth:proximity_auth_unittests" ]
   }
@@ -642,6 +633,7 @@ group("gn_only") {
     deps += [
       ":mojo_apptests",
       "//mash:all",
+      "//mojo",
     ]
   }
 
@@ -767,9 +759,6 @@ group("gn_mojo_targets") {
       "//media/mojo:tests",
       "//media/mojo/services:cdm_service",
       "//mojo:tests",
-
-      # TODO(use-new-edk):
-      #"//mojo/edk/js/tests:js_to_cpp_bindings_python",
     ]
   }
 }

@@ -34,7 +34,6 @@
 #include "bindings/core/v8/V8PerContextData.h"
 #include "core/CSSValueKeywords.h"
 #include "core/SVGNames.h"
-#include "core/XLinkNames.h"
 #include "core/XMLNames.h"
 #include "core/animation/AnimationTimeline.h"
 #include "core/animation/css/CSSAnimations.h"
@@ -119,6 +118,7 @@
 #include "core/page/scrolling/ScrollState.h"
 #include "core/page/scrolling/ScrollStateCallback.h"
 #include "core/paint/PaintLayer.h"
+#include "core/svg/SVGAElement.h"
 #include "core/svg/SVGDocumentExtensions.h"
 #include "core/svg/SVGElement.h"
 #include "platform/EventDispatchForbiddenScope.h"
@@ -2431,12 +2431,9 @@ bool Element::supportsSpatialNavigationFocus() const
 
 bool Element::isFocusable() const
 {
-    // We can't just use needsStyleRecalc() because if the node is in a
-    // display:none tree it might say it needs style recalc but the whole
-    // document is actually up to date.
-    // In addition, style cannot be cleared out for non-active documents, so in
-    // that case the childNeedsStyleRecalc check is invalid.
-    ASSERT(!document().isActive() || !document().childNeedsStyleRecalc());
+    // Style cannot be cleared out for non-active documents, so in that case the
+    // needsLayoutTreeUpdateForNode check is invalid.
+    ASSERT(!document().isActive() || !document().needsLayoutTreeUpdateForNode(*this));
     return inDocument() && supportsFocus() && !isInert() && layoutObjectIsFocusable();
 }
 
@@ -2916,7 +2913,7 @@ KURL Element::hrefURL() const
     if (isHTMLAnchorElement(*this) || isHTMLAreaElement(*this) || isHTMLLinkElement(*this))
         return getURLAttribute(hrefAttr);
     if (isSVGAElement(*this))
-        return getURLAttribute(XLinkNames::hrefAttr);
+        return toSVGAElement(*this).legacyHrefURL(document());
     return KURL();
 }
 

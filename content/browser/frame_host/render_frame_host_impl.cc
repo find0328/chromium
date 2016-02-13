@@ -38,7 +38,7 @@
 #include "content/browser/permissions/permission_service_context.h"
 #include "content/browser/permissions/permission_service_impl.h"
 #include "content/browser/presentation/presentation_service_impl.h"
-#include "content/browser/renderer_host/input/input_router.h"
+#include "content/browser/renderer_host/input/input_router_impl.h"
 #include "content/browser/renderer_host/input/timeout_monitor.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
@@ -247,6 +247,9 @@ RenderFrameHostImpl::RenderFrameHostImpl(SiteInstance* site_instance,
     } else {
       DCHECK(!render_widget_host_->owned_by_render_frame_host());
     }
+    InputRouterImpl* ir =
+        static_cast<InputRouterImpl*>(render_widget_host_->input_router());
+    ir->SetFrameTreeNodeId(frame_tree_node_->frame_tree_node_id());
   }
 }
 
@@ -1011,8 +1014,11 @@ void RenderFrameHostImpl::OnDidCommitProvisionalLoad(const IPC::Message& msg) {
   // DidCommitProvisionalLoad IPC without a prior DidStartProvisionalLoad
   // message.
   if (!navigation_handle_) {
-    navigation_handle_ = NavigationHandleImpl::Create(
-        validated_params.url, frame_tree_node_, base::TimeTicks::Now());
+    navigation_handle_ =
+        NavigationHandleImpl::Create(validated_params.url, frame_tree_node_,
+                                     true,   // is_synchronous
+                                     false,  // is_srcdoc
+                                     base::TimeTicks::Now());
   }
 
   accessibility_reset_count_ = 0;
@@ -1396,8 +1402,8 @@ void RenderFrameHostImpl::OnRunBeforeUnloadConfirm(
 
 void RenderFrameHostImpl::OnTextSurroundingSelectionResponse(
     const base::string16& content,
-    size_t start_offset,
-    size_t end_offset) {
+    uint32_t start_offset,
+    uint32_t end_offset) {
   render_view_host_->OnTextSurroundingSelectionResponse(
       content, start_offset, end_offset);
 }
@@ -2107,12 +2113,12 @@ void RenderFrameHostImpl::SetUpMojoIfNeeded() {
   GetProcess()->GetServiceRegistry()->ConnectToRemoteService(
       mojo::GetProxy(&setup));
 
-  mojo::ServiceProviderPtr exposed_services;
+  mojo::shell::mojom::InterfaceProviderPtr exposed_services;
   service_registry_->Bind(GetProxy(&exposed_services));
 
-  mojo::ServiceProviderPtr services;
-  setup->ExchangeServiceProviders(routing_id_, GetProxy(&services),
-                                  std::move(exposed_services));
+  mojo::shell::mojom::InterfaceProviderPtr services;
+  setup->ExchangeInterfaceProviders(routing_id_, GetProxy(&services),
+                                    std::move(exposed_services));
   service_registry_->BindRemoteServiceProvider(std::move(services));
 
 #if defined(OS_ANDROID)
@@ -2323,6 +2329,12 @@ bool RenderFrameHostImpl::IsRenderFrameLive() {
   DCHECK(!is_live || render_view_host_->IsRenderViewLive());
 
   return is_live;
+}
+
+int RenderFrameHostImpl::GetProxyCount() {
+  if (this != frame_tree_node_->current_frame_host())
+    return 0;
+  return frame_tree_node_->render_manager()->GetProxyCount();
 }
 
 #if defined(OS_WIN)

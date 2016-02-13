@@ -11,6 +11,7 @@
 #include "ash/shell.h"
 #include "ash/shell_window_ids.h"
 #include "ash/test/ash_test_base.h"
+#include "ash/test/display_manager_test_api.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "ash/wm/wm_event.h"
@@ -65,7 +66,7 @@ class TestWindowDelegate : public aura::test::TestWindowDelegate {
 
 class WorkspaceWindowResizerTest : public test::AshTestBase {
  public:
-  WorkspaceWindowResizerTest() : workspace_resizer_(NULL) {}
+  WorkspaceWindowResizerTest() : workspace_resizer_(nullptr) {}
   ~WorkspaceWindowResizerTest() override {}
 
   void SetUp() override {
@@ -821,7 +822,7 @@ TEST_F(WorkspaceWindowResizerTest, DontDragOffBottomWithMultiDisplay) {
 
   // Positions the secondary display at the bottom the primary display.
   Shell::GetInstance()->display_manager()->SetLayoutForCurrentDisplays(
-      ash::DisplayLayout(ash::DisplayLayout::BOTTOM, 0));
+      test::CreateDisplayLayout(ash::DisplayPlacement::BOTTOM, 0));
 
   {
     window_->SetBounds(gfx::Rect(100, 200, 300, 20));

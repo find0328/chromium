@@ -22,7 +22,7 @@
     'android_gyp_debug_static_bot': ['android', 'gyp', 'debug_static_bot'],
     'android_gyp_debug_static_bot_arm64': ['android', 'gyp', 'debug_static_bot', 'arm64'],
     'android_gyp_release_bot': ['android', 'gyp', 'release_bot'],
-    'android_gyp_release_bot_minimal_symbols': ['android', 'gyp', 'release_bot', 'minimal_symbols'],
+    'android_gyp_release_bot_minimal_symbols': ['android', 'gyp', 'release_bot_minimal_symbols'],
     'cast_gn_release_bot': ['cast', 'gn', 'release_bot'],
     'cast_gn_release_trybot': ['cast', 'gn', 'release_trybot'],
     'chromeos_gn_debug_bot': ['chromeos', 'gn', 'debug_bot'],
@@ -43,6 +43,7 @@
 
     'gn_cfi_release_bot': ['gn', 'cfi', 'release_bot'],
     'gn_cfi_release_trybot': ['gn', 'cfi', 'release_trybot'],
+    'gn_cfi_diag_release_bot': ['gn', 'cfi', 'cfi_diag', 'release_bot'],
     'gn_debug_bot': ['gn', 'debug_bot'],
     'gn_debug_bot_minimal_symbols': ['gn', 'debug_bot_minimal_symbols'],
     'gn_debug_bot_minimal_symbols_x86': ['gn', 'debug_bot_minimal_symbols', 'x86'],
@@ -88,7 +89,7 @@
     'noswarming_gyp_release_bot_mac_strip': ['noswarming', 'gyp', 'release_bot', 'mac_strip'],
     'noswarming_gyp_release_bot_x86': ['noswarming', 'gyp', 'release_bot', 'x86'],
 
-    'swarming_android_gn_release_bot_minimal_symbols': ['swarming', 'android', 'gn', 'release_bot', 'minimal_symbols'],
+    'swarming_android_gn_release_bot_minimal_symbols': ['swarming', 'android', 'gn', 'release_bot_minimal_symbols'],
     'swarming_asan_lsan_gyp_release_trybot': ['swarming', 'asan', 'lsan', 'release_trybot'],
     'swarming_msan_gyp_release_trybot': ['swarming', 'chromeos', 'msan', 'gyp', 'release_trybot'],
     'swarming_deterministic_gyp_release_bot': ['swarming', 'deterministic', 'gyp', 'release_bot'],
@@ -103,8 +104,8 @@
     'swarming_gn_debug_bot_minimal_symbols_x64': ['swarming', 'gn', 'debug_bot_minimal_symbols', 'x64'],
     'swarming_gn_debug_bot_x64': ['swarming', 'gn', 'debug_bot', 'x64'],
     'swarming_gn_debug_trybot': ['swarming', 'gn', 'debug_trybot'],
-    'swarming_gn_oilpan_debug_bot_minimal_symbols_x64': ['swarming', 'gn', 'oilpan', 'debug_bot', 'minimal_symbols', 'x64'],
-    'swarming_gn_oilpan_debug_bot_x64': ['swarming', 'gn', 'oilpan', 'debug_bot', 'minimal_symbols', 'x64'],
+    'swarming_gn_oilpan_debug_bot_minimal_symbols_x64': ['swarming', 'gn', 'oilpan', 'debug_bot_minimal_symbols', 'x64'],
+    'swarming_gn_oilpan_debug_bot_x64': ['swarming', 'gn', 'oilpan', 'debug_bot_minimal_symbols', 'x64'],
     'swarming_gn_oilpan_release_bot_x64': ['swarming', 'gn', 'oilpan', 'release_bot', 'x64'],
     'swarming_gn_oilpan_release_trybot_minimal_symbols_x64': ['swarming', 'gn', 'oilpan', 'release_trybot', 'minimal_symbols', 'x64'],
     'swarming_gn_release_bot': ['swarming', 'gn', 'release_bot'],
@@ -119,9 +120,9 @@
     'swarming_gyp_debug_trybot_x86': ['swarming', 'gyp', 'debug_trybot', 'x86'],
     'swarming_gyp_msan_release_bot_x64': ['swarming', 'gyp', 'msan', 'release_bot', 'x64'],
     'swarming_gyp_oilpan_asan_lsan_release_bot_x64': ['swarming', 'gyp', 'oilpan', 'asan', 'lsan', 'release_bot', 'x64'],
-    'swarming_gyp_oilpan_debug_bot_minimal_symbols_x64': ['swarming', 'gyp', 'oilpan', 'debug_bot', 'minimal_symbols', 'x64'],
-    'swarming_gyp_oilpan_debug_bot_minimal_symbols_x86': ['swarming', 'gyp', 'oilpan', 'debug_bot', 'minimal_symbols', 'x86'],
-    'swarming_gyp_oilpan_debug_bot_x64': ['swarming', 'gyp', 'oilpan', 'debug_bot', 'minimal_symbols', 'x64'],
+    'swarming_gyp_oilpan_debug_bot_minimal_symbols_x64': ['swarming', 'gyp', 'oilpan', 'debug_bot_minimal_symbols', 'x64'],
+    'swarming_gyp_oilpan_debug_bot_minimal_symbols_x86': ['swarming', 'gyp', 'oilpan', 'debug_bot_minimal_symbols', 'x86'],
+    'swarming_gyp_oilpan_debug_bot_x64': ['swarming', 'gyp', 'oilpan', 'debug_bot_minimal_symbols', 'x64'],
     'swarming_gyp_oilpan_release_bot_minimal_symbols_x86': ['swarming', 'gyp', 'oilpan', 'release_bot', 'minimal_symbols', 'x86'],
     'swarming_gyp_oilpan_release_bot_x64': ['swarming', 'gyp', 'oilpan', 'release_bot', 'x64'],
     'swarming_gyp_oilpan_release_trybot_minimal_symbols_x64': ['swarming', 'gyp', 'oilpan', 'release_trybot', 'minimal_symbols', 'x64'],
@@ -151,8 +152,7 @@
     # added the entries yet.
     # 'tbd': ['none'],
 
-    # clang/win doesn't work with goma yet, so this can't use debug_bot:
-    'win_clang_debug_bot': ['gn', 'clang', 'debug', 'shared', 'minimal_symbols'],
+    'win_clang_debug_bot': ['gn', 'clang', 'debug_bot_minimal_symbols'],
   },
 
   # This is a list of configs that do not actually exist on any bot
@@ -225,6 +225,11 @@
       'gyp_defines': 'cfi_vptr=1',
     },
 
+    'cfi_diag': {
+      'gn_args': 'use_cfi_diag=true',
+      'gyp_defines': 'cfi_diag=1',
+    },
+
     'chrome_with_codecs': {
       'gn_args': 'ffmpeg_branding="Chrome" proprietary_codecs=true',
       'gyp_defines': 'ffmpeg_branding=Chrome proprietary_codecs=1',
@@ -273,9 +278,10 @@
       'mixins': ['debug_bot_minimal_symbols'],
     },
 
+    # TODO(zforman): This doesn't do anything now, find out if it can
+    # be removed, and remove it.
     'deterministic': {
       'gn_args': 'error',
-      'gyp_defines': 'dont_embed_build_metadata=1',
     },
 
     'disable_nacl': {
@@ -525,11 +531,8 @@
     },
     'chromium.mojo': {
       'Chromium Mojo Android': 'android_gn_release_bot',
-      'Chromium Mojo Linux Perf': 'gn_release_bot',
-      'Chromium Mojo Android Nexus5 Perf': 'android_gn_release_bot',
       'Chromium Mojo Windows': 'gn_release_bot_minimal_symbols_x86',
       'Chromium Mojo Linux': 'gn_release_bot',
-      'Chromium Mojo Windows 7 Perf': 'gn_release_bot_minimal_symbols_x86',
     },
     'chromium.perf': {
       'Android Builder': 'gn_official_goma_minimal_symbols_android',
@@ -631,6 +634,7 @@
     'chromium.fyi': {
       'CFI Linux': 'gn_cfi_release_bot',
       'CFI Linux ToT': 'gn_cfi_release_bot',
+      'CFI Linux CF': 'gn_cfi_diag_release_bot',
       'CrWinClang64(dbg)': 'win_clang_debug_bot',
       'Win LKGR (DrM)': 'gn_release_drmemory_drfuzz_x86',
       'Win LKGR (DrM 64)': 'gn_release_drmemory_drfuzz',
@@ -743,6 +747,7 @@
       'linux_chromium_archive_rel_ng': 'noswarming_gn_release_bot',
       'linux_chromium_clobber_rel_ng': 'gyp_release_trybot',
       'linux_chromium_gn_upload': 'gn_linux_upload',
+      'linux_chromium_clang_upload': 'gn_release_bot',
       'cast_shell_linux': 'cast_gn_release_trybot',
       'linux_deterministic': 'swarming_deterministic_gyp_release_bot',
       'linux_ecs_ozone': 'embedded_gyp_debug_bot',

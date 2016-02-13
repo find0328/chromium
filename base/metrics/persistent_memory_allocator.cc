@@ -9,6 +9,7 @@
 
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
+#include "base/memory/shared_memory.h"
 #include "base/metrics/histogram_macros.h"
 
 namespace {
@@ -131,12 +132,13 @@ bool PersistentMemoryAllocator::IsMemoryAcceptable(const void* base,
           (page_size == 0 || size % page_size == 0 || readonly));
 }
 
-PersistentMemoryAllocator::PersistentMemoryAllocator(void* base,
-                                                     size_t size,
-                                                     size_t page_size,
-                                                     uint64_t id,
-                                                     const std::string& name,
-                                                     bool readonly)
+PersistentMemoryAllocator::PersistentMemoryAllocator(
+    void* base,
+    size_t size,
+    size_t page_size,
+    uint64_t id,
+    base::StringPiece name,
+    bool readonly)
     : mem_base_(static_cast<char*>(base)),
       mem_size_(static_cast<uint32_t>(size)),
       mem_page_(static_cast<uint32_t>((page_size ? page_size : size))),
@@ -163,7 +165,6 @@ PersistentMemoryAllocator::PersistentMemoryAllocator(void* base,
 
   if (shared_meta()->cookie != kGlobalCookie) {
     if (readonly) {
-      NOTREACHED();
       SetCorrupt();
       return;
     }
@@ -212,13 +213,18 @@ PersistentMemoryAllocator::PersistentMemoryAllocator(void* base,
       shared_meta()->name = Allocate(name_length, 0);
       char* name_cstr = GetAsObject<char>(shared_meta()->name, 0);
       if (name_cstr)
-        strcpy(name_cstr, name.c_str());
+        memcpy(name_cstr, name.data(), name.length());
     }
   } else {
-    if (readonly) {
-      // For read-only access, validate reasonable ctor parameters.
-      DCHECK_GE(mem_size_, shared_meta()->freeptr.load());
-    } else {
+    if (shared_meta()->size == 0 ||
+        shared_meta()->version == 0 ||
+        shared_meta()->freeptr.load() == 0 ||
+        shared_meta()->tailptr == 0 ||
+        shared_meta()->queue.cookie == 0 ||
+        shared_meta()->queue.next.load() == 0) {
+      SetCorrupt();
+    }
+    if (!readonly) {
       // The allocator is attaching to a previously initialized segment of
       // memory. Make sure the embedded data matches what has been passed.
       if (shared_meta()->size != mem_size_ ||
@@ -258,17 +264,20 @@ const char* PersistentMemoryAllocator::Name() const {
 }
 
 void PersistentMemoryAllocator::CreateTrackingHistograms(
-    const std::string& name) {
+    base::StringPiece name) {
   if (name.empty() || readonly_)
     return;
 
+  std::string name_string = name.as_string();
   DCHECK(!used_histogram_);
-  used_histogram_ = Histogram::FactoryGet(
-      name + ".UsedKiB", 1, 256 << 10, 100, HistogramBase::kNoFlags);
+  used_histogram_ = LinearHistogram::FactoryGet(
+      "UMA.PersistentAllocator." + name_string + ".UsedPct", 1, 101, 21,
+      HistogramBase::kUmaTargetedHistogramFlag);
 
   DCHECK(!allocs_histogram_);
   allocs_histogram_ = Histogram::FactoryGet(
-      name + ".Allocs", 1, 10000, 50, HistogramBase::kNoFlags);
+      "UMA.PersistentAllocator." + name_string + ".Allocs", 1, 10000, 50,
+      HistogramBase::kUmaTargetedHistogramFlag);
 }
 
 size_t PersistentMemoryAllocator::used() const {
@@ -282,7 +291,7 @@ size_t PersistentMemoryAllocator::GetAllocSize(Reference ref) const {
   uint32_t size = block->size;
   // Header was verified by GetBlock() but a malicious actor could change
   // the value between there and here. Check it again.
-  if (size <= sizeof(BlockHeader) || ref + size >= mem_size_) {
+  if (size <= sizeof(BlockHeader) || ref + size > mem_size_) {
     SetCorrupt();
     return 0;
   }
@@ -647,7 +656,7 @@ void PersistentMemoryAllocator::UpdateTrackingHistograms() {
 LocalPersistentMemoryAllocator::LocalPersistentMemoryAllocator(
     size_t size,
     uint64_t id,
-    const std::string& name)
+    base::StringPiece name)
     : PersistentMemoryAllocator(memset(new char[size], 0, size),
                                 size, 0, id, name, false) {}
 
@@ -656,18 +665,37 @@ LocalPersistentMemoryAllocator::~LocalPersistentMemoryAllocator() {
 }
 
 
+//----- SharedPersistentMemoryAllocator ----------------------------------------
+
+SharedPersistentMemoryAllocator::SharedPersistentMemoryAllocator(
+    scoped_ptr<SharedMemory> memory,
+    uint64_t id,
+    base::StringPiece name,
+    bool read_only)
+    : PersistentMemoryAllocator(static_cast<uint8_t*>(memory->memory()),
+                                memory->mapped_size(), 0, id, name, read_only),
+      shared_memory_(std::move(memory)) {}
+
+SharedPersistentMemoryAllocator::~SharedPersistentMemoryAllocator() {}
+
+// static
+bool SharedPersistentMemoryAllocator::IsSharedMemoryAcceptable(
+    const SharedMemory& memory) {
+  return IsMemoryAcceptable(memory.memory(), memory.mapped_size(), 0, true);
+}
+
+
 //----- FilePersistentMemoryAllocator ------------------------------------------
 
 FilePersistentMemoryAllocator::FilePersistentMemoryAllocator(
-    MemoryMappedFile* file,
+    scoped_ptr<MemoryMappedFile> file,
     uint64_t id,
-    const std::string& name)
+    base::StringPiece name)
     : PersistentMemoryAllocator(const_cast<uint8_t*>(file->data()),
                                 file->length(), 0, id, name, true),
-      mapped_file_(file) {}
+      mapped_file_(std::move(file)) {}
 
-FilePersistentMemoryAllocator::~FilePersistentMemoryAllocator() {
-}
+FilePersistentMemoryAllocator::~FilePersistentMemoryAllocator() {}
 
 // static
 bool FilePersistentMemoryAllocator::IsFileAcceptable(

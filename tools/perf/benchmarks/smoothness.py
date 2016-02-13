@@ -79,6 +79,9 @@ class SmoothnessToughCanvasCases(_Smoothness):
   """
   page_set = page_sets.ToughCanvasCasesPageSet
 
+  def SetExtraBrowserOptions(self, options):
+    options.AppendExtraBrowserArgs('--enable-experimental-canvas-features')
+
   @classmethod
   def Name(cls):
     return 'smoothness.tough_canvas_cases'
@@ -103,8 +106,7 @@ class SmoothnessMaps(perf_benchmark.PerfBenchmark):
 
 
 @benchmark.Disabled('android',
-                    'mac',     # crbug.com/567802
-                    'win')     # crbug.com/582472
+                    'mac')     # crbug.com/567802
 class SmoothnessKeyDesktopMoveCases(_Smoothness):
   page_set = page_sets.KeyDesktopMoveCasesPageSet
 
@@ -188,7 +190,6 @@ class SmoothnessGpuRasterizationKeyMobileSites(_Smoothness):
     return 'smoothness.gpu_rasterization.key_mobile_sites_smooth'
 
 
-@benchmark.Disabled('yosemite')  # crbug.com/581219
 class SmoothnessGpuRasterizationToughPathRenderingCases(_Smoothness):
   """Tests a selection of pages with SVG and 2D canvas paths with GPU
   rasterization.
@@ -469,7 +470,7 @@ class SmoothnessToughTextureUploadCases(_Smoothness):
 
 class SmoothnessToughAdCases(_Smoothness):
   """Measures rendering statistics while displaying advertisements."""
-  page_set = page_sets.ToughAdCasesPageSet
+  page_set = page_sets.SyntheticToughAdCasesPageSet
 
   @classmethod
   def Name(cls):
@@ -508,7 +509,7 @@ class SmoothnessBidirectionallyScrollingToughAdCases(_Smoothness):
 
 class SmoothnessToughWebGLAdCases(_Smoothness):
   """Measures rendering statistics while scrolling advertisements."""
-  page_set = page_sets.ToughWebglAdCasesPageSet
+  page_set = page_sets.SyntheticToughWebglAdCasesPageSet
 
   @classmethod
   def Name(cls):

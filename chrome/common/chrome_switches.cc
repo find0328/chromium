@@ -271,6 +271,9 @@ const char kDisableExtensionsHttpThrottling[] =
 // Disable field trial tests configured in fieldtrial_testing_config.json.
 const char kDisableFieldTrialTestingConfig[] = "disable-field-trial-config";
 
+// Disable HTTP/2 and SPDY/3.1 protocols.
+const char kDisableHttp2[]                   = "disable-http2";
+
 // Disables the Material Design version of chrome://downloads.
 const char kDisableMaterialDesignDownloads[] = "disable-md-downloads";
 
@@ -512,12 +515,6 @@ const char kEnableSessionCrashedBubble[] = "enable-session-crashed-bubble";
 const char kEnableSettingsWindow[]           = "enable-settings-window";
 const char kDisableSettingsWindow[]          = "disable-settings-window";
 
-// A new user experience for transitioning into fullscreen and mouse pointer
-// lock states.
-const char kEnableSimplifiedFullscreenUI[]  = "enable-simplified-fullscreen-ui";
-const char kDisableSimplifiedFullscreenUI[] =
-    "disable-simplified-fullscreen-ui";
-
 // Enable the Site Engagement App Banner which triggers app install banners
 // using the site engagement service rather than a navigation-based heuristic.
 // Implicitly enables the site engagement service.
@@ -588,11 +585,11 @@ const char kFastStart[]            = "fast-start";
 const char kForceAppMode[]                  = "force-app-mode";
 
 // This option can be used to force parameters of field trials when testing
-// changes locally. The argument is a list of key/value pairs prefixed by
-// Trial/Group pair. The following shows setting parameters to 2 experiments
-// where in the first, it forces "id" to be "foo" for the "Enabled" group of
-// the "EnhancedBookmarks" trial:
-// "EnhancedBookmarks.Enabled:id/foo,Experiment2.Group1:key1/value1"
+// changes locally. The argument is a param list of (key, value) pairs prefixed
+// by an associated (trial, group) pair. You specify the param list for multiple
+// (trial, group) pairs with a comma separator.
+// Example:
+//   "Trial1.Group1:k1/v1/k2/v2,Trial2.Group2:k3/v3/k4/v4"
 // Trial names, groups names, parameter names, and value should all be URL
 // escaped for all non-alphanumeric characters.
 const char kForceFieldTrialParams[] = "force-fieldtrial-params";
@@ -1053,10 +1050,6 @@ const char kUnlimitedStorage[]              = "unlimited-storage";
 // --user-data-dir=/test/only/profile/dir
 const char kUnsafelyTreatInsecureOriginAsSecure[] =
     "unsafely-treat-insecure-origin-as-secure";
-
-// Uses Spdy for the transport protocol instead of HTTP. This is a temporary
-// testing flag.
-const char kUseSpdy[]                       = "use-spdy";
 
 // A string used to override the default user agent with a custom one.
 const char kUserAgent[]                     = "user-agent";

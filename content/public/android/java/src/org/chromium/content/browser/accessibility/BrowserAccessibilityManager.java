@@ -75,6 +75,9 @@ public class BrowserAccessibilityManager {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             return new LollipopBrowserAccessibilityManager(
                     nativeBrowserAccessibilityManagerAndroid, contentViewCore);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return new KitKatBrowserAccessibilityManager(
+                    nativeBrowserAccessibilityManagerAndroid, contentViewCore);
         } else {
             return new BrowserAccessibilityManager(
                     nativeBrowserAccessibilityManagerAndroid, contentViewCore);
@@ -234,8 +237,6 @@ public class BrowserAccessibilityManager {
                 return true;
             case AccessibilityNodeInfo.ACTION_CLICK:
                 nativeClick(mNativeObj, virtualViewId);
-                sendAccessibilityEvent(virtualViewId,
-                        AccessibilityEvent.TYPE_VIEW_CLICKED);
                 return true;
             case AccessibilityNodeInfo.ACTION_FOCUS:
                 nativeFocus(mNativeObj, virtualViewId);
@@ -631,6 +632,11 @@ public class BrowserAccessibilityManager {
     }
 
     @CalledByNative
+    private void handleClicked(int id) {
+        sendAccessibilityEvent(id, AccessibilityEvent.TYPE_VIEW_CLICKED);
+    }
+
+    @CalledByNative
     private void handleTextSelectionChanged(int id) {
         sendAccessibilityEvent(id, AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED);
     }
@@ -853,6 +859,12 @@ public class BrowserAccessibilityManager {
                 moveAccessibilityFocusToIdAndRefocusIfNeeded(virtualViewId);
             }
         }
+    }
+
+    @CalledByNative
+    protected void setAccessibilityNodeInfoKitKatAttributes(AccessibilityNodeInfo node,
+            String roleDescription) {
+        // Requires KitKat or higher.
     }
 
     @CalledByNative

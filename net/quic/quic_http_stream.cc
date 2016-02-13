@@ -72,10 +72,9 @@ int QuicHttpStream::InitializeStream(const HttpRequestInfo* request_info,
   request_time_ = base::Time::Now();
   priority_ = priority;
 
-  SSLInfo ssl_info;
-  bool success = session_->GetSSLInfo(&ssl_info);
+  bool success = session_->GetSSLInfo(&ssl_info_);
   DCHECK(success);
-  DCHECK(ssl_info.cert.get());
+  DCHECK(ssl_info_.cert.get());
 
   int rv = stream_request_.StartRequest(
       session_, &stream_,
@@ -558,6 +557,13 @@ int QuicHttpStream::ProcessResponseHeaders(const SpdyHeaderBlock& headers) {
 
 int QuicHttpStream::ReadAvailableData(IOBuffer* buf, int buf_len) {
   int rv = stream_->Read(buf, buf_len);
+  // TODO(rtenneti): Temporary fix for crbug.com/585591. Added a check for null
+  // |stream_| to fix crash bug. Delete |stream_| check and histogram after fix
+  // is merged.
+  bool null_stream = stream_ == nullptr;
+  UMA_HISTOGRAM_BOOLEAN("Net.QuicReadAvailableData.NullStream", null_stream);
+  if (null_stream)
+    return rv;
   if (stream_->IsDoneReading()) {
     stream_->SetDelegate(nullptr);
     stream_->OnFinRead();

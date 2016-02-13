@@ -204,6 +204,9 @@
   "RemoteAccessClientFirewallTraversal": {
   },
 
+  "RemoteAccessHostClientDomain": {
+  },
+
   "RemoteAccessHostFirewallTraversal": {
   },
 
@@ -2420,6 +2423,18 @@
     "pref_mappings": [
       { "pref": "settings.display.unified_desktop_enabled_by_default" }
     ]
+  },
+
+  "ArcEnabled": {
+    "os": ["chromeos"],
+    "can_be_recommended": false,
+    "test_policy": { "ArcEnabled": false }
+  },
+
+  "ArcApplicationPolicy": {
+    "os": ["chromeos"],
+    "can_be_recommended": false,
+    "test_policy": { "ArcApplicationPolicy": "" }
   },
 
   "----- Chrome OS device policies ---------------------------------------": {},

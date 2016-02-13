@@ -29,7 +29,7 @@
 
 #include "core/animation/AnimationTimeline.h"
 #include "core/dom/NodeTraversal.h"
-#include "core/dom/shadow/ComposedTreeTraversal.h"
+#include "core/dom/shadow/FlatTreeTraversal.h"
 #include "core/frame/FrameView.h"
 #include "core/frame/LocalFrame.h"
 #include "core/frame/Settings.h"
@@ -78,10 +78,10 @@ SVGImage::~SVGImage()
     ASSERT(!m_chromeClient || !m_chromeClient->image());
 }
 
-IntRect SVGImage::visualRect() const
+LayoutRect SVGImage::visualRect() const
 {
     // TODO(chrishtr): fix this.
-    return IntRect();
+    return LayoutRect();
 }
 
 bool SVGImage::isInSVGImage(const Node* node)
@@ -110,7 +110,7 @@ bool SVGImage::currentFrameHasSingleSecurityOrigin() const
 
     // Don't allow foreignObject elements or images that are not known to be
     // single-origin since these can leak cross-origin information.
-    for (Node* node = rootElement; node; node = ComposedTreeTraversal::next(*node)) {
+    for (Node* node = rootElement; node; node = FlatTreeTraversal::next(*node)) {
         if (isSVGForeignObjectElement(*node))
             return false;
         if (isSVGImageElement(*node)) {
@@ -153,26 +153,28 @@ IntSize SVGImage::containerSize() const
     // Assure that a container size is always given for a non-identity zoom level.
     ASSERT(layoutObject->style()->effectiveZoom() == 1);
 
-    FloatSize intrinsicSize;
-    double intrinsicRatio = 0;
-    layoutObject->computeIntrinsicRatioInformation(intrinsicSize, intrinsicRatio);
+    LayoutBox::IntrinsicSizingInfo intrinsicSizingInfo;
+    layoutObject->computeIntrinsicSizingInfo(intrinsicSizingInfo);
 
-    if (intrinsicSize.isEmpty() && intrinsicRatio) {
-        if (!intrinsicSize.width() && intrinsicSize.height())
-            intrinsicSize.setWidth(intrinsicSize.height() * intrinsicRatio);
-        else if (intrinsicSize.width() && !intrinsicSize.height())
-            intrinsicSize.setHeight(intrinsicSize.width() / intrinsicRatio);
+    if (intrinsicSizingInfo.size.isEmpty() && !intrinsicSizingInfo.aspectRatio.isEmpty()) {
+        if (!intrinsicSizingInfo.size.width() && intrinsicSizingInfo.size.height()) {
+            intrinsicSizingInfo.size.setWidth(
+                intrinsicSizingInfo.size.height() * intrinsicSizingInfo.aspectRatio.width() / intrinsicSizingInfo.aspectRatio.height());
+        } else if (intrinsicSizingInfo.size.width() && !intrinsicSizingInfo.size.height()) {
+            intrinsicSizingInfo.size.setHeight(
+                intrinsicSizingInfo.size.width() * intrinsicSizingInfo.aspectRatio.height() / intrinsicSizingInfo.aspectRatio.width());
+        }
     }
 
     // TODO(davve): In order to maintain aspect ratio the intrinsic
     // size is faked from the viewBox as a last resort. This may cause
     // unwanted side effects. Preferably we should be able to signal
     // the intrinsic ratio in another way.
-    if (intrinsicSize.isEmpty())
-        intrinsicSize = rootElement->currentViewBoxRect().size();
+    if (intrinsicSizingInfo.size.isEmpty())
+        intrinsicSizingInfo.size = rootElement->currentViewBoxRect().size();
 
-    if (!intrinsicSize.isEmpty())
-        return expandedIntSize(intrinsicSize);
+    if (!intrinsicSizingInfo.size.isEmpty())
+        return expandedIntSize(intrinsicSizingInfo.size);
 
     // As last resort, use CSS replaced element fallback size.
     return IntSize(300, 150);

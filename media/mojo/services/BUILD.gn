@@ -150,30 +150,24 @@ source_set("application") {
     "service_factory_impl.h",
   ]
 
-  public_configs = [ ":enable_mojo_media_config" ]
-
-  deps = [
-    ":cdm_service",
-    ":renderer_service",
-    "//mojo/shell/public/cpp",
-  ]
-}
-
-source_set("default_application") {
   if (is_android) {
-    sources = [
+    sources += [
       "android_mojo_media_client.cc",
+      "android_mojo_media_client.h",
     ]
   } else {
-    sources = [
+    sources += [
       "default_mojo_media_client.cc",
+      "default_mojo_media_client.h",
     ]
   }
 
   public_configs = [ ":enable_mojo_media_config" ]
 
   deps = [
-    ":application",
+    ":cdm_service",
+    ":renderer_service",
+    "//mojo/shell/public/cpp",
   ]
 }
 
@@ -189,11 +183,11 @@ test("media_mojo_unittests") {
     "//media",
     "//media/base:test_support",
     "//media/mojo/interfaces",
+    "//mojo/edk/system",
+    "//mojo/edk/test:run_all_unittests",
     "//mojo/environment:chromium",
     "//testing/gmock",
     "//testing/gtest",
-    "//third_party/mojo/src/mojo/edk/system",
-    "//third_party/mojo/src/mojo/edk/test:run_all_unittests",
   ]
 }
 
@@ -203,7 +197,7 @@ mojo_native_application("media") {
   ]
 
   deps = [
-    ":default_application",
+    ":application",
     "//mojo/logging",
     "//mojo/public/c/system:for_shared_library",
   ]

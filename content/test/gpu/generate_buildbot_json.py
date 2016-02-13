@@ -150,6 +150,7 @@ FYI_WATERFALL = {
     'GPU Win Builder',
     'GPU Win Builder (dbg)',
     'GPU Win x64 Builder',
+    'GPU Win x64 Builder (dbg)',
     'GPU Mac Builder',
     'GPU Mac Builder (dbg)',
     'GPU Linux Builder',
@@ -202,6 +203,15 @@ FYI_WATERFALL = {
       'swarming': True,
       'os_type': 'win',
     },
+    'Win7 Debug (ATI)': {
+      'swarming_dimensions': {
+        'gpu': '1002:6779',
+        'os': 'Windows-2008ServerR2-SP1'
+      },
+      'build_config': 'Debug',
+      'swarming': True,
+      'os_type': 'win',
+    },
     'Win7 Release dEQP (NVIDIA)': {
       'deqp': True,
       'swarming_dimensions': {
@@ -218,6 +228,15 @@ FYI_WATERFALL = {
         'os': 'Windows-2008ServerR2-SP1'
       },
       'build_config': 'Release_x64',
+      'swarming': True,
+      'os_type': 'win',
+    },
+    'Win7 x64 Debug (NVIDIA)': {
+      'swarming_dimensions': {
+        'gpu': '10de:104a',
+        'os': 'Windows-2008ServerR2-SP1'
+      },
+      'build_config': 'Debug_x64',
       'swarming': True,
       'os_type': 'win',
     },
@@ -308,17 +327,6 @@ FYI_WATERFALL = {
       },
       'build_config': 'Release',
       'swarming': True,
-      'os_type': 'linux',
-    },
-    'Linux Release (Intel)': {
-      'swarming_dimensions': {
-        'gpu': '8086:041a',
-        'os': 'Linux'
-      },
-      'build_config': 'Release',
-      # This bot is a one-off and doesn't have similar slaves in the
-      # swarming pool.
-      'swarming': False,
       'os_type': 'linux',
     },
     'Linux Release (Intel Graphics Stack)': {
@@ -601,17 +609,40 @@ TELEMETRY_TESTS = {
       '--use-angle=d3d9',
     ],
   },
-  # TODO(jmadill): run this on the optional tryservers once AMD/Win is fixed.
   'webgl_conformance_gl_tests': {
     'tester_configs': [
       {
         'fyi_only': True,
+        'run_on_optional': True,
         'os_types': ['win']
       }
+    ],
+    'disabled_tester_configs': [
+      {
+        # BUG 555545: Disable webgl_conformance_gl_tests on Win/AMD
+        'swarming_dimension_sets': [
+          {
+            'gpu': '1002:6779',
+            'os': 'Windows-2008ServerR2-SP1'
+          },
+        ],
+      },
     ],
     'target_name': 'webgl_conformance',
     'extra_browser_args': [
       '--use-angle=gl',
+    ],
+  },
+  'webgl_conformance_angle_tests': {
+    'tester_configs': [
+      {
+        'fyi_only': True,
+        'os_types': ['linux']
+      }
+    ],
+    'target_name': 'webgl_conformance',
+    'extra_browser_args': [
+      '--use-gl=angle',
     ],
   },
   'webgl2_conformance_tests': {
@@ -645,14 +676,16 @@ def matches_swarming_dimensions(tester_config, dimension_sets):
       return True
   return False
 
-def should_run_on_tester_impl(tester_name, tester_config, tc, is_fyi):
-  if tc.get('fyi_only', False) and not is_fyi:
-    return False
-  # Handle the optional tryservers with the 'run_on_optional' flag.
-  # Only a subset of the tests run on these tryservers.
-  if tester_name.startswith('Optional') and not tc.get(
-      'run_on_optional', False):
-    return False
+def tester_config_matches_tester(tester_name, tester_config, tc, is_fyi,
+                                 check_waterfall):
+  if check_waterfall:
+    if tc.get('fyi_only', False) and not is_fyi:
+      return False
+    # Handle the optional tryservers with the 'run_on_optional' flag.
+    # Only a subset of the tests run on these tryservers.
+    if tester_name.startswith('Optional') and not tc.get(
+        'run_on_optional', False):
+      return False
 
   if 'names' in tc:
     if not tester_name in tc['names']:
@@ -676,8 +709,15 @@ def should_run_on_tester(tester_name, tester_config, test_config, is_fyi):
       return False
     # Otherwise, if unspecified, run on all testers.
     return True
+  # Check if this config is disabled on this tester
+  if 'disabled_tester_configs' in test_config:
+    for dtc in test_config['disabled_tester_configs']:
+      if tester_config_matches_tester(tester_name, tester_config, dtc, is_fyi,
+                                      False):
+        return False
   for tc in test_config['tester_configs']:
-    if should_run_on_tester_impl(tester_name, tester_config, tc, is_fyi):
+    if tester_config_matches_tester(tester_name, tester_config, tc, is_fyi,
+                                    True):
       return True
   return False
 

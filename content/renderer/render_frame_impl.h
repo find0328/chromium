@@ -35,7 +35,7 @@
 #include "ipc/ipc_platform_file.h"
 #include "media/blink/webmediaplayer_delegate.h"
 #include "media/blink/webmediaplayer_params.h"
-#include "mojo/shell/public/interfaces/service_provider.mojom.h"
+#include "mojo/shell/public/interfaces/interface_provider.mojom.h"
 #include "mojo/shell/public/interfaces/shell.mojom.h"
 #include "third_party/WebKit/public/platform/WebFocusType.h"
 #include "third_party/WebKit/public/platform/WebMediaPlayer.h"
@@ -635,8 +635,8 @@ class CONTENT_EXPORT RenderFrameImpl
 
   // Binds this render frame's service registry.
   void BindServiceRegistry(
-      mojo::InterfaceRequest<mojo::ServiceProvider> services,
-      mojo::ServiceProviderPtr exposed_services);
+      mojo::shell::mojom::InterfaceProviderRequest services,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services);
 
   ManifestManager* manifest_manager();
 
@@ -771,7 +771,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void OnExtendSelectionAndDelete(int before, int after);
   void OnReload(bool ignore_cache);
   void OnReloadLoFiImages();
-  void OnTextSurroundingSelectionRequest(size_t max_length);
+  void OnTextSurroundingSelectionRequest(uint32_t max_length);
   void OnSetAccessibilityMode(AccessibilityMode new_mode);
   void OnSnapshotAccessibilityTree(int callback_id);
   void OnUpdateOpener(int opener_routing_id);
@@ -961,11 +961,12 @@ class CONTENT_EXPORT RenderFrameImpl
 
   // Connect to an interface provided by the service registry.
   template <typename Interface>
-  void ConnectToService(mojo::InterfaceRequest<Interface> request);
+  void GetInterface(mojo::InterfaceRequest<Interface> request);
 
   // Connects to a Mojo application and returns a proxy to its exposed
   // ServiceProvider.
-  mojo::ServiceProviderPtr ConnectToApplication(const GURL& url);
+  mojo::shell::mojom::InterfaceProviderPtr ConnectToApplication(
+      const GURL& url);
 
   // Returns the media delegate for WebMediaPlayer usage.  If
   // |media_player_delegate_| is NULL, one is created.

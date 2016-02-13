@@ -370,10 +370,10 @@ class RenderFrameSetupImpl : public RenderFrameSetup {
       mojo::InterfaceRequest<RenderFrameSetup> request)
       : routing_id_highmark_(-1), binding_(this, std::move(request)) {}
 
-  void ExchangeServiceProviders(
+  void ExchangeInterfaceProviders(
       int32_t frame_routing_id,
-      mojo::InterfaceRequest<mojo::ServiceProvider> services,
-      mojo::ServiceProviderPtr exposed_services)
+      mojo::shell::mojom::InterfaceProviderRequest services,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services)
       override {
     // TODO(morrita): This is for investigating http://crbug.com/415059 and
     // should be removed once it is fixed.
@@ -414,8 +414,8 @@ blink::WebGraphicsContext3D::Attributes GetOffscreenAttribs() {
 }
 
 void SetupEmbeddedWorkerOnWorkerThread(
-    mojo::InterfaceRequest<mojo::ServiceProvider> services,
-    mojo::InterfacePtrInfo<mojo::ServiceProvider> exposed_services) {
+    mojo::shell::mojom::InterfaceProviderRequest services,
+    mojo::shell::mojom::InterfaceProviderPtrInfo exposed_services) {
   ServiceWorkerContextClient* client =
       ServiceWorkerContextClient::ThreadSpecificInstance();
   // It is possible for client to be null if for some reason the worker died
@@ -433,10 +433,10 @@ class EmbeddedWorkerSetupImpl : public EmbeddedWorkerSetup {
       mojo::InterfaceRequest<EmbeddedWorkerSetup> request)
       : binding_(this, std::move(request)) {}
 
-  void ExchangeServiceProviders(
+  void ExchangeInterfaceProviders(
       int32_t thread_id,
-      mojo::InterfaceRequest<mojo::ServiceProvider> services,
-      mojo::ServiceProviderPtr exposed_services) override {
+      mojo::shell::mojom::InterfaceProviderRequest services,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services) override {
     WorkerThreadRegistry::Instance()->GetTaskRunnerFor(thread_id)->PostTask(
         FROM_HERE,
         base::Bind(&SetupEmbeddedWorkerOnWorkerThread, base::Passed(&services),
@@ -1087,9 +1087,9 @@ void RenderThreadImpl::AddRoute(int32_t routing_id, IPC::Listener* listener) {
     return;
 
   scoped_refptr<PendingRenderFrameConnect> connection(it->second);
-  mojo::InterfaceRequest<mojo::ServiceProvider> services(
+  mojo::shell::mojom::InterfaceProviderRequest services(
       std::move(connection->services()));
-  mojo::ServiceProviderPtr exposed_services(
+  mojo::shell::mojom::InterfaceProviderPtr exposed_services(
       std::move(connection->exposed_services()));
   exposed_services.set_connection_error_handler(mojo::Closure());
   pending_render_frame_connects_.erase(it);
@@ -1120,8 +1120,8 @@ void RenderThreadImpl::RemoveEmbeddedWorkerRoute(int32_t routing_id) {
 
 void RenderThreadImpl::RegisterPendingRenderFrameConnect(
     int routing_id,
-    mojo::InterfaceRequest<mojo::ServiceProvider> services,
-    mojo::ServiceProviderPtr exposed_services) {
+    mojo::shell::mojom::InterfaceProviderRequest services,
+    mojo::shell::mojom::InterfaceProviderPtr exposed_services) {
   std::pair<PendingRenderFrameConnectMap::iterator, bool> result =
       pending_render_frame_connects_.insert(std::make_pair(
           routing_id,
@@ -1544,11 +1544,25 @@ RenderThreadImpl::SharedMainThreadContextProvider() {
 }
 
 #if defined(OS_ANDROID)
+
+namespace {
+base::LazyInstance<scoped_refptr<StreamTextureFactory>>
+    g_stream_texture_factory_override;
+}
+
+// static
+void RenderThreadImpl::SetStreamTextureFactory(
+    scoped_refptr<StreamTextureFactory> factory) {
+  g_stream_texture_factory_override.Get() = factory;
+}
+
 scoped_refptr<StreamTextureFactory> RenderThreadImpl::GetStreamTexureFactory() {
   DCHECK(IsMainThread());
-  if (!stream_texture_factory_.get() ||
-      stream_texture_factory_->ContextGL()->GetGraphicsResetStatusKHR() !=
-          GL_NO_ERROR) {
+  if (g_stream_texture_factory_override.Get()) {
+    stream_texture_factory_ = g_stream_texture_factory_override.Get();
+  } else if (!stream_texture_factory_.get() ||
+             stream_texture_factory_->ContextGL()
+                     ->GetGraphicsResetStatusKHR() != GL_NO_ERROR) {
     if (!SharedMainThreadContextProvider().get()) {
       stream_texture_factory_ = NULL;
       return NULL;
@@ -1565,6 +1579,12 @@ scoped_refptr<StreamTextureFactory> RenderThreadImpl::GetStreamTexureFactory() {
   }
   return stream_texture_factory_;
 }
+
+bool RenderThreadImpl::EnableStreamTextureCopy() {
+  return !g_stream_texture_factory_override.Get() &&
+         sync_compositor_message_filter_.get();
+}
+
 #endif
 
 AudioRendererMixerManager* RenderThreadImpl::GetAudioRendererMixerManager() {
@@ -1681,6 +1701,11 @@ RenderThreadImpl::CreateExternalBeginFrameSource(int routing_id) {
 #endif
   return make_scoped_ptr(new CompositorExternalBeginFrameSource(
       compositor_message_filter_.get(), sync_message_filter(), routing_id));
+}
+
+cc::ImageSerializationProcessor*
+RenderThreadImpl::GetImageSerializationProcessor() {
+  return GetContentClient()->renderer()->GetImageSerializationProcessor();
 }
 
 cc::TaskGraphRunner* RenderThreadImpl::GetTaskGraphRunner() {
@@ -2128,14 +2153,15 @@ void RenderThreadImpl::ReleaseFreeMemory() {
 
 RenderThreadImpl::PendingRenderFrameConnect::PendingRenderFrameConnect(
     int routing_id,
-    mojo::InterfaceRequest<mojo::ServiceProvider> services,
-    mojo::ServiceProviderPtr exposed_services)
+    mojo::shell::mojom::InterfaceProviderRequest services,
+    mojo::shell::mojom::InterfaceProviderPtr exposed_services)
     : routing_id_(routing_id),
       services_(std::move(services)),
       exposed_services_(std::move(exposed_services)) {
-  // The RenderFrame may be deleted before the ExchangeServiceProviders message
-  // is received. In that case, the RenderFrameHost should close the connection,
-  // which is detected by setting an error handler on |exposed_services_|.
+  // The RenderFrame may be deleted before the ExchangeInterfaceProviders
+  // message is received. In that case, the RenderFrameHost should close the
+  // connection, which is detected by setting an error handler on
+  // |exposed_services_|.
   exposed_services_.set_connection_error_handler(base::Bind(
       &RenderThreadImpl::PendingRenderFrameConnect::OnConnectionError,
       base::Unretained(this)));

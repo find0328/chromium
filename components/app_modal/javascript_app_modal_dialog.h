@@ -10,6 +10,7 @@
 
 #include "base/compiler_specific.h"
 #include "base/macros.h"
+#include "base/time/time.h"
 #include "components/app_modal/app_modal_dialog.h"
 #include "content/public/browser/javascript_dialog_manager.h"
 
@@ -25,6 +26,9 @@ class ChromeJavaScriptDialogExtraData {
 
   // True if the user has decided to block future JavaScript dialogs.
   bool suppress_javascript_messages_;
+
+  // Number of dialogs from the origin that were suppressed.
+  int suppressed_dialog_count_;
 };
 
 // A controller + model class for JavaScript alert, confirm, prompt, and
@@ -83,6 +87,9 @@ class JavaScriptAppModalDialog : public AppModalDialog {
   void NotifyDelegate(bool success, const base::string16& prompt_text,
                       bool suppress_js_messages);
 
+  void CallDialogClosedCallback(bool success,
+                                const base::string16& prompt_text);
+
   // A map of extra Chrome-only data associated with the delegate_. The keys
   // come from |GetSerializedOriginForWebContents|.
   ExtraDataMap* extra_data_map_;
@@ -101,6 +108,8 @@ class JavaScriptAppModalDialog : public AppModalDialog {
   // used when notifying the delegate, if |use_override_prompt_text_| is true.
   base::string16 override_prompt_text_;
   bool use_override_prompt_text_;
+
+  base::TimeTicks creation_time_;
 
   DISALLOW_COPY_AND_ASSIGN(JavaScriptAppModalDialog);
 };

@@ -49,7 +49,14 @@ enum UsbUsageType {
 };
 
 struct UsbEndpointDescriptor {
-  UsbEndpointDescriptor();
+  UsbEndpointDescriptor(uint8_t address,
+                        UsbEndpointDirection direction,
+                        uint16_t maximum_packet_size,
+                        UsbSynchronizationType synchronization_type,
+                        UsbTransferType transfer_type,
+                        UsbUsageType usage_type,
+                        uint16_t polling_interval);
+  UsbEndpointDescriptor() = delete;
   ~UsbEndpointDescriptor();
 
   uint8_t address;
@@ -63,7 +70,12 @@ struct UsbEndpointDescriptor {
 };
 
 struct UsbInterfaceDescriptor {
-  UsbInterfaceDescriptor();
+  UsbInterfaceDescriptor(uint8_t interface_number,
+                         uint8_t alternate_setting,
+                         uint8_t interface_class,
+                         uint8_t interface_subclass,
+                         uint8_t interface_protocol);
+  UsbInterfaceDescriptor() = delete;
   ~UsbInterfaceDescriptor();
 
   uint8_t interface_number;
@@ -73,11 +85,21 @@ struct UsbInterfaceDescriptor {
   uint8_t interface_protocol;
   std::vector<UsbEndpointDescriptor> endpoints;
   std::vector<uint8_t> extra_data;
+  // First interface of the function to which this interface belongs.
+  uint8_t first_interface;
 };
 
 struct UsbConfigDescriptor {
-  UsbConfigDescriptor();
+  UsbConfigDescriptor(uint8_t configuration_value,
+                      bool self_powered,
+                      bool remote_wakeup,
+                      uint16_t maximum_power);
+  UsbConfigDescriptor() = delete;
   ~UsbConfigDescriptor();
+
+  // Scans through |extra_data| for interface association descriptors and
+  // populates |first_interface| for each interface in this configuration.
+  void AssignFirstInterfaceNumbers();
 
   uint8_t configuration_value;
   bool self_powered;

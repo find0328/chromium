@@ -4,16 +4,11 @@
 
 #include "mojo/shell/switches.h"
 
-
+namespace mojo {
 namespace switches {
 
 // If set apps downloaded are not deleted.
 const char kDontDeleteOnDownload[] = "dont-delete-on-download";
-
-// Load apps in separate processes.
-// TODO(vtl): Work in progress; doesn't work. Flip this to "disable" (or maybe
-// change it to "single-process") when it works.
-const char kEnableMultiprocess[] = "enable-multiprocess";
 
 // Disables the sandbox for debugging. (Why the Mojo prefix on the constant?
 // Because otherwise we conflict with content.)
@@ -34,3 +29,4 @@ const char kPredictableAppFilenames[] = "predictable-app-filenames";
 const char kUseUpdater[] = "use-updater";
 
 }  // namespace switches
+}  // namespace mojo

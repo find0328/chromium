@@ -397,7 +397,7 @@ void WindowTreeImpl::ProcessWindowPropertyChanged(
   if (!IsWindowKnown(window, &client_window_id))
     return;
 
-  Array<uint8_t> data;
+  Array<uint8_t> data(nullptr);
   if (new_data)
     data = Array<uint8_t>::From(*new_data);
 
@@ -605,6 +605,17 @@ bool WindowTreeImpl::ShouldRouteToWindowManager(
   // Requests coming from the WM should not be routed through the WM again.
   const bool is_wm = host->GetWindowTree() == this;
   return is_wm ? false : true;
+}
+
+void WindowTreeImpl::ProcessLostCapture(const ServerWindow* old_capture_window,
+                                        bool originated_change) {
+  if ((originated_change &&
+       connection_manager_->current_operation_type() ==
+           OperationType::RELEASE_CAPTURE) ||
+      !IsWindowKnown(old_capture_window)) {
+    return;
+  }
+  client()->OnLostCapture(WindowIdToTransportId(old_capture_window->id()));
 }
 
 ClientWindowId WindowTreeImpl::ClientWindowIdForWindow(
@@ -993,6 +1004,38 @@ void WindowTreeImpl::GetWindowTree(
   std::vector<const ServerWindow*> windows(
       GetWindowTree(ClientWindowId(window_id)));
   callback.Run(WindowsToWindowDatas(windows));
+}
+
+void WindowTreeImpl::SetCapture(uint32_t change_id, Id window_id) {
+  ServerWindow* window = GetWindowByClientId(ClientWindowId(window_id));
+  WindowTreeHostImpl* host = GetHost(window);
+  ServerWindow* current_capture_window =
+      host ? host->GetCaptureWindow() : nullptr;
+  bool success = window && access_policy_->CanSetCapture(window) && host &&
+                 (!current_capture_window ||
+                  access_policy_->CanSetCapture(current_capture_window)) &&
+                 event_ack_id_;
+  if (success) {
+    Operation op(this, connection_manager_, OperationType::SET_CAPTURE);
+    host->SetCapture(window, !HasRoot(window));
+  }
+  client_->OnChangeCompleted(change_id, success);
+}
+
+void WindowTreeImpl::ReleaseCapture(uint32_t change_id, Id window_id) {
+  ServerWindow* window = GetWindowByClientId(ClientWindowId(window_id));
+  WindowTreeHostImpl* host = GetHost(window);
+  ServerWindow* current_capture_window =
+      host ? host->GetCaptureWindow() : nullptr;
+  bool success = window && host &&
+                 (!current_capture_window ||
+                  access_policy_->CanSetCapture(current_capture_window)) &&
+                 window == current_capture_window;
+  if (success) {
+    Operation op(this, connection_manager_, OperationType::RELEASE_CAPTURE);
+    host->SetCapture(nullptr, false);
+  }
+  client_->OnChangeCompleted(change_id, success);
 }
 
 void WindowTreeImpl::SetWindowBounds(uint32_t change_id,

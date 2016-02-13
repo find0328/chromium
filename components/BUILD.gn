@@ -30,6 +30,9 @@ test("components_unittests") {
       "$root_out_dir/ui_test.pak",
     ]
   }
+  if (is_win) {
+    data += [ "//chrome/test/data/policy/" ]
+  }
 
   # Add only ":unit_tests" dependencies here. If your tests have dependencies
   # (this would at least include the component itself), they should be on the
@@ -69,9 +72,9 @@ test("components_unittests") {
     "//components/variations:unit_tests",
     "//components/variations/service:unit_tests",
     "//components/web_resource:unit_tests",
+    "//mojo/edk/embedder:headers",
     "//net",
     "//testing/gtest",
-    "//third_party/mojo/src/mojo/edk/embedder:headers",
     "//ui/base",
     "//ui/resources:ui_test_pak",
   ]

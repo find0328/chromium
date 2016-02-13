@@ -30,18 +30,19 @@ scoped_ptr<MojoAppConnection> MojoAppConnection::Create(
 MojoAppConnectionImpl::MojoAppConnectionImpl(const GURL& url,
                                              const GURL& requestor_url) {
   MojoShellContext::ConnectToApplication(
-      url, requestor_url, mojo::GetProxy(&services_),
-      mojo::ServiceProviderPtr(), mojo::shell::GetPermissiveCapabilityFilter(),
+      url, requestor_url, mojo::GetProxy(&interfaces_),
+      mojo::shell::mojom::InterfaceProviderPtr(),
+      mojo::shell::GetPermissiveCapabilityFilter(),
       base::Bind(&OnGotRemoteIDs));
 }
 
 MojoAppConnectionImpl::~MojoAppConnectionImpl() {
 }
 
-void MojoAppConnectionImpl::ConnectToService(
-    const std::string& service_name,
+void MojoAppConnectionImpl::GetInterface(
+    const std::string& interface_name,
     mojo::ScopedMessagePipeHandle handle) {
-  services_->ConnectToService(service_name, std::move(handle));
+  interfaces_->GetInterface(interface_name, std::move(handle));
 }
 
 }  // namespace content

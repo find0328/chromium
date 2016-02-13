@@ -428,7 +428,7 @@ CA
                                 <modifierMask key="keyEquivalentModifierMask"/>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" tag="480" id="545"/>
-                            <menuItem title="^IDS_SHOWFULLHISTORY_LINK" tag="40010" keyEquivalent="y" id="544">
+                            <menuItem title="^IDS_HISTORY_SHOWFULLHISTORY_LINK" tag="40010" keyEquivalent="y" id="544">
                                 <connections>
                                     <action selector="commandDispatch:" target="-1" id="549"/>
                                 </connections>
@@ -490,6 +490,11 @@ CA
                                 <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                 <connections>
                                     <action selector="commandDispatch:" target="-1" id="530"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="^IDS_SHOW_AS_TAB" tag="34029" id="470">
+                                <connections>
+                                    <action selector="commandDispatch:" target="-1" id="559"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="551"/>

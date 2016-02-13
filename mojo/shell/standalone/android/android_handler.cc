@@ -16,7 +16,7 @@
 #include "jni/AndroidHandler_jni.h"
 #include "mojo/common/data_pipe_utils.h"
 #include "mojo/public/c/system/main.h"
-#include "mojo/shell/public/cpp/application_impl.h"
+#include "mojo/shell/public/cpp/shell.h"
 #include "mojo/shell/runner/host/native_application_support.h"
 #include "mojo/shell/standalone/android/run_android_application_function.h"
 #include "mojo/util/filename_util.h"
@@ -41,8 +41,8 @@ void RunAndroidApplication(JNIEnv* env,
                            jobject j_context,
                            const base::FilePath& app_path,
                            jint j_handle) {
-  InterfaceRequest<mojom::Application> application_request =
-      MakeRequest<mojom::Application>(
+  InterfaceRequest<mojom::ShellClient> request =
+      MakeRequest<mojom::ShellClient>(
           MakeScopedHandle(MessagePipeHandle(j_handle)));
 
   // Load the library, so that we can set the application context there if
@@ -69,7 +69,7 @@ void RunAndroidApplication(JNIEnv* env,
   }
 
   // Run the application.
-  RunNativeApplication(app_library, std::move(application_request));
+  RunNativeApplication(app_library, std::move(request));
   // TODO(vtl): See note about unloading and thread-local destructors above
   // declaration of |LoadNativeApplication()|.
   base::UnloadNativeLibrary(app_library);
@@ -133,7 +133,7 @@ AndroidHandler::AndroidHandler() : content_handler_factory_(this) {}
 AndroidHandler::~AndroidHandler() {}
 
 void AndroidHandler::RunApplication(
-    InterfaceRequest<mojom::Application> application_request,
+    InterfaceRequest<mojom::ShellClient> request,
     URLResponsePtr response) {
   JNIEnv* env = AttachCurrentThread();
   RunAndroidApplicationFn run_android_application_fn = &RunAndroidApplication;
@@ -149,7 +149,7 @@ void AndroidHandler::RunApplication(
       Java_AndroidHandler_bootstrapCachedApp(
           env, GetApplicationContext(), j_path_to_mojo.obj(),
           j_internal_app_path.obj(),
-          application_request.PassMessagePipe().release().value(),
+          request.PassMessagePipe().release().value(),
           reinterpret_cast<jlong>(run_android_application_fn));
       return;
     }
@@ -162,14 +162,16 @@ void AndroidHandler::RunApplication(
   common::BlockingCopyToFile(std::move(response->body), archive_path);
   Java_AndroidHandler_bootstrap(
       env, GetApplicationContext(), j_archive_path.obj(),
-      application_request.PassMessagePipe().release().value(),
+      request.PassMessagePipe().release().value(),
       reinterpret_cast<jlong>(run_android_application_fn));
 }
 
-void AndroidHandler::Initialize(ApplicationImpl* app) {}
+void AndroidHandler::Initialize(Shell* shell,
+                                const std::string& url,
+                                uint32_t id) {}
 
-bool AndroidHandler::AcceptConnection(ApplicationConnection* connection) {
-  connection->AddService(&content_handler_factory_);
+bool AndroidHandler::AcceptConnection(Connection* connection) {
+  connection->AddInterface(&content_handler_factory_);
   return true;
 }
 

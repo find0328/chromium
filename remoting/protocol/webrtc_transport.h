@@ -12,11 +12,10 @@
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "base/timer/timer.h"
-#include "remoting/protocol/port_allocator_factory.h"
 #include "remoting/protocol/transport.h"
 #include "remoting/protocol/webrtc_data_stream_adapter.h"
 #include "remoting/signaling/signal_strategy.h"
-#include "third_party/libjingle/source/talk/app/webrtc/peerconnectioninterface.h"
+#include "third_party/webrtc/api/peerconnectioninterface.h"
 
 namespace webrtc {
 class FakeAudioDeviceModule;
@@ -69,10 +68,10 @@ class WebrtcTransport : public Transport,
   // Factories for outgoing and incoming data channels. Must be used only after
   // the transport is connected.
   MessageChannelFactory* outgoing_channel_factory() {
-    return outgoing_channel_factory_.get();
+    return &outgoing_data_stream_adapter_;
   }
   MessageChannelFactory* incoming_channel_factory() {
-    return incoming_channel_factory_.get();
+    return &incoming_data_stream_adapter_;
   }
 
   // Transport interface.
@@ -134,11 +133,6 @@ class WebrtcTransport : public Transport,
 
   WebrtcDataStreamAdapter outgoing_data_stream_adapter_;
   WebrtcDataStreamAdapter incoming_data_stream_adapter_;
-
-  // TODO(sergeyu): Remove these and implement MessageChannelFactory in
-  // WebrtcDataStreamAdapter.
-  scoped_ptr<MessageChannelFactory> outgoing_channel_factory_;
-  scoped_ptr<MessageChannelFactory> incoming_channel_factory_;
 
   base::WeakPtrFactory<WebrtcTransport> weak_factory_;
 

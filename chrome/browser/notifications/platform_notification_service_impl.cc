@@ -63,6 +63,8 @@ using content::BrowserThread;
 using content::PlatformNotificationContext;
 using message_center::NotifierId;
 
+class ProfileAttributesEntry;
+
 namespace {
 
 // Invalid id for a renderer process. Used in cases where we need to check for
@@ -127,10 +129,10 @@ void ProfileLoadedCallback(
                                           origin, true);
       break;
     case PlatformNotificationServiceImpl::NOTIFICATION_SETTINGS:
-      LOG(WARNING) << "NOTIFICATION_SETTINGS action not implemented";
+      PlatformNotificationServiceImpl::GetInstance()->OpenNotificationSettings(
+          profile);
       break;
   }
-  // TODO(miguelg) Implement the site settings operation.
 }
 
 }  // namespace
@@ -163,11 +165,11 @@ void PlatformNotificationServiceImpl::ProcessPersistentNotificationOperation(
   // if it already exist. We therefore check first that the profile is there
   // and fail early otherwise.
   const base::FilePath profile_path =
-      profile_manager->GetProfileInfoCache().GetUserDataDir().AppendASCII(
-          profile_id);
+      profile_manager->user_data_dir().AppendASCII(profile_id);
 
-  if (profile_manager->GetProfileInfoCache().GetIndexOfProfileWithPath(
-          profile_path) == std::string::npos) {
+  ProfileAttributesEntry* entry = nullptr;
+  if (!profile_manager->GetProfileAttributesStorage().
+      GetProfileAttributesWithPath(profile_path, &entry)) {
     LOG(ERROR) << "Loading a path that does not exist";
     return;
   }
@@ -339,6 +341,7 @@ void PlatformNotificationServiceImpl::DisplayNotification(
   Profile* profile = Profile::FromBrowserContext(browser_context);
   DCHECK(profile);
   DCHECK_EQ(0u, notification_data.actions.size());
+  DCHECK_EQ(0u, notification_resources.action_icons.size());
 
   NotificationObjectProxy* proxy =
       new NotificationObjectProxy(browser_context, std::move(delegate));
@@ -456,10 +459,11 @@ Notification PlatformNotificationServiceImpl::CreateNotificationFromData(
     const content::PlatformNotificationData& notification_data,
     const content::NotificationResources& notification_resources,
     NotificationDelegate* delegate) const {
-  // TODO(peter): Icons for Web Notifications are currently always requested for
-  // 1x scale, whereas the displays on which they can be displayed can have a
-  // different pixel density. Be smarter about this when the API gets updated
-  // with a way for developers to specify images of different resolutions.
+  DCHECK_EQ(notification_data.actions.size(),
+            notification_resources.action_icons.size());
+
+  // TODO(peter): Handle different screen densities instead of always using the
+  // 1x bitmap - crbug.com/585815.
   Notification notification(
       message_center::NOTIFICATION_TYPE_SIMPLE, notification_data.title,
       notification_data.body,
@@ -472,14 +476,19 @@ Notification PlatformNotificationServiceImpl::CreateNotificationFromData(
       DisplayNameForContextMessage(profile, origin));
   notification.set_vibration_pattern(notification_data.vibration_pattern);
   notification.set_timestamp(notification_data.timestamp);
+  notification.set_renotify(notification_data.renotify);
   notification.set_silent(notification_data.silent);
 
+  // Developer supplied action buttons.
   std::vector<message_center::ButtonInfo> buttons;
-
-  // Developer supplied buttons.
-  for (const auto& action : notification_data.actions)
-    buttons.push_back(message_center::ButtonInfo(action.title));
-
+  for (size_t i = 0; i < notification_data.actions.size(); i++) {
+    message_center::ButtonInfo button(notification_data.actions[i].title);
+    // TODO(peter): Handle different screen densities instead of always using
+    // the 1x bitmap - crbug.com/585815.
+    button.icon =
+        gfx::Image::CreateFrom1xBitmap(notification_resources.action_icons[i]);
+    buttons.push_back(button);
+  }
   notification.set_buttons(buttons);
 
   // On desktop, notifications with require_interaction==true stay on-screen
@@ -516,8 +525,7 @@ void PlatformNotificationServiceImpl::OpenNotificationSettings(
     chrome::ShowContentSettingsExceptionsInWindow(
         profile, CONTENT_SETTINGS_TYPE_NOTIFICATIONS);
   } else {
-    chrome::ScopedTabbedBrowserDisplayer browser_displayer(
-        profile, chrome::GetActiveDesktop());
+    chrome::ScopedTabbedBrowserDisplayer browser_displayer(profile);
     chrome::ShowContentSettingsExceptions(browser_displayer.browser(),
                                           CONTENT_SETTINGS_TYPE_NOTIFICATIONS);
   }

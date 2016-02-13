@@ -146,6 +146,7 @@
       '<(libjpeg_gyp_path):libjpeg',
     ],
     'export_dependent_settings': [
+      'platform_generated.gyp:make_platform_generated',
       '<(DEPTH)/base/base.gyp:base',
       '<(DEPTH)/cc/cc.gyp:cc',
       '<(DEPTH)/gpu/gpu.gyp:gles2_c_lib',
@@ -183,6 +184,15 @@
       '<(blink_platform_output_dir)/HTTPNames.cpp',
       '<(blink_platform_output_dir)/RuntimeEnabledFeatures.cpp',
       '<(blink_platform_output_dir)/RuntimeEnabledFeatures.h',
+
+      # Additional .cpp files from the protocol_sources list.
+      '<(blink_platform_output_dir)/inspector_protocol/Frontend.cpp',
+      '<(blink_platform_output_dir)/inspector_protocol/Dispatcher.cpp',
+      '<(blink_platform_output_dir)/inspector_protocol/TypeBuilder.cpp',
+
+      # Additional .cpp files from the v8_inspector.
+      '<(blink_platform_output_dir)/v8_inspector/DebuggerScript.h',
+      '<(blink_platform_output_dir)/v8_inspector/InjectedScriptSource.h',
     ],
     'sources/': [
       # Exclude all platform specific things, reinclude them below on a per-platform basis

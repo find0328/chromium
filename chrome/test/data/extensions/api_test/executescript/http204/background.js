@@ -248,23 +248,10 @@ function startTest(tabId) {
 
 // Navigates to a page that navigates to a 204 page via a script.
 function navigateToFrameAndWaitUntil204Loaded(tabId, hostname, hostname204) {
-  // If the child frame's origin differs from the parent frame's origin, and
-  // site isolation is enabled, then two onErrorOccurred events are expected:
-  // 1. onErrorOccurred for a process swap of the initial frame.
-  // 2. onErrorOccurred for the failed provisional load.
-  // TODO(robwu): Remove this work-around when the navigation is immediately
-  // handled in the right process (so that a process swap is not needed).
-  var expectTwoErrors = MAIN_HOST !== hostname && config.isolateExtensions;
   var doneListening = chrome.test.listenForever(
       chrome.webNavigation.onErrorOccurred,
       function(details) {
         if (details.tabId === tabId && details.frameId > 0) {
-          if (expectTwoErrors) {
-            // |url| is the initial URL of the iframe, declared below.
-            chrome.test.assertEq(url, details.url);
-            expectTwoErrors = false;
-            return;
-          }
           chrome.test.assertTrue(details.url.includes('page204.html'),
               'frame URL should be page204.html, but was ' + details.url);
           doneListening();
@@ -287,19 +274,33 @@ function checkManifestScriptsAfter204Navigation(tabId) {
     allFrames: true,
     code: '[' +
       '[window.documentStart,' +
-      ' window.documentEnd],' +
+      ' window.documentEnd,' +
+      ' performance.timing.domContentLoadedEventStart > 0],' +
       '[window.didRunAtDocumentStartUnexpected,' +
       ' window.didRunAtDocumentEndUnexpected],' +
       ']',
   }, chrome.test.callbackPass(function(results) {
     chrome.test.assertEq(2, results.length);
     // Main frame. Should not be affected by child frame navigations.
-    chrome.test.assertEq([[1, 1], [null, null]], results[0]);
+    chrome.test.assertEq([[1, 1, true], [null, null]], results[0]);
 
     // Child frame.
+    if (!results[1][0][2]) {  // = if DOMContentLoaded did not run.
+      // If the 204 reply was handled faster than the parsing of the frame
+      // document, then the DOMContentLoaded event won't be triggered.
+      chrome.test.assertEq([
+          // The 204 navigation was triggered by the page, so the document_start
+          // script should have run by then. But since DOMContentLoaded is not
+          // triggered, the document_end script should not run either.
+          [1, null, false],
+          // Should not inject non-matching scripts.
+          [null, null],
+      ], results[1]);
+      return;
+    }
     chrome.test.assertEq([
         // Should run the content scripts even after a navigation to 204.
-        [1, 1],
+        [1, 1, true],
         // Should not inject non-matching scripts.
         [null, null],
     ], results[1]);

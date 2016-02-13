@@ -1628,9 +1628,6 @@ _NAMED_TYPE_INFO = {
       'GL_RGB_INTEGER',
       'GL_RGBA_INTEGER',
     ],
-    'deprecated_es3': [
-      'GL_ALPHA',
-    ],
   },
   'PixelType': {
     'type': 'GLenum',
@@ -2022,6 +2019,9 @@ _NAMED_TYPE_INFO = {
       'GL_RGBA4',
       'GL_RGB10_A2',
       'GL_RGBA16F',
+      'GL_RGB_YUV_420_CHROMIUM',
+      'GL_RGB_YCBCR_422_CHROMIUM',
+      'GL_RGB_YCBCR_420V_CHROMIUM',
     ],
   },
   'TextureInternalFormatStorage': {
@@ -2231,16 +2231,6 @@ _NAMED_TYPE_INFO = {
     'invalid': [
       '0',
       '5',
-    ],
-  },
-  'FalseOnly': {
-    'type': 'GLboolean',
-    'is_complete': True,
-    'valid': [
-      'false',
-    ],
-    'invalid': [
-      'true',
     ],
   },
   'ResetStatus': {
@@ -3861,6 +3851,7 @@ _FUNCTION_INFO = {
     'type': 'PUTn',
     'count': 4,
     'decoder_func': 'DoUniformMatrix2fv',
+    'unit_test': False,
   },
   'UniformMatrix2x3fv': {
     'type': 'PUTn',
@@ -3878,6 +3869,7 @@ _FUNCTION_INFO = {
     'type': 'PUTn',
     'count': 9,
     'decoder_func': 'DoUniformMatrix3fv',
+    'unit_test': False,
   },
   'UniformMatrix3x2fv': {
     'type': 'PUTn',
@@ -3895,6 +3887,7 @@ _FUNCTION_INFO = {
     'type': 'PUTn',
     'count': 16,
     'decoder_func': 'DoUniformMatrix4fv',
+    'unit_test': False,
   },
   'UniformMatrix4x2fv': {
     'type': 'PUTn',
@@ -8980,8 +8973,7 @@ class SizeNotNegativeArgument(SizeArgument):
 
 
 class EnumBaseArgument(Argument):
-  """Base class for EnumArgument, IntArgument, BitfieldArgument, and
-  ValidatedBoolArgument."""
+  """Base class for EnumArgument, IntArgument, and BitfieldArgument."""
 
   def __init__(self, name, gl_type, type, gl_error):
     Argument.__init__(self, name, gl_type)
@@ -9101,21 +9093,6 @@ class IntArgument(EnumBaseArgument):
 
   def __init__(self, name, type):
     EnumBaseArgument.__init__(self, name, "GLint", type, "GL_INVALID_VALUE")
-
-
-class ValidatedBoolArgument(EnumBaseArgument):
-  """A class for a GLboolean argument that can only accept specific values.
-
-  For example glUniformMatrix takes a GLboolean for it's transpose but it
-  must be false.
-  """
-
-  def __init__(self, name, type):
-    EnumBaseArgument.__init__(self, name, "GLboolean", type, "GL_INVALID_VALUE")
-
-  def GetLogArg(self):
-    """Overridden from Argument."""
-    return 'GLES2Util::GetStringBool(%s)' % self.name
 
 
 class BitFieldArgument(EnumBaseArgument):
@@ -10112,8 +10089,6 @@ def CreateArg(arg_string):
     return EnumArgument(arg_name, arg_type)
   elif t.startswith('GLbitfield') and t != 'GLbitfield':
     return BitFieldArgument(arg_name, arg_type)
-  elif t.startswith('GLboolean') and t != 'GLboolean':
-    return ValidatedBoolArgument(arg_name, arg_type)
   elif t.startswith('GLboolean'):
     return BoolArgument(arg_name, arg_type)
   elif t.startswith('GLintUniformLocation'):

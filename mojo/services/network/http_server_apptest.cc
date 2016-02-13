@@ -26,8 +26,6 @@
 #include "mojo/services/network/public/interfaces/network_service.mojom.h"
 #include "mojo/services/network/public/interfaces/web_socket.mojom.h"
 #include "mojo/services/network/public/interfaces/web_socket_factory.mojom.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/cpp/application_test_base.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
@@ -291,7 +289,7 @@ class WebSocketClientImpl : public WebSocketClient {
     send_stream_ = std::move(data_pipe.producer_handle);
     write_send_stream_.reset(new WebSocketWriteQueue(send_stream_.get()));
 
-    web_socket_->Connect(url, Array<String>(0), "http://example.com",
+    web_socket_->Connect(url, Array<String>(), "http://example.com",
                          std::move(data_pipe.consumer_handle),
                          std::move(client_ptr_));
   }
@@ -558,10 +556,10 @@ class HttpServerAppTest : public test::ApplicationTestBase {
   void SetUp() override {
     ApplicationTestBase::SetUp();
 
-    scoped_ptr<ApplicationConnection> connection =
-        application_impl()->ConnectToApplication("mojo:network_service");
-    connection->ConnectToService(&network_service_);
-    connection->ConnectToService(&web_socket_factory_);
+    scoped_ptr<Connection> connection =
+        shell()->Connect("mojo:network_service");
+    connection->GetInterface(&network_service_);
+    connection->GetInterface(&web_socket_factory_);
   }
 
   void CreateHttpServer(HttpServerDelegatePtr delegate,

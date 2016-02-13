@@ -485,7 +485,7 @@ void SystemTrayDelegateChromeOS::ShowPowerSettings() {
 
 void SystemTrayDelegateChromeOS::ShowChromeSlow() {
   chrome::ScopedTabbedBrowserDisplayer displayer(
-      ProfileManager::GetPrimaryUserProfile(), chrome::HOST_DESKTOP_TYPE_ASH);
+      ProfileManager::GetPrimaryUserProfile());
   chrome::ShowSlow(displayer.browser());
 }
 
@@ -516,13 +516,12 @@ void SystemTrayDelegateChromeOS::ShowIMESettings() {
 
 void SystemTrayDelegateChromeOS::ShowHelp() {
   chrome::ShowHelpForProfile(ProfileManager::GetActiveUserProfile(),
-                             chrome::HOST_DESKTOP_TYPE_ASH,
                              chrome::HELP_SOURCE_MENU);
 }
 
 void SystemTrayDelegateChromeOS::ShowAccessibilityHelp() {
   chrome::ScopedTabbedBrowserDisplayer displayer(
-      ProfileManager::GetActiveUserProfile(), chrome::HOST_DESKTOP_TYPE_ASH);
+      ProfileManager::GetActiveUserProfile());
   accessibility::ShowAccessibilityHelp(displayer.browser());
 }
 
@@ -536,7 +535,7 @@ void SystemTrayDelegateChromeOS::ShowAccessibilitySettings() {
 
 void SystemTrayDelegateChromeOS::ShowPublicAccountInfo() {
   chrome::ScopedTabbedBrowserDisplayer displayer(
-      ProfileManager::GetActiveUserProfile(), chrome::HOST_DESKTOP_TYPE_ASH);
+      ProfileManager::GetActiveUserProfile());
   chrome::ShowPolicy(displayer.browser());
 }
 
@@ -558,7 +557,7 @@ void SystemTrayDelegateChromeOS::ShowEnterpriseInfo() {
     help_app->ShowHelpTopic(chromeos::HelpAppLauncher::HELP_ENTERPRISE);
   } else {
     chrome::ScopedTabbedBrowserDisplayer displayer(
-        ProfileManager::GetActiveUserProfile(), chrome::HOST_DESKTOP_TYPE_ASH);
+        ProfileManager::GetActiveUserProfile());
     chrome::ShowSingletonTab(displayer.browser(),
                              GURL(chrome::kLearnMoreEnterpriseURL));
   }

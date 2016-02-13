@@ -564,6 +564,15 @@ void FeatureInfo::InitializeFeatures() {
           GL_DEPTH_STENCIL);
     }
     validators_.render_buffer_format.AddValue(GL_DEPTH24_STENCIL8);
+    if (context_type_ == CONTEXT_TYPE_WEBGL1) {
+      // For glFramebufferRenderbuffer and glFramebufferTexture2D calls with
+      // attachment == GL_DEPTH_STENCIL_ATTACHMENT, we always split into two
+      // calls, one with attachment == GL_DEPTH_ATTACHMENT, and one with
+      // attachment == GL_STENCIL_ATTACHMENT.  So even if the underlying driver
+      // is ES2 where GL_DEPTH_STENCIL_ATTACHMENT isn't accepted, it is still
+      // OK.
+      validators_.attachment.AddValue(GL_DEPTH_STENCIL_ATTACHMENT);
+    }
   }
 
   if (gl_version_info_->is_es3 ||
@@ -994,9 +1003,11 @@ void FeatureInfo::InitializeFeatures() {
   }
 
 #if defined(OS_MACOSX)
-  AddExtensionString("GL_CHROMIUM_iosurface");
-  AddExtensionString("GL_CHROMIUM_ycbcr_420v_image");
-  feature_flags_.chromium_image_ycbcr_420v = true;
+  if (gfx::GetGLImplementation() != gfx::kGLImplementationOSMesaGL) {
+    AddExtensionString("GL_CHROMIUM_iosurface");
+    AddExtensionString("GL_CHROMIUM_ycbcr_420v_image");
+    feature_flags_.chromium_image_ycbcr_420v = true;
+  }
 #endif
 
   if (extensions.Contains("GL_APPLE_ycbcr_422")) {

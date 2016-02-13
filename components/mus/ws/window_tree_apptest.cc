@@ -16,16 +16,14 @@
 #include "components/mus/ws/test_change_tracker.h"
 #include "mojo/converters/geometry/geometry_type_converters.h"
 #include "mojo/public/cpp/bindings/associated_binding.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/cpp/application_test_base.h"
 
-using mojo::ApplicationConnection;
-using mojo::ApplicationDelegate;
 using mojo::Array;
 using mojo::Callback;
+using mojo::Connection;
 using mojo::InterfaceRequest;
 using mojo::RectPtr;
+using mojo::ShellClient;
 using mojo::String;
 using mus::mojom::ErrorCode;
 using mus::mojom::EventPtr;
@@ -65,7 +63,7 @@ void EmbedCallbackImpl(base::RunLoop* run_loop,
 
 // -----------------------------------------------------------------------------
 
-bool EmbedUrl(mojo::ApplicationImpl* app,
+bool EmbedUrl(mojo::Shell* shell,
               WindowTree* ws,
               const String& url,
               Id root_id) {
@@ -73,7 +71,7 @@ bool EmbedUrl(mojo::ApplicationImpl* app,
   base::RunLoop run_loop;
   {
     mojom::WindowTreeClientPtr client;
-    app->ConnectToService(url.get(), &client);
+    shell->ConnectToInterface(url.get(), &client);
     ws->Embed(root_id, std::move(client),
               mojom::WindowTree::kAccessPolicyDefault,
               base::Bind(&EmbedCallbackImpl, &run_loop, &result));
@@ -236,7 +234,7 @@ class TestWindowTreeClientImpl : public mojom::WindowTreeClient,
   bool SetWindowProperty(Id window_id,
                          const std::string& name,
                          const std::vector<uint8_t>* data) {
-    Array<uint8_t> mojo_data;
+    Array<uint8_t> mojo_data(nullptr);
     if (data)
       mojo_data = Array<uint8_t>::From(*data);
     const uint32_t change_id = GetAndAdvanceChangeId();
@@ -293,6 +291,9 @@ class TestWindowTreeClientImpl : public mojom::WindowTreeClient,
     tracker()->OnEmbeddedAppDisconnected(window_id);
   }
   void OnUnembed(Id window_id) override { tracker()->OnUnembed(window_id); }
+  void OnLostCapture(Id window_id) override {
+    tracker()->OnLostCapture(window_id);
+  }
   void OnTopLevelCreated(uint32_t change_id,
                          mojom::WindowDataPtr data) override {
     tracker()->OnTopLevelCreated(change_id, std::move(data));
@@ -350,6 +351,10 @@ class TestWindowTreeClientImpl : public mojom::WindowTreeClient,
   void OnWindowInputEvent(uint32_t event_id,
                           Id window_id,
                           EventPtr event) override {
+    // Ack input events to clear the state on the server. These can be received
+    // during test startup. X11Window::DispatchEvent sends a synthetic move
+    // event to notify of entry.
+    tree()->OnWindowInputEventAck(event_id);
     // Don't log input events as none of the tests care about them and they
     // may come in at random points.
   }
@@ -450,7 +455,7 @@ class WindowTreeClientFactory
 
  private:
   // InterfaceFactory<WindowTreeClient>:
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<WindowTreeClient> request) override {
     client_impl_.reset(new TestWindowTreeClientImpl());
     client_impl_->Bind(std::move(request));
@@ -467,7 +472,7 @@ class WindowTreeClientFactory
 }  // namespace
 
 class WindowTreeAppTest : public mojo::test::ApplicationTestBase,
-                          public ApplicationDelegate {
+                          public mojo::ShellClient {
  public:
   WindowTreeAppTest()
       : connection_id_1_(0), connection_id_2_(0), root_window_id_(0) {}
@@ -542,8 +547,7 @@ class WindowTreeAppTest : public mojo::test::ApplicationTestBase,
                                                Id root_id,
                                                uint32_t policy_bitmask,
                                                int* connection_id) {
-    if (!EmbedUrl(application_impl(), owner, application_impl()->url(),
-                  root_id)) {
+    if (!EmbedUrl(shell(), owner, shell_url(), root_id)) {
       ADD_FAILURE() << "Embed() failed";
       return nullptr;
     }
@@ -563,13 +567,13 @@ class WindowTreeAppTest : public mojo::test::ApplicationTestBase,
   }
 
   // ApplicationTestBase:
-  ApplicationDelegate* GetApplicationDelegate() override { return this; }
+  mojo::ShellClient* GetShellClient() override { return this; }
   void SetUp() override {
     ApplicationTestBase::SetUp();
     client_factory_.reset(new WindowTreeClientFactory());
 
     mojom::WindowTreeHostFactoryPtr factory;
-    application_impl()->ConnectToService("mojo:mus", &factory);
+    shell()->ConnectToInterface("mojo:mus", &factory);
 
     mojom::WindowTreeClientPtr tree_client_ptr;
     ws_client1_.reset(new TestWindowTreeClientImpl());
@@ -594,9 +598,9 @@ class WindowTreeAppTest : public mojo::test::ApplicationTestBase,
     changes1()->clear();
   }
 
-  // ApplicationDelegate implementation.
-  bool AcceptConnection(ApplicationConnection* connection) override {
-    connection->AddService(client_factory_.get());
+  // mojo::ShellClient implementation.
+  bool AcceptConnection(Connection* connection) override {
+    connection->AddInterface(client_factory_.get());
     return true;
   }
 
@@ -1720,8 +1724,7 @@ TEST_F(WindowTreeAppTest, EmbedFailsFromOtherConnection) {
   // 2 should not be able to embed in window_3_3 as window_3_3 was not created
   // by
   // 2.
-  EXPECT_FALSE(EmbedUrl(application_impl(), ws2(), application_impl()->url(),
-                        window_3_3));
+  EXPECT_FALSE(EmbedUrl(shell(), ws2(), shell_url(), window_3_3));
 }
 
 // Verifies Embed() from window manager on another connections window works.
@@ -1744,8 +1747,7 @@ TEST_F(WindowTreeAppTest, EmbedFromOtherConnection) {
 
 TEST_F(WindowTreeAppTest, CantEmbedFromConnectionRoot) {
   // Shouldn't be able to embed into the root.
-  ASSERT_FALSE(EmbedUrl(application_impl(), ws1(), application_impl()->url(),
-                        root_window_id()));
+  ASSERT_FALSE(EmbedUrl(shell(), ws1(), shell_url(), root_window_id()));
 
   // Even though the call above failed a WindowTreeClient was obtained. We need
   // to
@@ -1754,7 +1756,7 @@ TEST_F(WindowTreeAppTest, CantEmbedFromConnectionRoot) {
 
   // Don't allow a connection to embed into its own root.
   ASSERT_NO_FATAL_FAILURE(EstablishSecondConnection(true));
-  EXPECT_FALSE(EmbedUrl(application_impl(), ws2(), application_impl()->url(),
+  EXPECT_FALSE(EmbedUrl(shell(), ws2(), shell_url(),
                         BuildWindowId(connection_id_1(), 1)));
 
   // Need to wait for a WindowTreeClient for same reason as above.
@@ -1771,8 +1773,7 @@ TEST_F(WindowTreeAppTest, CantEmbedFromConnectionRoot) {
 
   // window_1_2 is ws3's root, so even though v3 is an embed root it should not
   // be able to Embed into itself.
-  ASSERT_FALSE(EmbedUrl(application_impl(), ws3(), application_impl()->url(),
-                        window_1_2));
+  ASSERT_FALSE(EmbedUrl(shell(), ws3(), shell_url(), window_1_2));
 }
 
 // Verifies that a transient window tracks its parent's lifetime.
@@ -1863,6 +1864,57 @@ TEST_F(WindowTreeAppTest, Ids) {
                 " new_parent=null old_parent=" +
                 IdToString(window_1_100_in_ws2),
             SingleChangeToDescription(*changes2()));
+}
+
+// Tests that setting capture fails when no input event has occurred, and there
+// is no notification of lost capture.
+TEST_F(WindowTreeAppTest, ExplicitCaptureWithoutInput) {
+  Id window_1_1 = ws_client1()->NewWindow(1);
+
+  // Add the window to the root, so that they have a WindowTreeHostImpl to
+  // handle input capture.
+  ASSERT_TRUE(ws_client1()->AddWindow(root_window_id(), window_1_1));
+  changes1()->clear();
+
+  // Since there has been no input, capture should not succeed. No lost capture
+  // message is expected.
+  ws1()->SetCapture(1, window_1_1);
+  ws_client1_->WaitForAllMessages();
+  EXPECT_TRUE(changes1()->empty());
+
+  // Since there is no window with capture, lost capture should not be notified.
+  ws1()->ReleaseCapture(3, window_1_1);
+  ws_client1_->WaitForAllMessages();
+  EXPECT_TRUE(changes1()->empty());
+}
+
+// TODO(jonross): Enable this once apptests can send input events to the server.
+// Enabling capture requires that the connection be processing events.
+TEST_F(WindowTreeAppTest, DISABLED_ExplicitCapturePropagation) {
+  Id window_1_1 = ws_client1()->NewWindow(1);
+  Id window_1_2 = ws_client1()->NewWindow(2);
+
+  // Add the windows to the root, so that they have a WindowTreeHostImpl to
+  // handle input capture.
+  ASSERT_TRUE(ws_client1()->AddWindow(root_window_id(), window_1_1));
+  ASSERT_TRUE(ws_client1()->AddWindow(root_window_id(), window_1_2));
+
+  changes1()->clear();
+  // Window 1 takes capture then Window 2 takes capture.
+  // Verify that window 1 has lost capture.
+  ws1()->SetCapture(1, window_1_1);
+  ws1()->SetCapture(2, window_1_2);
+  ws_client1_->WaitForChangeCount(1);
+
+  EXPECT_EQ("OnLostCapture window=" + IdToString(window_1_1),
+            SingleChangeToDescription(*changes1()));
+
+  changes1()->clear();
+  // Explicitly releasing capture should not notify of lost capture.
+  ws1()->ReleaseCapture(3, window_1_2);
+  ws_client1_->WaitForAllMessages();
+
+  EXPECT_TRUE(changes1()->empty());
 }
 
 // TODO(sky): need to better track changes to initial connection. For example,

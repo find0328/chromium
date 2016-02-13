@@ -48,7 +48,7 @@
 #include "platform/JSONValues.h"
 #include "wtf/Vector.h"
 
-typedef blink::InspectorBackendDispatcher::DatabaseCommandHandler::ExecuteSQLCallback ExecuteSQLCallback;
+typedef blink::protocol::Dispatcher::DatabaseCommandHandler::ExecuteSQLCallback ExecuteSQLCallback;
 
 namespace blink {
 
@@ -60,7 +60,7 @@ namespace {
 
 void reportTransactionFailed(ExecuteSQLCallback* requestCallback, SQLError* error)
 {
-    RefPtr<TypeBuilder::Database::Error> errorObject = TypeBuilder::Database::Error::create()
+    RefPtr<protocol::TypeBuilder::Database::Error> errorObject = protocol::TypeBuilder::Database::Error::create()
         .setMessage(error->message())
         .setCode(error->code());
     requestCallback->sendSuccess(nullptr, nullptr, errorObject.release());
@@ -68,7 +68,7 @@ void reportTransactionFailed(ExecuteSQLCallback* requestCallback, SQLError* erro
 
 class StatementCallback final : public SQLStatementCallback {
 public:
-    static StatementCallback* create(PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    static StatementCallback* create(PassRefPtr<ExecuteSQLCallback> requestCallback)
     {
         return new StatementCallback(requestCallback);
     }
@@ -77,7 +77,6 @@ public:
 
     DEFINE_INLINE_VIRTUAL_TRACE()
     {
-        visitor->trace(m_requestCallback);
         SQLStatementCallback::trace(visitor);
     }
 
@@ -85,12 +84,12 @@ public:
     {
         SQLResultSetRowList* rowList = resultSet->rows();
 
-        RefPtr<TypeBuilder::Array<String>> columnNames = TypeBuilder::Array<String>::create();
+        RefPtr<protocol::TypeBuilder::Array<String>> columnNames = protocol::TypeBuilder::Array<String>::create();
         const Vector<String>& columns = rowList->columnNames();
         for (size_t i = 0; i < columns.size(); ++i)
             columnNames->addItem(columns[i]);
 
-        RefPtr<TypeBuilder::Array<JSONValue>> values = TypeBuilder::Array<JSONValue>::create();
+        RefPtr<protocol::TypeBuilder::Array<JSONValue>> values = protocol::TypeBuilder::Array<JSONValue>::create();
         const Vector<SQLValue>& data = rowList->values();
         for (size_t i = 0; i < data.size(); ++i) {
             const SQLValue& value = rowList->values()[i];
@@ -105,14 +104,14 @@ public:
     }
 
 private:
-    StatementCallback(PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    StatementCallback(PassRefPtr<ExecuteSQLCallback> requestCallback)
         : m_requestCallback(requestCallback) { }
-    RefPtrWillBeMember<ExecuteSQLCallback> m_requestCallback;
+    RefPtr<ExecuteSQLCallback> m_requestCallback;
 };
 
 class StatementErrorCallback final : public SQLStatementErrorCallback {
 public:
-    static StatementErrorCallback* create(PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    static StatementErrorCallback* create(PassRefPtr<ExecuteSQLCallback> requestCallback)
     {
         return new StatementErrorCallback(requestCallback);
     }
@@ -121,7 +120,6 @@ public:
 
     DEFINE_INLINE_VIRTUAL_TRACE()
     {
-        visitor->trace(m_requestCallback);
         SQLStatementErrorCallback::trace(visitor);
     }
 
@@ -132,14 +130,14 @@ public:
     }
 
 private:
-    StatementErrorCallback(PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    StatementErrorCallback(PassRefPtr<ExecuteSQLCallback> requestCallback)
         : m_requestCallback(requestCallback) { }
-    RefPtrWillBeMember<ExecuteSQLCallback> m_requestCallback;
+    RefPtr<ExecuteSQLCallback> m_requestCallback;
 };
 
 class TransactionCallback final : public SQLTransactionCallback {
 public:
-    static TransactionCallback* create(const String& sqlStatement, PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    static TransactionCallback* create(const String& sqlStatement, PassRefPtr<ExecuteSQLCallback> requestCallback)
     {
         return new TransactionCallback(sqlStatement, requestCallback);
     }
@@ -148,7 +146,6 @@ public:
 
     DEFINE_INLINE_VIRTUAL_TRACE()
     {
-        visitor->trace(m_requestCallback);
         SQLTransactionCallback::trace(visitor);
     }
 
@@ -164,16 +161,16 @@ public:
         return true;
     }
 private:
-    TransactionCallback(const String& sqlStatement, PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    TransactionCallback(const String& sqlStatement, PassRefPtr<ExecuteSQLCallback> requestCallback)
         : m_sqlStatement(sqlStatement)
         , m_requestCallback(requestCallback) { }
     String m_sqlStatement;
-    RefPtrWillBeMember<ExecuteSQLCallback> m_requestCallback;
+    RefPtr<ExecuteSQLCallback> m_requestCallback;
 };
 
 class TransactionErrorCallback final : public SQLTransactionErrorCallback {
 public:
-    static TransactionErrorCallback* create(PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    static TransactionErrorCallback* create(PassRefPtr<ExecuteSQLCallback> requestCallback)
     {
         return new TransactionErrorCallback(requestCallback);
     }
@@ -182,7 +179,6 @@ public:
 
     DEFINE_INLINE_VIRTUAL_TRACE()
     {
-        visitor->trace(m_requestCallback);
         SQLTransactionErrorCallback::trace(visitor);
     }
 
@@ -192,9 +188,9 @@ public:
         return true;
     }
 private:
-    TransactionErrorCallback(PassRefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback)
+    TransactionErrorCallback(PassRefPtr<ExecuteSQLCallback> requestCallback)
         : m_requestCallback(requestCallback) { }
-    RefPtrWillBeMember<ExecuteSQLCallback> m_requestCallback;
+    RefPtr<ExecuteSQLCallback> m_requestCallback;
 };
 
 class TransactionSuccessCallback final : public VoidCallback {
@@ -238,7 +234,7 @@ void InspectorDatabaseAgent::didCommitLoadForLocalFrame(LocalFrame* frame)
 }
 
 InspectorDatabaseAgent::InspectorDatabaseAgent(Page* page)
-    : InspectorBaseAgent<InspectorDatabaseAgent, InspectorFrontend::Database>("Database")
+    : InspectorBaseAgent<InspectorDatabaseAgent, protocol::Frontend::Database>("Database")
     , m_page(page)
     , m_enabled(false)
 {
@@ -274,14 +270,14 @@ void InspectorDatabaseAgent::restore()
     m_enabled = m_state->booleanProperty(DatabaseAgentState::databaseAgentEnabled, false);
 }
 
-void InspectorDatabaseAgent::getDatabaseTableNames(ErrorString* error, const String& databaseId, RefPtr<TypeBuilder::Array<String>>& names)
+void InspectorDatabaseAgent::getDatabaseTableNames(ErrorString* error, const String& databaseId, RefPtr<protocol::TypeBuilder::Array<String>>& names)
 {
     if (!m_enabled) {
         *error = "Database agent is not enabled";
         return;
     }
 
-    names = TypeBuilder::Array<String>::create();
+    names = protocol::TypeBuilder::Array<String>::create();
 
     Database* database = databaseForId(databaseId);
     if (database) {
@@ -292,9 +288,9 @@ void InspectorDatabaseAgent::getDatabaseTableNames(ErrorString* error, const Str
     }
 }
 
-void InspectorDatabaseAgent::executeSQL(ErrorString*, const String& databaseId, const String& query, PassRefPtrWillBeRawPtr<ExecuteSQLCallback> prpRequestCallback)
+void InspectorDatabaseAgent::executeSQL(ErrorString*, const String& databaseId, const String& query, PassRefPtr<ExecuteSQLCallback> prpRequestCallback)
 {
-    RefPtrWillBeRawPtr<ExecuteSQLCallback> requestCallback = prpRequestCallback;
+    RefPtr<ExecuteSQLCallback> requestCallback = prpRequestCallback;
 
     if (!m_enabled) {
         requestCallback->sendFailure("Database agent is not enabled");

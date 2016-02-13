@@ -218,7 +218,7 @@ String PaintLayer::debugName() const
     return layoutObject()->debugName();
 }
 
-IntRect PaintLayer::visualRect() const
+LayoutRect PaintLayer::visualRect() const
 {
     return m_layoutObject->visualRect();
 }
@@ -411,7 +411,7 @@ void PaintLayer::updateTransform(const ComputedStyle* oldStyle, const ComputedSt
     bool hadTransform = transform();
     if (hasTransform != hadTransform) {
         if (hasTransform)
-            ensureRareData().transform = adoptPtr(new TransformationMatrix);
+            ensureRareData().transform = TransformationMatrix::create();
         else
             m_rareData->transform.clear();
 
@@ -1423,7 +1423,8 @@ void PaintLayer::updateReflectionInfo(const ComputedStyle* oldStyle)
 {
     ASSERT(!oldStyle || !layoutObject()->style()->reflectionDataEquivalent(oldStyle));
     if (layoutObject()->hasReflection()) {
-        ensureRareData().reflectionInfo = adoptPtr(new PaintLayerReflectionInfo(*layoutBox()));
+        if (!ensureRareData().reflectionInfo)
+            m_rareData->reflectionInfo = adoptPtr(new PaintLayerReflectionInfo(*layoutBox()));
         m_rareData->reflectionInfo->updateAfterStyleChange(oldStyle);
     } else if (m_rareData && m_rareData->reflectionInfo) {
         m_rareData->reflectionInfo->destroy();

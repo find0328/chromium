@@ -205,6 +205,7 @@ source_set("browser") {
     "//third_party/zlib:minizip",
     "//third_party/zlib:zip",
     "//ui/base",
+    "//ui/base:ui_data_pack",
     "//ui/events:events_base",
     "//ui/gfx",
     "//ui/gfx/geometry",
@@ -356,13 +357,12 @@ source_set("browser") {
       "//components/webusb",
       "//content/app/resources",
       "//device/core",
-      "//device/devices_app/public/cpp",
-      "//device/devices_app/public/cpp:factory",
-      "//device/devices_app/usb/public/interfaces",
-      "//device/usb",
+      "//device/usb/mojo",
+      "//device/usb/public/interfaces",
       "//media",
       "//media/midi",
       "//mojo/common",
+      "//mojo/edk/system",
       "//mojo/environment:chromium",
       "//mojo/public/cpp/bindings",
       "//mojo/public/js",
@@ -377,7 +377,6 @@ source_set("browser") {
       "//third_party/leveldatabase",
       "//third_party/libaddressinput",
       "//third_party/libyuv",
-      "//third_party/mojo/src/mojo/edk/system",
       "//third_party/re2",
       "//third_party/smhasher:cityhash",
       "//third_party/webrtc/modules/desktop_capture",
@@ -959,8 +958,10 @@ source_set("browser") {
     deps += [ "//chrome/browser/media/router" ]
   }
 
-  if (enable_mojo_media != "none") {
-    deps += [ "//media/mojo/services:default_application" ]
+  if (enable_mojo_media == "browser") {
+    deps += [ "//media/mojo/services:application" ]
+  } else if (enable_mojo_media != "none") {
+    configs += [ "//media/mojo/services:enable_mojo_media_config" ]
   }
 
   if (enable_wayland_server) {

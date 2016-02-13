@@ -13,6 +13,7 @@
 #include "base/metrics/histogram.h"
 #include "base/sequenced_task_runner.h"
 #include "base/single_thread_task_runner.h"
+#include "base/strings/stringprintf.h"
 #include "base/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "device/bluetooth/bluetooth_adapter_profile_bluez.h"
@@ -480,6 +481,7 @@ void BluetoothAdapterBlueZ::DevicePropertyChanged(
   }
 
   if (property_name == properties->gatt_services.name()) {
+    device_bluez->SetGattServicesDiscoveryComplete(true);
     NotifyGattServicesDiscovered(device_bluez);
   }
 
@@ -830,6 +832,12 @@ void BluetoothAdapterBlueZ::SetDefaultAdapterName() {
   alias = "ChromeLinux";
 #endif
 
+  // Take the lower 2 bytes of hashed Bluetooth address and combine it with the
+  // device type to create a more identifiable device name.
+  const std::string address = GetAddress();
+  alias = base::StringPrintf(
+      "%s_%04X", alias.c_str(),
+      base::SuperFastHash(address.data(), address.size()) & 0xFFFF);
   SetName(alias, base::Bind(&base::DoNothing), base::Bind(&base::DoNothing));
 }
 
@@ -909,120 +917,6 @@ void BluetoothAdapterBlueZ::NotifyDeviceAddressChanged(
 
   FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
                     DeviceAddressChanged(this, device, old_address));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattServiceAdded(
-    BluetoothRemoteGattServiceBlueZ* service) {
-  DCHECK_EQ(service->GetAdapter(), this);
-  DCHECK_EQ(static_cast<BluetoothDeviceBlueZ*>(service->GetDevice())->adapter_,
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattServiceAdded(this, service->GetDevice(), service));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattServiceRemoved(
-    BluetoothRemoteGattServiceBlueZ* service) {
-  DCHECK_EQ(service->GetAdapter(), this);
-  DCHECK_EQ(static_cast<BluetoothDeviceBlueZ*>(service->GetDevice())->adapter_,
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattServiceRemoved(this, service->GetDevice(), service));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattServiceChanged(
-    BluetoothRemoteGattServiceBlueZ* service) {
-  DCHECK_EQ(service->GetAdapter(), this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattServiceChanged(this, service));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattServicesDiscovered(
-    BluetoothDeviceBlueZ* device) {
-  DCHECK(device->adapter_ == this);
-
-  device->SetGattServicesDiscoveryComplete(true);
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattServicesDiscovered(this, device));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattDiscoveryComplete(
-    BluetoothRemoteGattServiceBlueZ* service) {
-  DCHECK_EQ(service->GetAdapter(), this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattDiscoveryCompleteForService(this, service));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattCharacteristicAdded(
-    BluetoothRemoteGattCharacteristicBlueZ* characteristic) {
-  DCHECK_EQ(static_cast<BluetoothRemoteGattServiceBlueZ*>(
-                characteristic->GetService())
-                ->GetAdapter(),
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattCharacteristicAdded(this, characteristic));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattCharacteristicRemoved(
-    BluetoothRemoteGattCharacteristicBlueZ* characteristic) {
-  DCHECK_EQ(static_cast<BluetoothRemoteGattServiceBlueZ*>(
-                characteristic->GetService())
-                ->GetAdapter(),
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattCharacteristicRemoved(this, characteristic));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattDescriptorAdded(
-    BluetoothRemoteGattDescriptorBlueZ* descriptor) {
-  DCHECK_EQ(static_cast<BluetoothRemoteGattServiceBlueZ*>(
-                descriptor->GetCharacteristic()->GetService())
-                ->GetAdapter(),
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattDescriptorAdded(this, descriptor));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattDescriptorRemoved(
-    BluetoothRemoteGattDescriptorBlueZ* descriptor) {
-  DCHECK_EQ(static_cast<BluetoothRemoteGattServiceBlueZ*>(
-                descriptor->GetCharacteristic()->GetService())
-                ->GetAdapter(),
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattDescriptorRemoved(this, descriptor));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattCharacteristicValueChanged(
-    BluetoothRemoteGattCharacteristicBlueZ* characteristic,
-    const std::vector<uint8_t>& value) {
-  DCHECK_EQ(static_cast<BluetoothRemoteGattServiceBlueZ*>(
-                characteristic->GetService())
-                ->GetAdapter(),
-            this);
-
-  FOR_EACH_OBSERVER(
-      BluetoothAdapter::Observer, observers_,
-      GattCharacteristicValueChanged(this, characteristic, value));
-}
-
-void BluetoothAdapterBlueZ::NotifyGattDescriptorValueChanged(
-    BluetoothRemoteGattDescriptorBlueZ* descriptor,
-    const std::vector<uint8_t>& value) {
-  DCHECK_EQ(static_cast<BluetoothRemoteGattServiceBlueZ*>(
-                descriptor->GetCharacteristic()->GetService())
-                ->GetAdapter(),
-            this);
-
-  FOR_EACH_OBSERVER(BluetoothAdapter::Observer, observers_,
-                    GattDescriptorValueChanged(this, descriptor, value));
 }
 
 void BluetoothAdapterBlueZ::UseProfile(

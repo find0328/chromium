@@ -6,9 +6,9 @@
 #include "base/command_line.h"
 #include "base/macros.h"
 #include "mojo/shell/application_manager_apptests.mojom.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-#include "mojo/shell/public/cpp/application_impl.h"
+#include "mojo/shell/public/cpp/connection.h"
+#include "mojo/shell/public/cpp/shell.h"
+#include "mojo/shell/public/cpp/shell_client.h"
 #include "mojo/shell/runner/child/test_native_main.h"
 #include "mojo/shell/runner/init.h"
 
@@ -16,21 +16,18 @@ using mojo::shell::test::mojom::CreateInstanceForHandleTestPtr;
 
 namespace {
 
-class TargetApplicationDelegate : public mojo::ApplicationDelegate {
+class TargetApplicationDelegate : public mojo::ShellClient {
  public:
   TargetApplicationDelegate() {}
   ~TargetApplicationDelegate() override {}
 
  private:
-  // mojo::ApplicationDelegate:
-  void Initialize(mojo::ApplicationImpl* app) override {
+  // mojo::ShellClient:
+  void Initialize(mojo::Shell* shell, const std::string& url,
+                  uint32_t id) override {
     CreateInstanceForHandleTestPtr service;
-    app->ConnectToService("mojo:mojo_shell_apptests", &service);
-    service->SetTargetID(app->id());
-  }
-  bool AcceptConnection(
-      mojo::ApplicationConnection* connection) override {
-    return true;
+    shell->ConnectToInterface("mojo:mojo_shell_apptests", &service);
+    service->SetTargetID(id);
   }
 
   DISALLOW_COPY_AND_ASSIGN(TargetApplicationDelegate);

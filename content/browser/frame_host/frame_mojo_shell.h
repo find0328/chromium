@@ -7,8 +7,8 @@
 
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
-#include "mojo/common/weak_binding_set.h"
 #include "mojo/public/cpp/bindings/interface_request.h"
+#include "mojo/public/cpp/bindings/weak_binding_set.h"
 #include "mojo/shell/public/interfaces/shell.mojom.h"
 
 namespace content {
@@ -31,8 +31,8 @@ class FrameMojoShell : public mojo::shell::mojom::Shell {
   // mojo::Shell:
   void ConnectToApplication(
       mojo::URLRequestPtr application_url,
-      mojo::InterfaceRequest<mojo::ServiceProvider> services,
-      mojo::ServiceProviderPtr exposed_services,
+      mojo::shell::mojom::InterfaceProviderRequest services,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services,
       mojo::shell::mojom::CapabilityFilterPtr filter,
       const ConnectToApplicationCallback& callback) override;
   void QuitApplication() override;
@@ -44,7 +44,8 @@ class FrameMojoShell : public mojo::shell::mojom::Shell {
 
   // ServiceRegistry providing browser services to connected applications.
   scoped_ptr<ServiceRegistryImpl> service_registry_;
-  mojo::WeakBindingSet<mojo::ServiceProvider> service_provider_bindings_;
+  mojo::WeakBindingSet<mojo::shell::mojom::InterfaceProvider>
+      service_provider_bindings_;
 
   DISALLOW_COPY_AND_ASSIGN(FrameMojoShell);
 };

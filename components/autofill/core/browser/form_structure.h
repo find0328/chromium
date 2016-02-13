@@ -207,6 +207,8 @@ class FormStructure {
   }
   UploadRequired upload_required() const { return upload_required_; }
 
+  bool all_fields_are_passwords() const { return all_fields_are_passwords_; }
+
   // Returns a FormData containing the data this form structure knows about.
   FormData ToFormData() const;
 
@@ -300,6 +302,12 @@ class FormStructure {
 
   // True if the form is a <form>.
   bool is_form_tag_;
+
+  // True if the form is made of unowned fields in a non checkout flow.
+  bool is_formless_checkout_;
+
+  // True if all form fields are password fields.
+  bool all_fields_are_passwords_;
 
   DISALLOW_COPY_AND_ASSIGN(FormStructure);
 };
