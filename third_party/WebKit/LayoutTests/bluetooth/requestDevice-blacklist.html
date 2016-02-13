@@ -15,7 +15,8 @@ promise_test(() => {
     requestDeviceWithKeyDown(
       {filters: [{services: ['human_interface_device']}]}),
     new DOMException(
-      'requestDevice() called with a filter containing a blacklisted UUID.',
+      'requestDevice() called with a filter containing a blacklisted UUID. ' +
+        'https://goo.gl/4NeimX',
       'SecurityError'),
     'Requesting blacklisted service rejects.');
 }, 'Reject with SecurityError if requesting a blacklisted service.');
