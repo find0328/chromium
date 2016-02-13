@@ -762,7 +762,8 @@ void BluetoothDispatcherHost::OnGetCharacteristic(
   RecordGetCharacteristicCharacteristic(characteristic_uuid);
 
   // Check Blacklist for characteristic_uuid.
-  if (BluetoothBlacklist::Get().IsExcluded(BluetoothUUID(characteristic_uuid))) {
+  if (BluetoothBlacklist::Get().IsExcluded(
+          BluetoothUUID(characteristic_uuid))) {
     RecordRequestDeviceOutcome(
         UMARequestDeviceOutcome::BLACKLISTED_CHARACTERISTIC);
     Send(new BluetoothMsg_GetCharacteristicError(
