@@ -761,6 +761,16 @@ void BluetoothDispatcherHost::OnGetCharacteristic(
   RecordWebBluetoothFunctionCall(UMAWebBluetoothFunction::GET_CHARACTERISTIC);
   RecordGetCharacteristicCharacteristic(characteristic_uuid);
 
+  // Check Blacklist for characteristic_uuid.
+  if (BluetoothBlacklist::Get().IsExcluded(BluetoothUUID(characteristic_uuid))) {
+    RecordRequestDeviceOutcome(
+        UMARequestDeviceOutcome::BLACKLISTED_SERVICE_IN_FILTER);
+    Send(new BluetoothMsg_GetCharacteristicError(
+        thread_id, request_id,
+        WebBluetoothError::RequestDeviceWithBlacklistedUUID));
+    return;
+  }
+
   const CacheQueryResult query_result =
       QueryCacheForService(GetOrigin(frame_routing_id), service_instance_id);
 
