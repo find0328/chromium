@@ -2925,6 +2925,10 @@ bool GLES2DecoderImpl::Initialize(const scoped_refptr<gfx::GLSurface>& surface,
   if (!feature_info_->gl_version_info().BehavesLikeGLES()) {
     glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
     glEnable(GL_POINT_SPRITE);
+  } else if (feature_info_->gl_version_info().is_desktop_core_profile) {
+    // The desktop core profile changed how program point size mode is
+    // enabled.
+    glEnable(GL_PROGRAM_POINT_SIZE);
   }
 
   has_robustness_extension_ =
@@ -3145,6 +3149,8 @@ Capabilities GLES2DecoderImpl::GetCapabilities() {
   caps.blend_equation_advanced_coherent =
       feature_info_->feature_flags().blend_equation_advanced_coherent;
   caps.texture_rg = feature_info_->feature_flags().ext_texture_rg;
+  caps.texture_half_float_linear =
+      feature_info_->feature_flags().enable_texture_half_float_linear;
   caps.image_ycbcr_422 =
       feature_info_->feature_flags().chromium_image_ycbcr_422;
   caps.image_ycbcr_420v =
@@ -5541,6 +5547,10 @@ GLenum GLES2DecoderImpl::AdjustGetPname(GLenum pname) {
       features().use_img_for_multisampled_render_to_texture) {
     return GL_MAX_SAMPLES_IMG;
   }
+  if (GL_ALIASED_POINT_SIZE_RANGE == pname &&
+      feature_info_->gl_version_info().is_desktop_core_profile) {
+    return GL_POINT_SIZE_RANGE;
+  }
   return pname;
 }
 
@@ -6076,8 +6086,15 @@ void GLES2DecoderImpl::DoFramebufferRenderbuffer(
     service_id = renderbuffer->service_id();
   }
   LOCAL_COPY_REAL_GL_ERRORS_TO_WRAPPER("glFramebufferRenderbuffer");
-  glFramebufferRenderbufferEXT(
-      target, attachment, renderbuffertarget, service_id);
+  if (attachment == GL_DEPTH_STENCIL_ATTACHMENT) {
+    glFramebufferRenderbufferEXT(
+        target, GL_DEPTH_ATTACHMENT, renderbuffertarget, service_id);
+    glFramebufferRenderbufferEXT(
+        target, GL_STENCIL_ATTACHMENT, renderbuffertarget, service_id);
+  } else {
+    glFramebufferRenderbufferEXT(
+        target, attachment, renderbuffertarget, service_id);
+  }
   GLenum error = LOCAL_PEEK_GL_ERROR("glFramebufferRenderbuffer");
   if (error == GL_NO_ERROR) {
     framebuffer->AttachRenderbuffer(attachment, renderbuffer);
@@ -6264,16 +6281,26 @@ void GLES2DecoderImpl::DoFramebufferTexture2DCommon(
   if (texture_ref)
     DoCopyTexImageIfNeeded(texture_ref->texture(), textarget);
 
-  LOCAL_COPY_REAL_GL_ERRORS_TO_WRAPPER(name);
-  if (0 == samples) {
-    glFramebufferTexture2DEXT(target, attachment, textarget, service_id, level);
+  std::vector<GLenum> attachments;
+  if (attachment == GL_DEPTH_STENCIL_ATTACHMENT) {
+    attachments.push_back(GL_DEPTH_ATTACHMENT);
+    attachments.push_back(GL_STENCIL_ATTACHMENT);
   } else {
-    if (features().use_img_for_multisampled_render_to_texture) {
-      glFramebufferTexture2DMultisampleIMG(target, attachment, textarget,
-          service_id, level, samples);
+    attachments.push_back(attachment);
+  }
+  LOCAL_COPY_REAL_GL_ERRORS_TO_WRAPPER(name);
+  for (size_t ii = 0; ii < attachments.size(); ++ii) {
+    if (0 == samples) {
+      glFramebufferTexture2DEXT(
+          target, attachments[ii], textarget, service_id, level);
     } else {
-      glFramebufferTexture2DMultisampleEXT(target, attachment, textarget,
-          service_id, level, samples);
+      if (features().use_img_for_multisampled_render_to_texture) {
+        glFramebufferTexture2DMultisampleIMG(
+            target, attachments[ii], textarget, service_id, level, samples);
+      } else {
+        glFramebufferTexture2DMultisampleEXT(
+            target, attachments[ii], textarget, service_id, level, samples);
+      }
     }
   }
   GLenum error = LOCAL_PEEK_GL_ERROR(name);
@@ -7361,6 +7388,11 @@ void GLES2DecoderImpl::DoUniformMatrix2fv(
     const GLfloat* value) {
   GLenum type = 0;
   GLint real_location = -1;
+  if (transpose && !unsafe_es3_apis_enabled()) {
+    LOCAL_SET_GL_ERROR(
+        GL_INVALID_VALUE, "glUniformMatrix2fv", "transpose not FALSE");
+    return;
+  }
   if (!PrepForSetUniformByLocation(fake_location,
                                    "glUniformMatrix2fv",
                                    Program::kUniformMatrix2f,
@@ -7377,6 +7409,11 @@ void GLES2DecoderImpl::DoUniformMatrix3fv(
     const GLfloat* value) {
   GLenum type = 0;
   GLint real_location = -1;
+  if (transpose && !unsafe_es3_apis_enabled()) {
+    LOCAL_SET_GL_ERROR(
+        GL_INVALID_VALUE, "glUniformMatrix3fv", "transpose not FALSE");
+    return;
+  }
   if (!PrepForSetUniformByLocation(fake_location,
                                    "glUniformMatrix3fv",
                                    Program::kUniformMatrix3f,
@@ -7393,6 +7430,11 @@ void GLES2DecoderImpl::DoUniformMatrix4fv(
     const GLfloat* value) {
   GLenum type = 0;
   GLint real_location = -1;
+  if (transpose && !unsafe_es3_apis_enabled()) {
+    LOCAL_SET_GL_ERROR(
+        GL_INVALID_VALUE, "glUniformMatrix4fv", "transpose not FALSE");
+    return;
+  }
   if (!PrepForSetUniformByLocation(fake_location,
                                    "glUniformMatrix4fv",
                                    Program::kUniformMatrix4f,
@@ -9613,7 +9655,7 @@ error::Error GLES2DecoderImpl::HandleScheduleCALayerCHROMIUM(
     Texture::ImageState image_state;
     image = ref->texture()->GetLevelImage(ref->texture()->target(), 0,
                                           &image_state);
-    if (!image || image_state != Texture::BOUND) {
+    if (!image) {
       LOCAL_SET_GL_ERROR(GL_INVALID_VALUE, "glScheduleCALayerCHROMIUM",
                          "unsupported texture format");
       return error::kNoError;
@@ -10056,12 +10098,14 @@ bool GLES2DecoderImpl::ClearLevel(Texture* texture,
     glGenFramebuffersEXT(1, &fb);
     glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, fb);
 
+    glFramebufferTexture2DEXT(GL_DRAW_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT,
+                              target, texture->service_id(), level);
     bool have_stencil = (channels & GLES2Util::kStencil) != 0;
-    GLenum attachment = have_stencil ? GL_DEPTH_STENCIL_ATTACHMENT :
-                                       GL_DEPTH_ATTACHMENT;
+    if (have_stencil) {
+      glFramebufferTexture2DEXT(GL_DRAW_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT,
+                                target, texture->service_id(), level);
+    }
 
-    glFramebufferTexture2DEXT(GL_DRAW_FRAMEBUFFER_EXT, attachment, target,
-                              texture->service_id(), level);
     // ANGLE promises a depth only attachment ok.
     if (glCheckFramebufferStatusEXT(GL_DRAW_FRAMEBUFFER_EXT) !=
         GL_FRAMEBUFFER_COMPLETE) {
@@ -10168,8 +10212,13 @@ const ASTCBlockArray kASTCBlockArray[] = {
     {12, 12}};
 
 bool IsValidDXTSize(GLint level, GLsizei size) {
-  return (size == 1) ||
-         (size == 2) || !(size % kS3TCBlockWidth);
+  // TODO(zmo): Linux NVIDIA driver does allow size of 1 and 2 on level 0.
+  // However, the WebGL conformance test and blink side code forbid it.
+  // For now, let's be on the cautious side. If all drivers behaves the same
+  // as Linux NVIDIA, then we can remove this limitation.
+  return (level && size == 1) ||
+         (level && size == 2) ||
+         !(size % kS3TCBlockWidth);
 }
 
 bool IsValidPVRTCSize(GLint level, GLsizei size) {
@@ -13137,6 +13186,7 @@ bool GLES2DecoderImpl::ValidateCopyTextureCHROMIUMInternalFormats(
       source_internal_format == GL_LUMINANCE ||
       source_internal_format == GL_LUMINANCE_ALPHA ||
       source_internal_format == GL_BGRA_EXT ||
+      source_internal_format == GL_RGB_YCBCR_420V_CHROMIUM ||
       source_internal_format == GL_RGB_YCBCR_422_CHROMIUM;
   if (!valid_source_format || !valid_dest_format) {
     LOCAL_SET_GL_ERROR(GL_INVALID_OPERATION, function_name,
@@ -13392,6 +13442,21 @@ void GLES2DecoderImpl::DoCopySubTextureCHROMIUM(
                          "invalid image size");
       return;
     }
+
+    // Ideally we should not need to check that the sub-texture copy rectangle
+    // is valid in two different ways, here and below. However currently there
+    // is no guarantee that a texture backed by a GLImage will have sensible
+    // level info. If this synchronization were to be enforced then this and
+    // other functions in this file could be cleaned up.
+    // See: https://crbug.com/586476
+    int32_t max_x;
+    int32_t max_y;
+    if (!SafeAddInt32(x, width, &max_x) || !SafeAddInt32(y, height, &max_y) ||
+        x < 0 || y < 0 || max_x > source_width || max_y > source_height) {
+      LOCAL_SET_GL_ERROR(GL_INVALID_VALUE, "glCopySubTextureCHROMIUM",
+                         "source texture bad dimensions");
+      return;
+    }
   } else {
     if (!source_texture->GetLevelSize(source_target, 0,
                                       &source_width, &source_height, nullptr)) {
@@ -13407,18 +13472,19 @@ void GLES2DecoderImpl::DoCopySubTextureCHROMIUM(
                          "source texture bad dimensions");
       return;
     }
+
+    if (!source_texture->ValidForTexture(source_target, 0, x, y, 0, width,
+                                         height, 1)) {
+      LOCAL_SET_GL_ERROR(GL_INVALID_VALUE, "glCopySubTextureCHROMIUM",
+                         "source texture bad dimensions.");
+      return;
+    }
   }
 
   GLenum source_type = 0;
   GLenum source_internal_format = 0;
   source_texture->GetLevelType(source_target, 0, &source_type,
                                &source_internal_format);
-  if (!source_texture->ValidForTexture(source_target, 0, x, y, 0,
-                                       width, height, 1)) {
-    LOCAL_SET_GL_ERROR(GL_INVALID_VALUE, "glCopySubTextureCHROMIUM",
-                       "source texture bad dimensions.");
-    return;
-  }
 
   GLenum dest_type = 0;
   GLenum dest_internal_format = 0;

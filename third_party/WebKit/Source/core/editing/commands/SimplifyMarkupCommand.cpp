@@ -38,7 +38,7 @@ SimplifyMarkupCommand::SimplifyMarkupCommand(Document& document, Node* firstNode
 {
 }
 
-void SimplifyMarkupCommand::doApply()
+void SimplifyMarkupCommand::doApply(EditingState*)
 {
     ContainerNode* rootNode = m_firstNode->parentNode();
     WillBeHeapVector<RefPtrWillBeMember<ContainerNode>> nodesToRemove;
@@ -91,7 +91,7 @@ void SimplifyMarkupCommand::doApply()
         int numPrunedAncestors = pruneSubsequentAncestorsToRemove(nodesToRemove, i);
         if (numPrunedAncestors < 0)
             continue;
-        removeNodePreservingChildren(nodesToRemove[i], AssumeContentIsAlwaysEditable);
+        removeNodePreservingChildren(nodesToRemove[i], ASSERT_NO_EDITING_ABORT, AssumeContentIsAlwaysEditable);
         i += numPrunedAncestors;
     }
 }
@@ -113,9 +113,9 @@ int SimplifyMarkupCommand::pruneSubsequentAncestorsToRemove(WillBeHeapVector<Ref
     if (pastLastNodeToRemove == startNodeIndex + 1)
         return 0;
 
-    removeNode(nodesToRemove[startNodeIndex], AssumeContentIsAlwaysEditable);
-    insertNodeBefore(nodesToRemove[startNodeIndex], highestAncestorToRemove, AssumeContentIsAlwaysEditable);
-    removeNode(highestAncestorToRemove, AssumeContentIsAlwaysEditable);
+    removeNode(nodesToRemove[startNodeIndex], ASSERT_NO_EDITING_ABORT, AssumeContentIsAlwaysEditable);
+    insertNodeBefore(nodesToRemove[startNodeIndex], highestAncestorToRemove, ASSERT_NO_EDITING_ABORT, AssumeContentIsAlwaysEditable);
+    removeNode(highestAncestorToRemove, ASSERT_NO_EDITING_ABORT, AssumeContentIsAlwaysEditable);
 
     return pastLastNodeToRemove - startNodeIndex - 1;
 }

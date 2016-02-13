@@ -13,6 +13,7 @@
 #include "base/command_line.h"
 #include "base/debug/stack_trace.h"
 #include "base/files/file_util.h"
+#include "base/i18n/icu_util.h"
 #include "base/message_loop/message_loop.h"
 #include "base/path_service.h"
 #include "base/synchronization/waitable_event.h"
@@ -29,10 +30,6 @@ int LauncherProcessMain(const GURL& mojo_url, const base::Closure& callback) {
   base::debug::EnableInProcessStackDumping();
 #endif
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(switches::kMojoSingleProcess) &&
-      !command_line->HasSwitch("gtest_list_tests"))
-    command_line->AppendSwitch(switches::kEnableMultiprocess);
-  command_line->AppendSwitch("use-new-edk");
   // http://crbug.com/546644
   command_line->AppendSwitch(switches::kMojoNoSandbox);
 
@@ -45,6 +42,7 @@ int LauncherProcessMain(const GURL& mojo_url, const base::Closure& callback) {
     base::MessageLoop message_loop;
     base::FilePath shell_dir;
     PathService::Get(base::DIR_MODULE, &shell_dir);
+    CHECK(base::i18n::InitializeICU());
     shell_context.Init(shell_dir);
 
     if (mojo_url.is_empty()) {

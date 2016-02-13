@@ -32,7 +32,7 @@ public:
         , m_scope(v8::Isolate::GetCurrent())
         , m_settings(Settings::create())
         , m_resourceRequest("http://www.streaming-test.com/")
-        , m_resource(new ScriptResource(m_resourceRequest, "UTF-8"))
+        , m_resource(ScriptResource::create(m_resourceRequest, "UTF-8"))
         , m_pendingScript(PendingScript::create(0, m_resource.get()))
     {
         m_resource->setLoading(true);
@@ -54,7 +54,7 @@ protected:
         // cannot fully control in what kind of chunks the data is passed to V8
         // (if V8 is not requesting more data between two appendData calls, it
         // will get both chunks together).
-        Platform::current()->yieldCurrentThread();
+        testing::yieldCurrentThread();
     }
 
     void appendPadding()
@@ -89,7 +89,7 @@ protected:
     // fetch any data outside the test; the test controls the data by calling
     // ScriptResource::appendData.
     ResourceRequest m_resourceRequest;
-    ResourcePtr<ScriptResource> m_resource;
+    RefPtrWillBePersistent<ScriptResource> m_resource;
     OwnPtrWillBePersistent<PendingScript> m_pendingScript;
 };
 
@@ -191,10 +191,10 @@ TEST_F(ScriptStreamingTest, CancellingStreaming)
     // Simulate cancelling the network load (e.g., because the user navigated
     // away).
     EXPECT_FALSE(client.finished());
-    pendingScript()->stopWatchingForLoad(&client);
+    pendingScript()->stopWatchingForLoad();
     pendingScript()->releaseElementAndClear();
     m_pendingScript = nullptr; // This will destroy m_resource.
-    m_resource = 0;
+    m_resource = nullptr;
 
     // The V8 side will complete too. This should not crash. We don't receive
     // any results from the streaming and the client doesn't get notified.

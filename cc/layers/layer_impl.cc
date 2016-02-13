@@ -304,7 +304,6 @@ void LayerImpl::PassCopyRequests(
 
   if (was_empty && layer_tree_impl()->IsActiveTree())
     layer_tree_impl()->AddLayerWithCopyOutputRequest(this);
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::TakeCopyRequestsAndTransformToTarget(
@@ -443,22 +442,6 @@ void LayerImpl::AppendDebugBorderQuad(RenderPass* render_pass,
   }
 }
 
-bool LayerImpl::HasDelegatedContent() const {
-  return false;
-}
-
-bool LayerImpl::HasContributingDelegatedRenderPasses() const {
-  return false;
-}
-
-RenderPassId LayerImpl::FirstContributingRenderPassId() const {
-  return RenderPassId(0, 0);
-}
-
-RenderPassId LayerImpl::NextContributingRenderPassId(RenderPassId id) const {
-  return RenderPassId(0, 0);
-}
-
 void LayerImpl::GetContentsResourceId(ResourceId* resource_id,
                                       gfx::Size* resource_size) const {
   NOTREACHED();
@@ -561,6 +544,7 @@ InputHandler::ScrollStatus LayerImpl::TryScroll(
         layer_tree_impl_->event_listener_properties(
             EventListenerClass::kMouseWheel);
     if (event_properties == EventListenerProperties::kBlocking ||
+        event_properties == EventListenerProperties::kBlockingAndPassive ||
         (!layer_tree_impl_->settings().use_mouse_wheel_gestures &&
          event_properties == EventListenerProperties::kPassive)) {
       TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed WheelEventHandlers");
@@ -640,6 +624,8 @@ void LayerImpl::PushPropertiesTo(LayerImpl* layer) {
       use_local_transform_for_backface_visibility_);
   layer->SetShouldCheckBackfaceVisibility(should_check_backface_visibility_);
   layer->SetTransformAndInvertibility(transform_, transform_is_invertible_);
+  if (layer_property_changed_)
+    layer->NoteLayerPropertyChanged();
 
   layer->SetScrollClipLayer(scroll_clip_layer_id_);
   layer->SetElementId(element_id_);
@@ -720,6 +706,7 @@ void LayerImpl::PushPropertiesTo(LayerImpl* layer) {
 
   // Reset any state that should be cleared for the next update.
   stacking_order_changed_ = false;
+  layer_property_changed_ = false;
   update_rect_ = gfx::Rect();
   needs_push_properties_ = false;
   num_dependents_need_push_properties_ = 0;
@@ -1028,6 +1015,7 @@ void LayerImpl::SetBounds(const gfx::Size& bounds) {
   bounds_ = bounds;
 
   layer_tree_impl()->DidUpdateScrollState(id());
+
   if (masks_to_bounds())
     NoteLayerPropertyChangedForSubtree();
   else
@@ -1041,24 +1029,24 @@ void LayerImpl::SetBoundsDelta(const gfx::Vector2dF& bounds_delta) {
 
   bounds_delta_ = bounds_delta;
 
-  TransformTree& transform_tree =
-      layer_tree_impl()->property_trees()->transform_tree;
+  PropertyTrees* property_trees = layer_tree_impl()->property_trees();
   if (this == layer_tree_impl()->InnerViewportContainerLayer())
-    transform_tree.SetInnerViewportBoundsDelta(bounds_delta);
+    property_trees->SetInnerViewportContainerBoundsDelta(bounds_delta);
   else if (this == layer_tree_impl()->OuterViewportContainerLayer())
-    transform_tree.SetOuterViewportBoundsDelta(bounds_delta);
+    property_trees->SetOuterViewportContainerBoundsDelta(bounds_delta);
+  else if (this == layer_tree_impl()->InnerViewportScrollLayer())
+    property_trees->SetInnerViewportScrollBoundsDelta(bounds_delta);
 
   layer_tree_impl()->DidUpdateScrollState(id());
 
   if (masks_to_bounds()) {
     // If layer is clipping, then update the clip node using the new bounds.
-    ClipNode* clip_node =
-        layer_tree_impl()->property_trees()->clip_tree.Node(clip_tree_index());
+    ClipNode* clip_node = property_trees->clip_tree.Node(clip_tree_index());
     if (clip_node) {
       DCHECK(id() == clip_node->owner_id);
       clip_node->data.clip = gfx::RectF(
           gfx::PointF() + offset_to_transform_parent(), gfx::SizeF(bounds()));
-      layer_tree_impl()->property_trees()->clip_tree.set_needs_update(true);
+      property_trees->clip_tree.set_needs_update(true);
     }
 
     NoteLayerPropertyChangedForSubtree();
@@ -1081,7 +1069,6 @@ void LayerImpl::SetMaskLayer(scoped_ptr<LayerImpl> mask_layer) {
   mask_layer_id_ = new_layer_id;
   if (mask_layer_)
     mask_layer_->SetParent(this);
-  NoteLayerPropertyChangedForSubtree();
 }
 
 scoped_ptr<LayerImpl> LayerImpl::TakeMaskLayer() {
@@ -1103,7 +1090,6 @@ void LayerImpl::SetReplicaLayer(scoped_ptr<LayerImpl> replica_layer) {
   replica_layer_id_ = new_layer_id;
   if (replica_layer_)
     replica_layer_->SetParent(this);
-  NoteLayerPropertyChangedForSubtree();
 }
 
 scoped_ptr<LayerImpl> LayerImpl::TakeReplicaLayer() {
@@ -1128,7 +1114,6 @@ void LayerImpl::SetHideLayerAndSubtree(bool hide) {
     return;
 
   hide_layer_and_subtree_ = hide;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetTransformOrigin(const gfx::Point3F& transform_origin) {
@@ -1216,7 +1201,6 @@ void LayerImpl::SetMasksToBounds(bool masks_to_bounds) {
     return;
 
   masks_to_bounds_ = masks_to_bounds;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetContentsOpaque(bool opaque) {
@@ -1224,7 +1208,6 @@ void LayerImpl::SetContentsOpaque(bool opaque) {
     return;
 
   contents_opaque_ = opaque;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetOpacity(float opacity) {
@@ -1299,7 +1282,6 @@ void LayerImpl::SetBlendMode(SkXfermode::Mode blend_mode) {
     return;
 
   blend_mode_ = blend_mode;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetIsRootForIsolatedGroup(bool root) {
@@ -1323,14 +1305,12 @@ void LayerImpl::SetShouldFlattenTransform(bool flatten) {
     return;
 
   should_flatten_transform_ = flatten;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::Set3dSortingContextId(int id) {
   if (id == sorting_context_id_)
     return;
   sorting_context_id_ = id;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetFrameTimingRequests(
@@ -1602,7 +1582,6 @@ void LayerImpl::SetDoubleSided(bool double_sided) {
     return;
 
   double_sided_ = double_sided;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 SimpleEnclosedRegion LayerImpl::VisibleOpaqueRegion() const {
@@ -1619,33 +1598,8 @@ void LayerImpl::RecreateResources() {
 }
 
 gfx::ScrollOffset LayerImpl::MaxScrollOffset() const {
-  LayerImpl* scroll_clip_layer =
-      layer_tree_impl()->LayerById(scroll_clip_layer_id_);
-  if (!scroll_clip_layer || bounds().IsEmpty())
-    return gfx::ScrollOffset();
-
-  LayerImpl const* page_scale_layer = layer_tree_impl()->PageScaleLayer();
-  DCHECK(this != page_scale_layer);
-  DCHECK(this != layer_tree_impl()->InnerViewportScrollLayer() ||
-         IsContainerForFixedPositionLayers());
-
-  float scale_factor = 1.f;
-  DCHECK(scroll_clip_layer != page_scale_layer);
-  if (!scroll_clip_layer->IsAffectedByPageScale() && IsAffectedByPageScale())
-    scale_factor = layer_tree_impl()->current_page_scale_factor();
-
-  gfx::SizeF scaled_scroll_bounds =
-      gfx::ScaleSize(BoundsForScrolling(), scale_factor);
-  scaled_scroll_bounds.SetSize(std::floor(scaled_scroll_bounds.width()),
-                               std::floor(scaled_scroll_bounds.height()));
-
-  gfx::ScrollOffset max_offset(
-      scaled_scroll_bounds.width() - scroll_clip_layer->bounds().width(),
-      scaled_scroll_bounds.height() - scroll_clip_layer->bounds().height());
-  // We need the final scroll offset to be in CSS coords.
-  max_offset.Scale(1 / scale_factor);
-  max_offset.SetToMax(gfx::ScrollOffset());
-  return max_offset;
+  return layer_tree_impl()->property_trees()->scroll_tree.MaxScrollOffset(
+      scroll_tree_index());
 }
 
 gfx::ScrollOffset LayerImpl::ClampScrollOffsetToLimits(

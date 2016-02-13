@@ -234,8 +234,7 @@ void TextFinder::reportFindInPageResultToAccessibility(int identifier)
     }
 }
 
-template <typename Strategy>
-void TextFinder::scopeStringMatchesAlgorithm(int identifier, const WebString& searchText, const WebFindOptions& options, bool reset)
+void TextFinder::scopeStringMatches(int identifier, const WebString& searchText, const WebFindOptions& options, bool reset)
 {
     if (reset) {
         // This is a brand new search, so we need to reset everything.
@@ -276,15 +275,15 @@ void TextFinder::scopeStringMatchesAlgorithm(int identifier, const WebString& se
     }
 
     WebLocalFrameImpl* mainFrameImpl = ownerFrame().viewImpl()->mainFrameImpl();
-    PositionTemplate<Strategy> searchStart = PositionTemplate<Strategy>::firstPositionInNode(ownerFrame().frame()->document());
-    PositionTemplate<Strategy> searchEnd = PositionTemplate<Strategy>::lastPositionInNode(ownerFrame().frame()->document());
+    PositionInFlatTree searchStart = PositionInFlatTree::firstPositionInNode(ownerFrame().frame()->document());
+    PositionInFlatTree searchEnd = PositionInFlatTree::lastPositionInNode(ownerFrame().frame()->document());
     ASSERT(searchStart.document() == searchEnd.document());
 
     if (m_resumeScopingFromRange) {
         // This is a continuation of a scoping operation that timed out and didn't
         // complete last time around, so we should start from where we left off.
         ASSERT(m_resumeScopingFromRange->collapsed());
-        searchStart = fromPositionInDOMTree<Strategy>(m_resumeScopingFromRange->endPosition());
+        searchStart = fromPositionInDOMTree<EditingInFlatTreeStrategy>(m_resumeScopingFromRange->endPosition());
         if (searchStart.document() != searchEnd.document())
             return;
     }
@@ -303,7 +302,7 @@ void TextFinder::scopeStringMatchesAlgorithm(int identifier, const WebString& se
         // than the timeout value, and is not interruptible as it is currently
         // written. We may need to rewrite it with interruptibility in mind, or
         // find an alternative.
-        EphemeralRangeTemplate<Strategy> result = findPlainText(EphemeralRangeTemplate<Strategy>(searchStart, searchEnd), searchText, options.matchCase ? 0 : CaseInsensitive);
+        const EphemeralRangeInFlatTree result = findPlainText(EphemeralRangeInFlatTree(searchStart, searchEnd), searchText, options.matchCase ? 0 : CaseInsensitive);
         if (result.isCollapsed()) {
             // Not found.
             break;
@@ -395,13 +394,6 @@ void TextFinder::scopeStringMatchesAlgorithm(int identifier, const WebString& se
     }
 
     finishCurrentScopingEffort(identifier);
-}
-
-void TextFinder::scopeStringMatches(int identifier, const WebString& searchText, const WebFindOptions& options, bool reset)
-{
-    if (RuntimeEnabledFeatures::selectionForComposedTreeEnabled())
-        return scopeStringMatchesAlgorithm<EditingInComposedTreeStrategy>(identifier, searchText, options, reset);
-    scopeStringMatchesAlgorithm<EditingStrategy>(identifier, searchText, options, reset);
 }
 
 void TextFinder::flushCurrentScopingEffort(int identifier)
@@ -542,7 +534,7 @@ WebFloatRect TextFinder::activeFindMatchRect()
 void TextFinder::findMatchRects(WebVector<WebFloatRect>& outputRects)
 {
     Vector<WebFloatRect> matchRects;
-    for (WebLocalFrameImpl* frame = &ownerFrame(); frame; frame = toWebLocalFrameImpl(frame->traverseNext(false)))
+    for (WebLocalFrameImpl* frame = &ownerFrame(); frame; frame = toWebLocalFrameImpl(frame->traverseNextLocal(false)))
         frame->ensureTextFinder().appendFindMatchRects(matchRects);
 
     outputRects = matchRects;
@@ -564,7 +556,7 @@ int TextFinder::selectNearestFindMatch(const WebFloatPoint& point, WebRect* sele
     int indexInBestFrame = -1;
     float distanceInBestFrame = FLT_MAX;
 
-    for (WebLocalFrameImpl* frame = &ownerFrame(); frame; frame = toWebLocalFrameImpl(frame->traverseNext(false))) {
+    for (WebLocalFrameImpl* frame = &ownerFrame(); frame; frame = toWebLocalFrameImpl(frame->traverseNextLocal(false))) {
         float distanceInFrame;
         TextFinder& finder = frame->ensureTextFinder();
         int indexInFrame = finder.nearestFindMatch(point, distanceInFrame);
@@ -711,7 +703,7 @@ int TextFinder::ordinalOfFirstMatchForFrame(WebLocalFrameImpl* frame) const
     WebLocalFrameImpl* mainFrameImpl = ownerFrame().viewImpl()->mainFrameImpl();
     // Iterate from the main frame up to (but not including) |frame| and
     // add up the number of matches found so far.
-    for (WebLocalFrameImpl* it = mainFrameImpl; it != frame; it = toWebLocalFrameImpl(it->traverseNext(true))) {
+    for (WebLocalFrameImpl* it = mainFrameImpl; it != frame; it = toWebLocalFrameImpl(it->traverseNextLocal(true))) {
         TextFinder& finder = it->ensureTextFinder();
         if (finder.m_lastMatchCount > 0)
             ordinal += finder.m_lastMatchCount;

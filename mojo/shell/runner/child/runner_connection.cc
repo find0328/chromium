@@ -72,17 +72,10 @@ class Blocker {
 };
 
 using GotApplicationRequestCallback =
-    base::Callback<void(InterfaceRequest<mojom::Application>)>;
+    base::Callback<void(InterfaceRequest<mojom::ShellClient>)>;
 
-void OnCreateMessagePipe(ScopedMessagePipeHandle* result,
-                         Blocker::Unblocker unblocker,
-                         ScopedMessagePipeHandle pipe) {
-  *result = std::move(pipe);
-  unblocker.Unblock(base::Bind(&base::DoNothing));
-}
-
-void OnGotApplicationRequest(InterfaceRequest<mojom::Application>* out_request,
-                             InterfaceRequest<mojom::Application> request) {
+void OnGotApplicationRequest(InterfaceRequest<mojom::ShellClient>* out_request,
+                             InterfaceRequest<mojom::ShellClient> request) {
   *out_request = std::move(request);
 }
 
@@ -102,7 +95,7 @@ class RunnerConnectionImpl : public RunnerConnection {
 
   // Returns true if a connection to the runner has been established and
   // |request| has been modified, false if no connection was established.
-  bool WaitForApplicationRequest(InterfaceRequest<mojom::Application>* request,
+  bool WaitForApplicationRequest(InterfaceRequest<mojom::ShellClient>* request,
                                  ScopedMessagePipeHandle handle);
 
   ChildControllerImpl* controller() const { return controller_.get(); }
@@ -173,14 +166,14 @@ class ChildControllerImpl : public mojom::ChildController {
   }
 
   // |mojom::ChildController| methods:
-  void StartApp(InterfaceRequest<mojom::Application> application_request,
+  void StartApp(InterfaceRequest<mojom::ShellClient> request,
                 const StartAppCallback& on_app_complete) override {
     DCHECK(thread_checker_.CalledOnValidThread());
 
     on_app_complete_ = on_app_complete;
     unblocker_.Unblock(
         base::Bind(&ChildControllerImpl::ReturnApplicationRequestOnMainThread,
-                   callback_, base::Passed(&application_request)));
+                   callback_, base::Passed(&request)));
   }
 
   void ExitNow(int32_t exit_code) override {
@@ -199,8 +192,8 @@ class ChildControllerImpl : public mojom::ChildController {
 
   static void ReturnApplicationRequestOnMainThread(
       const GotApplicationRequestCallback& callback,
-      InterfaceRequest<mojom::Application> application_request) {
-    callback.Run(std::move(application_request));
+      InterfaceRequest<mojom::ShellClient> request) {
+    callback.Run(std::move(request));
   }
 
   base::ThreadChecker thread_checker_;
@@ -215,7 +208,7 @@ class ChildControllerImpl : public mojom::ChildController {
 };
 
 bool RunnerConnectionImpl::WaitForApplicationRequest(
-    InterfaceRequest<mojom::Application>* request,
+    InterfaceRequest<mojom::ShellClient>* request,
     ScopedMessagePipeHandle handle) {
   // If a valid message pipe to the runner was not provided, look for one on the
   // command line.
@@ -229,13 +222,10 @@ bool RunnerConnectionImpl::WaitForApplicationRequest(
     std::string primordial_pipe_token =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
             switches::kPrimordialPipeToken);
-    Blocker blocker;
-    edk::CreateChildMessagePipe(
-        primordial_pipe_token,
-        base::Bind(&OnCreateMessagePipe, base::Unretained(&handle),
-                   blocker.GetUnblocker()));
-    blocker.Block();
+    handle = edk::CreateChildMessagePipe(primordial_pipe_token);
   }
+
+  DCHECK(handle.is_valid());
 
   Blocker blocker;
   controller_runner_->PostTask(
@@ -255,7 +245,7 @@ RunnerConnection::~RunnerConnection() {}
 
 // static
 RunnerConnection* RunnerConnection::ConnectToRunner(
-    InterfaceRequest<mojom::Application>* request,
+    InterfaceRequest<mojom::ShellClient>* request,
     ScopedMessagePipeHandle handle) {
   RunnerConnectionImpl* connection = new RunnerConnectionImpl;
   if (!connection->WaitForApplicationRequest(request, std::move(handle))) {

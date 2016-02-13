@@ -44,6 +44,7 @@ import org.chromium.chrome.browser.TabState.WebContentsState;
 import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.WebContentsFactory;
 import org.chromium.chrome.browser.banners.AppBannerManager;
+import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.compositor.layouts.content.TabContentManager;
 import org.chromium.chrome.browser.contextmenu.ContextMenuPopulator;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchTabHelper;
@@ -51,7 +52,6 @@ import org.chromium.chrome.browser.crash.MinidumpDirectoryObserver;
 import org.chromium.chrome.browser.crash.MinidumpUploadService;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.download.ChromeDownloadDelegate;
-import org.chromium.chrome.browser.enhancedbookmarks.EnhancedBookmarkUtils;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.help.HelpAndFeedback;
 import org.chromium.chrome.browser.infobar.InfoBarContainer;
@@ -724,6 +724,7 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
             if ((params.getTransitionType() & PageTransition.FROM_ADDRESS_BAR)
                     == PageTransition.FROM_ADDRESS_BAR) {
                 mAppAssociatedWith = null;
+                setIsAllowedToReturnToExternalApp(false);
             }
 
             // We load the URL from the tab rather than directly from the ContentView so the tab has
@@ -767,6 +768,16 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
      */
     public boolean isShowingErrorPage() {
         return mIsShowingErrorPage;
+    }
+
+    /**
+     * Sets whether the tab is showing an error page.  This is reset whenever the tab finishes a
+     * navigation.
+     *
+     * @param isShowingErrorPage Whether the tab shows an error page.
+     */
+    public void setIsShowingErrorPage(boolean isShowingErrorPage) {
+        mIsShowingErrorPage = isShowingErrorPage;
     }
 
     /**
@@ -1447,8 +1458,6 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
      */
     protected void didStartPageLoad(String validatedUrl, boolean showingErrorPage) {
         mIsFullscreenWaitingForLoad = !DomDistillerUrlUtils.isDistilledPage(validatedUrl);
-
-        mIsShowingErrorPage = showingErrorPage;
 
         if (mLoFiBarPopupController != null) {
             mLoFiBarPopupController.resetLoFiPopupShownForPageLoad();
@@ -2621,7 +2630,7 @@ public final class Tab implements ViewGroup.OnHierarchyChangeListener,
     @CalledByNative
     public void showOfflinePages() {
         // The offline pages filter view will be loaded by default when offline.
-        EnhancedBookmarkUtils.showBookmarkManager(getActivity());
+        BookmarkUtils.showBookmarkManager(getActivity());
     }
 
     /**

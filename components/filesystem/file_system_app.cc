@@ -8,23 +8,23 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_impl.h"
+#include "mojo/shell/public/cpp/connection.h"
+#include "mojo/shell/public/cpp/shell.h"
 
 namespace filesystem {
 
-FileSystemApp::FileSystemApp() : app_(nullptr), in_shutdown_(false) {}
+FileSystemApp::FileSystemApp() : shell_(nullptr), in_shutdown_(false) {}
 
 FileSystemApp::~FileSystemApp() {}
 
-void FileSystemApp::Initialize(mojo::ApplicationImpl* app) {
-  app_ = app;
-  tracing_.Initialize(app);
+void FileSystemApp::Initialize(mojo::Shell* shell, const std::string& url,
+                               uint32_t id) {
+  shell_ = shell;
+  tracing_.Initialize(shell, url);
 }
 
-bool FileSystemApp::AcceptConnection(
-    mojo::ApplicationConnection* connection) {
-  connection->AddService<FileSystem>(this);
+bool FileSystemApp::AcceptConnection(mojo::Connection* connection) {
+  connection->AddInterface<FileSystem>(this);
   return true;
 }
 
@@ -56,7 +56,7 @@ bool FileSystemApp::ShellConnectionLost() {
 }
 
 // |InterfaceFactory<Files>| implementation:
-void FileSystemApp::Create(mojo::ApplicationConnection* connection,
+void FileSystemApp::Create(mojo::Connection* connection,
                            mojo::InterfaceRequest<FileSystem> request) {
   new FileSystemImpl(this, connection, std::move(request));
 }
@@ -70,7 +70,7 @@ void FileSystemApp::OnDirectoryConnectionError(DirectoryImpl* directory) {
       if (in_shutdown_ && client_mapping_.empty()) {
         // We just cleared the last directory after our shell connection went
         // away. Time to shut ourselves down.
-        app_->Quit();
+        shell_->Quit();
       }
 
       return;

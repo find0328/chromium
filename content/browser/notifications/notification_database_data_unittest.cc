@@ -27,6 +27,7 @@ const char kNotificationLang[] = "nl";
 const char kNotificationBody[] = "Hello, world!";
 const char kNotificationTag[] = "my_tag";
 const char kNotificationIconUrl[] = "https://example.com/icon.png";
+const char kNotificationActionIconUrl[] = "https://example.com/action_icon.png";
 const int kNotificationVibrationPattern[] = {100, 200, 300};
 const double kNotificationTimestamp = 621046800.;
 const unsigned char kNotificationData[] = {0xdf, 0xff, 0x0, 0x0, 0xff, 0xdf};
@@ -49,6 +50,7 @@ TEST(NotificationDatabaseDataTest, SerializeAndDeserializeData) {
   notification_data.icon = GURL(kNotificationIconUrl);
   notification_data.vibration_pattern = vibration_pattern;
   notification_data.timestamp = base::Time::FromJsTime(kNotificationTimestamp);
+  notification_data.renotify = true;
   notification_data.silent = true;
   notification_data.require_interaction = true;
   notification_data.data = developer_data;
@@ -56,6 +58,7 @@ TEST(NotificationDatabaseDataTest, SerializeAndDeserializeData) {
     PlatformNotificationAction notification_action;
     notification_action.action = base::SizeTToString(i);
     notification_action.title = base::SizeTToString16(i);
+    notification_action.icon = GURL(kNotificationActionIconUrl);
     notification_data.actions.push_back(notification_action);
   }
 
@@ -96,6 +99,7 @@ TEST(NotificationDatabaseDataTest, SerializeAndDeserializeData) {
               testing::ElementsAreArray(kNotificationVibrationPattern));
 
   EXPECT_EQ(notification_data.timestamp, copied_notification_data.timestamp);
+  EXPECT_EQ(notification_data.renotify, copied_notification_data.renotify);
   EXPECT_EQ(notification_data.silent, copied_notification_data.silent);
   EXPECT_EQ(notification_data.require_interaction,
             copied_notification_data.require_interaction);
@@ -111,6 +115,8 @@ TEST(NotificationDatabaseDataTest, SerializeAndDeserializeData) {
               copied_notification_data.actions[i].action);
     EXPECT_EQ(notification_data.actions[i].title,
               copied_notification_data.actions[i].title);
+    EXPECT_EQ(notification_data.actions[i].icon,
+              copied_notification_data.actions[i].icon);
   }
 }
 

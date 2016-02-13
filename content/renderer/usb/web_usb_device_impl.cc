@@ -12,7 +12,6 @@
 #include "content/child/mojo/type_converters.h"
 #include "content/child/scoped_web_callbacks.h"
 #include "content/renderer/usb/type_converters.h"
-#include "device/devices_app/public/cpp/constants.h"
 #include "mojo/shell/public/cpp/connect.h"
 #include "mojo/shell/public/interfaces/shell.mojom.h"
 #include "third_party/WebKit/public/platform/WebVector.h"
@@ -25,6 +24,7 @@ namespace {
 
 const char kClaimInterfaceFailed[] = "Unable to claim interface.";
 const char kClearHaltFailed[] = "Unable to clear endpoint.";
+const char kDeviceAlreadyOpen[] = "Device has already been opened.";
 const char kDeviceNoAccess[] = "Access denied.";
 const char kDeviceNotConfigured[] = "Device not configured.";
 const char kDeviceUnavailable[] = "Device unavailable.";
@@ -74,6 +74,11 @@ void OnOpenDevice(
       scoped_callbacks->onError(blink::WebUSBError(
           blink::WebUSBError::Error::Security,
           base::ASCIIToUTF16(kDeviceNoAccess)));
+      break;
+    case device::usb::OpenDeviceError::ALREADY_OPEN:
+      scoped_callbacks->onError(blink::WebUSBError(
+          blink::WebUSBError::Error::InvalidState,
+          base::ASCIIToUTF16(kDeviceAlreadyOpen)));
       break;
     default:
       NOTREACHED();

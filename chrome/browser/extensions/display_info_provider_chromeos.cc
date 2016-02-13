@@ -96,8 +96,8 @@ bool PointIsOverRadiusVector(const gfx::Point& point,
 //
 // The rectangle shares an egde with the reference's bottom edge, but it's
 // center point is in the left area.
-ash::DisplayLayout GetLayoutForRectangles(const gfx::Rect& reference,
-                                          const gfx::Rect& rectangle) {
+ash::DisplayPlacement GetPlacementForRectangles(const gfx::Rect& reference,
+                                                const gfx::Rect& rectangle) {
   // Translate coordinate system so origin is in the reference's top left point
   // (so the reference's down-diagonal vector starts in the (0, 0)) and scale it
   // up by two (to avoid division when calculating the rectangle's center
@@ -118,13 +118,13 @@ ash::DisplayLayout GetLayoutForRectangles(const gfx::Rect& reference,
 
   bool is_bottom_right = PointIsOverRadiusVector(center, up_diag);
 
-  ash::DisplayLayout::Position position;
+  ash::DisplayPlacement::Position position;
   if (is_top_right) {
-    position =
-        is_bottom_right ? ash::DisplayLayout::RIGHT : ash::DisplayLayout::TOP;
+    position = is_bottom_right ? ash::DisplayPlacement::RIGHT
+                               : ash::DisplayPlacement::TOP;
   } else {
-    position =
-        is_bottom_right ? ash::DisplayLayout::BOTTOM : ash::DisplayLayout::LEFT;
+    position = is_bottom_right ? ash::DisplayPlacement::BOTTOM
+                               : ash::DisplayPlacement::LEFT;
   }
 
   // If the rectangle with the calculated position would not have common side
@@ -133,38 +133,40 @@ ash::DisplayLayout GetLayoutForRectangles(const gfx::Rect& reference,
   if (is_top_right == is_bottom_right) {
     if (rectangle.y() > reference.y() + reference.height()) {
       // The rectangle is left or right, but completely under the reference.
-      position = ash::DisplayLayout::BOTTOM;
+      position = ash::DisplayPlacement::BOTTOM;
     } else if (rectangle.y() + rectangle.height() < reference.y()) {
       // The rectangle is left or right, but completely over the reference.
-      position = ash::DisplayLayout::TOP;
+      position = ash::DisplayPlacement::TOP;
     }
   } else {
     if (rectangle.x() > reference.x() + reference.width()) {
       // The rectangle is over or under, but completely right of the reference.
-      position = ash::DisplayLayout::RIGHT;
+      position = ash::DisplayPlacement::RIGHT;
     } else if (rectangle.x() + rectangle.width() < reference.x()) {
       // The rectangle is over or under, but completely left of the reference.
-      position = ash::DisplayLayout::LEFT;
+      position = ash::DisplayPlacement::LEFT;
     }
   }
-
-  if (position == ash::DisplayLayout::LEFT ||
-      position == ash::DisplayLayout::RIGHT) {
-    return ash::DisplayLayout::FromInts(position, rectangle.y());
-  } else {
-    return ash::DisplayLayout::FromInts(position, rectangle.x());
-  }
+  int offset = (position == ash::DisplayPlacement::LEFT ||
+                position == ash::DisplayPlacement::RIGHT)
+                   ? rectangle.y()
+                   : rectangle.x();
+  return ash::DisplayPlacement(position, offset);
 }
 
 // Updates the display layout for the target display in reference to the primary
 // display.
 void UpdateDisplayLayout(const gfx::Rect& primary_display_bounds,
-                         int primary_display_id,
+                         int64_t primary_display_id,
                          const gfx::Rect& target_display_bounds,
-                         int target_display_id) {
-  ash::DisplayLayout layout =
-      GetLayoutForRectangles(primary_display_bounds, target_display_bounds);
+                         int64_t target_display_id) {
+  ash::DisplayLayout layout;
+  layout.placement =
+      GetPlacementForRectangles(primary_display_bounds, target_display_bounds);
   layout.primary_id = primary_display_id;
+  layout.placement.display_id = target_display_id;
+  layout.placement.parent_display_id = primary_display_id;
+
   ash::Shell::GetInstance()
       ->display_configuration_controller()
       ->SetDisplayLayout(layout, false /* user_action */);

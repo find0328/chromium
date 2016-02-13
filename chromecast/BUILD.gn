@@ -16,11 +16,6 @@ if (is_android) {
   import("//build/config/android/rules.gni")
 }
 
-declare_args() {
-  # TODO(slan): This most likely needs to be moved into a .gni file.
-  use_chromecast_webui = true
-}
-
 if (use_playready) {
   config("playready_config") {
     defines = [ "PLAYREADY_CDM_AVAILABLE" ]
@@ -120,9 +115,7 @@ cast_test_group("cast_tests") {
     # --test-launcher-jobs=1 => so internal code can bind to port
     filters += [ "cast_shell_browser_test --no-sandbox --enable-local-file-accesses --enable-cma-media-pipeline --ozone-platform=cast --test-launcher-jobs=1" ]
 
-    # TODO(slan): Reenable this test for Desktop x86 when CQ supports it.
-    # (b/26429268)
-    if (use_alsa && !is_cast_desktop_build) {
+    if (use_alsa) {
       tests +=
           [ "//chromecast/media/cma/backend/alsa:alsa_cma_backend_unittests" ]
     }
@@ -130,11 +123,6 @@ cast_test_group("cast_tests") {
 
   if (!disable_display) {
     tests += [ "//gpu:gpu_unittests" ]
-  } else {
-    filters += [
-      # These are not supported by the backend right now. b/21737919
-      "cast_media_unittests --gtest_filter=-AudioVideoPipelineDeviceTest.VorbisPlayback:AudioVideoPipelineDeviceTest.WebmPlayback",
-    ]
   }
 }
 
@@ -227,22 +215,9 @@ repack("cast_shell_pak") {
   ]
 
   if (chromecast_branding != "public") {
-    sources +=
-        [ "$root_gen_dir/chromecast/internal/shell/app/sound_resources.pak" ]
+    sources += [ "$root_gen_dir/chromecast/internal/cast_shell_internal.pak" ]
 
-    deps += [ "//chromecast/internal/shell/app:chromecast_sound_resources" ]
-
-    if (use_chromecast_webui) {
-      sources += [
-        "$root_gen_dir/chromecast/internal/webui/app_resources.pak",
-        "$root_gen_dir/chromecast/internal/webui/cast_webui_resources.pak",
-      ]
-
-      deps += [
-        "//chromecast/internal/webui:chromecast_app_resources",
-        "//chromecast/internal/webui:chromecast_webui_resources",
-      ]
-    }
+    deps += [ "//chromecast/internal:cast_shell_internal_pak" ]
   }
 }
 

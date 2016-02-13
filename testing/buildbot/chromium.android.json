@@ -1,17 +1,4 @@
 {
-  "Android Aura Tester (dbg)": {
-    "gtest_tests": [
-      {
-        "test": "base_unittests"
-      },
-      {
-        "test": "compositor_unittests"
-      },
-      {
-        "test": "content_unittests"
-      }
-    ]
-  },
   "Android GN Builder (dbg)": {
     "additional_compile_targets": [
       "blimp_tests",
@@ -19,7 +6,6 @@
       "chrome_public_test_apk",
       "content_shell_apk",
       "content_shell_test_apk",
-      "mandoline:all",
       "system_webview_apk"
     ]
   },
@@ -407,6 +393,16 @@
         ],
         "test": "unit_tests"
       }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
+      }
     ]
   },
   "KitKat Tablet Tester": {
@@ -524,6 +520,16 @@
           "--isolate_file_path=src/chrome/unit_tests.isolate"
         ],
         "test": "unit_tests"
+      }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
       }
     ]
   },
@@ -643,6 +649,16 @@
         ],
         "test": "unit_tests"
       }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
+      }
     ]
   },
   "Lollipop Low-end Tester": {
@@ -760,6 +776,16 @@
           "--isolate_file_path=src/chrome/unit_tests.isolate"
         ],
         "test": "unit_tests"
+      }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
       }
     ]
   },
@@ -879,6 +905,16 @@
         ],
         "test": "unit_tests"
       }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
+      }
     ]
   },
   "Lollipop Tablet Tester": {
@@ -996,6 +1032,16 @@
           "--isolate_file_path=src/chrome/unit_tests.isolate"
         ],
         "test": "unit_tests"
+      }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
       }
     ]
   },
@@ -1124,6 +1170,16 @@
         ],
         "test": "unit_tests"
       }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
+      }
     ]
   },
   "Marshmallow Tablet Tester": {
@@ -1241,6 +1297,16 @@
           "--isolate_file_path=src/chrome/unit_tests.isolate"
         ],
         "test": "unit_tests"
+      }
+    ],
+    "instrumentation_tests": [
+      {
+        "apk_under_test": "Blimp.apk",
+        "override_compile_targets": [
+          "blimp_test_apk"
+        ],
+        "test": "blimp_test_apk",
+        "test_apk": "BlimpTest.apk"
       }
     ]
   }

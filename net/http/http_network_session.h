@@ -86,8 +86,6 @@ class NET_EXPORT HttpNetworkSession
     uint16_t testing_fixed_https_port;
     bool enable_tcp_fast_open_for_ssl;
 
-    // Compress SPDY headers.
-    bool enable_spdy_compression;
     // Use SPDY ping frames to test for connection health after idle.
     bool enable_spdy_ping_based_connection_checking;
     NextProto spdy_default_protocol;
@@ -95,11 +93,8 @@ class NET_EXPORT HttpNetworkSession
     bool enable_http2;
     size_t spdy_session_max_recv_window_size;
     size_t spdy_stream_max_recv_window_size;
-    size_t spdy_initial_max_concurrent_streams;
     // Source of time for SPDY connections.
     SpdySessionPool::TimeFunc time_func;
-    // URLs to exclude from forced SPDY.
-    std::set<HostPortPair> forced_spdy_exclusions;
     // Whether to parse Alt-Svc headers.
     bool parse_alternative_services;
     // Whether to enable Alt-Svc entries with hostname different than that of
@@ -271,10 +266,6 @@ class NET_EXPORT HttpNetworkSession
 
   // Populates |*npn_protos| with protocols to be used with NPN.
   void GetNpnProtos(NextProtoVector* npn_protos) const;
-
-  // Convenience function for searching through |params_| for
-  // |forced_spdy_exclusions|.
-  bool HasSpdyExclusion(HostPortPair host_port_pair) const;
 
  private:
   friend class HttpNetworkSessionPeer;

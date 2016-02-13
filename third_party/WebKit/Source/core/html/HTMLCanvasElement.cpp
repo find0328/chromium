@@ -31,12 +31,18 @@
 #include "bindings/core/v8/ExceptionState.h"
 #include "bindings/core/v8/ScriptController.h"
 #include "core/HTMLNames.h"
+#include "core/InputTypeNames.h"
 #include "core/dom/Document.h"
+#include "core/dom/Element.h"
+#include "core/dom/ElementTraversal.h"
 #include "core/dom/ExceptionCode.h"
 #include "core/fileapi/File.h"
 #include "core/frame/ImageBitmap.h"
 #include "core/frame/LocalFrame.h"
 #include "core/frame/Settings.h"
+#include "core/html/HTMLImageElement.h"
+#include "core/html/HTMLInputElement.h"
+#include "core/html/HTMLSelectElement.h"
 #include "core/html/ImageData.h"
 #include "core/html/canvas/CanvasAsyncBlobCreator.h"
 #include "core/html/canvas/CanvasContextCreationAttributes.h"
@@ -135,7 +141,6 @@ inline HTMLCanvasElement::HTMLCanvasElement(Document& document)
     , m_didFailToCreateImageBuffer(false)
     , m_imageBufferIsClear(false)
 {
-    setHasCustomStyleCallbacks();
     CanvasMetrics::countCanvasContextUsage(CanvasMetrics::CanvasCreated);
 }
 
@@ -163,24 +168,6 @@ LayoutObject* HTMLCanvasElement::createLayoutObject(const ComputedStyle& style)
     if (frame && frame->script().canExecuteScripts(NotAboutToExecuteScript))
         return new LayoutHTMLCanvas(this);
     return HTMLElement::createLayoutObject(style);
-}
-
-void HTMLCanvasElement::didRecalcStyle(StyleRecalcChange)
-{
-    SkFilterQuality filterQuality;
-    const ComputedStyle* style = ensureComputedStyle();
-    if (style && style->imageRendering() == ImageRenderingPixelated) {
-        filterQuality = kNone_SkFilterQuality;
-    } else {
-        filterQuality = kLow_SkFilterQuality;
-    }
-
-    if (is3D()) {
-        m_context->setFilterQuality(filterQuality);
-        setNeedsCompositingUpdate();
-    } else if (hasImageBuffer()) {
-        m_imageBuffer->setFilterQuality(filterQuality);
-    }
 }
 
 Node::InsertionNotificationRequest HTMLCanvasElement::insertedInto(ContainerNode* node)
@@ -265,9 +252,6 @@ CanvasRenderingContext* HTMLCanvasElement::getCanvasRenderingContext(const Strin
         return nullptr;
 
     if (m_context->is3d()) {
-        const ComputedStyle* style = ensureComputedStyle();
-        if (style)
-            m_context->setFilterQuality(style->imageRendering() == ImageRenderingPixelated ? kNone_SkFilterQuality : kLow_SkFilterQuality);
         updateExternallyAllocatedMemory();
     }
     setNeedsCompositingUpdate();
@@ -334,7 +318,7 @@ void HTMLCanvasElement::restoreCanvasMatrixClipStack(SkCanvas* canvas) const
 void HTMLCanvasElement::doDeferredPaintInvalidation()
 {
     ASSERT(!m_dirtyRect.isEmpty());
-    if (is3D()) {
+    if (!m_context->is2d()) {
         didFinalizeFrame();
     } else {
         ASSERT(hasImageBuffer());
@@ -457,7 +441,23 @@ void HTMLCanvasElement::paint(GraphicsContext& context, const LayoutRect& r)
     // FIXME: crbug.com/438240; there is a bug with the new CSS blending and compositing feature.
     if (!m_context)
         return;
+
+    const ComputedStyle* style = ensureComputedStyle();
+    SkFilterQuality filterQuality = (style && style->imageRendering() == ImageRenderingPixelated) ? kNone_SkFilterQuality : kLow_SkFilterQuality;
+
+    if (is3D()) {
+        m_context->setFilterQuality(filterQuality);
+    } else if (hasImageBuffer()) {
+        m_imageBuffer->setFilterQuality(filterQuality);
+    }
+
     if (!paintsIntoCanvasBuffer() && !document().printing())
+        return;
+
+    // TODO(junov): Paint is currently only implemented by ImageBitmap contexts.
+    // We could improve the abstraction by making all context types paint
+    // themselves (implement paint()).
+    if (m_context->paint(context, pixelSnappedIntRect(r)))
         return;
 
     m_context->paintRenderingResultsToCanvas(FrontBuffer);
@@ -781,10 +781,6 @@ void HTMLCanvasElement::createImageBufferInternal(PassOwnPtr<ImageBufferSurface>
         return;
     m_imageBuffer->setClient(this);
 
-    document().updateLayoutTreeIfNeeded();
-    const ComputedStyle* style = ensureComputedStyle();
-    m_imageBuffer->setFilterQuality((style && (style->imageRendering() == ImageRenderingPixelated)) ? kNone_SkFilterQuality : kLow_SkFilterQuality);
-
     m_didFailToCreateImageBuffer = false;
 
     updateExternallyAllocatedMemory();
@@ -1028,6 +1024,64 @@ ScriptPromise HTMLCanvasElement::createImageBitmap(ScriptState* scriptState, Eve
 bool HTMLCanvasElement::isOpaque() const
 {
     return m_context && !m_context->hasAlpha();
+}
+
+bool HTMLCanvasElement::isSupportedInteractiveCanvasFallback(const Element& element)
+{
+    if (!element.isDescendantOf(this))
+        return false;
+
+    // An element is a supported interactive canvas fallback element if it is one of the following:
+    // https://html.spec.whatwg.org/multipage/scripting.html#supported-interactive-canvas-fallback-element
+
+    // An a element that represents a hyperlink and that does not have any img descendants.
+    if (isHTMLAnchorElement(element))
+        return !Traversal<HTMLImageElement>::firstWithin(element);
+
+    // A button element
+    if (isHTMLButtonElement(element))
+        return true;
+
+    // An input element whose type attribute is in one of the Checkbox or Radio Button states.
+    // An input element that is a button but its type attribute is not in the Image Button state.
+    if (isHTMLInputElement(element)) {
+        const HTMLInputElement& inputElement = toHTMLInputElement(element);
+        if (inputElement.type() == InputTypeNames::checkbox
+            || inputElement.type() == InputTypeNames::radio
+            || inputElement.isTextButton())
+            return true;
+    }
+
+    // A select element with a multiple attribute or a display size greater than 1.
+    if (isHTMLSelectElement(element)) {
+        const HTMLSelectElement& selectElement = toHTMLSelectElement(element);
+        if (selectElement.multiple() || selectElement.size() > 1)
+            return true;
+    }
+
+    // An option element that is in a list of options of a select element with a multiple attribute or a display size greater than 1.
+    if (isHTMLOptionElement(element) && element.parentNode() && isHTMLSelectElement(*element.parentNode())) {
+        const HTMLSelectElement& selectElement = toHTMLSelectElement(*element.parentNode());
+        if (selectElement.multiple() || selectElement.size() > 1)
+            return true;
+    }
+
+    // An element that would not be interactive content except for having the tabindex attribute specified.
+    if (element.fastHasAttribute(HTMLNames::tabindexAttr))
+        return true;
+
+    // A non-interactive table, caption, thead, tbody, tfoot, tr, td, or th element.
+    if (isHTMLTableElement(element)
+        || element.hasTagName(HTMLNames::captionTag)
+        || element.hasTagName(HTMLNames::theadTag)
+        || element.hasTagName(HTMLNames::tbodyTag)
+        || element.hasTagName(HTMLNames::tfootTag)
+        || element.hasTagName(HTMLNames::trTag)
+        || element.hasTagName(HTMLNames::tdTag)
+        || element.hasTagName(HTMLNames::thTag))
+        return true;
+
+    return false;
 }
 
 } // namespace blink

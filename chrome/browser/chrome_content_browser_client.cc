@@ -151,9 +151,9 @@
 #include "content/public/common/service_registry.h"
 #include "content/public/common/url_utils.h"
 #include "content/public/common/web_preferences.h"
-#include "device/devices_app/usb/public/interfaces/device_manager.mojom.h"
+#include "device/usb/public/interfaces/device_manager.mojom.h"
 #include "gin/v8_initializer.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
+#include "mojo/shell/public/cpp/shell_client.h"
 #include "net/base/mime_util.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_options.h"
@@ -822,6 +822,13 @@ std::string ChromeContentBrowserClient::GetStoragePartitionIdForSite(
   // SiteInstance URL - "chrome-guest://app_id/persist?partition".
   if (site.SchemeIs(content::kGuestScheme))
     partition_id = site.spec();
+#if defined(ENABLE_EXTENSIONS)
+  // The partition ID for extensions with isolated storage is treated similarly
+  // to the above.
+  else if (site.SchemeIs(extensions::kExtensionScheme) &&
+           extensions::util::SiteHasIsolatedStorage(site, browser_context))
+    partition_id = site.spec();
+#endif
 
   DCHECK(IsValidStoragePartitionId(browser_context, partition_id));
   return partition_id;

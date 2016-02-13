@@ -67,7 +67,6 @@
 #include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/WebURL.h"
-#include "third_party/WebKit/public/platform/WebWaitableEvent.h"
 #include "ui/base/layout.h"
 #include "ui/events/gestures/blink/web_gesture_curve_impl.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
@@ -86,75 +85,6 @@ namespace content {
 
 namespace {
 
-class WebWaitableEventImpl : public blink::WebWaitableEvent {
- public:
-  WebWaitableEventImpl(ResetPolicy policy, InitialState state) {
-    bool manual_reset = policy == ResetPolicy::Manual;
-    bool initially_signaled = state == InitialState::Signaled;
-    impl_.reset(new base::WaitableEvent(manual_reset, initially_signaled));
-  }
-  ~WebWaitableEventImpl() override {}
-
-  void reset() override { impl_->Reset(); }
-  void wait() override { impl_->Wait(); }
-  void signal() override { impl_->Signal(); }
-
-  base::WaitableEvent* impl() {
-    return impl_.get();
-  }
-
- private:
-  scoped_ptr<base::WaitableEvent> impl_;
-  DISALLOW_COPY_AND_ASSIGN(WebWaitableEventImpl);
-};
-
-// A simple class to cache the memory usage for a given amount of time.
-class MemoryUsageCache {
- public:
-  // Retrieves the Singleton.
-  static MemoryUsageCache* GetInstance() {
-    return base::Singleton<MemoryUsageCache>::get();
-  }
-
-  MemoryUsageCache() : memory_value_(0) { Init(); }
-  ~MemoryUsageCache() {}
-
-  void Init() {
-    const unsigned int kCacheSeconds = 1;
-    cache_valid_time_ = base::TimeDelta::FromSeconds(kCacheSeconds);
-  }
-
-  // Returns true if the cached value is fresh.
-  // Returns false if the cached value is stale, or if |cached_value| is NULL.
-  bool IsCachedValueValid(size_t* cached_value) {
-    base::AutoLock scoped_lock(lock_);
-    if (!cached_value)
-      return false;
-    if (base::Time::Now() - last_updated_time_ > cache_valid_time_)
-      return false;
-    *cached_value = memory_value_;
-    return true;
-  };
-
-  // Setter for |memory_value_|, refreshes |last_updated_time_|.
-  void SetMemoryValue(const size_t value) {
-    base::AutoLock scoped_lock(lock_);
-    memory_value_ = value;
-    last_updated_time_ = base::Time::Now();
-  }
-
- private:
-  // The cached memory value.
-  size_t memory_value_;
-
-  // How long the cached value should remain valid.
-  base::TimeDelta cache_valid_time_;
-
-  // The last time the cached value was updated.
-  base::Time last_updated_time_;
-
-  base::Lock lock_;
-};
 
 }  // namespace
 
@@ -487,8 +417,7 @@ WebURLLoader* BlinkPlatformImpl::createURLLoader() {
   // data URLs to bypass the ResourceDispatcher.
   return new WebURLLoaderImpl(
       child_thread ? child_thread->resource_dispatcher() : NULL,
-      make_scoped_ptr(new scheduler::WebTaskRunnerImpl(
-            base::ThreadTaskRunnerHandle::Get())));
+      make_scoped_ptr(currentThread()->taskRunner()->clone()));
 }
 
 blink::WebSocketHandle* BlinkPlatformImpl::createWebSocketHandle() {
@@ -556,26 +485,6 @@ void BlinkPlatformImpl::SetCompositorThread(
 
 blink::WebThread* BlinkPlatformImpl::currentThread() {
   return static_cast<blink::WebThread*>(current_thread_slot_.Get());
-}
-
-void BlinkPlatformImpl::yieldCurrentThread() {
-  base::PlatformThread::YieldCurrentThread();
-}
-
-blink::WebWaitableEvent* BlinkPlatformImpl::createWaitableEvent(
-    blink::WebWaitableEvent::ResetPolicy policy,
-    blink::WebWaitableEvent::InitialState state) {
-  return new WebWaitableEventImpl(policy, state);
-}
-
-blink::WebWaitableEvent* BlinkPlatformImpl::waitMultipleEvents(
-    const blink::WebVector<blink::WebWaitableEvent*>& web_events) {
-  std::vector<base::WaitableEvent*> events;
-  for (size_t i = 0; i < web_events.size(); ++i)
-    events.push_back(static_cast<WebWaitableEventImpl*>(web_events[i])->impl());
-  size_t idx = base::WaitableEvent::WaitMany(events.data(), events.size());
-  DCHECK_LT(idx, web_events.size());
-  return web_events[idx];
 }
 
 void BlinkPlatformImpl::registerMemoryDumpProvider(
@@ -852,12 +761,6 @@ const DataResource kDataResources[] = {
     {"InspectorOverlayPage.html",
      IDR_INSPECTOR_OVERLAY_PAGE_HTML,
      ui::SCALE_FACTOR_NONE},
-    {"InjectedScriptSource.js",
-     IDR_INSPECTOR_INJECTED_SCRIPT_SOURCE_JS,
-     ui::SCALE_FACTOR_NONE},
-    {"DebuggerScriptSource.js",
-     IDR_INSPECTOR_DEBUGGER_SCRIPT_SOURCE_JS,
-     ui::SCALE_FACTOR_NONE},
     {"DocumentExecCommand.js",
      IDR_PRIVATE_SCRIPT_DOCUMENTEXECCOMMAND_JS,
      ui::SCALE_FACTOR_NONE},
@@ -1039,10 +942,6 @@ blink::WebSyncProvider* BlinkPlatformImpl::backgroundSyncProvider() {
       main_thread_task_runner_.get());
 }
 
-blink::WebTrialTokenValidator* BlinkPlatformImpl::trialTokenValidator() {
-  return &trial_token_validator_;
-}
-
 WebThemeEngine* BlinkPlatformImpl::themeEngine() {
   return &native_theme_engine_;
 }
@@ -1093,32 +992,8 @@ blink::WebString BlinkPlatformImpl::signedPublicKeyAndChallengeString(
   return blink::WebString("");
 }
 
-static size_t getMemoryUsageMB(bool bypass_cache) {
-  size_t current_mem_usage = 0;
-  MemoryUsageCache* mem_usage_cache_singleton = MemoryUsageCache::GetInstance();
-  if (!bypass_cache &&
-      mem_usage_cache_singleton->IsCachedValueValid(&current_mem_usage))
-    return current_mem_usage;
-
-  current_mem_usage = GetMemoryUsageKB() >> 10;
-  mem_usage_cache_singleton->SetMemoryValue(current_mem_usage);
-  return current_mem_usage;
-}
-
-size_t BlinkPlatformImpl::memoryUsageMB() {
-  return getMemoryUsageMB(false);
-}
-
 size_t BlinkPlatformImpl::actualMemoryUsageMB() {
-  return getMemoryUsageMB(true);
-}
-
-size_t BlinkPlatformImpl::physicalMemoryMB() {
-  return static_cast<size_t>(base::SysInfo::AmountOfPhysicalMemoryMB());
-}
-
-size_t BlinkPlatformImpl::virtualMemoryLimitMB() {
-  return static_cast<size_t>(base::SysInfo::AmountOfVirtualMemoryMB());
+  return GetMemoryUsageKB() >> 10;
 }
 
 size_t BlinkPlatformImpl::numberOfProcessors() {

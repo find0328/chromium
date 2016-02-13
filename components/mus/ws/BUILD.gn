@@ -143,6 +143,7 @@ test("window_manager_unittests") {
     ":test_support",
     "//base",
     "//base/test:test_config",
+    "//cc:cc",
     "//components/mus/common",
     "//components/mus/public/cpp",
     "//components/mus/public/interfaces",
@@ -150,13 +151,13 @@ test("window_manager_unittests") {
     "//mojo/converters/geometry",
     "//mojo/converters/input_events",
     "//mojo/converters/transform",
+    "//mojo/edk/test:run_all_unittests",
     "//mojo/environment:chromium",
     "//mojo/gles2",
     "//mojo/platform_handle",
     "//mojo/public/cpp/bindings:bindings",
     "//mojo/shell/public/interfaces",
     "//testing/gtest",
-    "//third_party/mojo/src/mojo/edk/test:run_all_unittests",
     "//ui/events",
     "//ui/gfx",
     "//ui/gfx:test_support",
@@ -198,4 +199,8 @@ mojo_native_application("apptests") {
   data_deps = [
     ":lib",
   ]
+
+  if (use_x11) {
+    deps += [ "//tools/xdisplaycheck" ]
+  }
 }

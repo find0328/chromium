@@ -28,6 +28,8 @@
 #include "base/threading/thread_checker.h"
 #include "mojo/edk/embedder/embedder.h"
 #include "mojo/edk/embedder/platform_channel_pair.h"
+#include "mojo/edk/embedder/process_delegate.h"
+#include "mojo/edk/embedder/scoped_platform_handle.h"
 #include "mojo/message_pump/message_pump_mojo.h"
 #include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/cpp/system/core.h"
@@ -35,10 +37,6 @@
 #include "mojo/shell/runner/common/switches.h"
 #include "mojo/shell/runner/host/native_application_support.h"
 #include "mojo/shell/runner/init.h"
-#include "third_party/mojo/src/mojo/edk/embedder/embedder.h"
-#include "third_party/mojo/src/mojo/edk/embedder/platform_channel_pair.h"
-#include "third_party/mojo/src/mojo/edk/embedder/process_delegate.h"
-#include "third_party/mojo/src/mojo/edk/embedder/scoped_platform_handle.h"
 
 #if defined(OS_LINUX) && !defined(OS_ANDROID)
 #include "base/rand_util.h"
@@ -50,10 +48,6 @@ namespace mojo {
 namespace shell {
 
 namespace {
-
-void DidCreateChannel(embedder::ChannelInfo* channel_info) {
-  DVLOG(2) << "ChildControllerImpl::DidCreateChannel()";
-}
 
 // Blocker ---------------------------------------------------------------------
 
@@ -104,18 +98,15 @@ class Blocker {
 class ChildControllerImpl;
 
 // Should be created and initialized on the main thread.
-// TODO(use_chrome_edk)
-// class AppContext : public edk::ProcessDelegate {
-class AppContext : public embedder::ProcessDelegate {
+class AppContext : public edk::ProcessDelegate {
  public:
   AppContext()
       : io_thread_("io_thread"), controller_thread_("controller_thread") {}
   ~AppContext() override {}
 
   void Init() {
-    embedder::PreInitializeChildProcess();
     // Initialize Mojo before starting any threads.
-    embedder::Init();
+    edk::Init();
 
     // Create and start our I/O thread.
     base::Thread::Options io_thread_options(base::MessageLoop::TYPE_IO, 0);
@@ -126,8 +117,7 @@ class AppContext : public embedder::ProcessDelegate {
     // TODO(vtl): This should be SLAVE, not NONE.
     // This must be created before controller_thread_ since MessagePumpMojo will
     // create a message pipe which requires this code to be run first.
-    embedder::InitIPCSupport(embedder::ProcessType::NONE, this, io_runner_,
-                             embedder::ScopedPlatformHandle());
+    edk::InitIPCSupport(this, io_runner_);
   }
 
   void StartControllerThread() {
@@ -169,7 +159,7 @@ class AppContext : public embedder::ProcessDelegate {
     controller_.reset();
 
     // Next shutdown IPC. We'll unblock the main thread in OnShutdownComplete().
-    embedder::ShutdownIPCSupport();
+    edk::ShutdownIPCSupport();
   }
 
   // ProcessDelegate implementation.
@@ -235,14 +225,14 @@ class ChildControllerImpl : public mojom::ChildController {
   }
 
   // |ChildController| methods:
-  void StartApp(InterfaceRequest<mojom::Application> application_request,
+  void StartApp(InterfaceRequest<mojom::ShellClient> request,
                 const StartAppCallback& on_app_complete) override {
     DCHECK(thread_checker_.CalledOnValidThread());
 
     on_app_complete_ = on_app_complete;
     unblocker_.Unblock(base::Bind(&ChildControllerImpl::StartAppOnMainThread,
                                   base::Unretained(app_library_),
-                                  base::Passed(&application_request)));
+                                  base::Passed(&request)));
   }
 
   void ExitNow(int32_t exit_code) override {
@@ -258,8 +248,8 @@ class ChildControllerImpl : public mojom::ChildController {
 
   static void StartAppOnMainThread(
       base::NativeLibrary app_library,
-      InterfaceRequest<mojom::Application> application_request) {
-    if (!RunNativeApplication(app_library, std::move(application_request))) {
+      InterfaceRequest<mojom::ShellClient> request) {
+    if (!RunNativeApplication(app_library, std::move(request))) {
       LOG(ERROR) << "Failure to RunNativeApplication()";
     }
   }
@@ -300,34 +290,14 @@ scoped_ptr<mojo::shell::LinuxSandbox> InitializeSandbox() {
 }
 #endif
 
-void InitializeHostMessagePipe(
-    embedder::ScopedPlatformHandle platform_channel,
-    scoped_refptr<base::TaskRunner> io_task_runner,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch("use-new-edk")) {
-    embedder::SetParentPipeHandle(std::move(platform_channel));
-    std::string primordial_pipe_token =
-        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-            switches::kPrimordialPipeToken);
-    edk::CreateChildMessagePipe(primordial_pipe_token, callback);
-  } else {
-    ScopedMessagePipeHandle host_message_pipe;
-    host_message_pipe =
-        embedder::CreateChannel(std::move(platform_channel),
-                                base::Bind(&DidCreateChannel), io_task_runner);
-    callback.Run(std::move(host_message_pipe));
-  }
-}
-
-void OnHostMessagePipeCreated(AppContext* app_context,
-                              base::NativeLibrary app_library,
-                              const Blocker::Unblocker& unblocker,
-                              ScopedMessagePipeHandle pipe) {
-  app_context->controller_runner()->PostTask(
-      FROM_HERE,
-      base::Bind(&ChildControllerImpl::Init, base::Unretained(app_context),
-                 base::Unretained(app_library), base::Passed(&pipe),
-                 unblocker));
+ScopedMessagePipeHandle InitializeHostMessagePipe(
+    edk::ScopedPlatformHandle platform_channel,
+    scoped_refptr<base::TaskRunner> io_task_runner) {
+  edk::SetParentPipeHandle(std::move(platform_channel));
+  std::string primordial_pipe_token =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+          switches::kPrimordialPipeToken);
+  return edk::CreateChildMessagePipe(primordial_pipe_token);
 }
 
 }  // namespace
@@ -360,9 +330,8 @@ int ChildProcessMain() {
     sandbox = InitializeSandbox();
 #endif
 
-  embedder::ScopedPlatformHandle platform_channel =
-      embedder::PlatformChannelPair::PassClientHandleFromParentProcess(
-          command_line);
+  edk::ScopedPlatformHandle platform_channel =
+      edk::PlatformChannelPair::PassClientHandleFromParentProcess(command_line);
   CHECK(platform_channel.is_valid());
 
   DCHECK(!base::MessageLoop::current());
@@ -372,13 +341,12 @@ int ChildProcessMain() {
   app_context.Init();
   app_context.StartControllerThread();
 
+  ScopedMessagePipeHandle host_pipe = InitializeHostMessagePipe(
+      std::move(platform_channel), app_context.io_runner());
   app_context.controller_runner()->PostTask(
       FROM_HERE,
-      base::Bind(
-          &InitializeHostMessagePipe, base::Passed(&platform_channel),
-          make_scoped_refptr(app_context.io_runner()),
-          base::Bind(&OnHostMessagePipeCreated, base::Unretained(&app_context),
-                     base::Unretained(app_library), blocker.GetUnblocker())));
+      base::Bind(&ChildControllerImpl::Init, &app_context, app_library,
+                 base::Passed(&host_pipe), blocker.GetUnblocker()));
 
   // This will block, then run whatever the controller wants.
   blocker.Block();

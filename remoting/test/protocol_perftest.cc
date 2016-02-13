@@ -18,6 +18,7 @@
 #include "net/base/test_data_directory.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "remoting/base/rsa_key_pair.h"
+#include "remoting/base/url_request.h"
 #include "remoting/client/audio_player.h"
 #include "remoting/client/chromoting_client.h"
 #include "remoting/client/client_context.h"
@@ -319,7 +320,7 @@ class ProtocolPerfTest
         GetParam().out_of_order_rate);
     scoped_refptr<protocol::TransportContext> transport_context(
         new protocol::TransportContext(
-            host_signaling_.get(), std::move(port_allocator_factory),
+            host_signaling_.get(), std::move(port_allocator_factory), nullptr,
             network_settings, protocol::TransportRole::SERVER));
     scoped_ptr<protocol::SessionManager> session_manager(
         new protocol::JingleSessionManager(host_signaling_.get()));
@@ -353,7 +354,7 @@ class ProtocolPerfTest
     host_secret.value = "123456";
     scoped_ptr<protocol::AuthenticatorFactory> auth_factory =
         protocol::Me2MeHostAuthenticatorFactory::CreateWithSharedSecret(
-            true, kHostOwner, host_cert, key_pair, host_secret, nullptr);
+            true, kHostOwner, host_cert, key_pair, "", host_secret, nullptr);
     host_->SetAuthenticatorFactory(std::move(auth_factory));
 
     host_->AddStatusObserver(this);
@@ -384,7 +385,7 @@ class ProtocolPerfTest
         GetParam().out_of_order_rate);
     scoped_refptr<protocol::TransportContext> transport_context(
         new protocol::TransportContext(
-            host_signaling_.get(), std::move(port_allocator_factory),
+            host_signaling_.get(), std::move(port_allocator_factory), nullptr,
             network_settings, protocol::TransportRole::CLIENT));
 
     std::vector<protocol::AuthenticationMethod> auth_methods;
@@ -565,7 +566,7 @@ class IntermittentChangeFrameGenerator
       : frame_index_(0) {}
 
   scoped_ptr<webrtc::DesktopFrame> GenerateFrame(
-      webrtc::DesktopCapturer::Callback* callback) {
+      webrtc::SharedMemoryFactory* shared_memory_factory) {
     const int kWidth = 1000;
     const int kHeight = kIntermittentFrameSize / kWidth / 4;
 

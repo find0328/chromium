@@ -1,8 +1,1 @@
-# crbug.com/417518: Get tests working with --site-per-process
--WebNavigationApiTest.*
-
-# crbug.com/574997: Navigating to a file: URL for a non-existing dir.
--SSLUITest.TestMarkNonSecureAs
-
-# crbug.com/583031: FrameWithHttp204 test failing in --isolate-extensions.
--ExecuteScriptApiTest.FrameWithHttp204
+# List below tests to be excluded from running.

@@ -66,6 +66,10 @@
     "type": "raw",
     "args": [],
   },
+  "android_webview_unittests": {
+    "label": "//android_webview/test:android_webview_unittests",
+    "type": "console_test_launcher",
+  },
   "angle_deqp_gles2_tests": {
     "label": "//third_party/angle/src/tests:angle_deqp_gles2_tests",
     "type": "raw",
@@ -164,7 +168,7 @@
   },
   "chrome_app_unittests": {
     "label": "//chrome/test:chrome_app_unittests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "chrome_elf_unittests": {
     "label": "//chrome_elf:chrome_elf_unittests",
@@ -176,10 +180,6 @@
   },
   "chromeos_unittests": {
     "label": "//chromeos:chromeos_unittests",
-    "type": "unknown",
-  },
-  "cloud_print_unittests": {
-    "label": "//cloud_print:cloud_print_unittests",
     "type": "unknown",
   },
   "components_browsertests": {
@@ -216,7 +216,7 @@
   },
   "courgette_unittests": {
     "label": "//courgette:courgette_unittests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "crypto_unittests": {
     "label": "//crypto:crypto_unittests",
@@ -286,13 +286,9 @@
     "label": "//gpu:gpu_unittests",
     "type": "windowed_test_launcher",
   },
-  "html_viewer_unittests": {
-    "label": "//components/html_viewer:html_viewer_unittests",
-    "type": "unknown",
-  },
   "installer_util_unittests": {
     "label": "//chrome/installer/util:installer_util_unittests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "interactive_ui_tests": {
     "label": "//chrome/test:interactive_ui_tests",
@@ -314,14 +310,16 @@
     "label": "//ui/keyboard:keyboard_unittests",
     "type": "unknown",
   },
-  "libaddressinput_unittests": {
-    "label": "//third_party/libaddressinput:libaddressinput_unittests",
-    "type": "console_test_launcher",
-  },
-  "libphonenumber_unittests": {
-    "label": "//third_party/libphonenumber:libphonenumber_unittests",
-    "type": "console_test_launcher",
-  },
+  # See http://crbug.com/585151
+  #"libaddressinput_unittests": {
+    #"label": "//third_party/libaddressinput:libaddressinput_unittests",
+    #"type": "console_test_launcher",
+  #},
+  # See http://crbug.com/585151
+  #"libphonenumber_unittests": {
+    #"label": "//third_party/libphonenumber:libphonenumber_unittests",
+    #"type": "console_test_launcher",
+  #},
   "media_unittests": {
     "label": "//media:media_unittests",
     "type": "windowed_test_launcher",
@@ -347,23 +345,23 @@
     "type": "console_test_launcher",
   },
   "mojo_public_application_unittests": {
-    "label": "//third_party/mojo/src/mojo/edk/test:mojo_public_applicaiton_unittests",
+    "label": "//mojo/edk/test:mojo_public_applicaiton_unittests",
     "type": "unknown",
   },
   "mojo_public_bindings_unittests": {
-    "label": "//third_party/mojo/src/mojo/edk/test:mojo_public_bindings_unittests",
+    "label": "//mojo/edk/test:mojo_public_bindings_unittests",
     "type": "console_test_launcher",
   },
   "mojo_public_environment_unittests": {
-    "label": "//third_party/mojo/src/mojo/edk/test:mojo_public_environment_unittests",
+    "label": "//mojo/edk/test:mojo_public_environment_unittests",
     "type": "console_test_launcher",
   },
   "mojo_public_system_unittests": {
-    "label": "//third_party/mojo/src/mojo/edk/test:mojo_public_system_unittests",
+    "label": "//mojo/edk/test:mojo_public_system_unittests",
     "type": "console_test_launcher",
   },
   "mojo_public_utility_unittests": {
-    "label": "//third_party/mojo/src/mojo/edk/test:mojo_public_utility_unittests",
+    "label": "//mojo/edk/test:mojo_public_utility_unittests",
     "type": "console_test_launcher",
   },
   "mojo_runner_host_unittests": {
@@ -379,7 +377,7 @@
     "type": "unknown",
   },
   "mojo_system_unittests": {
-    "label": "//third_party/mojo/src/mojo/edk/system:mojo_system_unittests",
+    "label": "//mojo/edk/system:mojo_system_unittests",
     "type": "unknown",
   },
   "mojo_view_manager_lib_unittests": {
@@ -434,19 +432,19 @@
   },
   "sbox_integration_tests": {
     "label": "//sandbox/win:sbox_integration_tests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "sbox_unittests": {
     "label": "//sandbox/win:sbox_unittests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "sbox_validation_tests": {
     "label": "//sandbox/win:sbox_validation_tests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "setup_unittests": {
     "label": "//chrome/installer/setup:setup_unittests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "skia_unittests": {
     "label": "//skia:skia_unittests",

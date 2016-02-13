@@ -47,8 +47,14 @@ bool CreateMapAndDupSharedBuffer(size_t size,
   return true;
 }
 
-template <typename T>
-void Copy(T* output, T input) {
+void MakeProgressCallback(
+    gpu::CommandBuffer::State* output,
+    const gpu::CommandBuffer::State& input) {
+  *output = input;
+}
+
+void InitializeCallback(mus::mojom::CommandBufferInitializeResultPtr* output,
+                        mus::mojom::CommandBufferInitializeResultPtr input) {
   *output = std::move(input);
 }
 
@@ -65,7 +71,7 @@ CommandBufferClientImpl::CommandBufferClientImpl(
     mojo::ScopedMessagePipeHandle command_buffer_handle)
     : delegate_(delegate),
       attribs_(attribs),
-      observer_binding_(this),
+      client_binding_(this),
       command_buffer_id_(0),
       shared_state_(NULL),
       last_put_offset_(-1),
@@ -78,7 +84,7 @@ CommandBufferClientImpl::CommandBufferClientImpl(
                            std::move(command_buffer_handle), 0u),
                        async_waiter);
   command_buffer_.set_connection_error_handler(
-      [this]() { DidLoseContext(gpu::error::kUnknown); });
+      [this]() { Destroyed(gpu::error::kUnknown, gpu::error::kLostContext); });
 }
 
 CommandBufferClientImpl::~CommandBufferClientImpl() {}
@@ -96,13 +102,14 @@ bool CommandBufferClientImpl::Initialize() {
 
   shared_state()->Initialize();
 
-  mus::mojom::CommandBufferLostContextObserverPtr observer_ptr;
-  observer_binding_.Bind(GetProxy(&observer_ptr), async_waiter_);
-  mus::mojom::CommandBufferInfoPtr info;
+  mus::mojom::CommandBufferClientPtr client_ptr;
+  client_binding_.Bind(GetProxy(&client_ptr), async_waiter_);
+
+  mus::mojom::CommandBufferInitializeResultPtr initialize_result;
   command_buffer_->Initialize(
-      std::move(observer_ptr), std::move(duped),
+      std::move(client_ptr), std::move(duped),
       mojo::Array<int32_t>::From(attribs_),
-      base::Bind(&Copy<mus::mojom::CommandBufferInfoPtr>, &info));
+      base::Bind(&InitializeCallback, &initialize_result));
 
   base::ThreadRestrictions::ScopedAllowWait wait;
   if (!command_buffer_.WaitForIncomingResponse()) {
@@ -110,14 +117,15 @@ bool CommandBufferClientImpl::Initialize() {
     return false;
   }
 
-  if (!info) {
+  if (!initialize_result) {
     VLOG(1) << "Command buffer cannot be initialized successfully.";
     return false;
   }
 
-  DCHECK_EQ(gpu::CommandBufferNamespace::MOJO, info->command_buffer_namespace);
-  command_buffer_id_ = info->command_buffer_id;
-  capabilities_ = info->capabilities.To<gpu::Capabilities>();
+  DCHECK_EQ(gpu::CommandBufferNamespace::MOJO,
+            initialize_result->command_buffer_namespace);
+  command_buffer_id_ = initialize_result->command_buffer_id;
+  capabilities_ = initialize_result->capabilities;
   return true;
 }
 
@@ -277,11 +285,25 @@ void CommandBufferClientImpl::SignalQuery(uint32_t query,
   NOTIMPLEMENTED();
 }
 
-void CommandBufferClientImpl::DidLoseContext(int32_t lost_reason) {
-  last_state_.error = gpu::error::kLostContext;
+void CommandBufferClientImpl::Destroyed(int32_t lost_reason, int32_t error) {
   last_state_.context_lost_reason =
       static_cast<gpu::error::ContextLostReason>(lost_reason);
+  last_state_.error = static_cast<gpu::error::Error>(error);
   delegate_->ContextLost();
+}
+
+void CommandBufferClientImpl::SignalAck(uint32_t id) {
+}
+
+void CommandBufferClientImpl::SwapBuffersCompleted(int32_t result) {
+}
+
+void CommandBufferClientImpl::UpdateState(
+    const gpu::CommandBuffer::State& state) {
+}
+
+void CommandBufferClientImpl::UpdateVSyncParameters(int64_t timebase,
+                                                    int64_t interval) {
 }
 
 void CommandBufferClientImpl::TryUpdateState() {
@@ -290,21 +312,21 @@ void CommandBufferClientImpl::TryUpdateState() {
 }
 
 void CommandBufferClientImpl::MakeProgressAndUpdateState() {
-  mus::mojom::CommandBufferStatePtr state;
+  gpu::CommandBuffer::State state;
   command_buffer_->MakeProgress(
       last_state_.get_offset,
-      base::Bind(&Copy<mus::mojom::CommandBufferStatePtr>, &state));
+      base::Bind(&MakeProgressCallback, &state));
 
   base::ThreadRestrictions::ScopedAllowWait wait;
   if (!command_buffer_.WaitForIncomingResponse()) {
     VLOG(1) << "Channel encountered error while waiting for command buffer.";
     // TODO(piman): is it ok for this to re-enter?
-    DidLoseContext(gpu::error::kUnknown);
+    Destroyed(gpu::error::kUnknown, gpu::error::kLostContext);
     return;
   }
 
-  if (state->generation - last_state_.generation < 0x80000000U)
-    last_state_ = state.To<State>();
+  if (state.generation - last_state_.generation < 0x80000000U)
+    last_state_ = state;
 }
 
 void CommandBufferClientImpl::SetLock(base::Lock* lock) {

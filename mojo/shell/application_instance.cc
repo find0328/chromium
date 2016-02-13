@@ -20,7 +20,7 @@ namespace mojo {
 namespace shell {
 
 ApplicationInstance::ApplicationInstance(
-    mojom::ApplicationPtr application,
+    mojom::ShellClientPtr shell_client,
     ApplicationManager* manager,
     const Identity& identity,
     uint32_t requesting_content_handler_id,
@@ -32,7 +32,7 @@ ApplicationInstance::ApplicationInstance(
                              identity.filter().count("*") == 1),
       requesting_content_handler_id_(requesting_content_handler_id),
       on_application_end_(on_application_end),
-      application_(std::move(application)),
+      shell_client_(std::move(shell_client)),
       binding_(this),
       pid_receiver_binding_(this),
       queue_requests_(false),
@@ -50,8 +50,8 @@ ApplicationInstance::~ApplicationInstance() {
 }
 
 void ApplicationInstance::InitializeApplication() {
-  application_->Initialize(binding_.CreateInterfacePtrAndBind(),
-                           identity_.url().spec(), id_);
+  shell_client_->Initialize(binding_.CreateInterfacePtrAndBind(),
+                            identity_.url().spec(), id_);
   binding_.set_connection_error_handler([this]() { OnConnectionError(); });
 }
 
@@ -77,8 +77,8 @@ void ApplicationInstance::BindPIDReceiver(
 // Shell implementation:
 void ApplicationInstance::ConnectToApplication(
     URLRequestPtr app_request,
-    InterfaceRequest<ServiceProvider> services,
-    ServiceProviderPtr exposed_services,
+    shell::mojom::InterfaceProviderRequest remote_interfaces,
+    shell::mojom::InterfaceProviderPtr local_interfaces,
     mojom::CapabilityFilterPtr filter,
     const ConnectToApplicationCallback& callback) {
   std::string url_string = app_request->url.To<std::string>();
@@ -101,8 +101,8 @@ void ApplicationInstance::ConnectToApplication(
     params->SetTargetURLRequest(
         std::move(app_request),
         Identity(app_url, std::string(), capability_filter));
-    params->set_services(std::move(services));
-    params->set_exposed_services(std::move(exposed_services));
+    params->set_remote_interfaces(std::move(remote_interfaces));
+    params->set_local_interfaces(std::move(local_interfaces));
     params->set_connect_callback(callback);
     manager_->ConnectToApplication(std::move(params));
   } else {
@@ -114,7 +114,7 @@ void ApplicationInstance::ConnectToApplication(
 
 void ApplicationInstance::QuitApplication() {
   queue_requests_ = true;
-  application_->OnQuitRequested(
+  shell_client_->OnQuitRequested(
       base::Bind(&ApplicationInstance::OnQuitRequestedResult,
                  base::Unretained(this)));
 }
@@ -142,9 +142,9 @@ void ApplicationInstance::CallAcceptConnection(
   ApplicationInstance* source =
       manager_->GetApplicationInstance(params->source());
   uint32_t source_id = source ? source->id() : Shell::kInvalidApplicationID;
-  application_->AcceptConnection(
-      params->source().url().spec(), source_id, params->TakeServices(),
-      params->TakeExposedServices(), Array<String>::From(interfaces),
+  shell_client_->AcceptConnection(
+      params->source().url().spec(), source_id, params->TakeRemoteInterfaces(),
+      params->TakeLocalInterfaces(), Array<String>::From(interfaces),
       params->target().url().spec());
 }
 

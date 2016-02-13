@@ -31,7 +31,6 @@
     'data_use_measurement.gypi',
     'device_event_log.gypi',
     'dom_distiller.gypi',
-    'enhanced_bookmarks.gypi',
     'error_page.gypi',
     'favicon.gypi',
     'favicon_base.gypi',
@@ -167,7 +166,7 @@
         'browser_watcher.gypi',
       ],
     }],
-    ['chromeos == 1 or use_ash == 1', {
+    ['chromeos == 1 or use_aura == 1', {
       'includes': [
         'session_manager.gypi',
         'user_manager.gypi',

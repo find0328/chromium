@@ -106,7 +106,7 @@ public:
 
     // DisplayItemClient methods
     String debugName() const override;
-    IntRect visualRect() const override;
+    LayoutRect visualRect() const override;
 
     bool isText() const { return m_bitfields.isText(); }
     void setIsText(bool isText) { m_bitfields.setIsText(isText); }
@@ -171,8 +171,6 @@ public:
     InlineBox* nextLeafChildIgnoringLineBreak() const;
     InlineBox* prevLeafChildIgnoringLineBreak() const;
 
-    // TODO(pilgrim): This will be removed as part of the Line Layout API refactoring crbug.com/499321
-    LayoutObject& layoutObject() const { return m_layoutObject; }
     LineLayoutItem lineLayoutItem() const { return LineLayoutItem(&m_layoutObject); }
 
     InlineFlowBox* parent() const
@@ -426,6 +424,8 @@ protected:
     LayoutUnit m_logicalWidth;
 
 private:
+    LayoutObject& layoutObject() const { return m_layoutObject; }
+
     InlineBoxBitfields m_bitfields;
 
 #if ENABLE(ASSERT)

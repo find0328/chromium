@@ -30,10 +30,7 @@
 
 #include "core/inspector/WorkerInspectorController.h"
 
-#include "core/InspectorBackendDispatcher.h"
-#include "core/InspectorFrontend.h"
 #include "core/inspector/InspectorConsoleAgent.h"
-#include "core/inspector/InspectorFrontendChannel.h"
 #include "core/inspector/InspectorHeapProfilerAgent.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/InspectorProfilerAgent.h"
@@ -43,11 +40,13 @@
 #include "core/inspector/WorkerDebuggerAgent.h"
 #include "core/inspector/WorkerRuntimeAgent.h"
 #include "core/inspector/WorkerThreadDebugger.h"
-#include "core/inspector/v8/InjectedScriptHost.h"
-#include "core/inspector/v8/InjectedScriptManager.h"
 #include "core/workers/WorkerGlobalScope.h"
 #include "core/workers/WorkerReportingProxy.h"
 #include "core/workers/WorkerThread.h"
+#include "platform/inspector_protocol/Dispatcher.h"
+#include "platform/inspector_protocol/Frontend.h"
+#include "platform/inspector_protocol/FrontendChannel.h"
+#include "platform/v8_inspector/public/V8RuntimeAgent.h"
 #include "wtf/PassOwnPtr.h"
 
 namespace blink {
@@ -74,7 +73,7 @@ private:
 
 } // namespace
 
-class WorkerInspectorController::PageInspectorProxy final : public NoBaseWillBeGarbageCollectedFinalized<WorkerInspectorController::PageInspectorProxy>, public InspectorFrontendChannel {
+class WorkerInspectorController::PageInspectorProxy final : public NoBaseWillBeGarbageCollectedFinalized<WorkerInspectorController::PageInspectorProxy>, public protocol::FrontendChannel {
     USING_FAST_MALLOC_WILL_BE_REMOVED(PageInspectorProxy);
 public:
     static PassOwnPtrWillBeRawPtr<PageInspectorProxy> create(WorkerGlobalScope* workerGlobalScope)
@@ -108,13 +107,6 @@ private:
     RawPtrWillBeMember<WorkerGlobalScope> m_workerGlobalScope;
 };
 
-class WorkerInjectedScriptHostClient: public InjectedScriptHostClient {
-public:
-    WorkerInjectedScriptHostClient() { }
-
-    ~WorkerInjectedScriptHostClient() override { }
-};
-
 WorkerInspectorController::WorkerInspectorController(WorkerGlobalScope* workerGlobalScope)
     : m_workerGlobalScope(workerGlobalScope)
     , m_instrumentingAgents(InstrumentingAgents::create())
@@ -135,29 +127,25 @@ WorkerInspectorController::WorkerInspectorController(WorkerGlobalScope* workerGl
         data->setThreadDebugger(newDebugger.release());
     }
 
-    m_injectedScriptManager = InjectedScriptManager::create(m_workerThreadDebugger);
     V8Debugger* debugger = m_workerThreadDebugger->debugger();
 
-    OwnPtrWillBeRawPtr<WorkerRuntimeAgent> workerRuntimeAgent = WorkerRuntimeAgent::create(m_injectedScriptManager.get(), debugger, workerGlobalScope, this);
+    OwnPtrWillBeRawPtr<WorkerRuntimeAgent> workerRuntimeAgent = WorkerRuntimeAgent::create(debugger, workerGlobalScope, this);
     m_workerRuntimeAgent = workerRuntimeAgent.get();
     m_agents.append(workerRuntimeAgent.release());
 
-    OwnPtrWillBeRawPtr<WorkerDebuggerAgent> workerDebuggerAgent = WorkerDebuggerAgent::create(debugger, workerGlobalScope, m_injectedScriptManager.get());
+    OwnPtrWillBeRawPtr<WorkerDebuggerAgent> workerDebuggerAgent = WorkerDebuggerAgent::create(debugger, workerGlobalScope, m_workerRuntimeAgent->v8Agent());
     m_workerDebuggerAgent = workerDebuggerAgent.get();
     m_agents.append(workerDebuggerAgent.release());
 
     m_agents.append(InspectorProfilerAgent::create(debugger, 0));
-    m_agents.append(InspectorHeapProfilerAgent::create(isolate, m_injectedScriptManager.get()));
+    m_agents.append(InspectorHeapProfilerAgent::create(isolate, m_workerRuntimeAgent->v8Agent()));
 
-    OwnPtrWillBeRawPtr<WorkerConsoleAgent> workerConsoleAgent = WorkerConsoleAgent::create(m_injectedScriptManager.get(), workerGlobalScope);
+    OwnPtrWillBeRawPtr<WorkerConsoleAgent> workerConsoleAgent = WorkerConsoleAgent::create(m_workerRuntimeAgent->v8Agent(), workerGlobalScope);
     WorkerConsoleAgent* workerConsoleAgentPtr = workerConsoleAgent.get();
-    workerConsoleAgentPtr->setDebuggerAgent(m_workerDebuggerAgent->v8DebuggerAgent());
+    workerConsoleAgentPtr->setDebuggerAgent(m_workerDebuggerAgent->v8Agent());
     m_agents.append(workerConsoleAgent.release());
 
-    m_injectedScriptManager->injectedScriptHost()->init(
-        nullptr,
-        bind<>(&InspectorConsoleAgent::clearAllMessages, workerConsoleAgentPtr),
-        adoptPtr(new WorkerInjectedScriptHostClient()));
+    m_workerRuntimeAgent->v8Agent()->setClearConsoleCallback(bind<>(&InspectorConsoleAgent::clearAllMessages, workerConsoleAgentPtr));
 }
 
 WorkerInspectorController::~WorkerInspectorController()
@@ -174,8 +162,8 @@ void WorkerInspectorController::connectFrontend()
     ASSERT(!m_frontend);
     InspectorTaskRunner::IgnoreInterruptsScope scope(m_inspectorTaskRunner.get());
     m_pageInspectorProxy = PageInspectorProxy::create(m_workerGlobalScope);
-    m_frontend = adoptPtr(new InspectorFrontend(frontendChannel()));
-    m_backendDispatcher = InspectorBackendDispatcher::create(frontendChannel());
+    m_frontend = adoptPtr(new protocol::Frontend(frontendChannel()));
+    m_backendDispatcher = protocol::Dispatcher::create(frontendChannel());
     m_agents.registerInDispatcher(m_backendDispatcher.get());
     m_agents.setFrontend(m_frontend.get());
     InspectorInstrumentation::frontendCreated();
@@ -232,9 +220,9 @@ bool WorkerInspectorController::isRunRequired()
     return m_paused;
 }
 
-InspectorFrontendChannel* WorkerInspectorController::frontendChannel() const
+protocol::FrontendChannel* WorkerInspectorController::frontendChannel() const
 {
-    return static_cast<InspectorFrontendChannel*>(m_pageInspectorProxy.get());
+    return static_cast<protocol::FrontendChannel*>(m_pageInspectorProxy.get());
 }
 
 void WorkerInspectorController::workerContextInitialized(bool shouldPauseOnStart)
@@ -255,7 +243,6 @@ DEFINE_TRACE(WorkerInspectorController)
 {
     visitor->trace(m_workerGlobalScope);
     visitor->trace(m_instrumentingAgents);
-    visitor->trace(m_backendDispatcher);
     visitor->trace(m_agents);
     visitor->trace(m_pageInspectorProxy);
     visitor->trace(m_workerDebuggerAgent);

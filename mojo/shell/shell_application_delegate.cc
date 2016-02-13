@@ -10,8 +10,7 @@
 
 #include "base/process/process.h"
 #include "mojo/shell/application_manager.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "third_party/mojo/src/mojo/edk/embedder/embedder.h"
+#include "mojo/shell/public/cpp/connection.h"
 
 namespace mojo {
 namespace shell {
@@ -21,15 +20,15 @@ ShellApplicationDelegate::ShellApplicationDelegate(
     : manager_(manager) {}
 ShellApplicationDelegate::~ShellApplicationDelegate() {}
 
-void ShellApplicationDelegate::Initialize(ApplicationImpl* app) {}
-bool ShellApplicationDelegate::AcceptConnection(
-    ApplicationConnection* connection) {
-  connection->AddService<mojom::ApplicationManager>(this);
+void ShellApplicationDelegate::Initialize(Shell* shell, const std::string& url,
+                                          uint32_t id) {}
+bool ShellApplicationDelegate::AcceptConnection(Connection* connection) {
+  connection->AddInterface<mojom::ApplicationManager>(this);
   return true;
 }
 
 void ShellApplicationDelegate::Create(
-    ApplicationConnection* connection,
+    Connection* connection,
     InterfaceRequest<mojom::ApplicationManager> request) {
   bindings_.AddBinding(this, std::move(request));
 }

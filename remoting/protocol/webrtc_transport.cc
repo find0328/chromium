@@ -13,9 +13,10 @@
 #include "base/task_runner_util.h"
 #include "base/thread_task_runner_handle.h"
 #include "jingle/glue/thread_wrapper.h"
+#include "remoting/protocol/port_allocator_factory.h"
 #include "remoting/protocol/stream_message_pipe_adapter.h"
 #include "remoting/protocol/transport_context.h"
-#include "third_party/libjingle/source/talk/app/webrtc/test/fakeconstraints.h"
+#include "third_party/webrtc/api/test/fakeconstraints.h"
 #include "third_party/webrtc/libjingle/xmllite/xmlelement.h"
 #include "third_party/webrtc/modules/audio_device/include/fake_audio_device.h"
 
@@ -102,10 +103,6 @@ class SetSessionDescriptionObserver
   DISALLOW_COPY_AND_ASSIGN(SetSessionDescriptionObserver);
 };
 
-void OnChannelErrorHandler(int error) {
-  // WebrtcDataStreamAdapter never returns an error.
-  NOTREACHED();
-}
 
 }  // namespace
 
@@ -116,8 +113,12 @@ WebrtcTransport::WebrtcTransport(
     : worker_thread_(worker_thread),
       transport_context_(transport_context),
       event_handler_(event_handler),
-      outgoing_data_stream_adapter_(true),
-      incoming_data_stream_adapter_(false),
+      outgoing_data_stream_adapter_(
+          true,
+          base::Bind(&WebrtcTransport::Close, base::Unretained(this))),
+      incoming_data_stream_adapter_(
+          false,
+          base::Bind(&WebrtcTransport::Close, base::Unretained(this))),
       weak_factory_(this) {}
 
 WebrtcTransport::~WebrtcTransport() {}
@@ -161,12 +162,7 @@ void WebrtcTransport::Start(
       nullptr, this);
 
   outgoing_data_stream_adapter_.Initialize(peer_connection_);
-  outgoing_channel_factory_.reset(new StreamMessageChannelFactoryAdapter(
-      &outgoing_data_stream_adapter_, base::Bind(&OnChannelErrorHandler)));
-
   incoming_data_stream_adapter_.Initialize(peer_connection_);
-  incoming_channel_factory_.reset(new StreamMessageChannelFactoryAdapter(
-      &incoming_data_stream_adapter_, base::Bind(&OnChannelErrorHandler)));
 
   event_handler_->OnWebrtcTransportConnecting();
 
@@ -340,18 +336,6 @@ void WebrtcTransport::OnRemoteDescriptionSet(bool send_answer,
   AddPendingCandidatesIfPossible();
 }
 
-void WebrtcTransport::Close(ErrorCode error) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-
-  weak_factory_.InvalidateWeakPtrs();
-  peer_connection_->Close();
-  peer_connection_ = nullptr;
-  peer_connection_factory_ = nullptr;
-
-  if (error != OK)
-    event_handler_->OnWebrtcTransportError(error);
-}
-
 void WebrtcTransport::OnSignalingChange(
     webrtc::PeerConnectionInterface::SignalingState new_state) {
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -496,6 +480,18 @@ void WebrtcTransport::AddPendingCandidatesIfPossible() {
     }
     pending_incoming_candidates_.clear();
   }
+}
+
+void WebrtcTransport::Close(ErrorCode error) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
+  weak_factory_.InvalidateWeakPtrs();
+  peer_connection_->Close();
+  peer_connection_ = nullptr;
+  peer_connection_factory_ = nullptr;
+
+  if (error != OK)
+    event_handler_->OnWebrtcTransportError(error);
 }
 
 }  // namespace protocol

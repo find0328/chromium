@@ -120,6 +120,7 @@ struct CONTENT_EXPORT WebPreferences {
   bool unified_textchecker_enabled;
   bool accelerated_2d_canvas_enabled;
   int minimum_accelerated_2d_canvas_size;
+  bool disable_2d_canvas_copy_on_write;
   bool antialiased_2d_canvas_disabled;
   bool antialiased_clips_2d_canvas_enabled;
   int accelerated_2d_canvas_msaa_sample_count;
@@ -188,6 +189,8 @@ struct CONTENT_EXPORT WebPreferences {
   bool pepper_accelerated_video_decode_enabled;
 
   ImageAnimationPolicy animation_policy;
+
+  bool user_gesture_required_for_presentation;
 
 #if defined(OS_ANDROID)
   bool text_autosizing_enabled;

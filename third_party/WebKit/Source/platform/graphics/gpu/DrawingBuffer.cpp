@@ -102,24 +102,28 @@ PassRefPtr<DrawingBuffer> DrawingBuffer::create(PassOwnPtr<WebGraphicsContext3D>
         // This might be the first time we notice that the WebGraphicsContext3D is lost.
         return nullptr;
     }
-    bool multisampleSupported = (extensionsUtil->supportsExtension("GL_CHROMIUM_framebuffer_multisample")
+    ASSERT(extensionsUtil->supportsExtension("GL_OES_packed_depth_stencil"));
+    extensionsUtil->ensureExtensionEnabled("GL_OES_packed_depth_stencil");
+
+    SupportedExtensions exts;
+    exts.multisample = (extensionsUtil->supportsExtension("GL_CHROMIUM_framebuffer_multisample")
         || extensionsUtil->supportsExtension("GL_EXT_multisampled_render_to_texture"))
         && extensionsUtil->supportsExtension("GL_OES_rgb8_rgba8");
-    if (multisampleSupported) {
+    if (exts.multisample) {
         extensionsUtil->ensureExtensionEnabled("GL_OES_rgb8_rgba8");
         if (extensionsUtil->supportsExtension("GL_CHROMIUM_framebuffer_multisample"))
             extensionsUtil->ensureExtensionEnabled("GL_CHROMIUM_framebuffer_multisample");
         else
             extensionsUtil->ensureExtensionEnabled("GL_EXT_multisampled_render_to_texture");
     }
-    bool packedDepthStencilSupported = extensionsUtil->supportsExtension("GL_OES_packed_depth_stencil");
-    if (packedDepthStencilSupported)
-        extensionsUtil->ensureExtensionEnabled("GL_OES_packed_depth_stencil");
-    bool discardFramebufferSupported = extensionsUtil->supportsExtension("GL_EXT_discard_framebuffer");
-    if (discardFramebufferSupported)
+    exts.depth24 = extensionsUtil->supportsExtension("GL_OES_depth24");
+    if (exts.depth24)
+        extensionsUtil->ensureExtensionEnabled("GL_OES_depth24");
+    exts.discardFramebuffer = extensionsUtil->supportsExtension("GL_EXT_discard_framebuffer");
+    if (exts.discardFramebuffer)
         extensionsUtil->ensureExtensionEnabled("GL_EXT_discard_framebuffer");
 
-    RefPtr<DrawingBuffer> drawingBuffer = adoptRef(new DrawingBuffer(std::move(context), extensionsUtil.release(), multisampleSupported, packedDepthStencilSupported, discardFramebufferSupported, preserve, requestedAttributes));
+    RefPtr<DrawingBuffer> drawingBuffer = adoptRef(new DrawingBuffer(std::move(context), extensionsUtil.release(), exts, preserve, requestedAttributes));
     if (!drawingBuffer->initialize(size)) {
         drawingBuffer->beginDestruction();
         return PassRefPtr<DrawingBuffer>();
@@ -132,11 +136,12 @@ void DrawingBuffer::forceNextDrawingBufferCreationToFail()
     shouldFailDrawingBufferCreationForTesting = true;
 }
 
+DrawingBuffer::SupportedExtensions::SupportedExtensions() :
+    multisample(false), depth24(false), discardFramebuffer(false) {}
+
 DrawingBuffer::DrawingBuffer(PassOwnPtr<WebGraphicsContext3D> context,
     PassOwnPtr<Extensions3DUtil> extensionsUtil,
-    bool multisampleExtensionSupported,
-    bool packedDepthStencilExtensionSupported,
-    bool discardFramebufferSupported,
+    const SupportedExtensions& supportedExtensions,
     PreserveDrawingBuffer preserve,
     WebGraphicsContext3D::Attributes requestedAttributes)
     : m_preserveDrawingBuffer(preserve)
@@ -149,13 +154,12 @@ DrawingBuffer::DrawingBuffer(PassOwnPtr<WebGraphicsContext3D> context,
     , m_extensionsUtil(std::move(extensionsUtil))
     , m_size(-1, -1)
     , m_requestedAttributes(requestedAttributes)
-    , m_multisampleExtensionSupported(multisampleExtensionSupported)
-    , m_packedDepthStencilExtensionSupported(packedDepthStencilExtensionSupported)
-    , m_discardFramebufferSupported(discardFramebufferSupported)
+    , m_multisampleExtensionSupported(supportedExtensions.multisample)
+    , m_depth24ExtensionSupported(supportedExtensions.depth24)
+    , m_discardFramebufferSupported(supportedExtensions.discardFramebuffer)
     , m_fbo(0)
     , m_depthStencilBuffer(0)
     , m_depthBuffer(0)
-    , m_stencilBuffer(0)
     , m_multisampleFBO(0)
     , m_multisampleColorBuffer(0)
     , m_contentsChanged(true)
@@ -614,9 +618,6 @@ void DrawingBuffer::beginDestruction()
     if (m_depthBuffer)
         m_context->deleteRenderbuffer(m_depthBuffer);
 
-    if (m_stencilBuffer)
-        m_context->deleteRenderbuffer(m_stencilBuffer);
-
     if (m_colorBuffer.textureId) {
         deleteChromiumImageForTexture(&m_colorBuffer);
         m_context->deleteTexture(m_colorBuffer.textureId);
@@ -629,7 +630,6 @@ void DrawingBuffer::beginDestruction()
     m_multisampleColorBuffer = 0;
     m_depthStencilBuffer = 0;
     m_depthBuffer = 0;
-    m_stencilBuffer = 0;
     m_multisampleFBO = 0;
     m_fbo = 0;
 
@@ -698,7 +698,18 @@ void DrawingBuffer::resizeDepthStencil(const IntSize& size)
     if (!m_requestedAttributes.depth && !m_requestedAttributes.stencil)
         return;
 
-    if (m_packedDepthStencilExtensionSupported) {
+    if (m_requestedAttributes.depth && !m_requestedAttributes.stencil && m_depth24ExtensionSupported) {
+        if (!m_depthBuffer)
+            m_depthBuffer = m_context->createRenderbuffer();
+        m_context->bindRenderbuffer(GL_RENDERBUFFER, m_depthBuffer);
+        if (m_antiAliasingMode == MSAAImplicitResolve)
+            m_context->renderbufferStorageMultisampleEXT(GL_RENDERBUFFER, m_sampleCount, GL_DEPTH_COMPONENT24, size.width(), size.height());
+        else if (m_antiAliasingMode == MSAAExplicitResolve)
+            m_context->renderbufferStorageMultisampleCHROMIUM(GL_RENDERBUFFER, m_sampleCount, GL_DEPTH_COMPONENT24, size.width(), size.height());
+        else
+            m_context->renderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, size.width(), size.height());
+        m_context->framebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthBuffer);
+    } else {
         if (!m_depthStencilBuffer)
             m_depthStencilBuffer = m_context->createRenderbuffer();
         m_context->bindRenderbuffer(GL_RENDERBUFFER, m_depthStencilBuffer);
@@ -708,33 +719,7 @@ void DrawingBuffer::resizeDepthStencil(const IntSize& size)
             m_context->renderbufferStorageMultisampleCHROMIUM(GL_RENDERBUFFER, m_sampleCount, GL_DEPTH24_STENCIL8_OES, size.width(), size.height());
         else
             m_context->renderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, size.width(), size.height());
-        m_context->framebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
-        m_context->framebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
-    } else {
-        if (m_requestedAttributes.depth) {
-            if (!m_depthBuffer)
-                m_depthBuffer = m_context->createRenderbuffer();
-            m_context->bindRenderbuffer(GL_RENDERBUFFER, m_depthBuffer);
-            if (m_antiAliasingMode == MSAAImplicitResolve)
-                m_context->renderbufferStorageMultisampleEXT(GL_RENDERBUFFER, m_sampleCount, GL_DEPTH_COMPONENT16, size.width(), size.height());
-            else if (m_antiAliasingMode == MSAAExplicitResolve)
-                m_context->renderbufferStorageMultisampleCHROMIUM(GL_RENDERBUFFER, m_sampleCount, GL_DEPTH_COMPONENT16, size.width(), size.height());
-            else
-                m_context->renderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, size.width(), size.height());
-            m_context->framebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthBuffer);
-        }
-        if (m_requestedAttributes.stencil) {
-            if (!m_stencilBuffer)
-                m_stencilBuffer = m_context->createRenderbuffer();
-            m_context->bindRenderbuffer(GL_RENDERBUFFER, m_stencilBuffer);
-            if (m_antiAliasingMode == MSAAImplicitResolve)
-                m_context->renderbufferStorageMultisampleEXT(GL_RENDERBUFFER, m_sampleCount, GL_STENCIL_INDEX8, size.width(), size.height());
-            else if (m_antiAliasingMode == MSAAExplicitResolve)
-                m_context->renderbufferStorageMultisampleCHROMIUM(GL_RENDERBUFFER, m_sampleCount, GL_STENCIL_INDEX8, size.width(), size.height());
-            else
-                m_context->renderbufferStorage(GL_RENDERBUFFER, GL_STENCIL_INDEX8, size.width(), size.height());
-            m_context->framebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_stencilBuffer);
-        }
+        m_context->framebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilBuffer);
     }
     m_context->bindRenderbuffer(GL_RENDERBUFFER, 0);
 }

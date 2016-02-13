@@ -325,7 +325,7 @@
           'dependencies': [
             'chrome_resources.gyp:chrome_strings',
             '../base/base.gyp:base',
-            '../ui/base/ui_base.gyp:ui_base',
+            '../ui/base/ui_base.gyp:ui_data_pack',
             '../ui/gfx/gfx.gyp:gfx',
             '../ui/gfx/gfx.gyp:gfx_geometry',
           ],
@@ -540,6 +540,7 @@
             'content_setting_java',
             'content_settings_type_java',
             'connectivity_check_result_java',
+            'data_use_ui_message_enum_java',
             'document_tab_model_info_proto_java',
             'infobar_action_type_java',
             'most_visited_tile_type_java',
@@ -556,7 +557,6 @@
             '../components/components.gyp:autocomplete_match_type_java',
             '../components/components.gyp:bookmarks_java',
             '../components/components.gyp:dom_distiller_core_java',
-            '../components/components.gyp:enhanced_bookmarks_java_enums_srcjar',
             '../components/components.gyp:gcm_driver_java',
             '../components/components.gyp:infobar_delegate_java',
             '../components/components.gyp:invalidation_java',
@@ -680,6 +680,15 @@
           'type': 'none',
           'variables': {
             'source_file': '../components/signin/core/browser/signin_metrics.h',
+          },
+          'includes': [ '../build/android/java_cpp_enum.gypi' ],
+        },
+        {
+          # GN: //chrome:data_use_ui_message_enum_javagen
+          'target_name': 'data_use_ui_message_enum_java',
+          'type': 'none',
+          'variables': {
+            'source_file': 'browser/android/data_usage/data_use_tab_ui_manager_android.cc',
           },
           'includes': [ '../build/android/java_cpp_enum.gypi' ],
         },

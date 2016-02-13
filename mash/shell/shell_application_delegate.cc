@@ -5,29 +5,36 @@
 #include "mash/shell/shell_application_delegate.h"
 
 #include "base/bind.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_impl.h"
+#include "base/command_line.h"
+#include "mojo/shell/public/cpp/connection.h"
+#include "mojo/shell/public/cpp/shell.h"
+
+namespace {
+
+const char kUseAshSysui[] = "use-ash-sysui";
+
+}  // namespace
 
 namespace mash {
 namespace shell {
 
 ShellApplicationDelegate::ShellApplicationDelegate()
-    : app_(nullptr), screen_locked_(false) {}
+    : shell_(nullptr), screen_locked_(false) {}
 
 ShellApplicationDelegate::~ShellApplicationDelegate() {}
 
-void ShellApplicationDelegate::Initialize(mojo::ApplicationImpl* app) {
-  app_ = app;
+void ShellApplicationDelegate::Initialize(mojo::Shell* shell,
+                                          const std::string& url,
+                                          uint32_t id) {
+  shell_ = shell;
   StartBrowserDriver();
   StartWindowManager();
-  StartWallpaper();
-  StartShelf();
+  StartSystemUI();
   StartQuickLaunch();
 }
 
-bool ShellApplicationDelegate::AcceptConnection(
-    mojo::ApplicationConnection* connection) {
-  connection->AddService<mash::shell::mojom::Shell>(this);
+bool ShellApplicationDelegate::AcceptConnection(mojo::Connection* connection) {
+  connection->AddInterface<mash::shell::mojom::Shell>(this);
   return true;
 }
 
@@ -59,7 +66,7 @@ void ShellApplicationDelegate::UnlockScreen() {
 }
 
 void ShellApplicationDelegate::Create(
-    mojo::ApplicationConnection* connection,
+    mojo::Connection* connection,
     mojo::InterfaceRequest<mash::shell::mojom::Shell> r) {
   bindings_.AddBinding(this, std::move(r));
 }
@@ -69,6 +76,19 @@ void ShellApplicationDelegate::StartWindowManager() {
       "mojo:desktop_wm",
       base::Bind(&ShellApplicationDelegate::StartWindowManager,
                  base::Unretained(this)));
+}
+
+void ShellApplicationDelegate::StartSystemUI() {
+  static bool use_ash =
+      base::CommandLine::ForCurrentProcess()->HasSwitch(kUseAshSysui);
+  if (use_ash) {
+    StartRestartableService("mojo:ash_sysui",
+                            base::Bind(&ShellApplicationDelegate::StartSystemUI,
+                                       base::Unretained(this)));
+  } else {
+    StartWallpaper();
+    StartShelf();
+  }
 }
 
 void ShellApplicationDelegate::StartWallpaper() {
@@ -115,10 +135,13 @@ void ShellApplicationDelegate::StartRestartableService(
     const base::Closure& restart_callback) {
   // TODO(beng): This would be the place to insert logic that counted restarts
   //             to avoid infinite crash-restart loops.
-  scoped_ptr<mojo::ApplicationConnection> connection =
-      app_->ConnectToApplication(url);
-  connection->SetRemoteServiceProviderConnectionErrorHandler(restart_callback);
-  connections_[url] = std::move(connection);
+  scoped_ptr<mojo::Connection> connection = shell_->Connect(url);
+  // Note: |connection| may be null if we've lost our connection to the shell.
+  if (connection) {
+    connection->SetRemoteInterfaceProviderConnectionErrorHandler(
+        restart_callback);
+    connections_[url] = std::move(connection);
+  }
 }
 
 }  // namespace shell

@@ -27,7 +27,7 @@
 #include "mojo/shell/connect_to_application_params.h"
 #include "mojo/shell/identity.h"
 #include "mojo/shell/package_manager/package_manager_impl.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
+#include "mojo/shell/public/cpp/shell_client.h"
 #include "mojo/shell/static_application_loader.h"
 
 namespace content {
@@ -67,7 +67,7 @@ class DefaultApplicationLoader : public mojo::shell::ApplicationLoader {
  private:
   // mojo::shell::ApplicationLoader:
   void Load(const GURL& url,
-            mojo::InterfaceRequest<mojo::shell::mojom::Application> request)
+            mojo::InterfaceRequest<mojo::shell::mojom::ShellClient> request)
                 override {}
 
   DISALLOW_COPY_AND_ASSIGN(DefaultApplicationLoader);
@@ -85,7 +85,7 @@ class UtilityProcessLoader : public mojo::shell::ApplicationLoader {
  private:
   // mojo::shell::ApplicationLoader:
   void Load(const GURL& url,
-            mojo::InterfaceRequest<mojo::shell::mojom::Application> request)
+            mojo::InterfaceRequest<mojo::shell::mojom::ShellClient> request)
                 override {
     ProcessControlPtr process_control;
     auto process_request = mojo::GetProxy(&process_control);
@@ -130,7 +130,7 @@ class GpuProcessLoader : public mojo::shell::ApplicationLoader {
  private:
   // mojo::shell::ApplicationLoader:
   void Load(const GURL& url,
-            mojo::InterfaceRequest<mojo::shell::mojom::Application> request)
+            mojo::InterfaceRequest<mojo::shell::mojom::ShellClient> request)
                 override {
     ProcessControlPtr process_control;
     auto process_request = mojo::GetProxy(&process_control);
@@ -158,8 +158,8 @@ class MojoShellContext::Proxy {
   void ConnectToApplication(
       const GURL& url,
       const GURL& requestor_url,
-      mojo::InterfaceRequest<mojo::ServiceProvider> request,
-      mojo::ServiceProviderPtr exposed_services,
+      mojo::shell::mojom::InterfaceProviderRequest request,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services,
       const mojo::shell::CapabilityFilter& filter,
       const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback) {
     if (task_runner_ == base::ThreadTaskRunnerHandle::Get()) {
@@ -260,8 +260,8 @@ MojoShellContext::~MojoShellContext() {
 void MojoShellContext::ConnectToApplication(
     const GURL& url,
     const GURL& requestor_url,
-    mojo::InterfaceRequest<mojo::ServiceProvider> request,
-    mojo::ServiceProviderPtr exposed_services,
+    mojo::shell::mojom::InterfaceProviderRequest request,
+    mojo::shell::mojom::InterfaceProviderPtr exposed_services,
     const mojo::shell::CapabilityFilter& filter,
     const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback) {
   proxy_.Get()->ConnectToApplication(url, requestor_url, std::move(request),
@@ -272,8 +272,8 @@ void MojoShellContext::ConnectToApplication(
 void MojoShellContext::ConnectToApplicationOnOwnThread(
     const GURL& url,
     const GURL& requestor_url,
-    mojo::InterfaceRequest<mojo::ServiceProvider> request,
-    mojo::ServiceProviderPtr exposed_services,
+    mojo::shell::mojom::InterfaceProviderRequest request,
+    mojo::shell::mojom::InterfaceProviderPtr exposed_services,
     const mojo::shell::CapabilityFilter& filter,
     const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback) {
   scoped_ptr<mojo::shell::ConnectToApplicationParams> params(
@@ -282,8 +282,8 @@ void MojoShellContext::ConnectToApplicationOnOwnThread(
       mojo::shell::Identity(requestor_url, std::string(),
                             mojo::shell::GetPermissiveCapabilityFilter()));
   params->SetTarget(mojo::shell::Identity(url, std::string(), filter));
-  params->set_services(std::move(request));
-  params->set_exposed_services(std::move(exposed_services));
+  params->set_remote_interfaces(std::move(request));
+  params->set_local_interfaces(std::move(exposed_services));
   params->set_on_application_end(base::Bind(&base::DoNothing));
   params->set_connect_callback(callback);
   application_manager_->ConnectToApplication(std::move(params));

@@ -68,6 +68,7 @@ public:
 
     BLINK_EXPORT static void enableDisplayList2dCanvas(bool);
     BLINK_EXPORT static void forceDisplayList2dCanvas(bool);
+    BLINK_EXPORT static void forceDisable2dCanvasCopyOnWrite(bool);
 
     BLINK_EXPORT static void enableEncryptedMedia(bool);
     BLINK_EXPORT static bool isEncryptedMediaEnabled();
@@ -162,7 +163,14 @@ public:
 
     BLINK_EXPORT static void enableWebFontsIntervention(bool);
 
+    BLINK_EXPORT static void enableWebFontsInterventionTrigger(bool);
+
     BLINK_EXPORT static void enableScrollAnchoring(bool);
+
+    // TODO(nhiroki): Remove after ExtendableMessageEvent is shipped
+    // (crbug.com/543198).
+    BLINK_EXPORT static bool isServiceWorkerExtendableMessageEventEnabled();
+
 private:
     WebRuntimeFeatures();
 };

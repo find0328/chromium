@@ -64,9 +64,7 @@ using content::RenderViewHost;
 // Flaky on Mac ASAN:
 //    http://crbug.com/428670
 
-#if defined(DISABLE_NACL) || \
-    (defined(OS_MACOSX) && defined(ADDRESS_SANITIZER)) || \
-    defined(DISABLE_NACL_BROWSERTESTS)
+#if defined(DISABLE_NACL) || (defined(OS_MACOSX) && defined(ADDRESS_SANITIZER))
 
 #define MAYBE_PPAPI_NACL(test_name) DISABLED_##test_name
 
@@ -1105,6 +1103,7 @@ IN_PROC_BROWSER_TEST_F(PPAPINaClPNaClNonSfiTest, MAYBE_PNACL_NONSFI(View)) {
   RunTest( \
       LIST_TEST(FlashMessageLoop_Basics) \
       LIST_TEST(FlashMessageLoop_RunWithoutQuit) \
+      LIST_TEST(FlashMessageLoop_SuspendScriptCallbackWhileRunning) \
   )
 
 #if defined(OS_LINUX)  // Disabled due to flakiness http://crbug.com/316925

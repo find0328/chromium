@@ -19,7 +19,7 @@
 class GURL;
 
 namespace mojo {
-class ApplicationDelegate;
+class ShellClient;
 }
 
 namespace content {
@@ -29,7 +29,7 @@ namespace content {
 class CONTENT_EXPORT MojoShellContext {
  public:
   using StaticApplicationMap =
-      std::map<GURL, base::Callback<scoped_ptr<mojo::ApplicationDelegate>()>>;
+      std::map<GURL, base::Callback<scoped_ptr<mojo::ShellClient>()>>;
 
   MojoShellContext();
   ~MojoShellContext();
@@ -41,8 +41,8 @@ class CONTENT_EXPORT MojoShellContext {
   static void ConnectToApplication(
       const GURL& url,
       const GURL& requestor_url,
-      mojo::InterfaceRequest<mojo::ServiceProvider> request,
-      mojo::ServiceProviderPtr exposed_services,
+      mojo::shell::mojom::InterfaceProviderRequest request,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services,
       const mojo::shell::CapabilityFilter& filter,
       const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback);
 
@@ -55,8 +55,8 @@ class CONTENT_EXPORT MojoShellContext {
   void ConnectToApplicationOnOwnThread(
       const GURL& url,
       const GURL& requestor_url,
-      mojo::InterfaceRequest<mojo::ServiceProvider> request,
-      mojo::ServiceProviderPtr exposed_services,
+      mojo::shell::mojom::InterfaceProviderRequest request,
+      mojo::shell::mojom::InterfaceProviderPtr exposed_services,
       const mojo::shell::CapabilityFilter& filter,
       const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback);
 

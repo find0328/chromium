@@ -24,11 +24,11 @@
 #include "components/mus/ws/server_window_delegate.h"
 #include "components/mus/ws/server_window_observer.h"
 #include "components/mus/ws/window_tree_host_impl.h"
-#include "mojo/common/weak_binding_set.h"
-#include "mojo/common/weak_interface_ptr_set.h"
 #include "mojo/converters/surfaces/custom_surface_converter.h"
 #include "mojo/public/cpp/bindings/array.h"
 #include "mojo/public/cpp/bindings/binding.h"
+#include "mojo/public/cpp/bindings/weak_binding_set.h"
+#include "mojo/public/cpp/bindings/weak_interface_ptr_set.h"
 
 namespace mus {
 namespace ws {
@@ -174,6 +174,7 @@ class ConnectionManager : public ServerWindowDelegate,
       const ServerWindow* window,
       const gfx::Insets& new_client_area,
       const std::vector<gfx::Rect>& new_additional_client_areas);
+  void ProcessLostCapture(const ServerWindow* window);
   void ProcessViewportMetricsChanged(WindowTreeHostImpl* host,
                                      const mojom::ViewportMetrics& old_metrics,
                                      const mojom::ViewportMetrics& new_metrics);

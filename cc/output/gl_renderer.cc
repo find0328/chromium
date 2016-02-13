@@ -655,7 +655,11 @@ static skia::RefPtr<SkImage> ApplyImageFilter(
   surface->getCanvas()->translate(-dst_rect.x(), -dst_rect.y());
   surface->getCanvas()->drawImage(srcImage.get(), src_rect.x(), src_rect.y(),
                                   &paint);
-
+  // Flush the drawing before source texture read lock goes out of scope.
+  // Skia API does not guarantee that when the SkImage goes out of scope,
+  // its externally referenced resources would force the rendering to be
+  // flushed.
+  surface->getCanvas()->flush();
   skia::RefPtr<SkImage> image = skia::AdoptRef(surface->newImageSnapshot());
   if (!image || !image->isTextureBacked()) {
     return skia::RefPtr<SkImage>();
@@ -862,6 +866,24 @@ skia::RefPtr<SkImage> GLRenderer::ApplyBackgroundFilters(
   return background_with_filters;
 }
 
+// Map device space quad to local space. Device_transform has no 3d
+// component since it was flattened, so we don't need to project.  We should
+// have already checked that the transform was uninvertible before this call.
+gfx::QuadF MapQuadToLocalSpace(const gfx::Transform& device_transform,
+                               const gfx::QuadF& device_quad) {
+  gfx::Transform inverse_device_transform(gfx::Transform::kSkipInitialization);
+  DCHECK(device_transform.IsInvertible());
+  bool did_invert = device_transform.GetInverse(&inverse_device_transform);
+  DCHECK(did_invert);
+  bool clipped = false;
+  gfx::QuadF local_quad =
+      MathUtil::MapQuad(inverse_device_transform, device_quad, &clipped);
+  // We should not DCHECK(!clipped) here, because anti-aliasing inflation may
+  // cause device_quad to become clipped. To our knowledge this scenario does
+  // not need to be handled differently than the unclipped case.
+  return local_quad;
+}
+
 void GLRenderer::DrawRenderPassQuad(DrawingFrame* frame,
                                     const RenderPassDrawQuad* quad,
                                     const gfx::QuadF* clip_region) {
@@ -986,7 +1008,6 @@ void GLRenderer::DrawRenderPassQuad(DrawingFrame* frame,
         // in the compositor.
         use_color_matrix = true;
       } else {
-        gfx::RectF src_rect = rect;
         gfx::Vector2dF scale = quad->filters_scale;
         SkMatrix scale_matrix;
         scale_matrix.setScale(scale.x(), scale.y());
@@ -994,13 +1015,28 @@ void GLRenderer::DrawRenderPassQuad(DrawingFrame* frame,
         filter->filterBounds(gfx::RectToSkIRect(quad->rect), scale_matrix,
                              &result_rect,
                              SkImageFilter::kForward_MapDirection);
-        rect = gfx::SkRectToRectF(SkRect::Make(result_rect));
+        gfx::RectF dst_rect = gfx::SkRectToRectF(SkRect::Make(result_rect));
+        gfx::Rect clip_rect = quad->shared_quad_state->clip_rect;
+        if (clip_rect.IsEmpty()) {
+          clip_rect = current_draw_rect_;
+        }
+        gfx::Transform transform =
+            quad->shared_quad_state->quad_to_target_transform;
+        gfx::QuadF clip_quad = gfx::QuadF(gfx::RectF(clip_rect));
+        gfx::QuadF local_clip = MapQuadToLocalSpace(transform, clip_quad);
+        dst_rect.Intersect(local_clip.BoundingBox());
+        // If we've been fully clipped out (by crop rect or clipping), there's
+        // nothing to draw.
+        if (dst_rect.IsEmpty()) {
+          return;
+        }
         filter_image = ApplyImageFilter(ScopedUseGrContext::Create(this, frame),
-                                        resource_provider_, src_rect, rect,
+                                        resource_provider_, rect, dst_rect,
                                         scale, filter.get(), contents_texture);
         if (filter_image) {
           filter_image_id = filter_image->getTextureHandle(true);
           DCHECK(filter_image_id);
+          rect = dst_rect;
         }
       }
     }
@@ -1382,24 +1418,6 @@ void AlignQuadToBoundingBox(gfx::QuadF* clipped_quad) {
     }
   }
   *clipped_quad = best_rotation;
-}
-
-// Map device space quad to local space. Device_transform has no 3d
-// component since it was flattened, so we don't need to project.  We should
-// have already checked that the transform was uninvertible before this call.
-gfx::QuadF MapQuadToLocalSpace(const gfx::Transform& device_transform,
-                               const gfx::QuadF& device_quad) {
-  gfx::Transform inverse_device_transform(gfx::Transform::kSkipInitialization);
-  DCHECK(device_transform.IsInvertible());
-  bool did_invert = device_transform.GetInverse(&inverse_device_transform);
-  DCHECK(did_invert);
-  bool clipped = false;
-  gfx::QuadF local_quad =
-      MathUtil::MapQuad(inverse_device_transform, device_quad, &clipped);
-  // We should not DCHECK(!clipped) here, because anti-aliasing inflation may
-  // cause device_quad to become clipped. To our knowledge this scenario does
-  // not need to be handled differently than the unclipped case.
-  return local_quad;
 }
 
 void InflateAntiAliasingDistances(const gfx::QuadF& quad,
@@ -2122,13 +2140,23 @@ void GLRenderer::DrawYUVVideoQuad(const DrawingFrame* frame,
       break;
   }
 
+  float yuv_to_rgb_multiplied[9];
+  float yuv_adjust_with_offset[3];
+
+  for (int i = 0; i < 9; ++i)
+    yuv_to_rgb_multiplied[i] = yuv_to_rgb[i] * quad->resource_multiplier;
+
+  for (int i = 0; i < 3; ++i)
+    yuv_adjust_with_offset[i] =
+        yuv_adjust[i] / quad->resource_multiplier - quad->resource_offset;
+
   // The transform and vertex data are used to figure out the extents that the
   // un-antialiased quad should have and which vertex this is and the float
   // quad passed in via uniform is the actual geometry that gets used to draw
   // it. This is why this centered rect is used and not the original quad_rect.
   auto tile_rect = gfx::RectF(quad->rect);
-  gl_->UniformMatrix3fv(yuv_matrix_location, 1, 0, yuv_to_rgb);
-  gl_->Uniform3fv(yuv_adj_location, 1, yuv_adjust);
+  gl_->UniformMatrix3fv(yuv_matrix_location, 1, 0, yuv_to_rgb_multiplied);
+  gl_->Uniform3fv(yuv_adj_location, 1, yuv_adjust_with_offset);
 
   SetShaderOpacity(quad->shared_quad_state->opacity, alpha_location);
   if (!clip_region) {

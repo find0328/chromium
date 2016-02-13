@@ -849,12 +849,16 @@ class AutofillManagerTest : public testing::Test {
   }
 
   // Fills the fields in |form| with test data.
-  void ManuallyFillAddressForm(FormData* form) {
+  void ManuallyFillAddressForm(const char* first_name,
+                               const char* last_name,
+                               const char* zip_code,
+                               const char* country,
+                               FormData* form) {
     for (FormFieldData& field : form->fields) {
       if (base::EqualsASCII(field.name, "firstname"))
-        field.value = ASCIIToUTF16("Flo");
+        field.value = ASCIIToUTF16(first_name);
       else if (base::EqualsASCII(field.name, "lastname"))
-        field.value = ASCIIToUTF16("Master");
+        field.value = ASCIIToUTF16(last_name);
       else if (base::EqualsASCII(field.name, "addr1"))
         field.value = ASCIIToUTF16("123 Maple");
       else if (base::EqualsASCII(field.name, "city"))
@@ -862,13 +866,13 @@ class AutofillManagerTest : public testing::Test {
       else if (base::EqualsASCII(field.name, "state"))
         field.value = ASCIIToUTF16("Texas");
       else if (base::EqualsASCII(field.name, "zipcode"))
-        field.value = ASCIIToUTF16("77401");
+        field.value = ASCIIToUTF16(zip_code);
       else if (base::EqualsASCII(field.name, "country"))
-        field.value = ASCIIToUTF16("US");
+        field.value = ASCIIToUTF16(country);
     }
   }
 
-  // Tests if credit card data gets saved
+  // Tests if credit card data gets saved.
   void TestSaveCreditCards(bool is_https) {
     // Set up our form data.
     FormData form;
@@ -876,7 +880,7 @@ class AutofillManagerTest : public testing::Test {
     std::vector<FormData> forms(1, form);
     FormsSeen(forms);
 
-    // Edit the data, and submit
+    // Edit the data, and submit.
     form.fields[1].value = ASCIIToUTF16("4111111111111111");
     form.fields[2].value = ASCIIToUTF16("11");
     form.fields[3].value = ASCIIToUTF16("2017");
@@ -897,7 +901,6 @@ class AutofillManagerTest : public testing::Test {
                             "2017");
     card->SetTypeForMaskedCard(kVisaCard);
 
-    EXPECT_CALL(autofill_client_, ConfirmSaveCreditCardLocally(_, _)).Times(0);
     EXPECT_CALL(*autofill_driver_, SendFormDataToRenderer(_, _, _))
         .Times(AtLeast(1));
     autofill_manager_->FillOrPreviewCreditCardForm(
@@ -3247,7 +3250,7 @@ TEST_F(AutofillManagerTest, CreditCardSavedWhenAutocompleteOff) {
   std::vector<FormData> forms(1, form);
   FormsSeen(forms);
 
-  // Edit the data, and submit
+  // Edit the data, and submit.
   form.fields[1].value = ASCIIToUTF16("4111111111111111");
   form.fields[2].value = ASCIIToUTF16("11");
   form.fields[3].value = ASCIIToUTF16("2017");
@@ -3358,9 +3361,10 @@ TEST_F(AutofillManagerTest, DeterminePossibleFieldTypesForUpload) {
       {"12", CREDIT_CARD_EXP_2_DIGIT_YEAR},
       {"04/2012", CREDIT_CARD_EXP_DATE_4_DIGIT_YEAR},
 
-      // Make sure whitespaces are trimmed properly.
+      // Make sure whitespaces and invalid characters are handled properly.
       {"", EMPTY_TYPE},
       {" ", EMPTY_TYPE},
+      {"***", UNKNOWN_TYPE},
       {" Elvis", NAME_FIRST},
       {"Elvis ", NAME_FIRST},
 
@@ -3828,25 +3832,6 @@ TEST_F(AutofillManagerTest, DontOfferToSavePaymentsCard) {
   autofill_manager_->OnDidGetRealPan(AutofillClient::SUCCESS,
                                      "4012888888881881");
   autofill_manager_->OnFormSubmitted(form);
-
-  // The rest of this test is a regression test for http://crbug.com/483602.
-  // The goal is not to crash.
-  EXPECT_CALL(*autofill_driver_, SendFormDataToRenderer(_, _, _));
-  for (size_t i = 0; i < form.fields.size(); ++i) {
-    form.fields[i].value.clear();
-  }
-  autofill_manager_->FillOrPreviewCreditCardForm(
-      AutofillDriver::FORM_DATA_ACTION_FILL, kDefaultPageID, form,
-      form.fields[1], card);
-  autofill_manager_->OnUnmaskResponse(response);
-  autofill_manager_->OnDidGetRealPan(AutofillClient::SUCCESS,
-                                     "4012888888881881");
-
-  form = FormData();
-  test::CreateTestAddressFormData(&form);
-  FormsSeen(std::vector<FormData>(1, form));
-  ManuallyFillAddressForm(&form);
-  autofill_manager_->OnFormSubmitted(form);
 }
 
 TEST_F(AutofillManagerTest, FillInUpdatedExpirationDate) {
@@ -3879,7 +3864,7 @@ TEST_F(AutofillManagerTest, UploadCreditCard) {
   FormData address_form;
   test::CreateTestAddressFormData(&address_form);
   FormsSeen(std::vector<FormData>(1, address_form));
-  ManuallyFillAddressForm(&address_form);
+  ManuallyFillAddressForm("Flo", "Master", "77401", "US", &address_form);
   FormSubmitted(address_form);
 
   // Set up our credit card form data.
@@ -3887,7 +3872,7 @@ TEST_F(AutofillManagerTest, UploadCreditCard) {
   CreateTestCreditCardFormData(&credit_card_form, true, false);
   FormsSeen(std::vector<FormData>(1, credit_card_form));
 
-  // Edit the data, and submit
+  // Edit the data, and submit.
   credit_card_form.fields[0].value = ASCIIToUTF16("Flo Master");
   credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
   credit_card_form.fields[2].value = ASCIIToUTF16("11");
@@ -3900,11 +3885,11 @@ TEST_F(AutofillManagerTest, UploadCreditCard) {
   EXPECT_TRUE(autofill_manager_->credit_card_was_uploaded());
 
   // Verify that the correct histogram entry (and only that) was logged.
-  histogram_tester.ExpectUniqueSample("Autofill.CardUploadDecision",
+  histogram_tester.ExpectUniqueSample("Autofill.CardUploadDecisionExpanded",
                                       AutofillMetrics::UPLOAD_OFFERED, 1);
 }
 
-TEST_F(AutofillManagerTest, DontUploadCreditCardIfFeatureNotEnabled) {
+TEST_F(AutofillManagerTest, UploadCreditCard_FeatureNotEnabled) {
   autofill_manager_->set_credit_card_upload_enabled(false);
 
   // Create, fill and submit an address form in order to establish a recent
@@ -3912,7 +3897,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfFeatureNotEnabled) {
   FormData address_form;
   test::CreateTestAddressFormData(&address_form);
   FormsSeen(std::vector<FormData>(1, address_form));
-  ManuallyFillAddressForm(&address_form);
+  ManuallyFillAddressForm("Flo", "Master", "77401", "US", &address_form);
   FormSubmitted(address_form);
 
   // Set up our credit card form data.
@@ -3920,7 +3905,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfFeatureNotEnabled) {
   CreateTestCreditCardFormData(&credit_card_form, true, false);
   FormsSeen(std::vector<FormData>(1, credit_card_form));
 
-  // Edit the data, and submit
+  // Edit the data, and submit.
   credit_card_form.fields[0].value = ASCIIToUTF16("Flo Master");
   credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
   credit_card_form.fields[2].value = ASCIIToUTF16("11");
@@ -3935,10 +3920,10 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfFeatureNotEnabled) {
   EXPECT_FALSE(autofill_manager_->credit_card_was_uploaded());
 
   // Verify that no histogram entry was logged called.
-  histogram_tester.ExpectTotalCount("Autofill.CardUploadDecision", 0);
+  histogram_tester.ExpectTotalCount("Autofill.CardUploadDecisionExpanded", 0);
 }
 
-TEST_F(AutofillManagerTest, DontUploadCreditCardIfCvcUnavailable) {
+TEST_F(AutofillManagerTest, UploadCreditCard_CvcUnavailable) {
   autofill_manager_->set_credit_card_upload_enabled(true);
 
   // Create, fill and submit an address form in order to establish a recent
@@ -3946,7 +3931,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfCvcUnavailable) {
   FormData address_form;
   test::CreateTestAddressFormData(&address_form);
   FormsSeen(std::vector<FormData>(1, address_form));
-  ManuallyFillAddressForm(&address_form);
+  ManuallyFillAddressForm("Flo", "Master", "77401", "US", &address_form);
   FormSubmitted(address_form);
 
   // Set up our credit card form data.
@@ -3954,7 +3939,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfCvcUnavailable) {
   CreateTestCreditCardFormData(&credit_card_form, true, false);
   FormsSeen(std::vector<FormData>(1, credit_card_form));
 
-  // Edit the data, and submit
+  // Edit the data, and submit.
   credit_card_form.fields[0].value = ASCIIToUTF16("Flo Master");
   credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
   credit_card_form.fields[2].value = ASCIIToUTF16("11");
@@ -3970,28 +3955,21 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfCvcUnavailable) {
 
   // Verify that the correct histogram entry (and only that) was logged.
   histogram_tester.ExpectUniqueSample(
-      "Autofill.CardUploadDecision", AutofillMetrics::UPLOAD_NOT_OFFERED_NO_CVC,
-      1);
+      "Autofill.CardUploadDecisionExpanded",
+      AutofillMetrics::UPLOAD_NOT_OFFERED_NO_CVC, 1);
 }
 
-TEST_F(AutofillManagerTest, DontUploadCreditCardIfNoMatchingProfileAvailable) {
+TEST_F(AutofillManagerTest, UploadCreditCard_NoProfileAvailable) {
   autofill_manager_->set_credit_card_upload_enabled(true);
 
-  // Create, fill and submit an address form in order to establish a recent
-  // profile which can be selected for the upload request.
-  FormData address_form;
-  test::CreateTestAddressFormData(&address_form);
-  FormsSeen(std::vector<FormData>(1, address_form));
-  ManuallyFillAddressForm(&address_form);
-  FormSubmitted(address_form);
+  // Don't fill or submit an address form.
 
   // Set up our credit card form data.
   FormData credit_card_form;
   CreateTestCreditCardFormData(&credit_card_form, true, false);
   FormsSeen(std::vector<FormData>(1, credit_card_form));
 
-  // Edit the data, and submit
-  // The address form has "Flo Master" but the credit card has "Bob Master".
+  // Edit the data, and submit.
   credit_card_form.fields[0].value = ASCIIToUTF16("Bob Master");
   credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
   credit_card_form.fields[2].value = ASCIIToUTF16("11");
@@ -4007,11 +3985,177 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfNoMatchingProfileAvailable) {
 
   // Verify that the correct histogram entry (and only that) was logged.
   histogram_tester.ExpectUniqueSample(
-      "Autofill.CardUploadDecision",
+      "Autofill.CardUploadDecisionExpanded",
       AutofillMetrics::UPLOAD_NOT_OFFERED_NO_ADDRESS, 1);
 }
 
-TEST_F(AutofillManagerTest, DontUploadCreditCardIfUploadDetailsFails) {
+TEST_F(AutofillManagerTest, UploadCreditCard_NoNameAvailable) {
+  autofill_manager_->set_credit_card_upload_enabled(true);
+
+  // Create, fill and submit an address form in order to establish a recent
+  // profile which can be selected for the upload request.
+  FormData address_form;
+  test::CreateTestAddressFormData(&address_form);
+  FormsSeen(std::vector<FormData>(1, address_form));
+  // But omit the name:
+  ManuallyFillAddressForm("", "", "77401", "US", &address_form);
+  FormSubmitted(address_form);
+
+  // Set up our credit card form data.
+  FormData credit_card_form;
+  CreateTestCreditCardFormData(&credit_card_form, true, false);
+  FormsSeen(std::vector<FormData>(1, credit_card_form));
+
+  // Edit the data, but don't include a name, and submit.
+  credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
+  credit_card_form.fields[2].value = ASCIIToUTF16("11");
+  credit_card_form.fields[3].value = ASCIIToUTF16("2017");
+  credit_card_form.fields[4].value = ASCIIToUTF16("123");
+
+  base::HistogramTester histogram_tester;
+
+  // Neither a local save nor an upload should happen in this case.
+  EXPECT_CALL(autofill_client_, ConfirmSaveCreditCardLocally(_, _)).Times(0);
+  FormSubmitted(credit_card_form);
+  EXPECT_FALSE(autofill_manager_->credit_card_was_uploaded());
+
+  // Verify that the correct histogram entry (and only that) was logged.
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.CardUploadDecisionExpanded",
+      AutofillMetrics::UPLOAD_NOT_OFFERED_NO_NAME, 1);
+}
+
+TEST_F(AutofillManagerTest, UploadCreditCard_ZipCodesConflict) {
+  autofill_manager_->set_credit_card_upload_enabled(true);
+
+  // Create, fill and submit two address forms with different zip codes.
+  FormData address_form1, address_form2;
+  test::CreateTestAddressFormData(&address_form1);
+  test::CreateTestAddressFormData(&address_form2);
+
+  std::vector<FormData> address_forms;
+  address_forms.push_back(address_form1);
+  address_forms.push_back(address_form2);
+  FormsSeen(address_forms);
+
+  ManuallyFillAddressForm("Flo", "Master", "77401", "US", &address_form1);
+  FormSubmitted(address_form1);
+
+  ManuallyFillAddressForm("Flo", "Master", "10477", "US", &address_form2);
+  FormSubmitted(address_form2);
+
+  // Set up our credit card form data.
+  FormData credit_card_form;
+  CreateTestCreditCardFormData(&credit_card_form, true, false);
+  FormsSeen(std::vector<FormData>(1, credit_card_form));
+
+  // Edit the data, but don't include a name, and submit.
+  credit_card_form.fields[0].value = ASCIIToUTF16("Flo Master");
+  credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
+  credit_card_form.fields[2].value = ASCIIToUTF16("11");
+  credit_card_form.fields[3].value = ASCIIToUTF16("2017");
+  credit_card_form.fields[4].value = ASCIIToUTF16("123");
+
+  base::HistogramTester histogram_tester;
+
+  // Neither a local save nor an upload should happen in this case.
+  EXPECT_CALL(autofill_client_, ConfirmSaveCreditCardLocally(_, _)).Times(0);
+  FormSubmitted(credit_card_form);
+  EXPECT_FALSE(autofill_manager_->credit_card_was_uploaded());
+
+  // Verify that the correct histogram entry (and only that) was logged.
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.CardUploadDecisionExpanded",
+      AutofillMetrics::UPLOAD_NOT_OFFERED_CONFLICTING_ZIPS, 1);
+}
+
+TEST_F(AutofillManagerTest, UploadCreditCard_NoZipCodeAvailable) {
+  autofill_manager_->set_credit_card_upload_enabled(true);
+
+  // Create, fill and submit an address form in order to establish a recent
+  // profile which can be selected for the upload request.
+  FormData address_form;
+  test::CreateTestAddressFormData(&address_form);
+  FormsSeen(std::vector<FormData>(1, address_form));
+  // Autofill's validation requirements for Venezuala ("VE", see
+  // src/components/autofill/core/browser/country_data.cc) do not require zip
+  // codes. We use Venezuala here because to use the US (or one of many other
+  // countries which autofill requires a zip code for) would result in no
+  // address being imported at all, and then we never reach the check for
+  // missing zip code in the upload code.
+  ManuallyFillAddressForm("Flo", "Master", "" /* zip_code */, "Venezuela",
+                          &address_form);
+  FormSubmitted(address_form);
+
+  // Set up our credit card form data.
+  FormData credit_card_form;
+  CreateTestCreditCardFormData(&credit_card_form, true, false);
+  FormsSeen(std::vector<FormData>(1, credit_card_form));
+
+  // Edit the data, and submit.
+  credit_card_form.fields[0].value = ASCIIToUTF16("Flo Master");
+  credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
+  credit_card_form.fields[2].value = ASCIIToUTF16("11");
+  credit_card_form.fields[3].value = ASCIIToUTF16("2017");
+  credit_card_form.fields[4].value = ASCIIToUTF16("123");
+
+  base::HistogramTester histogram_tester;
+
+  // Neither a local save nor an upload should happen in this case.
+  EXPECT_CALL(autofill_client_, ConfirmSaveCreditCardLocally(_, _)).Times(0);
+  FormSubmitted(credit_card_form);
+  EXPECT_FALSE(autofill_manager_->credit_card_was_uploaded());
+
+  // Verify that the correct histogram entry (and only that) was logged.
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.CardUploadDecisionExpanded",
+      AutofillMetrics::UPLOAD_NOT_OFFERED_NO_ZIP_CODE, 1);
+}
+
+TEST_F(AutofillManagerTest, UploadCreditCard_NamesDontHaveToMatch) {
+  autofill_manager_->set_credit_card_upload_enabled(true);
+
+  // Create, fill and submit two address forms with different names.
+  FormData address_form1, address_form2;
+  test::CreateTestAddressFormData(&address_form1);
+  test::CreateTestAddressFormData(&address_form2);
+
+  std::vector<FormData> address_forms;
+  address_forms.push_back(address_form1);
+  address_forms.push_back(address_form2);
+  FormsSeen(address_forms);
+
+  ManuallyFillAddressForm("Flo", "Master", "", "US", &address_form1);
+  FormSubmitted(address_form1);
+
+  ManuallyFillAddressForm("Master", "Blaster", "77401", "US", &address_form2);
+  FormSubmitted(address_form2);
+
+  // Set up our credit card form data.
+  FormData credit_card_form;
+  CreateTestCreditCardFormData(&credit_card_form, true, false);
+  FormsSeen(std::vector<FormData>(1, credit_card_form));
+
+  // Edit the data, but use yet another name, and submit.
+  credit_card_form.fields[0].value = ASCIIToUTF16("Bob Master");
+  credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
+  credit_card_form.fields[2].value = ASCIIToUTF16("11");
+  credit_card_form.fields[3].value = ASCIIToUTF16("2017");
+  credit_card_form.fields[4].value = ASCIIToUTF16("123");
+
+  base::HistogramTester histogram_tester;
+
+  // Names are not required to match, upload should happen.
+  EXPECT_CALL(autofill_client_, ConfirmSaveCreditCardLocally(_, _)).Times(0);
+  FormSubmitted(credit_card_form);
+  EXPECT_TRUE(autofill_manager_->credit_card_was_uploaded());
+
+  // Verify that the correct histogram entry (and only that) was logged.
+  histogram_tester.ExpectUniqueSample("Autofill.CardUploadDecisionExpanded",
+                                      AutofillMetrics::UPLOAD_OFFERED, 1);
+}
+
+TEST_F(AutofillManagerTest, UploadCreditCard_UploadDetailsFails) {
   autofill_manager_->set_credit_card_upload_enabled(true);
 
   // Anything other than "en-US" will cause GetUploadDetails to return a failure
@@ -4023,7 +4167,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfUploadDetailsFails) {
   FormData address_form;
   test::CreateTestAddressFormData(&address_form);
   FormsSeen(std::vector<FormData>(1, address_form));
-  ManuallyFillAddressForm(&address_form);
+  ManuallyFillAddressForm("Flo", "Master", "77401", "US", &address_form);
   FormSubmitted(address_form);
 
   // Set up our credit card form data.
@@ -4031,7 +4175,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfUploadDetailsFails) {
   CreateTestCreditCardFormData(&credit_card_form, true, false);
   FormsSeen(std::vector<FormData>(1, credit_card_form));
 
-  // Edit the data, and submit
+  // Edit the data, and submit.
   credit_card_form.fields[0].value = ASCIIToUTF16("Flo Master");
   credit_card_form.fields[1].value = ASCIIToUTF16("4111111111111111");
   credit_card_form.fields[2].value = ASCIIToUTF16("11");
@@ -4047,7 +4191,7 @@ TEST_F(AutofillManagerTest, DontUploadCreditCardIfUploadDetailsFails) {
 
   // Verify that the correct histogram entry (and only that) was logged.
   histogram_tester.ExpectUniqueSample(
-      "Autofill.CardUploadDecision",
+      "Autofill.CardUploadDecisionExpanded",
       AutofillMetrics::UPLOAD_NOT_OFFERED_GET_UPLOAD_DETAILS_FAILED, 1);
 }
 
@@ -4253,6 +4397,19 @@ TEST_F(AutofillManagerTest, ShouldUploadForm) {
   // Make sure it's reset for the next test case.
   autofill_driver_->SetIsOffTheRecord(false);
   EXPECT_TRUE(autofill_manager_->ShouldUploadForm(form_structure_4));
+
+  // Has one field which is a password field.
+  form.fields.clear();
+  test::CreateTestFormField("Password", "pw", "", "password", &field);
+  form.fields.push_back(field);
+  FormStructure form_structure_5(form);
+  EXPECT_FALSE(autofill_manager_->ShouldUploadForm(form_structure_5));
+
+  // Has two fields which are password fields.
+  test::CreateTestFormField("New Password", "new_pw", "", "password", &field);
+  form.fields.push_back(field);
+  FormStructure form_structure_6(form);
+  EXPECT_TRUE(autofill_manager_->ShouldUploadForm(form_structure_6));
 
   // Autofill disabled.
   autofill_manager_->set_autofill_enabled(false);

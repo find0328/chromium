@@ -334,7 +334,6 @@ bool StartupBrowserCreatorImpl::Launch(Profile* profile,
       params.current_directory = cur_dir_;
       // If we are being launched from the command line, default to native
       // desktop.
-      params.desktop_type = chrome::HOST_DESKTOP_TYPE_NATIVE;
       ::OpenApplicationWithReenablePrompt(params);
       return true;
     }
@@ -390,7 +389,7 @@ bool StartupBrowserCreatorImpl::Launch(Profile* profile,
   // Active Setup versioning and on OS upgrades) instead of every startup.
   // http://crbug.com/577697
   if (process_startup)
-    ShellIntegration::MigrateTaskbarPins();
+    shell_integration::MigrateTaskbarPins();
 #endif  // defined(OS_WIN)
 
   return true;
@@ -630,7 +629,7 @@ bool StartupBrowserCreatorImpl::ProcessStartupURLs(
     // The startup code only executes for browsers launched in desktop mode.
     // i.e. HOST_DESKTOP_TYPE_NATIVE. Ash should never get here.
     Browser* browser = SessionRestore::RestoreSession(
-        profile_, NULL, desktop_type, restore_behavior, adjusted_urls);
+        profile_, NULL, restore_behavior, adjusted_urls);
 
     AddInfoBarsIfNecessary(browser, chrome::startup::IS_PROCESS_STARTUP);
     return true;
@@ -744,7 +743,7 @@ Browser* StartupBrowserCreatorImpl::OpenTabsInBrowser(
     profile_ = browser->profile();
 
   if (!browser || !browser->is_type_tabbed())
-    browser = new Browser(Browser::CreateParams(profile_, desktop_type));
+    browser = new Browser(Browser::CreateParams(profile_));
 
   bool first_tab = true;
   ProtocolHandlerRegistry* registry = profile_ ?
@@ -829,8 +828,7 @@ void StartupBrowserCreatorImpl::AddInfoBarsIfNecessary(
       if (!is_first_run_ ||
           (browser_creator_ &&
            browser_creator_->is_default_browser_dialog_suppressed())) {
-        chrome::ShowDefaultBrowserPrompt(profile_,
-                                         browser->host_desktop_type());
+        chrome::ShowDefaultBrowserPrompt(profile_);
       }
     }
 #endif
@@ -987,7 +985,7 @@ void StartupBrowserCreatorImpl::InitializeWelcomeRunType(
 
     // Do not welcome if Chrome was the default browser at startup.
     if (g_browser_process->CachedDefaultWebClientState() ==
-        ShellIntegration::IS_DEFAULT) {
+        shell_integration::IS_DEFAULT) {
       return;
     }
 

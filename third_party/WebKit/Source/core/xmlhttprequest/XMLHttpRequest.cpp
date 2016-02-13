@@ -38,6 +38,7 @@
 #include "core/dom/XMLDocument.h"
 #include "core/editing/serializers/Serialization.h"
 #include "core/events/Event.h"
+#include "core/events/ProgressEvent.h"
 #include "core/fetch/CrossOriginAccessControl.h"
 #include "core/fetch/FetchInitiatorTypeNames.h"
 #include "core/fetch/FetchUtils.h"
@@ -59,7 +60,6 @@
 #include "core/page/ChromeClient.h"
 #include "core/page/Page.h"
 #include "core/streams/Stream.h"
-#include "core/xmlhttprequest/XMLHttpRequestProgressEvent.h"
 #include "core/xmlhttprequest/XMLHttpRequestUpload.h"
 #include "platform/FileMetadata.h"
 #include "platform/HTTPNames.h"
@@ -863,7 +863,7 @@ void XMLHttpRequest::createRequest(PassRefPtr<EncodedFormData> httpBody, Excepti
         dispatchProgressEvent(EventTypeNames::loadstart, 0, 0);
         if (httpBody && m_upload) {
             uploadEvents = m_upload->hasEventListeners();
-            m_upload->dispatchEvent(XMLHttpRequestProgressEvent::create(EventTypeNames::loadstart));
+            m_upload->dispatchEvent(ProgressEvent::create(EventTypeNames::loadstart, false, 0, 0));
         }
     }
 
@@ -1206,7 +1206,7 @@ void XMLHttpRequest::setRequestHeaderInternal(const AtomicString& name, const At
     if (!normalizedValue.isEmpty() && !isValidHTTPFieldContentRFC7230(normalizedValue))
         headerValueCategory = HeaderValueInvalid;
 
-    DEFINE_STATIC_LOCAL(EnumerationHistogram, headerValueCategoryHistogram, ("Blink.XHR.setRequestHeader.HeaderValueCategoryInRFC7230", HeaderValueCategoryByRFC7230End));
+    DEFINE_THREAD_SAFE_STATIC_LOCAL(EnumerationHistogram, headerValueCategoryHistogram, new EnumerationHistogram("Blink.XHR.setRequestHeader.HeaderValueCategoryInRFC7230", HeaderValueCategoryByRFC7230End));
     headerValueCategoryHistogram.count(headerValueCategory);
 }
 

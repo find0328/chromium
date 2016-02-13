@@ -88,6 +88,7 @@ Layer::Layer(const LayerSettings& settings)
       force_render_surface_(false),
       transform_is_invertible_(true),
       has_render_surface_(false),
+      subtree_property_changed_(false),
       background_color_(0),
       opacity_(1.f),
       blend_mode_(SkXfermode::kSrcOver_Mode),
@@ -365,15 +366,7 @@ void Layer::SetBounds(const gfx::Size& size) {
   if (!layer_tree_host_)
     return;
 
-  if (ClipNode* clip_node = layer_tree_host_->property_trees()->clip_tree.Node(
-          clip_tree_index())) {
-    if (clip_node->owner_id == id()) {
-      clip_node->data.clip.set_size(gfx::SizeF(size));
-      layer_tree_host_->property_trees()->clip_tree.set_needs_update(true);
-    }
-  }
-
-  SetNeedsCommitNoRebuild();
+  SetNeedsCommit();
 }
 
 Layer* Layer::RootLayer() {
@@ -424,6 +417,7 @@ void Layer::RequestCopyOfOutput(
   if (request->IsEmpty())
     return;
   copy_requests_.push_back(std::move(request));
+  SetSubtreePropertyChanged();
   SetNeedsCommit();
 }
 
@@ -460,6 +454,7 @@ void Layer::SetMasksToBounds(bool masks_to_bounds) {
     return;
   masks_to_bounds_ = masks_to_bounds;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::SetMaskLayer(Layer* mask_layer) {
@@ -477,6 +472,7 @@ void Layer::SetMaskLayer(Layer* mask_layer) {
     mask_layer_->SetParent(this);
     mask_layer_->SetIsMask(true);
   }
+  SetSubtreePropertyChanged();
   SetNeedsFullTreeSync();
 }
 
@@ -494,6 +490,7 @@ void Layer::SetReplicaLayer(Layer* layer) {
     replica_layer_->RemoveFromParent();
     replica_layer_->SetParent(this);
   }
+  SetSubtreePropertyChanged();
   SetNeedsFullTreeSync();
 }
 
@@ -610,6 +607,7 @@ void Layer::SetBlendMode(SkXfermode::Mode blend_mode) {
 
   blend_mode_ = blend_mode;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::SetIsRootForIsolatedGroup(bool root) {
@@ -626,6 +624,7 @@ void Layer::SetContentsOpaque(bool opaque) {
     return;
   contents_opaque_ = opaque;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::SetPosition(const gfx::PointF& position) {
@@ -942,6 +941,10 @@ void Layer::SetScrollClipLayerId(int clip_layer_id) {
   SetNeedsCommit();
 }
 
+Layer* Layer::scroll_clip_layer() const {
+  return layer_tree_host()->LayerById(scroll_clip_layer_id_);
+}
+
 void Layer::SetUserScrollable(bool horizontal, bool vertical) {
   DCHECK(IsPropertyChangeAllowed());
   if (user_scrollable_horizontal_ == horizontal &&
@@ -1002,6 +1005,7 @@ void Layer::SetDoubleSided(bool double_sided) {
     return;
   double_sided_ = double_sided;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::Set3dSortingContextId(int id) {
@@ -1010,6 +1014,7 @@ void Layer::Set3dSortingContextId(int id) {
     return;
   sorting_context_id_ = id;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::SetTransformTreeIndex(int index) {
@@ -1093,6 +1098,7 @@ void Layer::SetShouldFlattenTransform(bool should_flatten) {
     return;
   should_flatten_transform_ = should_flatten;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::SetUseParentBackfaceVisibility(bool use) {
@@ -1134,6 +1140,7 @@ void Layer::SetHideLayerAndSubtree(bool hide) {
 
   hide_layer_and_subtree_ = hide;
   SetNeedsCommit();
+  SetSubtreePropertyChanged();
 }
 
 void Layer::SetNeedsDisplayRect(const gfx::Rect& dirty_rect) {
@@ -1222,6 +1229,10 @@ void Layer::PushPropertiesTo(LayerImpl* layer) {
   layer->SetDrawsContent(DrawsContent());
   layer->SetHideLayerAndSubtree(hide_layer_and_subtree_);
   layer->SetHasRenderSurface(has_render_surface_);
+  // subtree_property_changed_ is propagated to all descendants while building
+  // property trees. So, it is enough to check it only for the current layer.
+  if (subtree_property_changed_)
+    layer->NoteLayerPropertyChanged();
   layer->SetForceRenderSurface(force_render_surface_);
   if (!layer->FilterIsAnimatingOnImplOnly() && !FilterIsAnimating())
     layer->SetFilters(filters_);
@@ -1359,6 +1370,7 @@ void Layer::PushPropertiesTo(LayerImpl* layer) {
 
   // Reset any state that should be cleared for the next update.
   stacking_order_changed_ = false;
+  subtree_property_changed_ = false;
   update_rect_ = gfx::Rect();
 
   needs_push_properties_ = false;
@@ -1392,19 +1404,35 @@ void Layer::FromLayerNodeProto(const proto::LayerNode& proto,
   DCHECK(proto.has_id());
   layer_id_ = proto.id();
 
-  // Recursively remove all children. In the case of when the updated
-  // hierarchy has no children, or the children has changed, the old list
-  // of children must be removed. The whole hierarchy is always sent, so
-  // if there were no change in the children, they will be correctly added back
-  // below.
-  RemoveAllChildren();
+  // To deserialize the new children, make a copy of the old list, before
+  // inserting each of the new children in a new list, reusing old Layer objects
+  // if the Layer already exists.
+  LayerList old_children = children_;
+  children_.clear();
   for (int i = 0; i < proto.children_size(); ++i) {
     const proto::LayerNode& child_proto = proto.children(i);
     DCHECK(child_proto.has_type());
     scoped_refptr<Layer> child =
         LayerProtoConverter::FindOrAllocateAndConstruct(child_proto, layer_map);
     child->FromLayerNodeProto(child_proto, layer_map);
-    AddChild(child);
+    children_.push_back(child);
+    // The child must now refer to this layer as its parent, and must also have
+    // the same LayerTreeHost.
+    child->parent_ = this;
+    child->layer_tree_host_ = layer_tree_host_;
+  }
+
+  // Remove now-unused children from the tree.
+  for (auto& child : old_children) {
+    // A child might have been moved to a different parent.
+    if (child->parent_ != this)
+      continue;
+    // Our own child is not part of our new children, so remove it.
+    if (std::find(children_.begin(), children_.end(), child) ==
+        children_.end()) {
+      child->parent_ = nullptr;
+      child->layer_tree_host_ = nullptr;
+    }
   }
 
   if (mask_layer_)
@@ -1494,6 +1522,7 @@ void Layer::LayerSpecificPropertiesToProto(proto::LayerProperties* proto) {
   base->set_draws_content(draws_content_);
   base->set_hide_layer_and_subtree(hide_layer_and_subtree_);
   base->set_has_render_surface(has_render_surface_);
+  base->set_subtree_property_changed(subtree_property_changed_);
 
   // TODO(nyquist): Add support for serializing FilterOperations for
   // |filters_| and |background_filters_|. See crbug.com/541321.
@@ -1582,6 +1611,7 @@ void Layer::FromLayerSpecificPropertiesProto(
   draws_content_ = base.draws_content();
   hide_layer_and_subtree_ = base.hide_layer_and_subtree();
   has_render_surface_ = base.has_render_surface();
+  subtree_property_changed_ = base.subtree_property_changed();
   masks_to_bounds_ = base.masks_to_bounds();
   main_thread_scrolling_reasons_ = base.main_thread_scrolling_reasons();
   non_fast_scrollable_region_ =
@@ -1675,14 +1705,6 @@ void Layer::UpdateDrawsContent(bool has_drawable_content) {
   if (draws_content == draws_content_)
     return;
 
-  if (HasDelegatedContent()) {
-    // Layers with delegated content need to be treated as if they have as
-    // many children as the number of layers they own delegated quads for.
-    // Since we don't know this number right now, we choose one that acts like
-    // infinity for our purposes.
-    AddDrawableDescendants(draws_content ? 1000 : -1000);
-  }
-
   if (parent())
     parent()->AddDrawableDescendants(draws_content ? 1 : -1);
 
@@ -1730,6 +1752,13 @@ void Layer::SetHasRenderSurface(bool has_render_surface) {
   has_render_surface_ = has_render_surface;
   // We do not need SetNeedsCommit here, since this is only ever called
   // during a commit, from CalculateDrawProperties using property trees.
+  SetNeedsPushProperties();
+}
+
+void Layer::SetSubtreePropertyChanged() {
+  if (subtree_property_changed_)
+    return;
+  subtree_property_changed_ = true;
   SetNeedsPushProperties();
 }
 
@@ -1947,10 +1976,6 @@ void Layer::AddDrawableDescendants(int num) {
 
 void Layer::RunMicroBenchmark(MicroBenchmark* benchmark) {
   benchmark->RunOnLayer(this);
-}
-
-bool Layer::HasDelegatedContent() const {
-  return false;
 }
 
 void Layer::SetFrameTimingRequests(

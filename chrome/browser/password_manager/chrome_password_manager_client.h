@@ -59,6 +59,7 @@ class ChromePasswordManagerClient
       base::Callback<void(const password_manager::CredentialInfo&)> callback)
       override;
   void ForceSavePassword() override;
+  void GeneratePassword() override;
   void NotifyUserAutoSignin(
       ScopedVector<autofill::PasswordForm> local_forms) override;
   void NotifyUserAutoSigninBlockedOnFirstRun(
@@ -138,8 +139,9 @@ class ChromePasswordManagerClient
                                 const autofill::PasswordForm& form);
 
   // Shows the dialog where the user can accept or decline the global autosignin
-  // setting as a first run experience.
-  void PromptUserToEnableAutosignin();
+  // setting as a first run experience. The dialog won't appear in Incognito or
+  // when the autosign-in is off.
+  void PromptUserToEnableAutosigninIfNecessary();
 
   // Notify the PasswordManager that generation is available for |form|. Used
   // for UMA stats.

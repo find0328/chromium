@@ -54,6 +54,7 @@ source_set("main_lib") {
 
     deps += [
       ":jni_headers",
+      "//base:i18n",
       "//components/mus",
       "//components/mus/ws:lib",
       "//mojo/shell",
@@ -79,7 +80,7 @@ executable("standalone") {
     deps += [
       ":lib",
       ":register_local_aliases_fwd",
-      "//third_party/mojo/src/mojo/edk/system",
+      "//mojo/edk/system",
     ]
 
     # On android, the executable is also the native library used by the apk.
@@ -104,9 +105,8 @@ source_set("lib") {
     "//base",
     "//base:base_static",
     "//base/third_party/dynamic_annotations",
-    "//components/devtools_service/public/cpp",
-    "//components/devtools_service/public/interfaces",
     "//components/tracing:startup_tracing",
+    "//mojo/edk/system",
     "//mojo/message_pump",
     "//mojo/services/network/public/interfaces",
     "//mojo/services/tracing/public/cpp",
@@ -118,7 +118,6 @@ source_set("lib") {
     "//mojo/shell/runner/child:interfaces",
     "//mojo/shell/runner/host:lib",
     "//mojo/util:filename_util",
-    "//third_party/mojo/src/mojo/edk/system",
     "//ui/gl",
     "//url",
   ]
@@ -131,7 +130,6 @@ source_set("lib") {
 
   if (!is_component_build) {
     data_deps = [
-      "//components/devtools_service",
       "//mojo/services/tracing",
     ]
   }
@@ -264,8 +262,6 @@ if (is_android) {
     testonly = true
     deps = [
       ":android_assets",
-      "//components/clipboard:apptests_assets",
-      "//components/clipboard:clipboard_assets",
       "//components/mus/ws:apptests_assets",
       "//components/resource_provider:apptests_assets",
       "//components/resource_provider:resource_provider_assets",

@@ -15,11 +15,12 @@ cr.define('media_router.ui', function() {
    *
    * @param {string} sinkId The ID of the sink to which the Media Route was
    *     creating a route.
-   * @param {string} routeId The ID of the newly created route that corresponds
-   *     to the sink if route creation succeeded; empty otherwise.
+   * @param {?media_router.Route} route The newly created route that
+   *     corresponds to the sink if route creation succeeded; null otherwise.
+   * @param {boolean} isForDisplay Whether or not |route| is for display.
    */
-  function onCreateRouteResponseReceived(sinkId, routeId) {
-    container.onCreateRouteResponseReceived(sinkId, routeId);
+  function onCreateRouteResponseReceived(sinkId, route, isForDisplay) {
+    container.onCreateRouteResponseReceived(sinkId, route, isForDisplay);
   }
 
   /**
@@ -41,14 +42,10 @@ cr.define('media_router.ui', function() {
   }
 
   /**
-   * Populates the WebUI with data obtained from Media Router.
+   * Populates the WebUI with data obtained about the first run flow.
    *
    * @param {{firstRunFlowCloudPrefLearnMoreUrl: string,
    *          firstRunFlowLearnMoreUrl: string,
-   *          deviceMissingUrl: string,
-   *          sinks: !Array<!media_router.Sink>,
-   *          routes: !Array<!media_router.Route>,
-   *          castModes: !Array<!media_router.CastMode>,
    *          wasFirstRunFlowAcknowledged: boolean,
    *          showFirstRunFlowCloudPref: boolean}} data
    * Parameters in data:
@@ -56,24 +53,16 @@ cr.define('media_router.ui', function() {
    *       pref learn more link is clicked.
    *   firstRunFlowLearnMoreUrl - url to open when the first run flow learn
    *       more link is clicked.
-   *   deviceMissingUrl - url to be opened on "Device missing?" clicked.
-   *   sinks - list of sinks to be displayed.
-   *   routes - list of routes that are associated with the sinks.
-   *   castModes - list of available cast modes.
    *   wasFirstRunFlowAcknowledged - true if first run flow was previously
    *       acknowledged by user.
    *   showFirstRunFlowCloudPref - true if the cloud pref option should be
    *       shown.
    */
-  function setInitialData(data) {
+  function setFirstRunFlowData(data) {
     container.firstRunFlowCloudPrefLearnMoreUrl =
         data['firstRunFlowCloudPrefLearnMoreUrl'];
     container.firstRunFlowLearnMoreUrl =
         data['firstRunFlowLearnMoreUrl'];
-    container.deviceMissingUrl = data['deviceMissingUrl'];
-    container.castModeList = data['castModes'];
-    container.allSinks = data['sinks'];
-    container.routeList = data['routes'];
     container.showFirstRunFlowCloudPref =
         data['showFirstRunFlowCloudPref'];
     // Some users acknowledged the first run flow before the cloud prefs
@@ -81,6 +70,26 @@ cr.define('media_router.ui', function() {
     // again.
     container.showFirstRunFlow = !data['wasFirstRunFlowAcknowledged'] ||
         container.showFirstRunFlowCloudPref;
+  }
+
+  /**
+   * Populates the WebUI with data obtained from Media Router.
+   *
+   * @param {{deviceMissingUrl: string,
+   *          sinks: !Array<!media_router.Sink>,
+   *          routes: !Array<!media_router.Route>,
+   *          castModes: !Array<!media_router.CastMode>}} data
+   * Parameters in data:
+   *   deviceMissingUrl - url to be opened on "Device missing?" clicked.
+   *   sinks - list of sinks to be displayed.
+   *   routes - list of routes that are associated with the sinks.
+   *   castModes - list of available cast modes.
+   */
+  function setInitialData(data) {
+    container.deviceMissingUrl = data['deviceMissingUrl'];
+    container.castModeList = data['castModes'];
+    container.allSinks = data['sinks'];
+    container.routeList = data['routes'];
     container.maybeShowRouteDetailsOnOpen();
     media_router.browserApi.onInitialDataReceived();
   }
@@ -126,6 +135,7 @@ cr.define('media_router.ui', function() {
     onCreateRouteResponseReceived: onCreateRouteResponseReceived,
     setCastModeList: setCastModeList,
     setContainer: setContainer,
+    setFirstRunFlowData: setFirstRunFlowData,
     setInitialData: setInitialData,
     setIssue: setIssue,
     setRouteList: setRouteList,

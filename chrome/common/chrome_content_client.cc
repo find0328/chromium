@@ -172,12 +172,11 @@ void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
           kWidevineCdmPluginMimeTypeDescription);
 
       // Add the supported codecs as if they came from the component manifest.
+      // This list must match the CDM that is being bundled with Chrome.
       std::vector<std::string> codecs;
-      codecs.push_back(kCdmSupportedCodecVorbis);
       codecs.push_back(kCdmSupportedCodecVp8);
       codecs.push_back(kCdmSupportedCodecVp9);
 #if defined(USE_PROPRIETARY_CODECS)
-      codecs.push_back(kCdmSupportedCodecAac);
       codecs.push_back(kCdmSupportedCodecAvc1);
 #endif  // defined(USE_PROPRIETARY_CODECS)
       std::string codec_string = base::JoinString(

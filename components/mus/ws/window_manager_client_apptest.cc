@@ -16,8 +16,6 @@
 #include "components/mus/public/cpp/window_tree_connection_observer.h"
 #include "components/mus/public/cpp/window_tree_delegate.h"
 #include "mojo/converters/geometry/geometry_type_converters.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/cpp/application_test_base.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/mojo/geometry/geometry_util.h"
@@ -260,7 +258,7 @@ class WindowServerTest : public WindowServerTestBase {
   EmbedResult Embed(Window* window, uint32_t access_policy_bitmask) {
     DCHECK(!embed_details_);
     embed_details_.reset(new EmbedDetails);
-    window->Embed(ConnectToApplicationAndGetWindowServerClient(),
+    window->Embed(ConnectAndGetWindowServerClient(),
                   access_policy_bitmask,
                   base::Bind(&WindowServerTest::EmbedCallbackImpl,
                              base::Unretained(this)));
@@ -275,10 +273,9 @@ class WindowServerTest : public WindowServerTestBase {
 
   // Establishes a connection to this application and asks for a
   // WindowTreeClient.
-  mus::mojom::WindowTreeClientPtr
-  ConnectToApplicationAndGetWindowServerClient() {
+  mus::mojom::WindowTreeClientPtr ConnectAndGetWindowServerClient() {
     mus::mojom::WindowTreeClientPtr client;
-    application_impl()->ConnectToService(application_impl()->url(), &client);
+    shell()->ConnectToInterface(shell_url(), &client);
     return client;
   }
 
@@ -976,7 +973,7 @@ TEST_F(WindowServerTest, EmbedRemovesChildren) {
   window1->AddChild(window2);
 
   WindowRemovedFromParentObserver observer(window2);
-  window1->Embed(ConnectToApplicationAndGetWindowServerClient());
+  window1->Embed(ConnectAndGetWindowServerClient());
   EXPECT_TRUE(observer.was_removed());
   EXPECT_EQ(nullptr, window2->parent());
   EXPECT_TRUE(window1->children().empty());
@@ -1156,7 +1153,7 @@ TEST_F(WindowServerTest, EstablishConnectionViaFactory) {
   EstablishConnectionViaFactoryDelegate delegate(window_manager());
   set_window_manager_delegate(&delegate);
   scoped_ptr<WindowTreeConnection> second_connection(
-      WindowTreeConnection::Create(this, application_impl()));
+      WindowTreeConnection::Create(this, shell()));
   Window* window_in_second_connection =
       second_connection->NewTopLevelWindow(nullptr);
   ASSERT_TRUE(window_in_second_connection);

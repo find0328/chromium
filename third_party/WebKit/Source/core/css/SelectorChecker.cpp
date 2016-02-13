@@ -37,7 +37,7 @@
 #include "core/dom/NthIndexCache.h"
 #include "core/dom/StyleEngine.h"
 #include "core/dom/Text.h"
-#include "core/dom/shadow/ComposedTreeTraversal.h"
+#include "core/dom/shadow/FlatTreeTraversal.h"
 #include "core/dom/shadow/InsertionPoint.h"
 #include "core/dom/shadow/ShadowRoot.h"
 #include "core/editing/FrameSelection.h"
@@ -178,50 +178,6 @@ static bool isFirstOfType(Element& element, const QualifiedName& type)
 static bool isLastOfType(Element& element, const QualifiedName& type)
 {
     return !ElementTraversal::nextSibling(element, HasTagName(type));
-}
-
-static int nthChildIndex(Element& element)
-{
-    if (NthIndexCache* nthIndexCache = element.document().nthIndexCache())
-        return nthIndexCache->nthChildIndex(element);
-
-    int index = 1;
-    for (const Element* sibling = ElementTraversal::previousSibling(element); sibling; sibling = ElementTraversal::previousSibling(*sibling))
-        index++;
-
-    return index;
-}
-
-static int nthOfTypeIndex(Element& element, const QualifiedName& type)
-{
-    if (NthIndexCache* nthIndexCache = element.document().nthIndexCache())
-        return nthIndexCache->nthChildIndexOfType(element, type);
-    int index = 1;
-    for (const Element* sibling = ElementTraversal::previousSibling(element, HasTagName(type)); sibling; sibling = ElementTraversal::previousSibling(*sibling, HasTagName(type)))
-        ++index;
-    return index;
-}
-
-static int nthLastChildIndex(Element& element)
-{
-    if (NthIndexCache* nthIndexCache = element.document().nthIndexCache())
-        return nthIndexCache->nthLastChildIndex(element);
-
-    int index = 1;
-    for (const Element* sibling = ElementTraversal::nextSibling(element); sibling; sibling = ElementTraversal::nextSibling(*sibling))
-        ++index;
-    return index;
-}
-
-static int nthLastOfTypeIndex(Element& element, const QualifiedName& type)
-{
-    if (NthIndexCache* nthIndexCache = element.document().nthIndexCache())
-        return nthIndexCache->nthLastChildIndexOfType(element, type);
-
-    int index = 1;
-    for (const Element* sibling = ElementTraversal::nextSibling(element, HasTagName(type)); sibling; sibling = ElementTraversal::nextSibling(*sibling, HasTagName(type)))
-        ++index;
-    return index;
 }
 
 // Recursive check of selectors and combinators
@@ -770,14 +726,14 @@ bool SelectorChecker::checkPseudoClass(const SelectorCheckingContext& context, M
         if (ContainerNode* parent = element.parentElementOrDocumentFragment()) {
             if (m_mode == ResolvingStyle)
                 parent->setChildrenAffectedByForwardPositionalRules();
-            return selector.matchNth(nthChildIndex(element));
+            return selector.matchNth(NthIndexCache::nthChildIndex(element));
         }
         break;
     case CSSSelector::PseudoNthOfType:
         if (ContainerNode* parent = element.parentElementOrDocumentFragment()) {
             if (m_mode == ResolvingStyle)
                 parent->setChildrenAffectedByForwardPositionalRules();
-            return selector.matchNth(nthOfTypeIndex(element, element.tagQName()));
+            return selector.matchNth(NthIndexCache::nthOfTypeIndex(element));
         }
         break;
     case CSSSelector::PseudoNthLastChild:
@@ -786,7 +742,7 @@ bool SelectorChecker::checkPseudoClass(const SelectorCheckingContext& context, M
                 parent->setChildrenAffectedByBackwardPositionalRules();
             if (!parent->isFinishedParsingChildren())
                 return false;
-            return selector.matchNth(nthLastChildIndex(element));
+            return selector.matchNth(NthIndexCache::nthLastChildIndex(element));
         }
         break;
     case CSSSelector::PseudoNthLastOfType:
@@ -795,7 +751,7 @@ bool SelectorChecker::checkPseudoClass(const SelectorCheckingContext& context, M
                 parent->setChildrenAffectedByBackwardPositionalRules();
             if (!parent->isFinishedParsingChildren())
                 return false;
-            return selector.matchNth(nthLastOfTypeIndex(element, element.tagQName()));
+            return selector.matchNth(NthIndexCache::nthLastOfTypeIndex(element));
         }
         break;
     case CSSSelector::PseudoTarget:
@@ -1073,7 +1029,7 @@ bool SelectorChecker::checkPseudoHost(const SelectorCheckingContext& context, Ma
     for (subContext.selector = selector.selectorList()->first(); subContext.selector; subContext.selector = CSSSelectorList::next(*subContext.selector)) {
         subContext.treatShadowHostAsNormalScope = true;
         subContext.scope = context.scope;
-        // Use ComposedTreeTraversal to traverse a composed ancestor list of a given element.
+        // Use FlatTreeTraversal to traverse a composed ancestor list of a given element.
         Element* nextElement = &element;
         SelectorCheckingContext hostContext(subContext);
         do {
@@ -1092,7 +1048,7 @@ bool SelectorChecker::checkPseudoHost(const SelectorCheckingContext& context, Ma
                 break;
 
             hostContext.inRightmostCompound = false;
-            nextElement = ComposedTreeTraversal::parentElement(*nextElement);
+            nextElement = FlatTreeTraversal::parentElement(*nextElement);
         } while (nextElement);
     }
     if (matched) {

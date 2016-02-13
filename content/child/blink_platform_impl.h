@@ -15,7 +15,6 @@
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/webcrypto/webcrypto_impl.h"
-#include "content/child/origin_trials/trial_token_validator.h"
 #include "content/child/webfallbackthemeengine_impl.h"
 #include "content/common/content_export.h"
 #include "third_party/WebKit/public/platform/Platform.h"
@@ -82,10 +81,7 @@ class CONTENT_EXPORT BlinkPlatformImpl
       const blink::WebString& challenge,
       const blink::WebURL& url,
       const blink::WebURL& top_origin) override;
-  size_t memoryUsageMB() override;
   size_t actualMemoryUsageMB() override;
-  size_t physicalMemoryMB() override;
-  size_t virtualMemoryLimitMB() override;
   size_t numberOfProcessors() override;
 
   blink::WebDiscardableMemory* allocateAndLockDiscardableMemory(
@@ -103,12 +99,6 @@ class CONTENT_EXPORT BlinkPlatformImpl
   bool portAllowed(const blink::WebURL& url) const override;
   blink::WebThread* createThread(const char* name) override;
   blink::WebThread* currentThread() override;
-  void yieldCurrentThread() override;
-  blink::WebWaitableEvent* createWaitableEvent(
-      blink::WebWaitableEvent::ResetPolicy policy,
-      blink::WebWaitableEvent::InitialState state) override;
-  blink::WebWaitableEvent* waitMultipleEvents(
-      const blink::WebVector<blink::WebWaitableEvent*>& events) override;
   void registerMemoryDumpProvider(blink::WebMemoryDumpProvider* wmdp,
                                   const char* name) override;
   void unregisterMemoryDumpProvider(
@@ -151,7 +141,6 @@ class CONTENT_EXPORT BlinkPlatformImpl
       blink::WebServicePortProviderClient*) override;
   blink::WebPermissionClient* permissionClient() override;
   blink::WebSyncProvider* backgroundSyncProvider() override;
-  blink::WebTrialTokenValidator* trialTokenValidator() override;
 
   blink::WebString domCodeStringFromEnum(int dom_code) override;
   int domEnumFromCodeString(const blink::WebString& codeString) override;
@@ -188,8 +177,6 @@ class CONTENT_EXPORT BlinkPlatformImpl
   scoped_refptr<PushDispatcher> push_dispatcher_;
   scoped_ptr<PermissionDispatcher> permission_client_;
   scoped_ptr<BackgroundSyncProvider> main_thread_sync_provider_;
-
-  TrialTokenValidator trial_token_validator_;
 
   scheduler::WebThreadBase* compositor_thread_;
 };

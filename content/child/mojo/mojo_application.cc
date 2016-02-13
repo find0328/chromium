@@ -18,8 +18,7 @@ namespace content {
 
 MojoApplication::MojoApplication(
     scoped_refptr<base::SequencedTaskRunner> io_task_runner)
-    : io_task_runner_(io_task_runner),
-      weak_factory_(this) {
+    : io_task_runner_(io_task_runner) {
   DCHECK(io_task_runner_);
 }
 
@@ -43,23 +42,19 @@ void MojoApplication::OnActivate(
   base::PlatformFile handle = file;
 #endif
 
-  channel_init_.Init(handle, io_task_runner_,
-                     base::Bind(&MojoApplication::OnMessagePipeCreated,
-                                weak_factory_.GetWeakPtr()));
-}
-
-void MojoApplication::OnMessagePipeCreated(mojo::ScopedMessagePipeHandle pipe) {
+  mojo::ScopedMessagePipeHandle pipe =
+      channel_init_.Init(handle, io_task_runner_);
   DCHECK(pipe.is_valid());
 
   ApplicationSetupPtr application_setup;
   application_setup.Bind(
       mojo::InterfacePtrInfo<ApplicationSetup>(std::move(pipe), 0u));
 
-  mojo::ServiceProviderPtr services;
-  mojo::ServiceProviderPtr exposed_services;
+  mojo::shell::mojom::InterfaceProviderPtr services;
+  mojo::shell::mojom::InterfaceProviderPtr exposed_services;
   service_registry_.Bind(GetProxy(&exposed_services));
-  application_setup->ExchangeServiceProviders(GetProxy(&services),
-                                              std::move(exposed_services));
+  application_setup->ExchangeInterfaceProviders(GetProxy(&services),
+                                                std::move(exposed_services));
   service_registry_.BindRemoteServiceProvider(std::move(services));
 }
 

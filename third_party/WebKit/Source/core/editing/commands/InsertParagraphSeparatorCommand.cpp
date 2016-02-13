@@ -148,7 +148,7 @@ PassRefPtrWillBeRawPtr<Element> InsertParagraphSeparatorCommand::cloneHierarchyU
     return parent.release();
 }
 
-void InsertParagraphSeparatorCommand::doApply()
+void InsertParagraphSeparatorCommand::doApply(EditingState*)
 {
     if (!endingSelection().isNonOrphanedCaretOrRange())
         return;
@@ -160,7 +160,7 @@ void InsertParagraphSeparatorCommand::doApply()
     // Delete the current selection.
     if (endingSelection().isRange()) {
         calculateStyleBeforeInsertion(insertionPosition);
-        deleteSelection(false, true);
+        deleteSelection(ASSERT_NO_EDITING_ABORT, false, true);
         insertionPosition = endingSelection().start();
         affinity = endingSelection().affinity();
     }
@@ -187,7 +187,7 @@ void InsertParagraphSeparatorCommand::doApply()
         insertionPosition = mostForwardCaretPosition(insertionPosition);
 
     // Adjust the insertion position after the delete
-    insertionPosition = positionAvoidingSpecialElementBoundary(insertionPosition);
+    insertionPosition = positionAvoidingSpecialElementBoundary(insertionPosition, ASSERT_NO_EDITING_ABORT);
     VisiblePosition visiblePos = createVisiblePosition(insertionPosition, affinity);
     calculateStyleBeforeInsertion(insertionPosition);
 
@@ -297,7 +297,7 @@ void InsertParagraphSeparatorCommand::doApply()
         // Recreate the same structure in the new paragraph.
 
         WillBeHeapVector<RefPtrWillBeMember<Element>> ancestors;
-        getAncestorsInsideBlock(positionAvoidingSpecialElementBoundary(positionOutsideTabSpan(insertionPosition)).anchorNode(), startBlock.get(), ancestors);
+        getAncestorsInsideBlock(positionAvoidingSpecialElementBoundary(positionOutsideTabSpan(insertionPosition), ASSERT_NO_EDITING_ABORT).anchorNode(), startBlock.get(), ancestors);
 
         appendBlockPlaceholder(cloneHierarchyUnderNewBlock(ancestors, blockToInsert));
 

@@ -79,7 +79,7 @@ public:
 
     // DisplayItemClient methods.
     String debugName() const final { return "SVGImage"; }
-    IntRect visualRect() const override;
+    LayoutRect visualRect() const override;
 
 private:
     friend class AXLayoutObject;
@@ -136,7 +136,7 @@ public:
     }
 private:
     Image* m_image;
-    ImageObserver* m_observer;
+    RawPtrWillBeMember<ImageObserver> m_observer;
 };
 
 } // namespace blink

@@ -58,6 +58,7 @@
 #include "content/renderer/device_sensors/device_motion_event_pump.h"
 #include "content/renderer/device_sensors/device_orientation_absolute_event_pump.h"
 #include "content/renderer/device_sensors/device_orientation_event_pump.h"
+#include "content/renderer/dom_storage/local_storage_namespace.h"
 #include "content/renderer/dom_storage/webstoragenamespace_impl.h"
 #include "content/renderer/gamepad_shared_memory_reader.h"
 #include "content/renderer/media/audio_decoder.h"
@@ -292,13 +293,9 @@ blink::WebURLLoader* RendererBlinkPlatformImpl::createURLLoader() {
   ChildThreadImpl* child_thread = ChildThreadImpl::current();
   // There may be no child thread in RenderViewTests.  These tests can still use
   // data URLs to bypass the ResourceDispatcher.
-  scoped_ptr<scheduler::WebTaskRunnerImpl> task_runner(
-      new scheduler::WebTaskRunnerImpl(
-        loading_task_runner_->BelongsToCurrentThread()
-            ? loading_task_runner_ : base::ThreadTaskRunnerHandle::Get()));
   return new content::WebURLLoaderImpl(
       child_thread ? child_thread->resource_dispatcher() : NULL,
-      std::move(task_runner));
+      make_scoped_ptr(currentThread()->taskRunner()->clone()));
 }
 
 blink::WebThread* RendererBlinkPlatformImpl::currentThread() {
@@ -421,6 +418,10 @@ void RendererBlinkPlatformImpl::suddenTerminationChanged(bool enabled) {
 }
 
 WebStorageNamespace* RendererBlinkPlatformImpl::createLocalStorageNamespace() {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kMojoLocalStorage)) {
+    return new LocalStorageNamespace();
+  }
   return new WebStorageNamespaceImpl();
 }
 
@@ -1295,6 +1296,13 @@ void RendererBlinkPlatformImpl::MockBatteryStatusChangedForTesting(
   if (!g_test_battery_status_listener)
     return;
   g_test_battery_status_listener->updateBatteryStatus(status);
+}
+
+//------------------------------------------------------------------------------
+
+blink::WebTrialTokenValidator*
+RendererBlinkPlatformImpl::trialTokenValidator() {
+  return &trial_token_validator_;
 }
 
 }  // namespace content

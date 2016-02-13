@@ -17,7 +17,7 @@
 
 namespace blink {
 
-RemoteFontFaceSource::RemoteFontFaceSource(FontResource* font, PassRefPtrWillBeRawPtr<FontLoader> fontLoader, FontDisplay display)
+RemoteFontFaceSource::RemoteFontFaceSource(PassRefPtrWillBeRawPtr<FontResource> font, PassRefPtrWillBeRawPtr<FontLoader> fontLoader, FontDisplay display)
     : m_font(font)
     , m_fontLoader(fontLoader)
     , m_display(display)
@@ -31,7 +31,8 @@ RemoteFontFaceSource::RemoteFontFaceSource(FontResource* font, PassRefPtrWillBeR
 
     if (RuntimeEnabledFeatures::webFontsInterventionEnabled()) {
         // TODO(crbug.com/515343): Consider to use better signals.
-        if (networkStateNotifier().connectionType() == WebConnectionTypeCellular2G && display == FontDisplayAuto) {
+        if (RuntimeEnabledFeatures::webFontsInterventionTriggerEnabled()
+            || (networkStateNotifier().connectionType() == WebConnectionTypeCellular2G && display == FontDisplayAuto)) {
 
             m_isInterventionTriggered = true;
             m_period = SwapPeriod;
@@ -49,6 +50,7 @@ RemoteFontFaceSource::~RemoteFontFaceSource()
 void RemoteFontFaceSource::dispose()
 {
     m_font->removeClient(this);
+    m_font = nullptr;
     pruneTable();
 }
 
@@ -186,6 +188,7 @@ void RemoteFontFaceSource::beginLoadIfNeeded()
 
 DEFINE_TRACE(RemoteFontFaceSource)
 {
+    visitor->trace(m_font);
     visitor->trace(m_fontLoader);
     CSSFontFaceSource::trace(visitor);
 }

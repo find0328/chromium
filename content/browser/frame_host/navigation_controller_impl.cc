@@ -290,10 +290,25 @@ void NavigationControllerImpl::Reload(bool check_for_repost) {
 void NavigationControllerImpl::ReloadToRefreshContent(bool check_for_repost) {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableNonValidatingReloadOnRefreshContent)) {
-    ReloadInternal(check_for_repost, NO_RELOAD);
-  } else {
-    ReloadInternal(check_for_repost, RELOAD);
+    // Cause this reload to behave like NAVIGATION_TYPE_SAME_PAGE (e.g., enter
+    // in the omnibox), so that the main resource is cache-validated but all
+    // other resources use the cache as much as possible.  This requires
+    // navigating to the current URL in a new pending entry.
+    // TODO(toyoshim): Introduce a new ReloadType for this behavior if it
+    // becomes the default.
+    NavigationEntryImpl* last_committed = GetLastCommittedEntry();
+
+    // If the last committed entry does not exist, or a repost check dialog is
+    // really needed, use a standard reload instead.
+    if (last_committed &&
+        !(check_for_repost && last_committed->GetHasPostData())) {
+      LoadURL(last_committed->GetURL(), last_committed->GetReferrer(),
+              last_committed->GetTransitionType(),
+              last_committed->extra_headers());
+      return;
+    }
   }
+  ReloadInternal(check_for_repost, RELOAD);
 }
 void NavigationControllerImpl::ReloadIgnoringCache(bool check_for_repost) {
   ReloadInternal(check_for_repost, RELOAD_IGNORING_CACHE);
@@ -1586,21 +1601,25 @@ NavigationControllerImpl::GetSessionStorageNamespace(SiteInstance* instance) {
             browser_context_, instance->GetSiteURL());
   }
 
-  SessionStorageNamespaceMap::const_iterator it =
-      session_storage_namespace_map_.find(partition_id);
-  if (it != session_storage_namespace_map_.end())
-    return it->second.get();
-
-  // Create one if no one has accessed session storage for this partition yet.
-  //
   // TODO(ajwong): Should this use the |partition_id| directly rather than
   // re-lookup via |instance|?  http://crbug.com/142685
   StoragePartition* partition =
-              BrowserContext::GetStoragePartition(browser_context_, instance);
+      BrowserContext::GetStoragePartition(browser_context_, instance);
+  DOMStorageContextWrapper* context_wrapper =
+      static_cast<DOMStorageContextWrapper*>(partition->GetDOMStorageContext());
+
+  SessionStorageNamespaceMap::const_iterator it =
+      session_storage_namespace_map_.find(partition_id);
+  if (it != session_storage_namespace_map_.end()) {
+    // Ensure that this namespace actually belongs to this partition.
+    DCHECK(static_cast<SessionStorageNamespaceImpl*>(it->second.get())->
+        IsFromContext(context_wrapper));
+    return it->second.get();
+  }
+
+  // Create one if no one has accessed session storage for this partition yet.
   SessionStorageNamespaceImpl* session_storage_namespace =
-      new SessionStorageNamespaceImpl(
-          static_cast<DOMStorageContextWrapper*>(
-              partition->GetDOMStorageContext()));
+      new SessionStorageNamespaceImpl(context_wrapper);
   session_storage_namespace_map_[partition_id] = session_storage_namespace;
 
   return session_storage_namespace;

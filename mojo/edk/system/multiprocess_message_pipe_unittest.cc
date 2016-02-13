@@ -19,6 +19,7 @@
 #include "base/logging.h"
 #include "base/strings/string_split.h"
 #include "build/build_config.h"
+#include "mojo/edk/embedder/platform_channel_pair.h"
 #include "mojo/edk/embedder/scoped_platform_handle.h"
 #include "mojo/edk/system/handle_signals_state.h"
 #include "mojo/edk/system/test_utils.h"
@@ -771,7 +772,13 @@ DEFINE_TEST_CLIENT_WITH_PIPE(ChannelEchoClient, MultiprocessMessagePipeTest,
   return 0;
 }
 
-TEST_F(MultiprocessMessagePipeTest, MultiprocessChannelPipe) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_MultiprocessChannelPipe DISABLED_MultiprocessChannelPipe
+#else
+#define MAYBE_MultiprocessChannelPipe MultiprocessChannelPipe
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_MultiprocessChannelPipe) {
   RUN_CHILD_ON_PIPE(ChannelEchoClient, h)
     VerifyEcho(h, "in an interstellar burst");
     VerifyEcho(h, "i am back to save the universe");
@@ -796,7 +803,13 @@ DEFINE_TEST_CLIENT_WITH_PIPE(EchoServiceClient, MultiprocessMessagePipeTest,
   return 0;
 }
 
-TEST_F(MultiprocessMessagePipeTest, PassMessagePipeCrossProcess) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_PassMessagePipeCrossProcess DISABLED_PassMessagePipeCrossProcess
+#else
+#define MAYBE_PassMessagePipeCrossProcess PassMessagePipeCrossProcess
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_PassMessagePipeCrossProcess) {
   MojoHandle p0, p1;
   CreateMessagePipe(&p0, &p1);
   RUN_CHILD_ON_PIPE(EchoServiceClient, h)
@@ -853,7 +866,14 @@ DEFINE_TEST_CLIENT_WITH_PIPE(EchoServiceFactoryClient,
   return 0;
 }
 
-TEST_F(MultiprocessMessagePipeTest, PassMoarMessagePipesCrossProcess) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_PassMoarMessagePipesCrossProcess \
+    DISABLED_PassMoarMessagePipesCrossProcess
+#else
+#define MAYBE_PassMoarMessagePipesCrossProcess PassMoarMessagePipesCrossProcess
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_PassMoarMessagePipesCrossProcess) {
   MojoHandle echo_factory_proxy, echo_factory_request;
   CreateMessagePipe(&echo_factory_proxy, &echo_factory_request);
 
@@ -898,7 +918,14 @@ TEST_F(MultiprocessMessagePipeTest, PassMoarMessagePipesCrossProcess) {
   CloseHandle(echo_proxy_c);
 }
 
-TEST_F(MultiprocessMessagePipeTest, ChannelPipesWithMultipleChildren) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_ChannelPipesWithMultipleChildren \
+    DISABLED_ChannelPipesWithMultipleChildren
+#else
+#define MAYBE_ChannelPipesWithMultipleChildren ChannelPipesWithMultipleChildren
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_ChannelPipesWithMultipleChildren) {
   RUN_CHILD_ON_PIPE(ChannelEchoClient, a)
     RUN_CHILD_ON_PIPE(ChannelEchoClient, b)
       VerifyEcho(a, "hello child 0");
@@ -928,7 +955,13 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(PingPongPipeClient,
   EXPECT_EQ("quit", ReadMessage(h));
 }
 
-TEST_F(MultiprocessMessagePipeTest, PingPongPipe) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_PingPongPipe DISABLED_PingPongPipe
+#else
+#define MAYBE_PingPongPipe PingPongPipe
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_PingPongPipe) {
   MojoHandle p0, p1;
   CreateMessagePipe(&p0, &p1);
 
@@ -1027,7 +1060,13 @@ DEFINE_TEST_CLIENT_WITH_PIPE(CommandDrivenClient, MultiprocessMessagePipeTest,
   return 0;
 }
 
-TEST_F(MultiprocessMessagePipeTest, ChildToChildPipes) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_ChildToChildPipes DISABLED_ChildToChildPipes
+#else
+#define MAYBE_ChildToChildPipes ChildToChildPipes
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_ChildToChildPipes) {
   RUN_CHILD_ON_PIPE(CommandDrivenClient, h0)
     RUN_CHILD_ON_PIPE(CommandDrivenClient, h1)
       CommandDrivenClientController a(h0);
@@ -1052,7 +1091,13 @@ TEST_F(MultiprocessMessagePipeTest, ChildToChildPipes) {
   END_CHILD()
 }
 
-TEST_F(MultiprocessMessagePipeTest, MoreChildToChildPipes) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_MoreChildToChildPipes DISABLED_MoreChildToChildPipes
+#else
+#define MAYBE_MoreChildToChildPipes MoreChildToChildPipes
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_MoreChildToChildPipes) {
   RUN_CHILD_ON_PIPE(CommandDrivenClient, h0)
     RUN_CHILD_ON_PIPE(CommandDrivenClient, h1)
       RUN_CHILD_ON_PIPE(CommandDrivenClient, h2)
@@ -1138,7 +1183,13 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReceivePipeWithClosedPeer,
                                      MOJO_DEADLINE_INDEFINITE, nullptr));
 }
 
-TEST_F(MultiprocessMessagePipeTest, SendPipeThenClosePeer) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_SendPipeThenClosePeer DISABLED_SendPipeThenClosePeer
+#else
+#define MAYBE_SendPipeThenClosePeer SendPipeThenClosePeer
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_SendPipeThenClosePeer) {
   RUN_CHILD_ON_PIPE(ReceivePipeWithClosedPeer, h)
     MojoHandle a, b;
     CreateMessagePipe(&a, &b);
@@ -1189,7 +1240,16 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReceivePipeWithClosedPeerFromOtherChild,
   EXPECT_EQ(MOJO_RESULT_OK, MojoClose(application_client));
 }
 
-TEST_F(MultiprocessMessagePipeTest, SendPipeWithClosedPeerBetweenChildren) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_SendPipeWithClosedPeerBetweenChildren \
+    DISABLED_SendPipeWithClosedPeerBetweenChildren
+#else
+#define MAYBE_SendPipeWithClosedPeerBetweenChildren \
+    SendPipeWithClosedPeerBetweenChildren
+#endif
+TEST_F(MultiprocessMessagePipeTest,
+       MAYBE_SendPipeWithClosedPeerBetweenChildren) {
   RUN_CHILD_ON_PIPE(SendOtherChildPipeWithClosedPeer, kid_a)
     RUN_CHILD_ON_PIPE(ReceivePipeWithClosedPeerFromOtherChild, kid_b)
       // Receive an "application request" from the first child and forward it
@@ -1205,7 +1265,14 @@ TEST_F(MultiprocessMessagePipeTest, SendPipeWithClosedPeerBetweenChildren) {
   END_CHILD()
 }
 
-TEST_F(MultiprocessMessagePipeTest, SendClosePeerSend) {
+
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_SendClosePeerSend DISABLED_SendClosePeerSend
+#else
+#define MAYBE_SendClosePeerSend SendClosePeerSend
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_SendClosePeerSend) {
   MojoHandle a, b;
   CreateMessagePipe(&a, &b);
 
@@ -1248,7 +1315,13 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(WriteCloseSendPeerClient,
   EXPECT_EQ("quit", ReadMessage(h));
 }
 
-TEST_F(MultiprocessMessagePipeTest, WriteCloseSendPeer) {
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_WriteCloseSendPeer DISABLED_WriteCloseSendPeer
+#else
+#define MAYBE_WriteCloseSendPeer WriteCloseSendPeer
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_WriteCloseSendPeer) {
   MojoHandle pipe[2];
   CreateMessagePipe(&pipe[0], &pipe[1]);
 
@@ -1268,6 +1341,50 @@ TEST_F(MultiprocessMessagePipeTest, WriteCloseSendPeer) {
                                        MOJO_DEADLINE_INDEFINITE, nullptr));
 
     WriteMessage(h, "quit");
+  END_CHILD()
+}
+
+DEFINE_TEST_CLIENT_TEST_WITH_PIPE(BootstrapMessagePipeAsyncClient,
+                                  MultiprocessMessagePipeTest, parent) {
+  // Receive one end of a platform channel from the parent.
+  MojoHandle channel_handle;
+  EXPECT_EQ("hi", ReadMessageWithHandles(parent, &channel_handle, 1));
+  ScopedPlatformHandle channel;
+  EXPECT_EQ(MOJO_RESULT_OK,
+            edk::PassWrappedPlatformHandle(channel_handle, &channel));
+  ASSERT_TRUE(channel.is_valid());
+
+  // Create a new pipe using our end of the channel.
+  ScopedMessagePipeHandle pipe = edk::CreateMessagePipe(std::move(channel));
+
+  // Ensure that we can read and write on the new pipe.
+  VerifyEcho(pipe.get().value(), "goodbye");
+}
+
+#if defined(OS_ANDROID)
+// Android multi-process tests are not executing the new process. This is flaky.
+#define MAYBE_BootstrapMessagePipeAsync DISABLED_BootstrapMessagePipeAsync
+#else
+#define MAYBE_BootstrapMessagePipeAsync BootstrapMessagePipeAsync
+#endif
+TEST_F(MultiprocessMessagePipeTest, MAYBE_BootstrapMessagePipeAsync) {
+  // Tests that new cross-process message pipes can be created synchronously
+  // using asynchronous negotiation over an arbitrary platform channel.
+  RUN_CHILD_ON_PIPE(BootstrapMessagePipeAsyncClient, child)
+    // Pass one end of a platform channel to the child.
+    PlatformChannelPair platform_channel;
+    MojoHandle client_channel_handle;
+    EXPECT_EQ(MOJO_RESULT_OK,
+              CreatePlatformHandleWrapper(platform_channel.PassClientHandle(),
+                                          &client_channel_handle));
+    WriteMessageWithHandles(child, "hi", &client_channel_handle, 1);
+
+    // Create a new pipe using our end of the channel.
+    ScopedMessagePipeHandle pipe =
+        edk::CreateMessagePipe(platform_channel.PassServerHandle());
+
+    // Ensure that we can read and write on the new pipe.
+    VerifyEcho(pipe.get().value(), "goodbye");
   END_CHILD()
 }
 

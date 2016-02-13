@@ -18,7 +18,6 @@
 #include "components/mus/public/cpp/window_observer.h"
 #include "components/mus/public/cpp/window_surface.h"
 #include "components/mus/public/cpp/window_tracker.h"
-#include "mojo/shell/public/cpp/service_provider_impl.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -496,7 +495,7 @@ void Window::SetSharedPropertyInternal(const std::string& name,
     return;
 
   if (connection_) {
-    mojo::Array<uint8_t> transport_value;
+    mojo::Array<uint8_t> transport_value(nullptr);
     if (value) {
       transport_value.resize(value->size());
       if (value->size())

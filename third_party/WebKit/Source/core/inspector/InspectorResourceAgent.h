@@ -33,7 +33,6 @@
 
 #include "bindings/core/v8/ScriptString.h"
 #include "core/CoreExport.h"
-#include "core/InspectorFrontend.h"
 #include "core/inspector/InspectorBaseAgent.h"
 #include "core/inspector/InspectorPageAgent.h"
 #include "platform/Timer.h"
@@ -69,7 +68,7 @@ class WebSocketHandshakeResponse;
 
 typedef String ErrorString;
 
-class CORE_EXPORT InspectorResourceAgent final : public InspectorBaseAgent<InspectorResourceAgent, InspectorFrontend::Network>, public InspectorBackendDispatcher::NetworkCommandHandler {
+class CORE_EXPORT InspectorResourceAgent final : public InspectorBaseAgent<InspectorResourceAgent, protocol::Frontend::Network>, public protocol::Dispatcher::NetworkCommandHandler {
 public:
     static PassOwnPtrWillBeRawPtr<InspectorResourceAgent> create(InspectedFrames* inspectedFrames)
     {
@@ -109,7 +108,7 @@ public:
     void willDispachEventSourceEvent(ThreadableLoaderClient*, const AtomicString& eventName, const AtomicString& eventId, const Vector<UChar>& data);
     void didFinishEventSourceRequest(ThreadableLoaderClient*);
 
-    void willDestroyResource(Resource*);
+    void removedResourceFromMemoryCache(Resource*);
 
     void applyUserAgentOverride(String* userAgent);
 
@@ -121,7 +120,7 @@ public:
     void frameScheduledNavigation(LocalFrame*, double);
     void frameClearedScheduledNavigation(LocalFrame*);
 
-    PassRefPtr<TypeBuilder::Network::Initiator> buildInitiatorObject(Document*, const FetchInitiatorInfo&);
+    PassRefPtr<protocol::TypeBuilder::Network::Initiator> buildInitiatorObject(Document*, const FetchInitiatorInfo&);
 
     void didCreateWebSocket(Document*, unsigned long identifier, const KURL& requestURL, const String&);
     void willSendWebSocketHandshakeRequest(Document*, unsigned long identifier, const WebSocketHandshakeRequest*);
@@ -135,7 +134,7 @@ public:
     void enable(ErrorString*) override;
     void setUserAgentOverride(ErrorString*, const String& userAgent) override;
     void setExtraHTTPHeaders(ErrorString*, const RefPtr<JSONObject>&) override;
-    void getResponseBody(ErrorString*, const String& requestId, PassRefPtrWillBeRawPtr<GetResponseBodyCallback>) override;
+    void getResponseBody(ErrorString*, const String& requestId, PassRefPtr<GetResponseBodyCallback>) override;
     void addBlockedURL(ErrorString*, const String& url) override;
     void removeBlockedURL(ErrorString*, const String& url) override;
 
@@ -163,7 +162,7 @@ private:
     void removeFinishedReplayXHRFired(Timer<InspectorResourceAgent>*);
     void didFinishXHRInternal(ExecutionContext*, XMLHttpRequest*, ThreadableLoaderClient*, const AtomicString&, const String&, bool);
 
-    bool getResponseBodyBlob(const String& requestId, PassRefPtrWillBeRawPtr<GetResponseBodyCallback>);
+    bool getResponseBodyBlob(const String& requestId, PassRefPtr<GetResponseBodyCallback>);
 
     RawPtrWillBeMember<InspectedFrames> m_inspectedFrames;
     String m_userAgentOverride;
@@ -181,11 +180,11 @@ private:
 
     RefPtrWillBeMember<XHRReplayData> m_pendingXHRReplayData;
 
-    typedef HashMap<String, RefPtr<TypeBuilder::Network::Initiator> > FrameNavigationInitiatorMap;
+    typedef HashMap<String, RefPtr<protocol::TypeBuilder::Network::Initiator>> FrameNavigationInitiatorMap;
     FrameNavigationInitiatorMap m_frameNavigationInitiatorMap;
 
     // FIXME: InspectorResourceAgent should now be aware of style recalculation.
-    RefPtr<TypeBuilder::Network::Initiator> m_styleRecalculationInitiator;
+    RefPtr<protocol::TypeBuilder::Network::Initiator> m_styleRecalculationInitiator;
     bool m_isRecalculatingStyle;
 
     PersistentHeapHashSetWillBeHeapHashSet<Member<XMLHttpRequest>> m_replayXHRs;

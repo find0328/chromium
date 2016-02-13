@@ -7,14 +7,13 @@
 
 #include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/process/process_handle.h"
 #include "build/build_config.h"
 #include "content/common/application_setup.mojom.h"
 #include "content/common/mojo/channel_init.h"
 #include "content/common/mojo/service_registry_impl.h"
+#include "mojo/edk/embedder/scoped_platform_handle.h"
 #include "mojo/public/cpp/system/message_pipe.h"
-#include "third_party/mojo/src/mojo/edk/embedder/scoped_platform_handle.h"
 
 #if defined(OS_ANDROID)
 #include "content/browser/mojo/service_registry_android.h"
@@ -42,8 +41,6 @@ class CONTENT_EXPORT MojoApplicationHost {
   bool Init();
   void Activate(IPC::Sender* sender, base::ProcessHandle process_handle);
 
-  void WillDestroySoon();
-
   ServiceRegistry* service_registry() { return &service_registry_; }
 
 #if defined(OS_ANDROID)
@@ -56,10 +53,8 @@ class CONTENT_EXPORT MojoApplicationHost {
       scoped_refptr<base::TaskRunner> io_task_runner);
 
  private:
-  void OnMessagePipeCreated(mojo::ScopedMessagePipeHandle pipe);
-
   ChannelInit channel_init_;
-  mojo::embedder::ScopedPlatformHandle client_handle_;
+  mojo::edk::ScopedPlatformHandle client_handle_;
 
   bool did_activate_;
 
@@ -71,8 +66,6 @@ class CONTENT_EXPORT MojoApplicationHost {
 #if defined(OS_ANDROID)
   scoped_ptr<ServiceRegistryAndroid> service_registry_android_;
 #endif
-
-  base::WeakPtrFactory<MojoApplicationHost> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(MojoApplicationHost);
 };

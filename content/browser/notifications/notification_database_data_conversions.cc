@@ -59,6 +59,7 @@ bool DeserializeNotificationDatabaseData(const std::string& input,
 
   notification_data->timestamp =
       base::Time::FromInternalValue(payload.timestamp());
+  notification_data->renotify = payload.renotify();
   notification_data->silent = payload.silent();
   notification_data->require_interaction = payload.require_interaction();
 
@@ -71,6 +72,7 @@ bool DeserializeNotificationDatabaseData(const std::string& input,
     PlatformNotificationAction action;
     action.action = payload_action.action();
     action.title = base::UTF8ToUTF16(payload_action.title());
+    action.icon = GURL(payload_action.icon());
     notification_data->actions.push_back(action);
   }
 
@@ -112,6 +114,7 @@ bool SerializeNotificationDatabaseData(const NotificationDatabaseData& input,
     payload->add_vibration_pattern(notification_data.vibration_pattern[i]);
 
   payload->set_timestamp(notification_data.timestamp.ToInternalValue());
+  payload->set_renotify(notification_data.renotify);
   payload->set_silent(notification_data.silent);
   payload->set_require_interaction(notification_data.require_interaction);
 
@@ -125,6 +128,7 @@ bool SerializeNotificationDatabaseData(const NotificationDatabaseData& input,
         payload->add_actions();
     payload_action->set_action(action.action);
     payload_action->set_title(base::UTF16ToUTF8(action.title));
+    payload_action->set_icon(action.icon.spec());
   }
 
   NotificationDatabaseDataProto message;

@@ -41,7 +41,7 @@
 
 namespace blink {
 
-ResourcePtr<ImageResource> ImageResource::fetch(FetchRequest& request, ResourceFetcher* fetcher)
+PassRefPtrWillBeRawPtr<ImageResource> ImageResource::fetch(FetchRequest& request, ResourceFetcher* fetcher)
 {
     if (request.resourceRequest().requestContext() == WebURLRequest::RequestContextUnspecified)
         request.mutableResourceRequest().setRequestContext(WebURLRequest::RequestContextImage);
@@ -49,7 +49,7 @@ ResourcePtr<ImageResource> ImageResource::fetch(FetchRequest& request, ResourceF
         KURL requestURL = request.resourceRequest().url();
         if (requestURL.isValid() && fetcher->context().canRequest(Resource::Image, request.resourceRequest(), requestURL, request.options(), request.forPreload(), request.originRestriction()))
             fetcher->context().sendImagePing(requestURL);
-        return 0;
+        return nullptr;
     }
 
     if (fetcher->clientDefersImage(request.resourceRequest().url()))
@@ -95,6 +95,12 @@ ImageResource::~ImageResource()
 {
     WTF_LOG(Timers, "~ImageResource %p", this);
     clearImage();
+}
+
+DEFINE_TRACE(ImageResource)
+{
+    Resource::trace(visitor);
+    ImageObserver::trace(visitor);
 }
 
 void ImageResource::load(ResourceFetcher* fetcher, const ResourceLoaderOptions& options)
@@ -278,10 +284,12 @@ inline void ImageResource::createImage()
 
 inline void ImageResource::clearImage()
 {
+    if (!m_image)
+        return;
+
     // If our Image has an observer, it's always us so we need to clear the back pointer
     // before dropping our reference.
-    if (m_image)
-        m_image->setImageObserver(nullptr);
+    m_image->setImageObserver(nullptr);
     m_image.clear();
 }
 

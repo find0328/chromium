@@ -528,8 +528,7 @@ bool ShouldCreateRenderSurface(LayerType* layer,
   }
   // If the layer clips its descendants but it is not axis-aligned with respect
   // to its parent.
-  bool layer_clips_external_content =
-      LayerClipsSubtree(layer) || layer->HasDelegatedContent();
+  bool layer_clips_external_content = LayerClipsSubtree(layer);
   if (layer_clips_external_content && !preserves_2d_axis_alignment &&
       num_descendants_that_draw_content > 0) {
     TRACE_EVENT_INSTANT0(
@@ -680,8 +679,26 @@ void AddScrollNodeIfNeeded(
     node.data.main_thread_scrolling_reasons = main_thread_scrolling_reasons;
     node.data.contains_non_fast_scrollable_region =
         contains_non_fast_scrollable_region;
-    node.data.transform_id =
-        data_for_children->transform_tree_parent->transform_tree_index();
+    gfx::Size clip_bounds;
+    if (layer->scroll_clip_layer()) {
+      clip_bounds = layer->scroll_clip_layer()->bounds();
+      DCHECK(layer->scroll_clip_layer()->transform_tree_index() !=
+             kInvalidPropertyTreeNodeId);
+      node.data.max_scroll_offset_affected_by_page_scale =
+          !data_from_ancestor.transform_tree
+               ->Node(layer->scroll_clip_layer()->transform_tree_index())
+               ->data.in_subtree_of_page_scale_layer &&
+          data_from_ancestor.in_subtree_of_page_scale_layer;
+    }
+
+    node.data.scroll_clip_layer_bounds = clip_bounds;
+    node.data.is_inner_viewport_scroll_layer =
+        layer == data_from_ancestor.inner_viewport_scroll_layer;
+    node.data.is_outer_viewport_scroll_layer =
+        layer == data_from_ancestor.outer_viewport_scroll_layer;
+
+    node.data.bounds = layer->bounds();
+
     data_for_children->scroll_tree_parent =
         data_for_children->scroll_tree->Insert(node, parent_id);
     data_for_children->main_thread_scrolling_reasons =
@@ -730,6 +747,14 @@ void SetBackfaceVisibilityTransform(LayerType* layer,
   }
 }
 
+static void SetLayerPropertyChangedForChild(Layer* parent, Layer* child) {
+  if (parent->subtree_property_changed())
+    child->SetSubtreePropertyChanged();
+}
+
+static void SetLayerPropertyChangedForChild(LayerImpl* parent,
+                                            LayerImpl* child) {}
+
 template <typename LayerType>
 void BuildPropertyTreesInternal(
     LayerType* layer,
@@ -762,6 +787,7 @@ void BuildPropertyTreesInternal(
   SetBackfaceVisibilityTransform(layer, created_transform_node);
 
   for (size_t i = 0; i < layer->children().size(); ++i) {
+    SetLayerPropertyChangedForChild(layer, layer->child_at(i));
     if (!layer->child_at(i)->scroll_parent()) {
       DataForRecursionFromChild<LayerType> data_from_child;
       BuildPropertyTreesInternal(layer->child_at(i), data_for_children,

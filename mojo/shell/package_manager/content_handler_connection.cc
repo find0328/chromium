@@ -28,25 +28,25 @@ ContentHandlerConnection::ContentHandlerConnection(
       connection_closed_(false),
       id_(id),
       ref_count_(0) {
-  ServiceProviderPtr services;
+  shell::mojom::InterfaceProviderPtr remote_interfaces;
 
   scoped_ptr<ConnectToApplicationParams> params(new ConnectToApplicationParams);
   params->set_source(source);
   params->SetTarget(identity_);
-  params->set_services(GetProxy(&services));
+  params->set_remote_interfaces(GetProxy(&remote_interfaces));
   manager->ConnectToApplication(std::move(params));
 
   MessagePipe pipe;
   content_handler_.Bind(
       InterfacePtrInfo<mojom::ContentHandler>(std::move(pipe.handle0), 0u));
-  services->ConnectToService(mojom::ContentHandler::Name_,
-                             std::move(pipe.handle1));
+  remote_interfaces->GetInterface(mojom::ContentHandler::Name_,
+                                  std::move(pipe.handle1));
   content_handler_.set_connection_error_handler(
       [this]() { CloseConnection(); });
 }
 
 void ContentHandlerConnection::StartApplication(
-    InterfaceRequest<mojom::Application> request,
+    InterfaceRequest<mojom::ShellClient> request,
     URLResponsePtr response) {
   content_handler_->StartApplication(
       std::move(request), std::move(response),

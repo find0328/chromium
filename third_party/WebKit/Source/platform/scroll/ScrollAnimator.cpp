@@ -31,10 +31,11 @@
 #include "platform/scroll/ScrollAnimator.h"
 
 #include "platform/TraceEvent.h"
+#include "platform/animation/CompositorAnimation.h"
+#include "platform/graphics/CompositorFactory.h"
 #include "platform/graphics/GraphicsLayer.h"
 #include "platform/scroll/ScrollableArea.h"
 #include "public/platform/Platform.h"
-#include "public/platform/WebCompositorAnimation.h"
 #include "public/platform/WebCompositorSupport.h"
 #include "wtf/CurrentTime.h"
 #include "wtf/PassRefPtr.h"
@@ -96,10 +97,9 @@ ScrollResultOneDimensional ScrollAnimator::userScroll(
     TRACE_EVENT0("blink", "ScrollAnimator::scroll");
 
     if (granularity == ScrollByPrecisePixel) {
-        if (hasRunningAnimation()) {
-            abortAnimation();
-            resetAnimationState();
-        }
+        // Cancel scroll animation because asked to instant scroll.
+        if (hasRunningAnimation())
+            cancelAnimation();
         return ScrollAnimatorBase::userScroll(orientation, granularity, step, delta);
     }
 
@@ -110,7 +110,10 @@ ScrollResultOneDimensional ScrollAnimator::userScroll(
     FloatPoint targetPos = desiredTargetPosition();
     targetPos.moveBy(pixelDelta);
 
-    if (m_animationCurve) {
+    if (m_runState == RunState::PostAnimationCleanup)
+        resetAnimationState();
+
+    if (m_animationCurve && m_runState != RunState::WaitingToCancelOnCompositor) {
         if ((targetPos - m_targetOffset).isZero()) {
             // Report unused delta only if there is no animation running. See
             // comment below regarding scroll latching.
@@ -179,7 +182,7 @@ void ScrollAnimator::tickAnimation(double monotonicTime)
     m_currentPosY = offset.y();
 
     if (isFinished)
-        resetAnimationState();
+        m_runState = RunState::PostAnimationCleanup;
     else
         scrollableArea()->scheduleAnimation();
 
@@ -189,6 +192,9 @@ void ScrollAnimator::tickAnimation(double monotonicTime)
 
 void ScrollAnimator::updateCompositorAnimations()
 {
+    if (m_runState == RunState::PostAnimationCleanup)
+        return resetAnimationState();
+
     if (m_compositorAnimationId && m_runState != RunState::RunningOnCompositor
         && m_runState != RunState::RunningOnCompositorButNeedsUpdate) {
         // If the current run state is WaitingToSendToCompositor but we have a
@@ -203,8 +209,7 @@ void ScrollAnimator::updateCompositorAnimations()
         m_compositorAnimationId = 0;
         m_compositorAnimationGroupId = 0;
         if (m_runState == RunState::WaitingToCancelOnCompositor) {
-            resetAnimationState();
-            return;
+            return resetAnimationState();
         }
     }
 
@@ -224,22 +229,21 @@ void ScrollAnimator::updateCompositorAnimations()
         }
 
         if (!m_animationCurve) {
-            m_animationCurve = adoptPtr(Platform::current()->compositorSupport()
-                ->createScrollOffsetAnimationCurve(
-                    m_targetOffset,
-                    WebCompositorAnimationCurve::TimingFunctionTypeEaseInOut,
-                    m_lastGranularity == ScrollByPixel ?
-                        WebScrollOffsetAnimationCurve::ScrollDurationInverseDelta :
-                        WebScrollOffsetAnimationCurve::ScrollDurationConstant));
+            m_animationCurve = adoptPtr(CompositorFactory::current().createScrollOffsetAnimationCurve(
+                m_targetOffset,
+                CompositorAnimationCurve::TimingFunctionTypeEaseInOut,
+                m_lastGranularity == ScrollByPixel ?
+                    CompositorScrollOffsetAnimationCurve::ScrollDurationInverseDelta :
+                    CompositorScrollOffsetAnimationCurve::ScrollDurationConstant));
             m_animationCurve->setInitialValue(currentPosition());
         }
 
         bool sentToCompositor = false;
         if (!m_scrollableArea->shouldScrollOnMainThread()) {
-            OwnPtr<WebCompositorAnimation> animation = adoptPtr(
-                Platform::current()->compositorSupport()->createAnimation(
+            OwnPtr<CompositorAnimation> animation = adoptPtr(
+                CompositorFactory::current().createAnimation(
                     *m_animationCurve,
-                    WebCompositorAnimation::TargetPropertyScrollOffset));
+                    CompositorAnimation::TargetPropertyScrollOffset));
             // Being here means that either there is an animation that needs
             // to be sent to the compositor, or an animation that needs to
             // be updated (a new scroll event before the previous animation
@@ -284,7 +288,7 @@ void ScrollAnimator::cancelAnimation()
 }
 
 void ScrollAnimator::layerForCompositedScrollingDidChange(
-    WebCompositorAnimationTimeline* timeline)
+    CompositorAnimationTimeline* timeline)
 {
     reattachCompositorPlayerIfNeeded(timeline);
 }

@@ -18,6 +18,8 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,6 +33,7 @@ import org.chromium.base.ApplicationStatus;
 import org.chromium.base.CommandLineInitUtil;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeApplication;
 import org.chromium.chrome.browser.ChromeSwitches;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -41,9 +44,9 @@ import org.chromium.chrome.browser.ShortcutSource;
 import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.WarmupManager;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
+import org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider;
 import org.chromium.chrome.browser.externalnav.IntentWithGesturesHandler;
 import org.chromium.chrome.browser.firstrun.FirstRunFlowSequencer;
-import org.chromium.chrome.browser.metrics.LaunchHistogram;
 import org.chromium.chrome.browser.metrics.LaunchMetrics;
 import org.chromium.chrome.browser.metrics.StartupMetrics;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
@@ -54,9 +57,9 @@ import org.chromium.chrome.browser.preferences.ChromePreferenceManager;
 import org.chromium.chrome.browser.preferences.DocumentModeManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabIdManager;
+import org.chromium.chrome.browser.tabmodel.AsyncTabParamsManager;
 import org.chromium.chrome.browser.tabmodel.document.ActivityDelegate;
 import org.chromium.chrome.browser.tabmodel.document.AsyncTabCreationParams;
-import org.chromium.chrome.browser.tabmodel.document.AsyncTabCreationParamsManager;
 import org.chromium.chrome.browser.tabmodel.document.DocumentTabModel;
 import org.chromium.chrome.browser.tabmodel.document.DocumentTabModelSelector;
 import org.chromium.chrome.browser.util.FeatureUtilities;
@@ -80,6 +83,12 @@ public class ChromeLauncherActivity extends Activity
      */
     public static final String EXTRA_LAUNCH_MODE =
             "com.google.android.apps.chrome.EXTRA_LAUNCH_MODE";
+
+    /**
+     * Whether or not the toolbar should indicate that a tab was spawned by another Activity.
+     */
+    public static final String EXTRA_IS_ALLOWED_TO_RETURN_TO_PARENT =
+            "org.chromium.chrome.browser.document.IS_ALLOWED_TO_RETURN_TO_PARENT";
 
     /**
      * Action fired when the user selects the "Close all incognito tabs" notification.
@@ -111,14 +120,17 @@ public class ChromeLauncherActivity extends Activity
      */
     private static final int INITIAL_DOCUMENT_ACTIVITY_LAUNCH_TIMEOUT_MS = 500;
 
-    private static final LaunchHistogram sMoveToFrontExceptionHistogram =
-            new LaunchHistogram("DocumentActivity.MoveToFrontFailed");
+    private static final LaunchMetrics.BooleanEvent sMoveToFrontExceptionHistogram =
+            new LaunchMetrics.BooleanEvent("DocumentActivity.MoveToFrontFailed");
+    private static final LaunchMetrics.SparseHistogramSample sIntentFlagsHistogram =
+            new LaunchMetrics.SparseHistogramSample("Launch.IntentFlags");
 
     private IntentHandler mIntentHandler;
     private boolean mIsInMultiInstanceMode;
     private boolean mIsFinishDelayed;
 
     private boolean mIsCustomTabIntent;
+    private boolean mIsHerbIntent;
 
     /** When started with an intent, maybe pre-resolve the domain. */
     private void maybePrefetchDnsInBackground() {
@@ -154,12 +166,16 @@ public class ChromeLauncherActivity extends Activity
         // show homepage, which might require reading PartnerBrowserCustomizations provider.
         PartnerBrowserCustomizations.initializeAsync(getApplicationContext(),
                 PARTNER_BROWSER_CUSTOMIZATIONS_TIMEOUT_MS);
+        maybePerformMigrationTasks();
+        recordIntentMetrics();
 
         mIsInMultiInstanceMode = MultiWindowUtils.getInstance().shouldRunInMultiInstanceMode(this);
         mIntentHandler = new IntentHandler(this, getPackageName());
-        maybePerformMigrationTasks();
-
         mIsCustomTabIntent = isCustomTabIntent();
+        if (!mIsCustomTabIntent) {
+            mIsHerbIntent = isHerbIntent();
+            mIsCustomTabIntent = mIsHerbIntent;
+        }
 
         Intent intent = getIntent();
         // Check if a LIVE WebappActivity has to be brought back to the foreground.  We can't
@@ -277,14 +293,14 @@ public class ChromeLauncherActivity extends Activity
     }
 
     /**
-     * @return Whether or not a Custom Tab will be used for the incoming Intent.
+     * @return Whether or not a Custom Tab will be forcefully used for the incoming Intent.
      */
-    private boolean isIntentHandledByHerb() {
-        String flavor = ChromePreferenceManager.getHerbFlavor();
-        if (TextUtils.isEmpty(flavor)) return false;
-
-        // Only VIEW Intents are rerouted to Custom Tabs.
-        if (!TextUtils.equals(getIntent().getAction(), Intent.ACTION_VIEW)) return false;
+    private boolean isHerbIntent() {
+        // Only VIEW Intents with URLs are rerouted to Custom Tabs.
+        if (getIntent() == null || !TextUtils.equals(Intent.ACTION_VIEW, getIntent().getAction())
+                || TextUtils.isEmpty(IntentHandler.getUrlFromIntent(getIntent()))) {
+            return false;
+        }
 
         // Don't reroute Chrome Intents.
         if (TextUtils.equals(getPackageName(),
@@ -292,7 +308,14 @@ public class ChromeLauncherActivity extends Activity
             return false;
         }
 
-        if (TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_ANISE)
+        // Custom Tabs have to be available.
+        if (!ChromePreferenceManager.getInstance(this).getCustomTabsEnabled()) return false;
+
+        // Different Herb flavors handle incoming intents differently.
+        String flavor = ChromePreferenceManager.getHerbFlavor();
+        if (TextUtils.isEmpty(flavor)) {
+            return false;
+        } else if (TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_ANISE)
                 || TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_BASIL)) {
             // Only Intents without NEW_TASK and NEW_DOCUMENT will trigger a Custom Tab.
             boolean isSameTask = (getIntent().getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK) == 0;
@@ -313,12 +336,34 @@ public class ChromeLauncherActivity extends Activity
         }
     }
 
+    private void addHerbIntentExtras(Intent newIntent, Uri uri) {
+        Bundle herbBundle = new Bundle();
+
+        Bitmap herbIcon =
+                BitmapFactory.decodeResource(getResources(), R.drawable.btn_open_in_chrome);
+        herbBundle.putParcelable(CustomTabsIntent.KEY_ICON, herbIcon);
+
+        // Fallback in case the Custom Tab fails to trigger opening in Chrome.
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(EXTRA_IS_ALLOWED_TO_RETURN_TO_PARENT, false);
+
+        PendingIntent pendingIntent =
+                PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
+        herbBundle.putParcelable(CustomTabsIntent.KEY_PENDING_INTENT, pendingIntent);
+
+        herbBundle.putString(CustomTabsIntent.KEY_DESCRIPTION,
+                getResources().getString(R.string.menu_open_in_chrome));
+
+        newIntent.putExtra(CustomTabsIntent.EXTRA_ACTION_BUTTON_BUNDLE, herbBundle);
+        newIntent.putExtra(CustomTabIntentDataProvider.EXTRA_FINISH_AFTER_OPENING_IN_BROWSER, true);
+    }
+
     /**
      * @return Whether the intent sent is for launching a Custom Tab.
      */
     private boolean isCustomTabIntent() {
-        if (getIntent() == null || (!getIntent().hasExtra(CustomTabsIntent.EXTRA_SESSION)
-                && !isIntentHandledByHerb())) {
+        if (getIntent() == null || !getIntent().hasExtra(CustomTabsIntent.EXTRA_SESSION)) {
             return false;
         }
 
@@ -339,10 +384,14 @@ public class ChromeLauncherActivity extends Activity
 
         // Create and fire a launch intent. Use the copy constructor to carry over the myriad of
         // extras.
+        Uri uri = Uri.parse(IntentHandler.getUrlFromIntent(getIntent()));
+
         Intent newIntent = new Intent(getIntent());
         newIntent.setAction(Intent.ACTION_VIEW);
         newIntent.setClassName(this, CustomTabActivity.class.getName());
-        newIntent.setData(Uri.parse(IntentHandler.getUrlFromIntent(getIntent())));
+        newIntent.setData(uri);
+        if (!isCustomTabIntent() && mIsHerbIntent) addHerbIntentExtras(newIntent, uri);
+
         startActivity(newIntent);
     }
 
@@ -470,10 +519,10 @@ public class ChromeLauncherActivity extends Activity
         params.setHasUserGesture(hasUserGesture);
         AsyncTabCreationParams data =
                 new AsyncTabCreationParams(params, new Intent(getIntent()));
-        AsyncTabCreationParamsManager.add(tabId, data);
+        AsyncTabParamsManager.add(tabId, data);
         if (!relaunchTask(tabId)) {
             // Were not able to clobber, will fall through to handle in a new document.
-            AsyncTabCreationParamsManager.remove(tabId);
+            AsyncTabParamsManager.remove(tabId);
             return false;
         }
 
@@ -602,7 +651,7 @@ public class ChromeLauncherActivity extends Activity
         // re-delivered when a Chrome Activity is restarted.
         boolean isWebContentsPending = false;
         int tabId = ActivityDelegate.getTabIdFromIntent(intent);
-        AsyncTabCreationParamsManager.add(tabId, asyncParams);
+        AsyncTabParamsManager.add(tabId, asyncParams);
         isWebContentsPending = asyncParams.getWebContents() != null;
 
         Bundle options = null;
@@ -624,7 +673,7 @@ public class ChromeLauncherActivity extends Activity
         } catch (java.lang.RuntimeException exception) {
             if (exception.getCause() instanceof TransactionTooLargeException) {
                 Log.e(TAG, "Failed to launch DocumentActivity because Intent was too large");
-                AsyncTabCreationParamsManager.remove(tabId);
+                AsyncTabParamsManager.remove(tabId);
                 if (isWebContentsPending) asyncParams.getWebContents().destroy();
                 return false;
             }
@@ -822,9 +871,9 @@ public class ChromeLauncherActivity extends Activity
     }
 
     /**
-     * Attempt to move a task back to the front.  This can FAIL for some reason because the UID
+     * Attempt to move a task back to the front.  This can fail for some reason because the UID
      * of the DocumentActivity we try to bring back to the front doesn't match the
-     * ChromeLauncherActivities.
+     * ChromeLauncherActivity's.
      * @param task Task to attempt to bring back to the foreground.
      * @return Whether or not this succeeded.
      */
@@ -864,9 +913,16 @@ public class ChromeLauncherActivity extends Activity
     }
 
     /**
-     * Send the number of times an exception was caught when trying to move a task back to front.
+     * Records metrics gleaned from the Intent.
      */
-    public static void sendExceptionCount() {
-        sMoveToFrontExceptionHistogram.commitHistogram();
+    private void recordIntentMetrics() {
+        Intent intent = getIntent();
+        IntentHandler.ExternalAppId source =
+                IntentHandler.determineExternalIntentSource(getPackageName(), intent);
+        if (intent.getPackage() == null && source != IntentHandler.ExternalAppId.CHROME) {
+            int flagsOfInterest = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NEW_DOCUMENT;
+            int maskedFlags = intent.getFlags() & flagsOfInterest;
+            sIntentFlagsHistogram.record(maskedFlags);
+        }
     }
 }

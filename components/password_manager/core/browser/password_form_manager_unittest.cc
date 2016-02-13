@@ -1015,6 +1015,8 @@ TEST_F(PasswordFormManagerTest, TestAlternateUsername_NoChange) {
       .WillOnce(SaveArg<0>(&saved_result));
   EXPECT_CALL(*mock_store(), UpdateLoginWithPrimaryKey(_, _)).Times(0);
   EXPECT_CALL(*mock_store(), AddLogin(_)).Times(0);
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(_, false, _, _, true));
 
   form_manager()->Save();
   // Should be only one password stored, and should not have
@@ -1594,6 +1596,8 @@ TEST_F(PasswordFormManagerTest, CorrectlyUpdatePasswordsWithSameUsername) {
       .WillOnce(SaveArg<0>(&saved_result));
   EXPECT_CALL(*mock_store(), UpdateLoginWithPrimaryKey(_, _)).Times(0);
   EXPECT_CALL(*mock_store(), AddLogin(_)).Times(0);
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(_, false, _, _, true));
 
   form_manager()->Save();
 
@@ -2232,6 +2236,8 @@ TEST_F(PasswordFormManagerTest, NotRemoveOnUpdate) {
   EXPECT_CALL(*mock_store(),
               UpdateLogin(CheckUsername(saved_match()->username_value)));
   EXPECT_CALL(*mock_store(), RemoveLogin(_)).Times(0);
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(_, false, _, _, true));
 
   form_manager()->ProvisionallySave(
       submitted_form, PasswordFormManager::IGNORE_OTHER_POSSIBLE_USERNAMES);
@@ -2440,6 +2446,8 @@ TEST_F(PasswordFormManagerTest, TestUpdatePSLMatchedCredentials) {
   EXPECT_CALL(*mock_store(), UpdateLogin(_))
       .WillOnce(testing::SaveArg<0>(&new_credentials[0]))
       .WillOnce(testing::SaveArg<0>(&new_credentials[1]));
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(_, false, _, _, true));
 
   form_manager.Save();
   Mock::VerifyAndClearExpectations(mock_store());
@@ -2487,6 +2495,8 @@ TEST_F(PasswordFormManagerTest,
   PasswordForm new_credentials;
   EXPECT_CALL(*mock_store(), UpdateLogin(_))
       .WillOnce(testing::SaveArg<0>(&new_credentials));
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(_, false, _, _, true));
 
   form_manager.Save();
   Mock::VerifyAndClearExpectations(mock_store());
@@ -2523,6 +2533,8 @@ TEST_F(PasswordFormManagerTest,
   PasswordForm new_credentials;
   EXPECT_CALL(*mock_store(), UpdateLogin(_))
       .WillOnce(testing::SaveArg<0>(&new_credentials));
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(_, false, _, _, true));
 
   form_manager.Save();
   Mock::VerifyAndClearExpectations(mock_store());
@@ -2708,6 +2720,72 @@ TEST_F(PasswordFormManagerTest,
   EXPECT_TRUE(
       form_manager()->pending_credentials().new_password_element.empty());
   EXPECT_TRUE(form_manager()->pending_credentials().new_password_value.empty());
+}
+
+TEST_F(PasswordFormManagerTest,
+       TestUploadVotesForPasswordChangeFormsWithTwoFields) {
+  // Turn |observed_form_| into change password form with only 2 fields: an old
+  // password and a new password.
+  observed_form()->username_element.clear();
+  observed_form()->new_password_element = ASCIIToUTF16("NewPasswd");
+  autofill::FormFieldData field;
+  field.label = ASCIIToUTF16("password");
+  field.name = ASCIIToUTF16("Passwd");
+  field.form_control_type = "password";
+  observed_form()->form_data.fields.push_back(field);
+
+  field.label = ASCIIToUTF16("new password");
+  field.name = ASCIIToUTF16("NewPasswd");
+  observed_form()->form_data.fields.push_back(field);
+
+  client()->set_is_update_password_ui_enabled(true);
+  PasswordFormManager form_manager(password_manager(), client(),
+                                   client()->driver(), *observed_form(), false);
+
+  SimulateMatchingPhase(&form_manager, RESULT_SAVED_MATCH);
+
+  // User submits current and new credentials to the observed form.
+  PasswordForm submitted_form(*observed_form());
+  submitted_form.password_value = saved_match()->password_value;
+  submitted_form.new_password_value = ASCIIToUTF16("test2");
+  submitted_form.preferred = true;
+  form_manager.ProvisionallySave(
+      submitted_form, PasswordFormManager::IGNORE_OTHER_POSSIBLE_USERNAMES);
+
+  // Successful login. The PasswordManager would instruct PasswordFormManager
+  // to update.
+  EXPECT_FALSE(form_manager.IsNewLogin());
+  EXPECT_TRUE(form_manager.is_possible_change_password_form_without_username());
+
+  // By now, the PasswordFormManager should have promoted the new password
+  // value already to be the current password, and should no longer maintain
+  // any info about the new password value.
+  EXPECT_EQ(submitted_form.new_password_value,
+            form_manager.pending_credentials().password_value);
+  EXPECT_TRUE(form_manager.pending_credentials().new_password_value.empty());
+
+  std::map<base::string16, autofill::ServerFieldType> expected_types;
+  expected_types[observed_form()->password_element] = autofill::PASSWORD;
+  expected_types[observed_form()->new_password_element] =
+      autofill::NEW_PASSWORD;
+
+  autofill::ServerFieldTypeSet expected_available_field_types;
+  expected_available_field_types.insert(autofill::PASSWORD);
+  expected_available_field_types.insert(autofill::NEW_PASSWORD);
+
+  std::string observed_form_signature =
+      autofill::FormStructure(observed_form()->form_data).FormSignature();
+
+  std::string expected_login_signature =
+      autofill::FormStructure(saved_match()->form_data).FormSignature();
+
+  EXPECT_CALL(*client()->mock_driver()->mock_autofill_download_manager(),
+              StartUploadRequest(CheckUploadFormStructure(
+                                     observed_form_signature, expected_types),
+                                 false, expected_available_field_types,
+                                 expected_login_signature, true));
+
+  form_manager.Update(*saved_match());
 }
 
 }  // namespace password_manager

@@ -4,7 +4,7 @@
 
 {
   'includes': [
-    '../third_party/mojo/mojo_variables.gypi',
+    'mojo_variables.gypi',
   ],
   'target_defaults' : {
     'include_dirs': [
@@ -19,17 +19,13 @@
   'targets': [
     {
       # GN version: //mojo/edk/system
-      'target_name': 'mojo_system_impl2',
-      'type': 'static_library',
-      # TODO(use_chrome_edk): this should be a component to match third_party,
-      # but since third_party includes it, we either make it a static library
-      # or we have to change the export macros to be different than third_party.
-      #'type': '<(component)',
+      'target_name': 'mojo_system_impl',
+      'type': '<(component)',
       'dependencies': [
         '../base/base.gyp:base',
         '../base/third_party/dynamic_annotations/dynamic_annotations.gyp:dynamic_annotations',
         '../crypto/crypto.gyp:crypto',
-        '../third_party/mojo/mojo_public.gyp:mojo_system_headers',
+        'mojo_public.gyp:mojo_system_headers',
       ],
       'defines': [
         'MOJO_SYSTEM_IMPL_IMPLEMENTATION',
@@ -54,21 +50,18 @@
         'edk/embedder/platform_handle_utils_posix.cc',
         'edk/embedder/platform_handle_utils_win.cc',
         'edk/embedder/platform_handle_vector.h',
+        'edk/embedder/platform_shared_buffer.cc',
         'edk/embedder/platform_shared_buffer.h',
-        'edk/embedder/platform_support.h',
         'edk/embedder/scoped_platform_handle.h',
-        'edk/embedder/simple_platform_shared_buffer.cc',
-        'edk/embedder/simple_platform_shared_buffer.h',
-        'edk/embedder/simple_platform_shared_buffer_android.cc',
-        'edk/embedder/simple_platform_shared_buffer_posix.cc',
-        'edk/embedder/simple_platform_shared_buffer_win.cc',
-        'edk/embedder/simple_platform_support.cc',
-        'edk/embedder/simple_platform_support.h',
         'edk/system/awakable.h',
         'edk/system/awakable_list.cc',
         'edk/system/awakable_list.h',
         'edk/system/async_waiter.cc',
         'edk/system/async_waiter.h',
+        'edk/system/broker.h',
+        'edk/system/broker_host.h',
+        'edk/system/broker_host_posix.cc',
+        'edk/system/broker_posix.cc',
         'edk/system/channel.cc',
         'edk/system/channel.h',
         'edk/system/channel_posix.cc',
@@ -99,6 +92,7 @@
         'edk/system/options_validation.h',
         'edk/system/platform_handle_dispatcher.cc',
         'edk/system/platform_handle_dispatcher.h',
+        'edk/system/ports/event.cc',
         'edk/system/ports/event.h',
         'edk/system/ports/hash_functions.h',
         'edk/system/ports/message.cc',
@@ -150,8 +144,7 @@
     },
     {
       # GN version: //mojo/edk/js
-      # TODO(use_chrome_edk): remove "2"
-      'target_name': 'mojo_js_lib2',
+      'target_name': 'mojo_js_lib',
       'type': 'static_library',
       'dependencies': [
         '../base/base.gyp:base',
@@ -183,8 +176,7 @@
     },
     {
       # GN version: //mojo/edk/test:test_support_impl
-      # TODO(use_chrome_edk): remove "2"
-      'target_name': 'mojo_test_support_impl2',
+      'target_name': 'mojo_test_support_impl',
       'type': 'static_library',
       'dependencies': [
         '../base/base.gyp:base',
@@ -196,13 +188,13 @@
     },
     {
       # GN version: //mojo/edk/test:test_support
-      'target_name': 'mojo_common_test_support2',
+      'target_name': 'mojo_common_test_support',
       'type': 'static_library',
       'dependencies': [
         '../base/base.gyp:base',
         '../base/base.gyp:test_support_base',
         '../testing/gtest.gyp:gtest',
-        'mojo_system_impl2',
+        'mojo_system_impl',
       ],
       'sources': [
         'edk/test/mojo_test_base.cc',
@@ -225,19 +217,36 @@
     },
     {
       # GN version: //mojo/edk/test:run_all_unittests
-      # TODO(use_chrome_edk): remove "2"
-      'target_name': 'mojo_run_all_unittests2',
+      'target_name': 'mojo_run_all_unittests',
       'type': 'static_library',
       'dependencies': [
         '../base/base.gyp:base',
         '../base/base.gyp:test_support_base',
         '../testing/gtest.gyp:gtest',
-        '../third_party/mojo/mojo_public.gyp:mojo_public_test_support',
-        'mojo_system_impl2',
-        'mojo_test_support_impl2',
+        'mojo_common_test_support',
+        'mojo_public.gyp:mojo_public_test_support',
+        'mojo_system_impl',
+        'mojo_test_support_impl',
       ],
       'sources': [
         'edk/test/run_all_unittests.cc',
+      ],
+    },
+    {
+      # GN version: //mojo/edk/test:run_all_perftests
+      'target_name': 'mojo_run_all_perftests',
+      'type': 'static_library',
+      'dependencies': [
+        '../base/base.gyp:base',
+        '../base/base.gyp:test_support_base',
+        '../testing/gtest.gyp:gtest',
+        'mojo_common_test_support',
+        'mojo_public.gyp:mojo_public_test_support',
+        'mojo_system_impl',
+        'mojo_test_support_impl',
+      ],
+      'sources': [
+        'edk/test/run_all_perftests.cc',
       ],
     },
   ],

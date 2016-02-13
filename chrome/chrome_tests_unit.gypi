@@ -334,7 +334,7 @@
       'browser/password_manager/save_password_infobar_delegate_unittest.cc',
     ],
     'chrome_unit_tests_android_sources': [
-      'browser/password_manager/auto_signin_infobar_delegate_unittest.cc',
+      'browser/password_manager/auto_signin_first_run_dialog_android_unittest.cc',
       'browser/permissions/permission_queue_controller_unittest.cc',
     ],
     'chrome_unit_tests_non_mobile_sources': [
@@ -1284,6 +1284,7 @@
       'browser/ui/cocoa/one_click_signin_bubble_controller_unittest.mm',
       'browser/ui/cocoa/panels/panel_cocoa_unittest.mm',
       'browser/ui/cocoa/passwords/account_chooser_view_controller_unittest.mm',
+      'browser/ui/cocoa/passwords/autosignin_prompt_view_controller_unittest.mm',
       'browser/ui/cocoa/passwords/base_passwords_controller_test.h',
       'browser/ui/cocoa/passwords/base_passwords_controller_test.mm',
       'browser/ui/cocoa/passwords/confirmation_password_saved_view_controller_unittest.mm',
@@ -1473,6 +1474,7 @@
       'browser/importer/firefox_profile_lock_unittest.cc',
       'browser/importer/profile_writer_unittest.cc',
       'browser/media/combined_desktop_media_list_unittest.cc',
+      'browser/media/tab_desktop_media_list_unittest.cc',
       'browser/media_galleries/fileapi/native_media_file_util_unittest.cc',
       'browser/media_galleries/gallery_watch_manager_unittest.cc',
       'browser/media_galleries/linux/mtp_device_object_enumerator_unittest.cc',
@@ -1607,6 +1609,7 @@
       'browser/ui/webui/signin/sync_confirmation_handler_unittest.cc'
     ],
     'chrome_unit_tests_app_list_sources': [
+      'browser/ui/app_list/app_context_menu_unittest.cc',
       'browser/ui/app_list/app_list_positioner_unittest.cc',
       'browser/ui/app_list/app_list_service_mac_unittest.mm',
       'browser/ui/app_list/app_list_service_unittest.cc',
@@ -2170,11 +2173,11 @@
         'test_support_common',
         '../base/base.gyp:base',
         '../mojo/mojo_base.gyp:mojo_environment_chromium',
+        '../mojo/mojo_edk.gyp:mojo_system_impl',
         '../skia/skia.gyp:skia',
         '../sync/sync.gyp:sync',
         '../testing/gmock.gyp:gmock',
         '../testing/gtest.gyp:gtest',
-        '../third_party/mojo/mojo_edk.gyp:mojo_system_impl',
       ],
       'include_dirs': [
         '..',
@@ -3005,6 +3008,19 @@
     }],
     ['test_isolation_mode != "noop"', {
       'targets': [
+        {
+          'target_name': 'chrome_app_unittests_run',
+          'type': 'none',
+          'dependencies': [
+            'chrome_app_unittests',
+          ],
+          'includes': [
+            '../build/isolate.gypi',
+          ],
+          'sources': [
+            'chrome_app_unittests.isolate',
+          ],
+        },
         {
           'target_name': 'unit_tests_run',
           'type': 'none',

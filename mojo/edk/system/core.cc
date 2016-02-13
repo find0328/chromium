@@ -21,7 +21,6 @@
 #include "mojo/edk/embedder/embedder.h"
 #include "mojo/edk/embedder/embedder_internal.h"
 #include "mojo/edk/embedder/platform_shared_buffer.h"
-#include "mojo/edk/embedder/platform_support.h"
 #include "mojo/edk/system/async_waiter.h"
 #include "mojo/edk/system/channel.h"
 #include "mojo/edk/system/configuration.h"
@@ -44,19 +43,9 @@ namespace {
 // This is an unnecessarily large limit that is relatively easy to enforce.
 const uint32_t kMaxHandlesPerMessage = 1024 * 1024;
 
-void OnPortConnected(
-    Core* core,
-    int endpoint,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback,
-    const ports::PortRef& port) {
-  // TODO: Maybe we could negotiate a pipe ID for cross-process pipes too;
-  // for now we just use 0x7F7F7F7F7F7F7F7F. In practice these are used for
-  // bootstrap and aren't passed around, so tracking them is less important.
-  MojoHandle handle = core->AddDispatcher(
-      new MessagePipeDispatcher(core->GetNodeController(), port,
-                                0x7f7f7f7f7f7f7f7fUL, endpoint));
-  callback.Run(ScopedMessagePipeHandle(MessagePipeHandle(handle)));
-}
+// TODO: Maybe we could negotiate a debugging pipe ID for cross-process pipes
+// too; for now we just use a constant. This only affects bootstrap pipes.
+const uint64_t kUnknownPipeIdForDebug = 0x7f7f7f7f7f7f7f7fUL;
 
 }  // namespace
 
@@ -148,6 +137,31 @@ MojoResult Core::PassWrappedPlatformHandle(
   return MOJO_RESULT_OK;
 }
 
+MojoResult Core::CreateSharedBufferWrapper(
+    base::SharedMemoryHandle shared_memory_handle,
+    size_t num_bytes,
+    bool read_only,
+    MojoHandle* mojo_wrapper_handle) {
+  DCHECK(num_bytes);
+  CHECK(!read_only);
+  scoped_refptr<PlatformSharedBuffer> platform_buffer =
+      PlatformSharedBuffer::CreateFromSharedMemoryHandle(num_bytes, read_only,
+                                                         shared_memory_handle);
+  if (!platform_buffer)
+    return MOJO_RESULT_UNKNOWN;
+
+  scoped_refptr<SharedBufferDispatcher> dispatcher;
+  MojoResult result = SharedBufferDispatcher::CreateFromPlatformSharedBuffer(
+      platform_buffer, &dispatcher);
+  if (result != MOJO_RESULT_OK)
+    return result;
+  MojoHandle h = AddDispatcher(dispatcher);
+  if (h == MOJO_HANDLE_INVALID)
+    return MOJO_RESULT_RESOURCE_EXHAUSTED;
+  *mojo_wrapper_handle = h;
+  return MOJO_RESULT_OK;
+}
+
 void Core::RequestShutdown(const base::Closure& callback) {
   base::Closure on_shutdown;
   if (base::ThreadTaskRunnerHandle::IsSet()) {
@@ -160,32 +174,37 @@ void Core::RequestShutdown(const base::Closure& callback) {
   GetNodeController()->RequestShutdown(on_shutdown);
 }
 
-void Core::CreateMessagePipe(
-    ScopedPlatformHandle platform_handle,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
-  ports::PortRef port;
-  GetNodeController()->node()->CreateUninitializedPort(&port);
+ScopedMessagePipeHandle Core::CreateMessagePipe(
+    ScopedPlatformHandle platform_handle) {
+  ports::PortRef port0, port1;
+  GetNodeController()->node()->CreatePortPair(&port0, &port1);
+  MojoHandle handle = AddDispatcher(
+    new MessagePipeDispatcher(GetNodeController(), port0,
+                              kUnknownPipeIdForDebug, 0));
   RemoteMessagePipeBootstrap::Create(
-      GetNodeController(), std::move(platform_handle), port,
-      base::Bind(&OnPortConnected, base::Unretained(this), 0, callback, port));
+      GetNodeController(), std::move(platform_handle), port1);
+  return ScopedMessagePipeHandle(MessagePipeHandle(handle));
 }
 
-void Core::CreateParentMessagePipe(
-    const std::string& token,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
-  GetNodeController()->ReservePort(
-      token,
-      base::Bind(&OnPortConnected, base::Unretained(this), 0, callback));
+ScopedMessagePipeHandle Core::CreateParentMessagePipe(
+    const std::string& token) {
+  ports::PortRef port0, port1;
+  GetNodeController()->node()->CreatePortPair(&port0, &port1);
+  MojoHandle handle = AddDispatcher(
+      new MessagePipeDispatcher(GetNodeController(), port0,
+                                kUnknownPipeIdForDebug, 0));
+  GetNodeController()->ReservePort(token, port1);
+  return ScopedMessagePipeHandle(MessagePipeHandle(handle));
 }
 
-void Core::CreateChildMessagePipe(
-    const std::string& token,
-    const base::Callback<void(ScopedMessagePipeHandle)>& callback) {
-  ports::PortRef port;
-  GetNodeController()->node()->CreateUninitializedPort(&port);
-  GetNodeController()->ConnectToParentPort(
-      port, token,
-      base::Bind(&OnPortConnected, base::Unretained(this), 1, callback, port));
+ScopedMessagePipeHandle Core::CreateChildMessagePipe(const std::string& token) {
+  ports::PortRef port0, port1;
+  GetNodeController()->node()->CreatePortPair(&port0, &port1);
+  MojoHandle handle = AddDispatcher(
+      new MessagePipeDispatcher(GetNodeController(), port0,
+                                kUnknownPipeIdForDebug, 1));
+  GetNodeController()->MergePortIntoParent(token, port1);
+  return ScopedMessagePipeHandle(MessagePipeHandle(handle));
 }
 
 MojoResult Core::AsyncWait(MojoHandle handle,
@@ -555,8 +574,8 @@ MojoResult Core::CreateSharedBuffer(
     return result;
 
   scoped_refptr<SharedBufferDispatcher> dispatcher;
-  result = SharedBufferDispatcher::Create(
-      internal::g_platform_support, validated_options, num_bytes, &dispatcher);
+  result =
+      SharedBufferDispatcher::Create(validated_options, num_bytes, &dispatcher);
   if (result != MOJO_RESULT_OK) {
     DCHECK(!dispatcher);
     return result;

@@ -31,12 +31,12 @@ import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.KeyboardShortcuts;
 import org.chromium.chrome.browser.TabState;
 import org.chromium.chrome.browser.UrlConstants;
+import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.StateChangeReason;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerDocument;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerDocumentTabSwitcher;
 import org.chromium.chrome.browser.compositor.layouts.OverviewModeBehavior;
 import org.chromium.chrome.browser.compositor.layouts.OverviewModeBehavior.OverviewModeObserver;
-import org.chromium.chrome.browser.enhancedbookmarks.EnhancedBookmarkUtils;
 import org.chromium.chrome.browser.firstrun.FirstRunSignInProcessor;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.metrics.StartupMetrics;
@@ -50,11 +50,12 @@ import org.chromium.chrome.browser.signin.SigninPromoScreen;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabUma.TabCreationState;
+import org.chromium.chrome.browser.tabmodel.AsyncTabParams;
+import org.chromium.chrome.browser.tabmodel.AsyncTabParamsManager;
 import org.chromium.chrome.browser.tabmodel.SingleTabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModel.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.document.ActivityDelegate;
 import org.chromium.chrome.browser.tabmodel.document.AsyncTabCreationParams;
-import org.chromium.chrome.browser.tabmodel.document.AsyncTabCreationParamsManager;
 import org.chromium.chrome.browser.tabmodel.document.DocumentTabModel;
 import org.chromium.chrome.browser.tabmodel.document.DocumentTabModel.InitializationObserver;
 import org.chromium.chrome.browser.tabmodel.document.DocumentTabModelImpl;
@@ -429,7 +430,6 @@ public class DocumentActivity extends ChromeActivity {
     public void onStartWithNative() {
         super.onStartWithNative();
         handleDocumentUma();
-        ChromeLauncherActivity.sendExceptionCount();
     }
 
     @Override
@@ -460,7 +460,8 @@ public class DocumentActivity extends ChromeActivity {
         // will get called.
         super.onPause();
         if (isFinishing() && mTab != null && mTab.getWebContents() != null) {
-            mTab.getWebContents().releaseMediaPlayers();
+            mTab.getWebContents().suspendAllMediaPlayers();
+            mTab.getWebContents().setAudioMuted(true);
         }
     }
 
@@ -485,7 +486,7 @@ public class DocumentActivity extends ChromeActivity {
         super.onResumeWithNative();
 
         if (mTab != null) {
-            AsyncTabCreationParams asyncParams = AsyncTabCreationParamsManager.remove(
+            AsyncTabParams asyncParams = AsyncTabParamsManager.remove(
                     ActivityDelegate.getTabIdFromIntent(getIntent()));
             if (asyncParams != null && asyncParams.getLoadUrlParams().getUrl() != null) {
                 loadLastKnownUrl(asyncParams);
@@ -499,7 +500,7 @@ public class DocumentActivity extends ChromeActivity {
         return (SingleTabModelSelector) super.getTabModelSelector();
     }
 
-    private void loadLastKnownUrl(AsyncTabCreationParams asyncParams) {
+    private void loadLastKnownUrl(AsyncTabParams asyncParams) {
         Intent intent = getIntent();
         if (asyncParams != null && asyncParams.getOriginalIntent() != null) {
             intent = asyncParams.getOriginalIntent();
@@ -567,8 +568,10 @@ public class DocumentActivity extends ChromeActivity {
         mDefaultThemeColor = isIncognito()
                 ? ApiCompatibilityUtils.getColor(getResources(), R.color.incognito_primary_color)
                 : ApiCompatibilityUtils.getColor(getResources(), R.color.default_primary_color);
-        AsyncTabCreationParams asyncParams = AsyncTabCreationParamsManager.remove(
+        AsyncTabParams params = AsyncTabParamsManager.remove(
                 ActivityDelegate.getTabIdFromIntent(getIntent()));
+        AsyncTabCreationParams asyncParams = params instanceof AsyncTabCreationParams
+                ? (AsyncTabCreationParams) params : null;
         boolean isAffiliated = asyncParams != null ? asyncParams.isAffiliated() : false;
         boolean isCreatedWithWebContents = asyncParams != null
                 && asyncParams.getWebContents() != null;
@@ -601,7 +604,7 @@ public class DocumentActivity extends ChromeActivity {
                         loadUrlParams.setUrl(determineLastKnownUrl());
                     }
 
-                    AsyncTabCreationParamsManager.add(
+                    AsyncTabParamsManager.add(
                             ActivityDelegate.getTabIdFromIntent(getIntent()), asyncParams);
 
                     // Use the URL as the document title until tab is loaded.
@@ -816,7 +819,7 @@ public class DocumentActivity extends ChromeActivity {
             }, MENU_EXIT_ANIMATION_WAIT_MS);
         } else if (id == R.id.all_bookmarks_menu_id) {
             StartupMetrics.getInstance().recordOpenedBookmarks();
-            EnhancedBookmarkUtils.showBookmarkManager(this);
+            BookmarkUtils.showBookmarkManager(this);
             RecordUserAction.record("MobileMenuAllBookmarks");
         } else if (id == R.id.recent_tabs_menu_id) {
             NewTabPage.launchRecentTabsDialog(this, mTab);

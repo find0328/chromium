@@ -17,11 +17,10 @@
 #include "mojo/shell/connect_util.h"
 #include "mojo/shell/fetcher.h"
 #include "mojo/shell/package_manager.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/cpp/interface_factory.h"
-#include "mojo/shell/public/interfaces/service_provider.mojom.h"
+#include "mojo/shell/public/cpp/shell_client.h"
+#include "mojo/shell/public/cpp/shell_connection.h"
+#include "mojo/shell/public/interfaces/interface_provider.mojom.h"
 #include "mojo/shell/test.mojom.h"
 #include "mojo/shell/test_package_manager.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -95,7 +94,7 @@ class TestClient {
 };
 
 class TestApplicationLoader : public ApplicationLoader,
-                              public ApplicationDelegate,
+                              public ShellClient,
                               public InterfaceFactory<TestService> {
  public:
   TestApplicationLoader()
@@ -104,7 +103,7 @@ class TestApplicationLoader : public ApplicationLoader,
   ~TestApplicationLoader() override {
     if (context_)
       ++context_->num_loader_deletes;
-    test_app_.reset();
+    shell_connection_.reset();
   }
 
   void set_context(TestContext* context) { context_ = context; }
@@ -114,25 +113,25 @@ class TestApplicationLoader : public ApplicationLoader,
  private:
   // ApplicationLoader implementation.
   void Load(const GURL& url,
-            InterfaceRequest<mojom::Application> application_request) override {
+            InterfaceRequest<mojom::ShellClient> request) override {
     ++num_loads_;
-    test_app_.reset(new ApplicationImpl(this, std::move(application_request)));
+    shell_connection_.reset(new ShellConnection(this, std::move(request)));
   }
 
-  // ApplicationDelegate implementation.
-  bool AcceptConnection(ApplicationConnection* connection) override {
-    connection->AddService<TestService>(this);
+  // mojo::ShellClient implementation.
+  bool AcceptConnection(Connection* connection) override {
+    connection->AddInterface<TestService>(this);
     last_requestor_url_ = GURL(connection->GetRemoteApplicationURL());
     return true;
   }
 
   // InterfaceFactory<TestService> implementation.
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<TestService> request) override {
     new TestServiceImpl(context_, std::move(request));
   }
 
-  scoped_ptr<ApplicationImpl> test_app_;
+  scoped_ptr<ShellConnection> shell_connection_;
   TestContext* context_;
   int num_loads_;
   GURL last_requestor_url_;
@@ -144,7 +143,7 @@ class ClosingApplicationLoader : public ApplicationLoader {
  private:
   // ApplicationLoader implementation.
   void Load(const GURL& url,
-            InterfaceRequest<mojom::Application> application_request) override {
+            InterfaceRequest<mojom::ShellClient> request) override {
   }
 };
 
@@ -246,14 +245,14 @@ class TesterContext {
 // Used to test that the requestor url will be correctly passed.
 class TestAImpl : public TestA {
  public:
-  TestAImpl(ApplicationImpl* app_impl,
+  TestAImpl(Shell* shell,
             TesterContext* test_context,
             InterfaceRequest<TestA> request,
             InterfaceFactory<TestC>* factory)
       : test_context_(test_context), binding_(this, std::move(request)) {
-    connection_ = app_impl->ConnectToApplication(kTestBURLString);
-    connection_->AddService<TestC>(factory);
-    connection_->ConnectToService(&b_);
+    connection_ = shell->Connect(kTestBURLString);
+    connection_->AddInterface<TestC>(factory);
+    connection_->GetInterface(&b_);
   }
 
   ~TestAImpl() override {
@@ -277,7 +276,7 @@ class TestAImpl : public TestA {
     test_context_->QuitSoon();
   }
 
-  scoped_ptr<ApplicationConnection> connection_;
+  scoped_ptr<Connection> connection_;
   TesterContext* test_context_;
   TestBPtr b_;
   StrongBinding<TestA> binding_;
@@ -285,11 +284,11 @@ class TestAImpl : public TestA {
 
 class TestBImpl : public TestB {
  public:
-  TestBImpl(ApplicationConnection* connection,
+  TestBImpl(Connection* connection,
             TesterContext* test_context,
             InterfaceRequest<TestB> request)
       : test_context_(test_context), binding_(this, std::move(request)) {
-    connection->ConnectToService(&c_);
+    connection->GetInterface(&c_);
   }
 
   ~TestBImpl() override {
@@ -317,7 +316,7 @@ class TestBImpl : public TestB {
 
 class TestCImpl : public TestC {
  public:
-  TestCImpl(ApplicationConnection* connection,
+  TestCImpl(Connection* connection,
             TesterContext* test_context,
             InterfaceRequest<TestC> request)
       : test_context_(test_context), binding_(this, std::move(request)) {}
@@ -334,7 +333,7 @@ class TestCImpl : public TestC {
   StrongBinding<TestC> binding_;
 };
 
-class Tester : public ApplicationDelegate,
+class Tester : public ShellClient,
                public ApplicationLoader,
                public InterfaceFactory<TestA>,
                public InterfaceFactory<TestB>,
@@ -346,11 +345,11 @@ class Tester : public ApplicationDelegate,
 
  private:
   void Load(const GURL& url,
-            InterfaceRequest<mojom::Application> application_request) override {
-    app_.reset(new ApplicationImpl(this, std::move(application_request)));
+            InterfaceRequest<mojom::ShellClient> request) override {
+    app_.reset(new ShellConnection(this, std::move(request)));
   }
 
-  bool AcceptConnection(ApplicationConnection* connection) override {
+  bool AcceptConnection(Connection* connection) override {
     if (!requestor_url_.empty() &&
         requestor_url_ != connection->GetRemoteApplicationURL()) {
       context_->set_tester_called_quit();
@@ -360,30 +359,30 @@ class Tester : public ApplicationDelegate,
     }
     // If we're coming from A, then add B, otherwise A.
     if (connection->GetRemoteApplicationURL() == kTestAURLString)
-      connection->AddService<TestB>(this);
+      connection->AddInterface<TestB>(this);
     else
-      connection->AddService<TestA>(this);
+      connection->AddInterface<TestA>(this);
     return true;
   }
 
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<TestA> request) override {
     a_bindings_.push_back(
         new TestAImpl(app_.get(), context_, std::move(request), this));
   }
 
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<TestB> request) override {
     new TestBImpl(connection, context_, std::move(request));
   }
 
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<TestC> request) override {
     new TestCImpl(connection, context_, std::move(request));
   }
 
   TesterContext* context_;
-  scoped_ptr<ApplicationImpl> app_;
+  scoped_ptr<ShellConnection> app_;
   std::string requestor_url_;
   ScopedVector<TestAImpl> a_bindings_;
 };
@@ -403,7 +402,7 @@ class ApplicationManagerTest : public testing::Test {
         scoped_ptr<ApplicationLoader>(test_loader_));
 
     TestServicePtr service_proxy;
-    ConnectToService(application_manager_.get(), GURL(kTestURLString),
+    ConnectToInterface(application_manager_.get(), GURL(kTestURLString),
                      &service_proxy);
     test_client_.reset(new TestClient(std::move(service_proxy)));
   }
@@ -480,14 +479,14 @@ TEST_F(ApplicationManagerTest, SetLoaders) {
 
   // test::test1 should go to url_loader.
   TestServicePtr test_service;
-  ConnectToService(application_manager_.get(), GURL("test:test1"),
-                   &test_service);
+  ConnectToInterface(application_manager_.get(), GURL("test:test1"),
+                     &test_service);
   EXPECT_EQ(1, url_loader->num_loads());
   EXPECT_EQ(0, default_loader->num_loads());
 
   // http::test1 should go to default loader.
-  ConnectToService(application_manager_.get(), GURL("http:test1"),
-                   &test_service);
+  ConnectToInterface(application_manager_.get(), GURL("http:test1"),
+                     &test_service);
   EXPECT_EQ(1, url_loader->num_loads());
   EXPECT_EQ(1, default_loader->num_loads());
 }
@@ -502,7 +501,7 @@ TEST_F(ApplicationManagerTest, ACallB) {
   AddLoaderForURL(GURL(kTestBURLString), kTestAURLString);
 
   TestAPtr a;
-  ConnectToService(application_manager_.get(), GURL(kTestAURLString), &a);
+  ConnectToInterface(application_manager_.get(), GURL(kTestAURLString), &a);
   a->CallB();
   loop_.Run();
   EXPECT_EQ(1, tester_context_.num_b_calls());
@@ -518,7 +517,7 @@ TEST_F(ApplicationManagerTest, BCallC) {
   AddLoaderForURL(GURL(kTestBURLString), kTestAURLString);
 
   TestAPtr a;
-  ConnectToService(application_manager_.get(), GURL(kTestAURLString), &a);
+  ConnectToInterface(application_manager_.get(), GURL(kTestAURLString), &a);
   a->CallCFromB();
   loop_.Run();
 
@@ -534,7 +533,7 @@ TEST_F(ApplicationManagerTest, BDeleted) {
   AddLoaderForURL(GURL(kTestBURLString), std::string());
 
   TestAPtr a;
-  ConnectToService(application_manager_.get(), GURL(kTestAURLString), &a);
+  ConnectToInterface(application_manager_.get(), GURL(kTestAURLString), &a);
 
   a->CallB();
   loop_.Run();
@@ -557,7 +556,7 @@ TEST_F(ApplicationManagerTest, ANoLoadB) {
   AddLoaderForURL(GURL(kTestBURLString), "test:TestC");
 
   TestAPtr a;
-  ConnectToService(application_manager_.get(), GURL(kTestAURLString), &a);
+  ConnectToInterface(application_manager_.get(), GURL(kTestAURLString), &a);
   a->CallB();
   loop_.Run();
   EXPECT_EQ(0, tester_context_.num_b_calls());
@@ -572,7 +571,7 @@ TEST_F(ApplicationManagerTest, NoServiceNoLoad) {
   // There is no TestC service implementation registered with
   // ApplicationManager, so this cannot succeed (but also shouldn't crash).
   TestCPtr c;
-  ConnectToService(application_manager_.get(), GURL(kTestAURLString), &c);
+  ConnectToInterface(application_manager_.get(), GURL(kTestAURLString), &c);
   c.set_connection_error_handler(
       []() { base::MessageLoop::current()->QuitWhenIdle(); });
 
@@ -600,29 +599,29 @@ TEST_F(ApplicationManagerTest, SameIdentityShouldNotCauseDuplicateLoad) {
   EXPECT_EQ(1, test_loader_->num_loads());
 
   TestServicePtr test_service;
-  ConnectToService(application_manager_.get(),
-                   GURL("http://www.example.org/abc?def"), &test_service);
+  ConnectToInterface(application_manager_.get(),
+                     GURL("http://www.example.org/abc?def"), &test_service);
   EXPECT_EQ(2, test_loader_->num_loads());
 
   // Exactly the same URL as above.
-  ConnectToService(application_manager_.get(),
-                   GURL("http://www.example.org/abc?def"), &test_service);
+  ConnectToInterface(application_manager_.get(),
+                     GURL("http://www.example.org/abc?def"), &test_service);
   EXPECT_EQ(2, test_loader_->num_loads());
 
   // The same identity as the one above because only the query string is
   // different.
-  ConnectToService(application_manager_.get(),
-                   GURL("http://www.example.org/abc"), &test_service);
+  ConnectToInterface(application_manager_.get(),
+                     GURL("http://www.example.org/abc"), &test_service);
   EXPECT_EQ(2, test_loader_->num_loads());
 
   // A different identity because the path is different.
-  ConnectToService(application_manager_.get(),
-                   GURL("http://www.example.org/another_path"), &test_service);
+  ConnectToInterface(application_manager_.get(),
+                     GURL("http://www.example.org/another_path"), &test_service);
   EXPECT_EQ(3, test_loader_->num_loads());
 
   // A different identity because the domain is different.
-  ConnectToService(application_manager_.get(),
-                   GURL("http://www.another_domain.org/abc"), &test_service);
+  ConnectToInterface(application_manager_.get(),
+                     GURL("http://www.another_domain.org/abc"), &test_service);
   EXPECT_EQ(4, test_loader_->num_loads());
 }
 

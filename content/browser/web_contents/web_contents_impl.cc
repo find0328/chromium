@@ -1780,6 +1780,13 @@ void WebContentsImpl::ForwardCompositorProto(
     delegate_->ForwardCompositorProto(proto);
 }
 
+void WebContentsImpl::OnRenderFrameProxyVisibilityChanged(bool visible) {
+  if (visible)
+    WasShown();
+  else
+    WasHidden();
+}
+
 void WebContentsImpl::CreateNewWindow(
     SiteInstance* source_site_instance,
     int32_t route_id,
@@ -1961,17 +1968,16 @@ void WebContentsImpl::CreateNewWidget(int32_t render_process_id,
                                       int32_t route_id,
                                       bool is_fullscreen,
                                       blink::WebPopupType popup_type) {
-  RenderProcessHost* process = GetRenderProcessHost();
+  RenderProcessHost* process = RenderProcessHost::FromID(render_process_id);
   // A message to create a new widget can only come from an active process for
   // this WebContentsImpl instance. If any other process sends the request,
   // it is invalid and the process must be terminated.
   if (!HasMatchingProcess(&frame_tree_, render_process_id)) {
-    RenderProcessHost* rph = RenderProcessHost::FromID(render_process_id);
-    base::ProcessHandle process_handle = rph->GetHandle();
+    base::ProcessHandle process_handle = process->GetHandle();
     if (process_handle != base::kNullProcessHandle) {
       RecordAction(
           base::UserMetricsAction("Terminate_ProcessMismatch_CreateNewWidget"));
-      rph->Shutdown(RESULT_CODE_KILLED, false);
+      process->Shutdown(RESULT_CODE_KILLED, false);
     }
     return;
   }
@@ -2697,14 +2703,6 @@ void WebContentsImpl::DidGetRedirectForResourceRequest(
       NOTIFICATION_RESOURCE_RECEIVED_REDIRECT,
       Source<WebContents>(this),
       Details<const ResourceRedirectDetails>(&details));
-
-  if (IsResourceTypeFrame(details.resource_type)) {
-    NavigationHandleImpl* navigation_handle =
-        static_cast<RenderFrameHostImpl*>(render_frame_host)
-            ->navigation_handle();
-    if (navigation_handle)
-      navigation_handle->DidRedirectNavigation(details.new_url);
-  }
 }
 
 void WebContentsImpl::NotifyWebContentsFocused() {
@@ -4289,7 +4287,7 @@ void WebContentsImpl::EnsureOpenerProxiesExist(RenderFrameHost* source_rfh) {
       return;
     }
 
-    if (GetBrowserPluginGuest()) {
+    if (this != source_web_contents && GetBrowserPluginGuest()) {
       // We create a swapped out RenderView or RenderFrameProxyHost for the
       // embedder in the guest's render process but we intentionally do not
       // expose the embedder's opener chain to it.

@@ -55,7 +55,6 @@ crbug.com/574660 [ Win7 ] fast/text/emphasis-combined-text.html [ Pass Failure ]
 crbug.com/574660 [ Win7 ] fast/text/emphasis-vertical.html [ Pass Failure ]
 
 crbug.com/581974 fast/text/justify-ideograph-vertical.html [ Pass Failure ]
-crbug.com/584209 http/tests/misc/adopt-iframe-src-attr-after-remove.html [ Pass Failure ]
 crbug.com/584211 [ Mac Debug ] svg/transforms/animated-path-inside-transformed-html.xhtml [ Pass Failure ]
 
 # ====== Oilpan-only failures until here ======
@@ -75,9 +74,7 @@ crbug.com/563265 editing/spelling/spelling-unified-emulation.html [ Skip ]
 # TODO(wangxianzhu): Triage the failures
 crbug.com/524134 virtual/spv2/paint/invalidation/invalidate-after-composited-scroll.html [ Failure ]
 crbug.com/524134 crbug.com/539546 virtual/spv2/paint/selection/text-selection-drag.html [ Pass Failure ]
-crbug.com/524134 virtual/spv2/paint/paintlayer/non-self-painting-layer-overrides-visibility.html [ Crash Failure Timeout ]
 crbug.com/524134 virtual/spv2/paint/invalidation/spv2/focus-ring-on-continuation-move.html [ Failure ]
-crbug.com/524134 virtual/spv2/paint/overflow/interest-rect-change-scroll-down.html [ Failure ]
 
 crbug.com/524236 virtual/spv2/paint/invalidation/spv2/clipping-should-not-repaint-composited-descendants-as-text.html [ Failure ]
 crbug.com/524236 virtual/spv2/paint/invalidation/spv2/scroll-fixed-layer-no-content-as-text.html [ Failure ]
@@ -104,8 +101,6 @@ crbug.com/527242 virtual/spv2/paint/invalidation/spv2/cached-change-colgroup-bor
 crbug.com/527242 virtual/spv2/paint/invalidation/spv2/cached-change-row-border-width.html [ Failure ]
 crbug.com/527242 virtual/spv2/paint/invalidation/spv2/cached-change-table-border-width.html [ Failure ]
 crbug.com/527242 virtual/spv2/paint/invalidation/spv2/cached-change-tbody-border-width.html [ Failure ]
-
-crbug.com/536138 virtual/spv2/paint/invalidation/repaint-subsequence-on-ancestor-clip-change.html [ Failure ]
 
 crbug.com/537172 [ Mac10.6 Win10 ] virtual/spv2/paint/invalidation/spv2/background-image-paint-invalidation.html [ Failure ]
 crbug.com/564443 [ Mac10.7 Mac10.8 Mac10.9 Mac10.10 Win7 Linux ] virtual/spv2/paint/invalidation/spv2/background-image-paint-invalidation.html [ Failure Pass ]
@@ -278,8 +273,6 @@ crbug.com/248938 [ Win Debug ] virtual/threaded/transitions/transition-end-event
 crbug.com/248938 [ Win Debug ] virtual/threaded/transitions/transition-end-event-multiple-04.html [ Pass Failure ]
 crbug.com/352405 virtual/threaded/animations/transition-and-animation-1.html [ Pass Timeout ]
 
-crbug.com/461179 virtual/spv2/paint/invalidation/invalidate-when-receiving-paint-layer.html [ Failure ]
-
 crbug.com/542541 [ Debug ] fast/events/click-count.html [ Pass Failure ]
 crbug.com/542541 [ Debug ] virtual/trustedeventsdefaultaction/fast/events/click-count.html [ Pass Failure ]
 crbug.com/542541 [ Debug ] virtual/pointerevent/fast/events/click-count.html [ Pass Failure ]
@@ -420,7 +413,6 @@ crbug.com/537409 virtual/spv2/ [ Skip ]
 crbug.com/563667 virtual/spv2/fast/block/basic/001.html [ Pass ]
 crbug.com/563667 virtual/spv2/fast/block/positioning/static-distance-with-positioned-ancestor.html [ Pass ]
 crbug.com/563667 virtual/spv2/fast/block/float/clamped-right-float.html [ Pass ]
-crbug.com/563667 virtual/spv2/fast/borders/border-image-scale-transform.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/basic/018.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/basic/adding-near-anonymous-block.html [ Pass ]
 crbug.com/580355 virtual/spv2/fast/block/basic/text-indent-rtl.html [ Pass ]
@@ -888,6 +880,10 @@ crbug.com/408159 accessibility/is-ignored-change-sends-notification.html [ Timeo
 crbug.com/504706 [ Linux ] inspector/profiler/heap-snapshot-containment-expansion-preserved-when-sorting.html [ Pass ]
 crbug.com/504706 [ Linux ] inspector/profiler/heap-snapshot-containment-sorting.html [ Pass ]
 
+crbug.com/305346 fast/events/mouseover-mouseout.html [ Failure Pass ]
+crbug.com/305346 virtual/pointerevent/fast/events/mouseover-mouseout.html [ Failure Pass ]
+crbug.com/305346 virtual/trustedeventsdefaultaction/fast/events/mouseover-mouseout.html [ Failure Pass ]
+
 # Disabled until the test plugin is fixed.
 crbug.com/363099 [ Win ] plugins/nested-plugin-objects.html [ Failure ]
 crbug.com/363099 [ Win ] plugins/open-and-close-window-with-plugin.html [ Failure ]
@@ -895,6 +891,8 @@ crbug.com/363099 [ Win ] plugins/open-and-close-window-with-plugin.html [ Failur
 crbug.com/418091 [ Mac10.6 ] fast/text/international/zerowidthjoiner.html [ Failure ]
 
 crbug.com/425345 [ Mac ] fast/text/line-break-after-question-mark.html [ Failure ]
+
+crbug.com/574283 [ Mac ] virtual/threaded/fast/scroll-behavior/smooth-scroll/mousewheel-scroll-interrupted.html [ Skip ]
 
 # When drawing subpixel smoothed glyphs, CoreGraphics will fake bold the glyphs.
 # In this configuration, the pixel smoothed glyphs will be created from subpixel smoothed glyphs.
@@ -1151,7 +1149,6 @@ crbug.com/521730 [ Win10 ] fast/text/atsui-multiple-renderers.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/basic/009.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/basic/generic-family-changes.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/capitalize-boundaries.html [ Failure ]
-crbug.com/521730 [ Win10 ] fast/text/emoji-web-font.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/firstline/001.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/firstline/002.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/firstline/003.html [ Failure ]
@@ -1171,10 +1168,6 @@ crbug.com/521730 [ Win10 ] fast/text/stroking-decorations.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/trailing-white-space-2.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/text/whitespace/nbsp-mode-and-linewraps.html [ Failure ]
 crbug.com/521730 [ Win10 ] fast/writing-mode/vertical-font-fallback.html [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/text-dirLTR-ubNone.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/text-dirLTR-ubOverride.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-dirLTR-ubOverride-in-ltr-context.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-dirRTL-ubEmbed-in-default-context.svg [ Failure ]
 crbug.com/521730 [ Win10 ] svg/W3C-SVG-1.1/text-intro-03-b.svg [ Failure ]
 crbug.com/521730 [ Win10 ] svg/css/text-gradient-shadow.svg [ Failure ]
 crbug.com/521730 [ Win10 ] compositing/squashing/squashing-print.html [ Failure ]
@@ -1252,17 +1245,6 @@ crbug.com/521730 [ Win10 ] ietestcenter/css3/text/textshadow-002.htm [ Failure ]
 crbug.com/521730 [ Win10 ] ietestcenter/css3/text/textshadow-010.htm [ Failure ]
 crbug.com/521730 [ Win10 ] printing/webgl-repeated-printing.html [ Failure ]
 crbug.com/521730 [ Win10 ] virtual/threaded/printing/webgl-repeated-printing.html [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/g-dirLTR-ubNone.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/g-dirLTR-ubOverride.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/g-dirRTL-ubNone.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/g-dirRTL-ubOverride.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/text-dirRTL-ubNone.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/text-dirRTL-ubOverride.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-dirLTR-ubOverride-in-default-context.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-dirNone-ubOverride-in-default-context.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-dirNone-ubOverride-in-ltr-context.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-dirRTL-ubEmbed-in-ltr-context.svg [ Failure ]
-crbug.com/521730 [ Win10 ] svg/W3C-I18N/tspan-direction-ltr.svg [ Failure ]
 crbug.com/521730 [ Win10 ] svg/as-image/svg-canvas-xhtml-tainted.html [ Failure ]
 crbug.com/521730 [ Win10 ] svg/css/text-shadow-multiple.xhtml [ Failure ]
 crbug.com/521730 [ Win10 ] svg/custom/textPath-change-id2-pattern.svg [ Failure ]
@@ -1387,3 +1369,5 @@ crbug.com/581038 fast/text/first-letter-bad-line-boxes-crash.html [ Crash Pass ]
 crbug.com/583675 fast/dom/shadow/scoped-events-by-ua-stopped.html [ Failure ]
 
 crbug.com/581203 [ Linux ] web-animations-api/player-finish-sample-only.html [ Failure Pass ]
+
+crbug.com/585724 fast/js/JSON-parse.html [ NeedsManualRebaseline ]

@@ -42,7 +42,7 @@ class MediaRouterWebUIMessageHandler : public content::WebUIMessageHandler {
   void UpdateCastModes(const CastModeSet& cast_modes,
                        const std::string& source_host);
   void OnCreateRouteResponseReceived(const MediaSink::Id& sink_id,
-                                     const MediaRoute::Id& route_id);
+                                     const MediaRoute* route);
 
   // Does not take ownership of |issue|. Note that |issue| can be nullptr, when
   // there are no more issues.
@@ -83,6 +83,11 @@ class MediaRouterWebUIMessageHandler : public content::WebUIMessageHandler {
   // Returns |true| if the action was successfully performed.
   bool ActOnIssueType(const IssueAction::Type& type,
                       const base::DictionaryValue* args);
+
+  // May update the first run flow related properties in the WebUI. This is
+  // called after the initial data is received to avoid unnecessary work when
+  // initializing the WebUI.
+  void MaybeUpdateFirstRunFlowData();
 
   // Keeps track of whether a command to close the dialog has been issued.
   bool dialog_closing_;

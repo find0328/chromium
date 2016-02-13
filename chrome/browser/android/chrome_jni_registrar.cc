@@ -104,6 +104,7 @@
 #include "chrome/browser/net/spdyproxy/data_reduction_proxy_settings_android.h"
 #include "chrome/browser/notifications/notification_ui_manager_android.h"
 #include "chrome/browser/password_manager/account_chooser_dialog_android.h"
+#include "chrome/browser/password_manager/auto_signin_first_run_dialog_android.h"
 #include "chrome/browser/password_manager/credential_android.h"
 #include "chrome/browser/permissions/permission_update_infobar_delegate_android.h"
 #include "chrome/browser/platform_util.h"
@@ -119,6 +120,7 @@
 #include "chrome/browser/supervised_user/child_accounts/child_account_service_android.h"
 #include "chrome/browser/supervised_user/supervised_user_content_provider_android.h"
 #include "chrome/browser/sync/profile_sync_service_android.h"
+#include "chrome/browser/sync/sync_sessions_metrics_android.h"
 #include "chrome/browser/ui/android/autofill/autofill_dialog_controller_android.h"
 #include "chrome/browser/ui/android/autofill/autofill_dialog_result.h"
 #include "chrome/browser/ui/android/autofill/autofill_keyboard_accessory_view.h"
@@ -133,7 +135,6 @@
 #include "chrome/browser/ui/android/connection_info_popup_android.h"
 #include "chrome/browser/ui/android/context_menu_helper.h"
 #include "chrome/browser/ui/android/infobars/app_banner_infobar_android.h"
-#include "chrome/browser/ui/android/infobars/auto_signin_first_run_infobar.h"
 #include "chrome/browser/ui/android/infobars/autofill_save_card_infobar.h"
 #include "chrome/browser/ui/android/infobars/confirm_infobar.h"
 #include "chrome/browser/ui/android/infobars/data_reduction_proxy_infobar.h"
@@ -192,6 +193,8 @@ static base::android::RegistrationMethod kChromeRegisteredMethods[] = {
     // Register JNI for chrome classes.
     {"AccessibilityUtils", AccessibilityUtil::Register},
     {"AccountChooserDialogAndroid", RegisterAccountChooserDialogAndroid},
+    {"AutoSigninFirstRunDialogAndroid",
+     RegisterAutoSigninFirstRunDialogAndroid},
     {"AccountManagementScreenHelper", AccountManagementScreenHelper::Register},
     {"AccountTrackerService", signin::android::RegisterAccountTrackerService},
     {"AddToHomescreenDialogHelper",
@@ -336,7 +339,6 @@ static base::android::RegistrationMethod kChromeRegisteredMethods[] = {
      remote_media::RemoteMediaPlayerBridge::RegisterRemoteMediaPlayerBridge},
     {"RevenueStats", RegisterRevenueStats},
     {"SavePasswordInfoBar", SavePasswordInfoBar::Register},
-    {"AutoSigninFirstRunInfoBar", AutoSigninFirstRunInfoBar::Register},
     {"SceneLayer", chrome::android::RegisterSceneLayer},
     {"ScreenshotTask", RegisterScreenshotTask},
     {"ServiceTabLauncher", service_tab_launcher::RegisterServiceTabLauncherJni},
@@ -351,6 +353,7 @@ static base::android::RegistrationMethod kChromeRegisteredMethods[] = {
     {"StaticTabSceneLayer", chrome::android::RegisterStaticTabSceneLayer},
     {"SupervisedUserContentProvider", SupervisedUserContentProvider::Register},
     {"Sync", syncer::RegisterSyncJni},
+    {"SyncSessionsMetrics", SyncSessionsMetricsAndroid::Register},
     {"TabAndroid", TabAndroid::RegisterTabAndroid},
     {"TabContentManager", chrome::android::RegisterTabContentManager},
     {"TabListSceneLayer", RegisterTabListSceneLayer},

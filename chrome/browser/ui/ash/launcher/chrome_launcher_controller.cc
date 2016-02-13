@@ -780,9 +780,9 @@ void ChromeLauncherController::LaunchApp(const std::string& app_id,
   }
 
   // The app will be created for the currently active profile.
-  AppLaunchParams params(
-      profile_, extension, ui::DispositionFromEventFlags(event_flags),
-      chrome::HOST_DESKTOP_TYPE_ASH, extensions::SOURCE_APP_LAUNCHER);
+  AppLaunchParams params(profile_, extension,
+                         ui::DispositionFromEventFlags(event_flags),
+                         extensions::SOURCE_APP_LAUNCHER);
   if (source != ash::LAUNCH_FROM_UNKNOWN &&
       app_id == extensions::kWebStoreAppId) {
     // Get the corresponding source string.
@@ -955,13 +955,12 @@ bool ChromeLauncherController::IsLoggedInAsGuest() {
 
 void ChromeLauncherController::CreateNewWindow() {
   // Use the currently active user.
-  chrome::NewEmptyWindow(profile_, chrome::HOST_DESKTOP_TYPE_ASH);
+  chrome::NewEmptyWindow(profile_);
 }
 
 void ChromeLauncherController::CreateNewIncognitoWindow() {
   // Use the currently active user.
-  chrome::NewEmptyWindow(profile_->GetOffTheRecordProfile(),
-                         chrome::HOST_DESKTOP_TYPE_ASH);
+  chrome::NewEmptyWindow(profile_->GetOffTheRecordProfile());
 }
 
 void ChromeLauncherController::PersistPinnedState() {

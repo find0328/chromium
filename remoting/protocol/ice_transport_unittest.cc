@@ -15,7 +15,8 @@
 #include "base/thread_task_runner_handle.h"
 #include "jingle/glue/thread_wrapper.h"
 #include "net/url_request/url_request_context_getter.h"
-#include "remoting/protocol/chromium_port_allocator.h"
+#include "remoting/base/url_request.h"
+#include "remoting/protocol/chromium_port_allocator_factory.h"
 #include "remoting/protocol/connection_tester.h"
 #include "remoting/protocol/fake_authenticator.h"
 #include "remoting/protocol/message_channel_factory.h"
@@ -113,17 +114,23 @@ class IceTransportTest : public testing::Test {
   }
 
   void InitializeConnection() {
-    host_transport_.reset(
-        new IceTransport(TransportContext::ForTests(TransportRole::SERVER),
-                         &host_event_handler_));
+    jingle_glue::JingleThreadWrapper::EnsureForCurrentMessageLoop();
+
+    host_transport_.reset(new IceTransport(
+        new TransportContext(
+            nullptr, make_scoped_ptr(new ChromiumPortAllocatorFactory()),
+            nullptr, network_settings_, TransportRole::SERVER),
+        &host_event_handler_));
     if (!host_authenticator_) {
       host_authenticator_.reset(new FakeAuthenticator(
           FakeAuthenticator::HOST, 0, FakeAuthenticator::ACCEPT, true));
     }
 
-    client_transport_.reset(
-        new IceTransport(TransportContext::ForTests(TransportRole::CLIENT),
-                         &client_event_handler_));
+    client_transport_.reset(new IceTransport(
+        new TransportContext(
+            nullptr, make_scoped_ptr(new ChromiumPortAllocatorFactory()),
+            nullptr, network_settings_, TransportRole::CLIENT),
+        &client_event_handler_));
     if (!client_authenticator_) {
       client_authenticator_.reset(new FakeAuthenticator(
           FakeAuthenticator::CLIENT, 0, FakeAuthenticator::ACCEPT, true));
@@ -269,8 +276,11 @@ TEST_F(IceTransportTest, FailedChannelAuth) {
 // established.
 TEST_F(IceTransportTest, TestBrokenTransport) {
   // Allow only incoming connections on both ends, which effectively renders
-  // transport unusable.
+  // transport unusable. Also reduce connection timeout so the test finishes
+  // quickly.
   network_settings_ = NetworkSettings(NetworkSettings::NAT_TRAVERSAL_DISABLED);
+  network_settings_.ice_timeout = base::TimeDelta::FromSeconds(1);
+  network_settings_.ice_reconnect_attempts = 1;
 
   InitializeConnection();
 
@@ -281,11 +291,14 @@ TEST_F(IceTransportTest, TestBrokenTransport) {
       kChannelName, base::Bind(&IceTransportTest::OnHostChannelCreated,
                                base::Unretained(this)));
 
-  message_loop_.RunUntilIdle();
+  // The RunLoop should quit in OnTransportError().
+  run_loop_.reset(new base::RunLoop());
+  run_loop_->Run();
 
   // Verify that neither of the two ends of the channel is connected.
   EXPECT_FALSE(client_message_pipe_);
   EXPECT_FALSE(host_message_pipe_);
+  EXPECT_EQ(CHANNEL_CONNECTION_ERROR, error_);
 
   client_transport_->GetChannelFactory()->CancelChannelCreation(
       kChannelName);

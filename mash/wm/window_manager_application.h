@@ -18,11 +18,10 @@
 #include "components/mus/public/interfaces/window_manager_factory.mojom.h"
 #include "components/mus/public/interfaces/window_tree_host.mojom.h"
 #include "mash/wm/public/interfaces/user_window_controller.mojom.h"
-#include "mojo/common/weak_binding_set.h"
 #include "mojo/public/cpp/bindings/binding.h"
+#include "mojo/public/cpp/bindings/weak_binding_set.h"
 #include "mojo/services/tracing/public/cpp/tracing_impl.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-#include "mojo/shell/public/cpp/interface_factory_impl.h"
+#include "mojo/shell/public/cpp/shell_client.h"
 
 namespace ui {
 namespace mojo {
@@ -43,7 +42,7 @@ class RootWindowsObserver;
 class UserWindowControllerImpl;
 
 class WindowManagerApplication
-    : public mojo::ApplicationDelegate,
+    : public mojo::ShellClient,
       public mus::mojom::WindowManagerFactory,
       public mojo::InterfaceFactory<mash::wm::mojom::UserWindowController>,
       public mojo::InterfaceFactory<mus::mojom::AcceleratorRegistrar> {
@@ -51,7 +50,7 @@ class WindowManagerApplication
   WindowManagerApplication();
   ~WindowManagerApplication() override;
 
-  mojo::ApplicationImpl* app() { return app_; }
+  mojo::Shell* shell() { return shell_; }
 
   // Returns the RootWindowControllers that have valid roots.
   //
@@ -78,18 +77,18 @@ class WindowManagerApplication
  private:
   void OnAcceleratorRegistrarDestroyed(AcceleratorRegistrarImpl* registrar);
 
-  // ApplicationDelegate:
-  void Initialize(mojo::ApplicationImpl* app) override;
-  bool AcceptConnection(
-      mojo::ApplicationConnection* connection) override;
+  // mojo::ShellClient:
+  void Initialize(mojo::Shell* shell, const std::string& url,
+                  uint32_t id) override;
+  bool AcceptConnection(mojo::Connection* connection) override;
 
   // InterfaceFactory<mash::wm::mojom::UserWindowController>:
-  void Create(mojo::ApplicationConnection* connection,
+  void Create(mojo::Connection* connection,
               mojo::InterfaceRequest<mash::wm::mojom::UserWindowController>
                   request) override;
 
   // InterfaceFactory<mus::mojom::AcceleratorRegistrar>:
-  void Create(mojo::ApplicationConnection* connection,
+  void Create(mojo::Connection* connection,
               mojo::InterfaceRequest<mus::mojom::AcceleratorRegistrar> request)
       override;
 
@@ -98,7 +97,7 @@ class WindowManagerApplication
                            mojo::InterfaceRequest<mus::mojom::WindowTreeClient>
                                client_request) override;
 
-  mojo::ApplicationImpl* app_;
+  mojo::Shell* shell_;
 
   mojo::TracingImpl tracing_;
 

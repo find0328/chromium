@@ -72,7 +72,7 @@ public:
     void insertLineBreak();
     void insertParagraphSeparatorInQuotedContent();
     void insertParagraphSeparator();
-    void deleteKeyPressed(TextGranularity, bool killRing);
+    void deleteKeyPressed(TextGranularity, bool killRing, EditingState*);
     void forwardDeleteKeyPressed(TextGranularity, bool killRing);
     void deleteSelection(bool smartDelete);
     void setCompositionType(TextCompositionType type) { m_compositionType = type; }
@@ -96,7 +96,7 @@ private:
 
     static PassRefPtrWillBeRawPtr<TypingCommand> lastTypingCommandIfStillOpenForTyping(LocalFrame*);
 
-    void doApply() override;
+    void doApply(EditingState*) override;
     EditAction editingAction() const override;
     bool isTypingCommand() const override;
     bool preservesTypingStyle() const override { return m_preservesTypingStyle; }

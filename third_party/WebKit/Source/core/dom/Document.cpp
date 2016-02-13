@@ -104,8 +104,8 @@
 #include "core/dom/XMLDocument.h"
 #include "core/dom/custom/CustomElementMicrotaskRunQueue.h"
 #include "core/dom/custom/CustomElementRegistrationContext.h"
-#include "core/dom/shadow/ComposedTreeTraversal.h"
 #include "core/dom/shadow/ElementShadow.h"
+#include "core/dom/shadow/FlatTreeTraversal.h"
 #include "core/dom/shadow/ShadowRoot.h"
 #include "core/editing/DragCaretController.h"
 #include "core/editing/Editor.h"
@@ -218,6 +218,7 @@
 #include "platform/weborigin/SecurityOrigin.h"
 #include "public/platform/Platform.h"
 #include "public/platform/WebFrameScheduler.h"
+#include "public/platform/WebScheduler.h"
 #include "wtf/CurrentTime.h"
 #include "wtf/DateMath.h"
 #include "wtf/Functional.h"
@@ -315,9 +316,16 @@ static inline bool isValidNamePart(UChar32 c)
     return true;
 }
 
-static bool shouldInheritContentSecurityPolicyFromOwner(const KURL& url)
+static bool shouldInheritSecurityOriginFromOwner(const KURL& url)
 {
-    // TODO(jochen): Somehow unify this with DocumentInit::shouldInheritSecurityOriginFromOwner.
+    // http://www.whatwg.org/specs/web-apps/current-work/#origin-0
+    //
+    // If a Document has the address "about:blank"
+    //     The origin of the Document is the origin it was assigned when its browsing context was created.
+    //
+    // Note: We generalize this to all "blank" URLs and invalid URLs because we
+    // treat all of these URLs as about:blank.
+    //
     return url.isEmpty() || url.protocolIsAbout();
 }
 
@@ -1886,25 +1894,31 @@ void Document::notifyLayoutTreeOfSubtreeChanges()
     m_lifecycle.advanceTo(DocumentLifecycle::LayoutSubtreeChangeClean);
 }
 
+bool Document::needsLayoutTreeUpdateForNode(const Node& node) const
+{
+    if (!node.canParticipateInFlatTree())
+        return false;
+    if (!needsLayoutTreeUpdate())
+        return false;
+    if (!node.inDocument())
+        return false;
+
+    if (needsFullLayoutTreeUpdate() || node.needsStyleRecalc() || node.needsStyleInvalidation())
+        return true;
+    for (const ContainerNode* ancestor = LayoutTreeBuilderTraversal::parent(node); ancestor; ancestor = LayoutTreeBuilderTraversal::parent(*ancestor)) {
+        if (ancestor->needsStyleRecalc() || ancestor->needsStyleInvalidation() || ancestor->needsAdjacentStyleRecalc())
+            return true;
+    }
+    return false;
+}
+
 void Document::updateLayoutTreeForNodeIfNeeded(Node* node)
 {
     ASSERT(node);
-    if (!node->canParticipateInComposedTree())
+    if (!needsLayoutTreeUpdateForNode(*node))
         return;
-    if (!needsLayoutTreeUpdate())
-        return;
-    if (!node->inDocument())
-        return;
-
-    bool needsRecalc = needsFullLayoutTreeUpdate() || node->needsStyleRecalc() || node->needsStyleInvalidation();
-
-    if (!needsRecalc) {
-        for (const ContainerNode* ancestor = LayoutTreeBuilderTraversal::parent(*node); ancestor && !needsRecalc; ancestor = LayoutTreeBuilderTraversal::parent(*ancestor))
-            needsRecalc = ancestor->needsStyleRecalc() || ancestor->needsStyleInvalidation() || ancestor->needsAdjacentStyleRecalc();
-    }
-
-    if (needsRecalc)
-        updateLayoutTreeIfNeeded();
+    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
+    updateLayoutTreeIfNeeded();
 }
 
 void Document::updateLayout()
@@ -1988,6 +2002,7 @@ void Document::clearFocusedElementTimerFired(Timer<Document>*)
 void Document::updateLayoutTreeIgnorePendingStylesheets()
 {
     StyleEngine::IgnoringPendingStylesheet ignoring(styleEngine());
+    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
 
     if (styleEngine().hasPendingSheets()) {
         // FIXME: We are willing to attempt to suppress painting with outdated style info only once.
@@ -3515,12 +3530,12 @@ void Document::hoveredNodeDetached(Element& element)
         return;
 
     m_hoverNode->updateDistribution();
-    if (element != m_hoverNode && (!m_hoverNode->isTextNode() || element != ComposedTreeTraversal::parent(*m_hoverNode)))
+    if (element != m_hoverNode && (!m_hoverNode->isTextNode() || element != FlatTreeTraversal::parent(*m_hoverNode)))
         return;
 
-    m_hoverNode = ComposedTreeTraversal::parent(element);
+    m_hoverNode = FlatTreeTraversal::parent(element);
     while (m_hoverNode && !m_hoverNode->layoutObject())
-        m_hoverNode = ComposedTreeTraversal::parent(*m_hoverNode);
+        m_hoverNode = FlatTreeTraversal::parent(*m_hoverNode);
 
     // If the mouse cursor is not visible, do not clear existing
     // hover effects on the ancestors of |element| and do not invoke
@@ -3540,9 +3555,9 @@ void Document::activeChainNodeDetached(Element& element)
     if (element != m_activeHoverElement)
         return;
 
-    Node* activeNode = ComposedTreeTraversal::parent(element);
+    Node* activeNode = FlatTreeTraversal::parent(element);
     while (activeNode && activeNode->isElementNode() && !activeNode->layoutObject())
-        activeNode = ComposedTreeTraversal::parent(*activeNode);
+        activeNode = FlatTreeTraversal::parent(*activeNode);
 
     m_activeHoverElement = activeNode && activeNode->isElementNode() ? toElement(activeNode) : 0;
 }
@@ -3620,7 +3635,7 @@ bool Document::setFocusedElement(PassRefPtrWillBeRawPtr<Element> prpNewFocusedEl
     }
 
     if (newFocusedElement)
-        updateLayoutTreeIgnorePendingStylesheets();
+        updateLayoutTreeForNodeIfNeeded(newFocusedElement.get());
     if (newFocusedElement && newFocusedElement->isFocusable()) {
         if (newFocusedElement->isRootEditableElement() && !acceptsEditingFocus(*newFocusedElement)) {
             // delegate blocks focus change
@@ -3724,6 +3739,7 @@ void Document::setCSSTarget(Element* newTarget)
 void Document::registerNodeList(const LiveNodeListBase* list)
 {
 #if ENABLE(OILPAN)
+    ASSERT(!m_nodeLists[list->invalidationType()].contains(list));
     m_nodeLists[list->invalidationType()].add(list);
 #else
     m_nodeListCounts[list->invalidationType()]++;
@@ -3749,6 +3765,7 @@ void Document::unregisterNodeList(const LiveNodeListBase* list)
 void Document::registerNodeListWithIdNameCache(const LiveNodeListBase* list)
 {
 #if ENABLE(OILPAN)
+    ASSERT(!m_nodeLists[InvalidateOnIdNameAttrChange].contains(list));
     m_nodeLists[InvalidateOnIdNameAttrChange].add(list);
 #else
     m_nodeListCounts[InvalidateOnIdNameAttrChange]++;
@@ -3963,11 +3980,11 @@ void Document::registerEventFactory(PassOwnPtr<EventFactoryBase> eventFactory)
     eventFactories().add(eventFactory);
 }
 
-PassRefPtrWillBeRawPtr<Event> Document::createEvent(const String& eventType, ExceptionState& exceptionState)
+PassRefPtrWillBeRawPtr<Event> Document::createEvent(ExecutionContext* executionContext, const String& eventType, ExceptionState& exceptionState)
 {
     RefPtrWillBeRawPtr<Event> event = nullptr;
     for (const auto& factory : eventFactories()) {
-        event = factory->create(eventType);
+        event = factory->create(executionContext, eventType);
         if (event)
             return event.release();
     }
@@ -4929,7 +4946,7 @@ void Document::initSecurityContext(const DocumentInit& initializer)
         setBaseURLOverride(initializer.parentBaseURL());
     }
 
-    if (!initializer.shouldInheritSecurityOriginFromOwner())
+    if (!shouldInheritSecurityOriginFromOwner(m_url))
         return;
 
     // If we do not obtain a meaningful origin from the URL, then we try to
@@ -4961,7 +4978,7 @@ void Document::initContentSecurityPolicy(PassRefPtrWillBeRawPtr<ContentSecurityP
     setContentSecurityPolicy(csp ? csp : ContentSecurityPolicy::create());
     if (m_frame && m_frame->tree().parent() && m_frame->tree().parent()->isLocalFrame()) {
         ContentSecurityPolicy* parentCSP = toLocalFrame(m_frame->tree().parent())->document()->contentSecurityPolicy();
-        if (shouldInheritContentSecurityPolicyFromOwner(m_url)) {
+        if (shouldInheritSecurityOriginFromOwner(m_url)) {
             contentSecurityPolicy()->copyStateFrom(parentCSP);
         } else if (isPluginDocument()) {
             // Per CSP2, plugin-types for plugin documents in nested browsing
@@ -5494,7 +5511,7 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
     if (oldActiveElement && !request.active()) {
         // The oldActiveElement layoutObject is null, dropped on :active by setting display: none,
         // for instance. We still need to clear the ActiveChain as the mouse is released.
-        for (RefPtrWillBeRawPtr<Node> node = oldActiveElement; node; node = ComposedTreeTraversal::parent(*node)) {
+        for (RefPtrWillBeRawPtr<Node> node = oldActiveElement; node; node = FlatTreeTraversal::parent(*node)) {
             ASSERT(!node->isTextNode());
             node->setActive(false);
             m_userActionElements.setInActiveChain(node.get(), false);
@@ -5505,7 +5522,7 @@ void Document::updateHoverActiveState(const HitTestRequest& request, Element* in
         if (!oldActiveElement && newActiveElement && !newActiveElement->isDisabledFormControl() && request.active() && !request.touchMove()) {
             // We are setting the :active chain and freezing it. If future moves happen, they
             // will need to reference this chain.
-            for (Node* node = newActiveElement; node; node = ComposedTreeTraversal::parent(*node)) {
+            for (Node* node = newActiveElement; node; node = FlatTreeTraversal::parent(*node)) {
                 ASSERT(!node->isTextNode());
                 m_userActionElements.setInActiveChain(node, true);
             }

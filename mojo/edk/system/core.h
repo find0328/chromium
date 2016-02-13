@@ -11,6 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
+#include "base/memory/shared_memory_handle.h"
 #include "base/synchronization/lock.h"
 #include "base/task_runner.h"
 #include "mojo/edk/embedder/scoped_platform_handle.h"
@@ -52,26 +53,19 @@ class MOJO_SYSTEM_IMPL_EXPORT Core {
   // Called in a child process exactly once during early initialization.
   void InitChild(ScopedPlatformHandle platform_handle);
 
-  // This creates a message pipe endpoint connected to an endpoint in a remote
+  // Creates a message pipe endpoint connected to an endpoint in a remote
   // embedder. |platform_handle| is used as a channel to negotiate the
-  // connection. This is only here to facilitate legacy embedder code. See
-  // mojo::edk::CreateMessagePipe in mojo/edk/embedder/embedder.h.
-  void CreateMessagePipe(
-      ScopedPlatformHandle platform_handle,
-      const base::Callback<void(ScopedMessagePipeHandle)>& callback);
+  // connection.
+  ScopedMessagePipeHandle CreateMessagePipe(
+      ScopedPlatformHandle platform_handle);
 
   // Creates a message pipe endpoint associated with |token|, which a child
   // holding the token can later locate and connect to.
-  void CreateParentMessagePipe(
-      const std::string& token,
-      const base::Callback<void(ScopedMessagePipeHandle)>& callback);
+  ScopedMessagePipeHandle CreateParentMessagePipe(const std::string& token);
 
-  // Creates a message pipe endpoint associated with |token|, which will be
-  // passed to the parent in order to find an associated remote port and connect
-  // to it.
-  void CreateChildMessagePipe(
-      const std::string& token,
-      const base::Callback<void(ScopedMessagePipeHandle)>& callback);
+  // Creates a message pipe endpoint and connects it to a pipe the parent has
+  // associated with |token|.
+  ScopedMessagePipeHandle CreateChildMessagePipe(const std::string& token);
 
   MojoHandle AddDispatcher(scoped_refptr<Dispatcher> dispatcher);
 
@@ -81,11 +75,18 @@ class MOJO_SYSTEM_IMPL_EXPORT Core {
       const std::vector<Dispatcher::DispatcherInTransit>& dispatchers,
       MojoHandle* handles);
 
+  // See "mojo/edk/embedder/embedder.h" for more information on these functions.
   MojoResult CreatePlatformHandleWrapper(ScopedPlatformHandle platform_handle,
                                          MojoHandle* wrapper_handle);
 
   MojoResult PassWrappedPlatformHandle(MojoHandle wrapper_handle,
                                        ScopedPlatformHandle* platform_handle);
+
+  MojoResult CreateSharedBufferWrapper(
+      base::SharedMemoryHandle shared_memory_handle,
+      size_t num_bytes,
+      bool read_only,
+      MojoHandle* mojo_wrapper_handle);
 
   // Requests that the EDK tear itself down. |callback| will be called once
   // the shutdown process is complete. Note that |callback| is always called

@@ -167,7 +167,7 @@ class OpaqueBrowserFrameViewLayoutTest : public views::ViewsTestBase {
 
   void AddNewAvatarButton() {
     new_avatar_button_ =
-        new views::MenuButton(nullptr, base::string16(), nullptr, false);
+        new views::MenuButton(base::string16(), nullptr, false);
     new_avatar_button_->set_id(VIEW_ID_NEW_AVATAR_BUTTON);
     root_view_->AddChildView(new_avatar_button_);
     delegate_->set_show_avatar(true);
@@ -187,12 +187,10 @@ class OpaqueBrowserFrameViewLayoutTest : public views::ViewsTestBase {
 
   int IconAndTitleY() const {
     // This approximates the real positioning algorithm, which is complicated.
-    int total_vertical_padding =
-        (delegate_->IsMaximized() || !delegate_->ShouldShowCaptionButtons()) ?
-            (kCaptionButtonHeight - delegate_->GetIconSize()) :
-            (OBFVL::kFrameBorderThickness +
-                 OBFVL::kTitlebarTopAndBottomEdgeThickness);
-    return (total_vertical_padding + 1) / 2;
+    const int unavailable_px_at_top =
+        delegate_->IsMaximized() ? 0 : OBFVL::kTitlebarTopEdgeThickness;
+    return (unavailable_px_at_top + CaptionY() + kCaptionButtonHeight +
+            OBFVL::kCaptionButtonBottomPadding - delegate_->GetIconSize()) / 2;
   }
 
   void ExpectCaptionButtons(bool caption_buttons_on_left, int extra_height) {

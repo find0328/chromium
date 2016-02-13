@@ -13,9 +13,9 @@
 #include "base/thread_task_runner_handle.h"
 #include "base/threading/simple_thread.h"
 #include "mojo/public/cpp/bindings/interface_request.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
 #include "mojo/shell/public/cpp/application_runner.h"
-#include "mojo/shell/public/interfaces/application.mojom.h"
+#include "mojo/shell/public/cpp/shell_client.h"
+#include "mojo/shell/public/interfaces/shell_client.mojom.h"
 
 namespace mojo {
 namespace shell {
@@ -25,7 +25,7 @@ namespace {
 class RunnerThread : public base::SimpleThread {
  public:
   RunnerThread(const GURL& url,
-               InterfaceRequest<mojom::Application> request,
+               InterfaceRequest<mojom::ShellClient> request,
                scoped_refptr<base::TaskRunner> exit_task_runner,
                const base::Closure& exit_callback,
                const StaticApplicationLoader::ApplicationFactory& factory)
@@ -44,7 +44,7 @@ class RunnerThread : public base::SimpleThread {
   }
 
  private:
-  InterfaceRequest<mojom::Application> request_;
+  InterfaceRequest<mojom::ShellClient> request_;
   scoped_refptr<base::TaskRunner> exit_task_runner_;
   base::Closure exit_callback_;
   StaticApplicationLoader::ApplicationFactory factory_;
@@ -72,7 +72,7 @@ StaticApplicationLoader::~StaticApplicationLoader() {
 
 void StaticApplicationLoader::Load(
     const GURL& url,
-    InterfaceRequest<mojom::Application> request) {
+    InterfaceRequest<mojom::ShellClient> request) {
   if (thread_)
     return;
 

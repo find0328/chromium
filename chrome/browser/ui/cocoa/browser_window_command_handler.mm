@@ -219,6 +219,14 @@ Browser* FindBrowserForSender(id sender, NSWindow* window) {
         [menuItem setHidden:YES];
         enable = NO;
       }
+      break;
+    }
+    case IDC_SHOW_AS_TAB: {
+      // Hide this menu option if the window is tabbed or is the devtools
+      // window.
+      NSMenuItem* menuItem = base::mac::ObjCCast<NSMenuItem>(item);
+      [menuItem setHidden:browser->is_type_tabbed() || browser->is_devtools()];
+      break;
     }
     default:
       // Special handling for the contents of the Text Encoding submenu. On

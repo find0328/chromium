@@ -31,13 +31,12 @@
 #include "core/inspector/WorkerRuntimeAgent.h"
 
 #include "bindings/core/v8/ScriptState.h"
-#include "core/inspector/v8/InjectedScript.h"
 #include "core/workers/WorkerGlobalScope.h"
 
 namespace blink {
 
-WorkerRuntimeAgent::WorkerRuntimeAgent(InjectedScriptManager* injectedScriptManager, V8Debugger* debugger, WorkerGlobalScope* workerGlobalScope, InspectorRuntimeAgent::Client* client)
-    : InspectorRuntimeAgent(injectedScriptManager, debugger, client)
+WorkerRuntimeAgent::WorkerRuntimeAgent(V8Debugger* debugger, WorkerGlobalScope* workerGlobalScope, InspectorRuntimeAgent::Client* client)
+    : InspectorRuntimeAgent(debugger, client)
     , m_workerGlobalScope(workerGlobalScope)
 {
 }

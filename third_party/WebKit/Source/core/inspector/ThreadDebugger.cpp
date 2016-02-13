@@ -11,7 +11,9 @@
 #include "bindings/core/v8/V8HTMLCollection.h"
 #include "bindings/core/v8/V8Node.h"
 #include "bindings/core/v8/V8NodeList.h"
+#include "bindings/core/v8/V8RecursionScope.h"
 #include "bindings/core/v8/V8ScriptRunner.h"
+#include "core/dom/Microtask.h"
 #include "core/inspector/InspectorDOMDebuggerAgent.h"
 
 namespace blink {
@@ -26,7 +28,7 @@ ThreadDebugger::~ThreadDebugger()
 {
 }
 
-void ThreadDebugger::eventListeners(v8::Local<v8::Value> value, EventListenerInfoMap& result)
+void ThreadDebugger::eventListeners(v8::Local<v8::Value> value, V8EventListenerInfoMap& result)
 {
     InspectorDOMDebuggerAgent::eventListenersInfoForTarget(m_isolate, value, result);
 }
@@ -74,6 +76,14 @@ String ThreadDebugger::valueSubtype(v8::Local<v8::Value> value)
 bool ThreadDebugger::formatAccessorsAsProperties(v8::Local<v8::Value> value)
 {
     return V8DOMWrapper::isWrapper(m_isolate, value);
+}
+
+bool ThreadDebugger::hasRecursionLevel()
+{
+    int recursionLevel = V8RecursionScope::recursionLevel(m_isolate);
+    if (!recursionLevel)
+        return false;
+    return recursionLevel > 1 || !Microtask::performingCheckpoint(m_isolate);
 }
 
 } // namespace blink

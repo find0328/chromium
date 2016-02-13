@@ -44,9 +44,6 @@
         "test": "gpu_unittests"
       },
       {
-        "test": "html_viewer_unittests"
-      },
-      {
         "test": "ipc_mojo_unittests"
       },
       {
@@ -173,15 +170,9 @@
         "test": "components_unittests"
       },
       {
-        "swarming": {
-          "can_use_on_swarming_builders": true,
-          "dimension_sets": [
-            {
-              "build.id": "KTU84P",
-              "product.board": "hammerhead"
-            }
-          ]
-        },
+        "args": [
+          "--isolate_file_path=src/content/content_browsertests.isolate"
+        ],
         "test": "content_browsertests"
       },
       {
@@ -255,6 +246,20 @@
           "--isolate_file_path=src/chrome/unit_tests.isolate"
         ],
         "test": "unit_tests"
+      }
+    ],
+    "instrumentation_tests": [
+      {
+        "test": "AndroidWebViewTest"
+      },
+      {
+        "test": "ChromePublicTest"
+      },
+      {
+        "test": "ContentShellTest"
+      },
+      {
+        "test": "ChromeSyncShellTest"
       }
     ],
     "scripts": [
@@ -380,6 +385,20 @@
           "--isolate_file_path=src/chrome/unit_tests.isolate"
         ],
         "test": "unit_tests"
+      }
+    ],
+    "instrumentation_tests": [
+      {
+        "test": "AndroidWebViewTest"
+      },
+      {
+        "test": "ChromePublicTest"
+      },
+      {
+        "test": "ContentShellTest"
+      },
+      {
+        "test": "ChromeSyncShellTest"
       }
     ],
     "scripts": [
@@ -531,7 +550,6 @@
     "additional_compile_targets": [
       "battor_agent",
       "blimp",
-      "mandoline:all",
       "mash:all",
       "remoting_all"
     ]
@@ -609,6 +627,12 @@
           "can_use_on_swarming_builders": true
         },
         "test": "cc_unittests"
+      },
+      {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
+        "test": "chrome_app_unittests"
       },
       {
         "swarming": {
@@ -729,9 +753,6 @@
           "can_use_on_swarming_builders": true
         },
         "test": "gpu_unittests"
-      },
-      {
-        "test": "html_viewer_unittests"
       },
       {
         "swarming": {
@@ -1049,6 +1070,12 @@
           "can_use_on_swarming_builders": true
         },
         "test": "cc_unittests"
+      },
+      {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
+        "test": "chrome_app_unittests"
       },
       {
         "swarming": {
@@ -1417,6 +1444,12 @@
           "can_use_on_swarming_builders": true
         },
         "test": "cc_unittests"
+      },
+      {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
+        "test": "chrome_app_unittests"
       },
       {
         "swarming": {

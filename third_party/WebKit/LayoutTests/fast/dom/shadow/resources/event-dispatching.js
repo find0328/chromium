@@ -116,20 +116,10 @@ function dumpTouchList(touches) {
     return result;
 }
 
-function dumpComposedShadowTree(node, indent)
-{
-    indent = indent || "";
-    var output = indent + dumpNode(node) + "\n";
-    var child;
-    for (child = internals.firstChildInComposedTree(node); child; child = internals.nextSiblingInComposedTree(child))
-         output += dumpComposedShadowTree(child, indent + "\t");
-    return output;
-}
-
 function addEventListeners(nodes)
 {
     for (var i = 0; i < nodes.length; ++i) {
-        addEventListenersToNode(getNodeInTreeOfTrees(nodes[i]));
+        addEventListenersToNode(getNodeInComposedTree(nodes[i]));
     }
 }
 
@@ -164,10 +154,10 @@ function moveMouse(oldElementId, newElementId)
 {
     clearEventRecords();
     debug('\n' + 'Moving mouse from ' + oldElementId + ' to ' + newElementId);
-    moveMouseOver(getNodeInTreeOfTrees(oldElementId));
+    moveMouseOver(getNodeInComposedTree(oldElementId));
 
     clearEventRecords();
-    moveMouseOver(getNodeInTreeOfTrees(newElementId));
+    moveMouseOver(getNodeInComposedTree(newElementId));
 
     debugDispatchedEvent('mouseout');
     debugDispatchedEvent('mouseover');
@@ -179,7 +169,7 @@ function clickElement(elementId)
     debug('\n' + 'Click ' + elementId);
     var clickEvent = document.createEvent("MouseEvents");
     clickEvent.initMouseEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
-    getNodeInTreeOfTrees(elementId).dispatchEvent(clickEvent);
+    getNodeInComposedTree(elementId).dispatchEvent(clickEvent);
     debugDispatchedEvent('click');
 }
 
@@ -187,5 +177,5 @@ function showSandboxTree()
 {
     var sandbox = document.getElementById('sandbox');
     sandbox.offsetLeft;
-    debug('\n\nComposed Shadow Tree will be:\n' + dumpComposedShadowTree(sandbox));
+    debug('\n\nFlat Tree will be:\n' + dumpFlatTree(sandbox));
 }

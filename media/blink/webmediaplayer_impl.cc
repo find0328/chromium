@@ -291,9 +291,11 @@ void WebMediaPlayerImpl::DoLoad(LoadType load_type,
     return;
   }
 
+  // TODO(hubbe): This experiment is temporary and should be removed once
+  // we have enough data to support the primacy of the new media cache.
+  // See http://crbug.com/514719 for details.
   // Otherwise it's a regular request which requires resolving the URL first.
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kUseNewMediaCache)) {
+  if (base::FeatureList::IsEnabled(kUseNewMediaCache)) {
     // Remove this when MultiBufferDataSource becomes default.
     LOG(WARNING) << "Using MultibufferDataSource";
     data_source_.reset(new MultibufferDataSource(
@@ -1034,7 +1036,7 @@ void WebMediaPlayerImpl::OnPipelineMetadata(
     // If there is video and the frame is hidden, then it may be time to suspend
     // playback.
     if (delegate_ && delegate_->IsHidden())
-      OnHidden();
+      OnHidden(false);
   }
 }
 
@@ -1094,7 +1096,7 @@ void WebMediaPlayerImpl::OnAddTextTrack(
   done_cb.Run(std::move(text_track));
 }
 
-void WebMediaPlayerImpl::OnHidden() {
+void WebMediaPlayerImpl::OnHidden(bool must_suspend) {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
 
 #if !defined(OS_ANDROID)
@@ -1116,11 +1118,12 @@ void WebMediaPlayerImpl::OnHidden() {
     return;
 #endif
 
-  ScheduleSuspend();
+  if (must_suspend || hasVideo())
+    ScheduleSuspend();
 }
 
 void WebMediaPlayerImpl::ScheduleSuspend() {
-  if (!pipeline_.IsRunning() || !hasVideo())
+  if (!pipeline_.IsRunning())
     return;
 
   if (resuming_ || seeking_) {
@@ -1224,8 +1227,9 @@ void WebMediaPlayerImpl::Resume() {
   } else {
     // It is safe to call GetCurrentFrameTimestamp() because VFC is stopped
     // during Suspend(). It won't be started again until after Resume() is
-    // called.
-    seek_time_ = compositor_->GetCurrentFrameTimestamp();
+    // called.  Use the pipeline time if there's no video.
+    seek_time_ = hasVideo() ? compositor_->GetCurrentFrameTimestamp()
+                            : pipeline_.GetMediaTime();
   }
 
   if (chunk_demuxer_)

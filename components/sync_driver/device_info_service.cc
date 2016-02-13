@@ -8,8 +8,9 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "sync/api/model_type_change_processor.h"
+#include "sync/api/metadata_batch.h"
 #include "sync/api/sync_error.h"
+#include "sync/protocol/data_type_state.pb.h"
 #include "sync/protocol/sync.pb.h"
 #include "sync/util/time.h"
 
@@ -19,15 +20,23 @@ using syncer::SyncError;
 using syncer_v2::EntityChangeList;
 using syncer_v2::EntityData;
 using syncer_v2::EntityDataList;
+using syncer_v2::MetadataBatch;
 using syncer_v2::MetadataChangeList;
+using syncer_v2::ModelTypeStore;
 using syncer_v2::SimpleMetadataChangeList;
 using sync_driver::DeviceInfo;
 using sync_pb::DeviceInfoSpecifics;
 
+using Record = ModelTypeStore::Record;
+using RecordList = ModelTypeStore::RecordList;
+using Result = ModelTypeStore::Result;
+
 DeviceInfoService::DeviceInfoService(
-    sync_driver::LocalDeviceInfoProvider* local_device_info_provider)
+    sync_driver::LocalDeviceInfoProvider* local_device_info_provider,
+    const StoreFactoryFunction& callback)
     : local_device_backup_time_(-1),
-      local_device_info_provider_(local_device_info_provider) {
+      local_device_info_provider_(local_device_info_provider),
+      weak_factory_(this) {
   DCHECK(local_device_info_provider);
 
   // This is not threadsafe, but presuably the provider initializes on the same
@@ -39,6 +48,9 @@ DeviceInfoService::DeviceInfoService(
         local_device_info_provider->RegisterOnInitializedCallback(base::Bind(
             &DeviceInfoService::OnProviderInitialized, base::Unretained(this)));
   }
+
+  callback.Run(base::Bind(&DeviceInfoService::OnStoreCreated,
+                          weak_factory_.GetWeakPtr()));
 }
 
 DeviceInfoService::~DeviceInfoService() {}
@@ -61,10 +73,6 @@ SyncError DeviceInfoService::ApplySyncChanges(
   return SyncError();
 }
 
-void DeviceInfoService::LoadMetadata(MetadataCallback callback) {
-  // TODO(skym): crbug.com/543405: Implementation.
-}
-
 void DeviceInfoService::GetData(ClientTagList client_tags,
                                 DataCallback callback) {
   // TODO(skym): crbug.com/543405: Implementation.
@@ -77,6 +85,10 @@ void DeviceInfoService::GetAllData(DataCallback callback) {
 std::string DeviceInfoService::GetClientTag(const EntityData& entity_data) {
   DCHECK(entity_data.specifics.has_device_info());
   return entity_data.specifics.device_info().cache_guid();
+}
+
+void DeviceInfoService::OnChangeProcessorSet() {
+  TryLoadAllMetadata();
 }
 
 bool DeviceInfoService::IsSyncing() const {
@@ -202,7 +214,99 @@ void DeviceInfoService::DeleteSpecifics(const std::string& client_id) {
 }
 
 void DeviceInfoService::OnProviderInitialized() {
-  // TODO(skym): crbug.com/582460: Do we need this?
+  has_provider_initialized_ = true;
+  TryReconcileLocalAndStored();
+}
+
+void DeviceInfoService::OnStoreCreated(Result result,
+                                       scoped_ptr<ModelTypeStore> store) {
+  if (result == Result::SUCCESS) {
+    std::swap(store_, store);
+    store_->ReadAllData(base::Bind(&DeviceInfoService::OnReadAllData,
+                                   weak_factory_.GetWeakPtr()));
+  } else {
+    LOG(WARNING) << "ModelTypeStore creation failed.";
+    // TODO(skym, crbug.com/582460): Handle unrecoverable initialization
+    // failure.
+  }
+}
+
+void DeviceInfoService::OnReadAllData(Result result,
+                                      scoped_ptr<RecordList> record_list) {
+  if (result == Result::SUCCESS) {
+    for (const Record& r : *record_list.get()) {
+      scoped_ptr<DeviceInfoSpecifics> specifics(
+          make_scoped_ptr(new DeviceInfoSpecifics()));
+      if (specifics->ParseFromString(r.value)) {
+        all_data_[r.id] = std::move(specifics);
+      } else {
+        LOG(WARNING) << "Failed to deserialize specifics.";
+        // TODO(skym, crbug.com/582460): Handle unrecoverable initialization
+        // failure.
+      }
+    }
+    has_data_loaded_ = true;
+    TryLoadAllMetadata();
+  } else {
+    LOG(WARNING) << "Initial load of data failed.";
+    // TODO(skym, crbug.com/582460): Handle unrecoverable initialization
+    // failure.
+  }
+}
+
+void DeviceInfoService::OnReadAllMetadata(
+    Result result,
+    scoped_ptr<RecordList> metadata_records,
+    const std::string& global_metadata) {
+  if (!change_processor()) {
+    // This datatype was disabled while this read was oustanding.
+    return;
+  }
+  if (result != Result::SUCCESS) {
+    // Store has encountered some serious error. We should still be able to
+    // continue as a read only service, since if we got this far we must have
+    // loaded all data out succesfully. TODO(skym): Should we communicate this
+    // to sync somehow?
+    LOG(WARNING) << "Load of metadata completely failed.";
+    return;
+  }
+  scoped_ptr<MetadataBatch> batch(new MetadataBatch());
+  sync_pb::DataTypeState state;
+  if (state.ParseFromString(global_metadata)) {
+    batch->SetDataTypeState(state);
+  } else {
+    // TODO(skym): How bad is this scenario? We may be able to just give an
+    // empty batch to the processor and we'll treat corrupted data type state
+    // as no data type state at all. The question is do we want to add any of
+    // the entity metadata to the batch or completely skip that step? We're
+    // going to have to perform a merge shortly. Does this decision/logic even
+    // belong in this service?
+    LOG(WARNING) << "Failed to deserialize global metadata.";
+  }
+  for (const Record& r : *metadata_records.get()) {
+    sync_pb::EntityMetadata entity_metadata;
+    if (entity_metadata.ParseFromString(r.value)) {
+      batch->AddMetadata(r.id, entity_metadata);
+    } else {
+      // TODO(skym): This really isn't too bad. We just want to regenerate
+      // metadata for this particular entity. Unfortunately there isn't a
+      // convinient way to tell the processor to do this.
+      LOG(WARNING) << "Failed to deserialize entity metadata.";
+    }
+  }
+  change_processor()->OnMetadataLoaded(std::move(batch));
+}
+
+void DeviceInfoService::TryReconcileLocalAndStored() {
+  // TODO(skym, crbug.com/582460): Implement logic to reconcile provider and
+  // stored device infos.
+}
+
+void DeviceInfoService::TryLoadAllMetadata() {
+  if (has_data_loaded_ && change_processor()) {
+    store_->ReadAllMetadata(base::Bind(&DeviceInfoService::OnReadAllMetadata,
+                                       weak_factory_.GetWeakPtr()));
+  }
 }
 
 }  // namespace sync_driver_v2

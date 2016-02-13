@@ -10,6 +10,7 @@
 #include "base/macros.h"
 #include "base/message_loop/message_loop.h"
 #include "base/strings/stringprintf.h"
+#include "cc/output/copy_output_request.h"
 #include "components/mus/common/types.h"
 #include "components/mus/common/util.h"
 #include "components/mus/public/interfaces/window_tree.mojom.h"
@@ -27,7 +28,6 @@
 #include "components/mus/ws/window_tree_impl.h"
 #include "mojo/converters/geometry/geometry_type_converters.h"
 #include "mojo/services/network/public/interfaces/url_loader.mojom.h"
-#include "mojo/shell/public/interfaces/service_provider.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
@@ -133,6 +133,7 @@ class TestWindowTreeClient : public mus::mojom::WindowTreeClient {
     tracker_.OnEmbeddedAppDisconnected(window);
   }
   void OnUnembed(Id window_id) override { tracker_.OnUnembed(window_id); }
+  void OnLostCapture(Id window_id) override {}
   void OnTopLevelCreated(uint32_t change_id,
                          mojom::WindowDataPtr data) override {
     tracker_.OnTopLevelCreated(change_id, std::move(data));
@@ -323,6 +324,8 @@ class TestDisplayManager : public DisplayManager {
                      const gfx::Rect& bounds) override {}
   void SetViewportSize(const gfx::Size& size) override {}
   void SetTitle(const base::string16& title) override {}
+  void SetCapture() override {}
+  void ReleaseCapture() override {}
   void SetCursorById(int32_t cursor) override { *cursor_id_storage_ = cursor; }
   mojom::Rotation GetRotation() override { return mojom::Rotation::VALUE_0; }
   const mojom::ViewportMetrics& GetViewportMetrics() override {
@@ -331,6 +334,8 @@ class TestDisplayManager : public DisplayManager {
   void UpdateTextInputState(const ui::TextInputState& state) override {}
   void SetImeVisibility(bool visible) override {}
   bool IsFramePending() const override { return false; }
+  void RequestCopyOfOutput(
+      scoped_ptr<cc::CopyOutputRequest> output_request) override {}
 
  private:
   mojom::ViewportMetrics display_metrices_;
@@ -347,7 +352,7 @@ class TestDisplayManagerFactory : public DisplayManagerFactory {
       : cursor_id_storage_(cursor_id_storage) {}
   ~TestDisplayManagerFactory() {}
   DisplayManager* CreateDisplayManager(
-      mojo::ApplicationImpl* app_impl,
+      mojo::Shell* shell,
       const scoped_refptr<GpuState>& gpu_state,
       const scoped_refptr<mus::SurfacesState>& surfaces_state) override {
     return new TestDisplayManager(cursor_id_storage_);
@@ -844,7 +849,6 @@ TEST_F(WindowTreeTest, NewTopLevelWindow) {
 
   // Create a new top level window.
   mojo::Map<mojo::String, mojo::Array<uint8_t>> properties;
-  properties.mark_non_null();
   const uint32_t initial_change_id = 17;
   // Explicitly use an id that does not contain the connection id.
   const ClientWindowId embed_window_id2_in_child(45 << 16 | 27);
@@ -894,6 +898,51 @@ TEST_F(WindowTreeTest, NewTopLevelWindow) {
   ASSERT_TRUE(window_tree_connection->SetWindowVisibility(
       embed_window_id2_in_child, false));
   EXPECT_FALSE(embed_window->visible());
+}
+
+// Tests that setting capture only works while an input event is being
+// processed, and the only the capture window can release capture.
+TEST_F(WindowTreeTest, ExplicitSetCapture) {
+  TestWindowTreeClient* embed_connection = nullptr;
+  WindowTreeImpl* window_tree_connection = nullptr;
+  ServerWindow* window = nullptr;
+  EXPECT_NO_FATAL_FAILURE(
+      SetupEventTargeting(&embed_connection, &window_tree_connection, &window));
+  const ServerWindow* root_window = *window_tree_connection->roots().begin();
+  window_tree_connection->AddWindow(
+      FirstRootId(window_tree_connection),
+      ClientWindowIdForWindow(window_tree_connection, window));
+  window->SetBounds(gfx::Rect(0, 0, 100, 100));
+  ASSERT_TRUE(window_tree_connection->GetHost(window));
+
+  // Setting capture should fail when there are no active events
+  mojom::WindowTree* mojom_window_tree =
+      static_cast<mojom::WindowTree*>(window_tree_connection);
+  uint32_t change_id = 42;
+  mojom_window_tree->SetCapture(change_id, WindowIdToTransportId(window->id()));
+  WindowTreeHostImpl* host = window_tree_connection->GetHost(window);
+  EXPECT_NE(window, host->GetCaptureWindow());
+
+  // Setting capture after the event is acknowledged should fail
+  DispatchEventAndAckImmediately(CreatePointerDownEvent(10, 10));
+  mojom_window_tree->SetCapture(++change_id,
+                                WindowIdToTransportId(window->id()));
+  EXPECT_NE(window, host->GetCaptureWindow());
+
+  // Settings while the event is being process should pass
+  DispatchEventWithoutAck(CreatePointerDownEvent(10, 10));
+  mojom_window_tree->SetCapture(++change_id,
+                                WindowIdToTransportId(window->id()));
+  EXPECT_EQ(window, host->GetCaptureWindow());
+  AckPreviousEvent();
+
+  // Only the capture window should be able to release capture
+  mojom_window_tree->ReleaseCapture(++change_id,
+                                    WindowIdToTransportId(root_window->id()));
+  EXPECT_EQ(window, host->GetCaptureWindow());
+  mojom_window_tree->ReleaseCapture(++change_id,
+                                    WindowIdToTransportId(window->id()));
+  EXPECT_EQ(nullptr, host->GetCaptureWindow());
 }
 
 }  // namespace ws

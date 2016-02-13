@@ -14,6 +14,7 @@
 #include "ash/display/extended_mouse_warp_controller.h"
 #include "ash/display/mouse_cursor_event_filter.h"
 #include "ash/display/unified_mouse_warp_controller.h"
+#include "ash/screen_util.h"
 #include "ash/shell.h"
 #include "base/command_line.h"
 #include "base/strings/string_split.h"
@@ -161,6 +162,32 @@ bool SetDisplayResolution(int64_t display_id, const gfx::Size& resolution) {
   if (!GetDisplayModeForResolution(info, resolution, &mode))
     return false;
   return display_manager->SetDisplayMode(display_id, mode);
+}
+
+void SwapPrimaryDisplay() {
+  if (gfx::Screen::GetScreen()->GetNumDisplays() <= 1)
+    return;
+  Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplay(
+      ScreenUtil::GetSecondaryDisplay());
+}
+
+DisplayLayout CreateDisplayLayout(DisplayPlacement::Position position,
+                                  int offset) {
+  DisplayManager* display_manager = Shell::GetInstance()->display_manager();
+  DisplayIdList list = display_manager->GetCurrentDisplayIdList();
+
+  DisplayLayout layout;
+  layout.primary_id = gfx::Screen::GetScreen()->GetPrimaryDisplay().id();
+  layout.placement.position = position;
+  layout.placement.offset = offset;
+  if (list[0] == layout.primary_id) {
+    layout.placement.display_id = list[1];
+    layout.placement.parent_display_id = list[0];
+  } else {
+    layout.placement.display_id = list[0];
+    layout.placement.parent_display_id = list[1];
+  }
+  return layout;
 }
 
 }  // namespace test

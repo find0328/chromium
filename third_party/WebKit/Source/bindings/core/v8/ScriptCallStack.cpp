@@ -33,10 +33,10 @@
 #include "bindings/core/v8/V8PerIsolateData.h"
 #include "core/inspector/InspectorInstrumentation.h"
 #include "core/inspector/ThreadDebugger.h"
-#include "core/inspector/v8/V8Debugger.h"
-#include "core/inspector/v8/V8StackTrace.h"
 #include "platform/ScriptForbiddenScope.h"
 #include "platform/TracedValue.h"
+#include "platform/v8_inspector/public/V8Debugger.h"
+#include "platform/v8_inspector/public/V8StackTrace.h"
 
 namespace blink {
 
@@ -103,7 +103,7 @@ unsigned ScriptCallStack::topColumnNumber() const
     return m_stackTrace->topColumnNumber();
 }
 
-PassRefPtr<TypeBuilder::Runtime::StackTrace> ScriptCallStack::buildInspectorObject() const
+PassRefPtr<protocol::TypeBuilder::Runtime::StackTrace> ScriptCallStack::buildInspectorObject() const
 {
     return m_stackTrace->buildInspectorObject();
 }

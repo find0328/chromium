@@ -9,6 +9,7 @@
 #include "base/bind.h"
 #include "base/i18n/rtl.h"
 #include "base/macros.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/app_modal/app_modal_dialog.h"
 #include "components/app_modal/app_modal_dialog_queue.h"
@@ -22,9 +23,16 @@
 #include "grit/components_strings.h"
 #include "net/base/net_util.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/font_list.h"
 
 namespace app_modal {
 namespace {
+
+#if !defined(OS_ANDROID)
+// Keep in sync with kDefaultMessageWidth, but allow some space for the rest of
+// the text.
+const int kUrlElideWidth = 350;
+#endif
 
 class DefaultExtensionsClient : public JavaScriptDialogExtensionsClient {
  public:
@@ -96,8 +104,42 @@ void JavaScriptDialogManager::RunJavaScriptDialog(
               web_contents)];
 
   if (extra_data->suppress_javascript_messages_) {
+    // If a page tries to open dialogs in a tight loop, the number of
+    // suppressions logged can grow out of control. Arbitrarily cap the number
+    // logged at 100. That many suppressed dialogs is enough to indicate the
+    // page is doing something very hinky.
+    if (extra_data->suppressed_dialog_count_ < 100) {
+      // Log a suppressed dialog as one that opens and then closes immediately.
+      UMA_HISTOGRAM_MEDIUM_TIMES(
+          "JSDialogs.FineTiming.TimeBetweenDialogCreatedAndSameDialogClosed",
+          base::TimeDelta());
+
+      // Only increment the count if it's not already at the limit, to prevent
+      // overflow.
+      extra_data->suppressed_dialog_count_++;
+    }
+
     *did_suppress_message = true;
     return;
+  }
+
+  base::TimeTicks now = base::TimeTicks::Now();
+  if (!last_creation_time_.is_null()) {
+    // A new dialog has been created: log the time since the last one was
+    // created.
+    UMA_HISTOGRAM_MEDIUM_TIMES(
+        "JSDialogs.FineTiming.TimeBetweenDialogCreatedAndNextDialogCreated",
+        now - last_creation_time_);
+  }
+  last_creation_time_ = now;
+
+  // Also log the time since a dialog was closed, but only if this is the first
+  // dialog that was opened since the closing.
+  if (!last_close_time_.is_null()) {
+    UMA_HISTOGRAM_MEDIUM_TIMES(
+        "JSDialogs.FineTiming.TimeBetweenDialogClosedAndNextDialogCreated",
+        now - last_close_time_);
+    last_close_time_ = base::TimeTicks();
   }
 
   bool is_alert = message_type == content::JAVASCRIPT_MESSAGE_TYPE_ALERT;
@@ -208,9 +250,14 @@ base::string16 JavaScriptDialogManager::GetTitle(
       (web_contents->GetURL().GetOrigin() == origin_url.GetOrigin());
   if (origin_url.IsStandard() && !origin_url.SchemeIsFile() &&
       !origin_url.SchemeIsFileSystem()) {
+#if !defined(OS_ANDROID)
+    base::string16 url_string =
+        url_formatter::ElideHost(origin_url, gfx::FontList(), kUrlElideWidth);
+#else
     base::string16 url_string =
         url_formatter::FormatUrlForSecurityDisplayOmitScheme(origin_url,
                                                              accept_lang);
+#endif
     return l10n_util::GetStringFUTF16(
         is_same_origin_as_main_frame ? IDS_JAVASCRIPT_MESSAGEBOX_TITLE
                                      : IDS_JAVASCRIPT_MESSAGEBOX_TITLE_IFRAME,
@@ -248,6 +295,8 @@ void JavaScriptDialogManager::OnDialogClosed(
   // lazy background page after the dialog closes. (Dialogs are closed before
   // their WebContents is destroyed so |web_contents| is still valid here.)
   extensions_client_->OnDialogClosed(web_contents);
+
+  last_close_time_ = base::TimeTicks::Now();
 
   callback.Run(success, user_input);
 }

@@ -167,6 +167,7 @@ android_library("chrome_java") {
     ":resource_id_javagen",
     "//chrome:content_setting_javagen",
     "//chrome:content_settings_type_javagen",
+    "//chrome:data_use_ui_message_enum_javagen",
     "//chrome:signin_metrics_enum_javagen",
   ]
 
@@ -178,7 +179,6 @@ android_library("chrome_java") {
     srcjar_deps += [
       ":custom_tabs_service_aidl",
       "//chrome:page_info_connection_type_javagen",
-      "//components/enhanced_bookmarks:enhanced_bookmarks_java_enums_srcjar",
       "//components/infobars/core:infobar_enums_java",
       "//components/offline_pages:offline_page_feature_enums_java",
       "//components/offline_pages:offline_page_model_enums_java",
@@ -263,7 +263,7 @@ junit_binary("chrome_junit_tests") {
   java_files = [
     "junit/src/org/chromium/chrome/browser/SSLClientCertificateRequestTest.java",
     "junit/src/org/chromium/chrome/browser/crash/LogcatExtractionCallableTest.java",
-    "junit/src/org/chromium/chrome/browser/enhancedbookmarks/EnhancedBookmarkUtilsTest.java",
+    "junit/src/org/chromium/chrome/browser/bookmarks/BookmarkUtilsTest.java",
     "junit/src/org/chromium/chrome/browser/externalauth/ExternalAuthUtilsTest.java",
     "junit/src/org/chromium/chrome/browser/firstrun/FirstRunFlowSequencerTest.java",
     "junit/src/org/chromium/chrome/browser/gcore/GoogleApiClientHelperTest.java",
@@ -471,14 +471,6 @@ template("chrome_public_apk_tmpl_shared") {
     forward_variables_from(invoker, "*")
 
     native_lib_version_rule = "//build/util:chrome_version_json"
-
-    # Only attempt loading the library from the APK for 64 bit devices
-    # until the number of 32 bit devices which don't support this
-    # approach falls to a minimal level -  http://crbug.com/390618.
-    if (chromium_linker_supported &&
-        (target_cpu == "arm64" || target_cpu == "x64")) {
-      load_library_from_apk = chrome_public_apk_load_library_from_apk
-    }
 
     deps += [
       ":chrome_java",

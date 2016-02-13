@@ -9,6 +9,9 @@
  */
 var global = this;
 
+/** @typedef {{eventName: string, uid: number}} */
+var WebUIListener;
+
 /** Platform, package, object property, and Event support. **/
 var cr = function() {
   'use strict';
@@ -357,11 +360,13 @@ var cr = function() {
   }
 
   /**
-   * A registry of callbacks keyed by event name. Used by addWebUIListener to
-   * register listeners.
-   * @type {!Object<Array<Function>>}
+   * A map of maps associating event names with listeners. The 2nd level map
+   * associates a listener ID with the callback function, such that individual
+   * listeners can be removed from an event without affecting other listeners of
+   * the same event.
+   * @type {!Object<!Object<!Function>>}
    */
-  var webUIListenerMap = Object.create(null);
+  var webUIListenerMap = {};
 
   /**
    * The named method the WebUI handler calls directly when an event occurs.
@@ -369,26 +374,52 @@ var cr = function() {
    * of the JS invocation; additionally, the handler may supply any number of
    * other arguments that will be forwarded to the listener callbacks.
    * @param {string} event The name of the event that has occurred.
+   * @param {...*} var_args Additional arguments passed from C++.
    */
-  function webUIListenerCallback(event) {
-    var listenerCallbacks = webUIListenerMap[event];
-    for (var i = 0; i < listenerCallbacks.length; i++) {
-      var callback = listenerCallbacks[i];
-      callback.apply(null, Array.prototype.slice.call(arguments, 1));
+  function webUIListenerCallback(event, var_args) {
+    var eventListenersMap = webUIListenerMap[event];
+    if (!eventListenersMap) {
+      // C++ event sent for an event that has no listeners.
+      // TODO(dpapad): Should a warning be displayed here?
+      return;
+    }
+
+    var args = Array.prototype.slice.call(arguments, 1);
+    for (var listenerId in eventListenersMap) {
+      eventListenersMap[listenerId].apply(null, args);
     }
   }
 
   /**
    * Registers a listener for an event fired from WebUI handlers. Any number of
    * listeners may register for a single event.
-   * @param {string} event The event to listen to.
-   * @param {Function} callback The callback run when the event is fired.
+   * @param {string} eventName The event to listen to.
+   * @param {!Function} callback The callback run when the event is fired.
+   * @return {!WebUIListener} An object to be used for removing a listener via
+   *     cr.removeWebUIListener. Should be treated as read-only.
    */
-  function addWebUIListener(event, callback) {
-    if (event in webUIListenerMap)
-      webUIListenerMap[event].push(callback);
-    else
-      webUIListenerMap[event] = [callback];
+  function addWebUIListener(eventName, callback) {
+    webUIListenerMap[eventName] = webUIListenerMap[eventName] || {};
+    var uid = createUid();
+    webUIListenerMap[eventName][uid] = callback;
+    return {eventName: eventName, uid: uid};
+  }
+
+  /**
+   * Removes a listener. Does nothing if the specified listener is not found.
+   * @param {!WebUIListener} listener The listener to be removed (as returned by
+   *     addWebUIListener).
+   * @return {boolean} Whether the given listener was found and actually
+   *     removed.
+   */
+  function removeWebUIListener(listener) {
+    var listenerExists = webUIListenerMap[listener.eventName] &&
+        webUIListenerMap[listener.eventName][listener.uid];
+    if (listenerExists) {
+      delete webUIListenerMap[listener.eventName][listener.uid];
+      return true;
+    }
+    return false;
   }
 
   return {
@@ -401,11 +432,14 @@ var cr = function() {
     exportPath: exportPath,
     getUid: getUid,
     makePublic: makePublic,
-    webUIResponse: webUIResponse,
+    PropertyKind: PropertyKind,
+
+    // C++ <-> JS communication related methods.
+    addWebUIListener: addWebUIListener,
+    removeWebUIListener: removeWebUIListener,
     sendWithPromise: sendWithPromise,
     webUIListenerCallback: webUIListenerCallback,
-    addWebUIListener: addWebUIListener,
-    PropertyKind: PropertyKind,
+    webUIResponse: webUIResponse,
 
     get doc() {
       return document;
@@ -430,5 +464,10 @@ var cr = function() {
     get isLinux() {
       return /Linux/.test(navigator.userAgent);
     },
+
+    /** Whether this is on Android. */
+    get isAndroid() {
+      return /Android/.test(navigator.userAgent);
+    }
   };
 }();

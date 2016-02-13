@@ -67,6 +67,7 @@ scoped_ptr<NavigationRequest> NavigationRequest::CreateBrowserInitiated(
     const FrameNavigationEntry& frame_entry,
     const NavigationEntryImpl& entry,
     FrameMsg_Navigate_Type::Value navigation_type,
+    LoFiState lofi_state,
     bool is_same_document_history_load,
     const base::TimeTicks& navigation_start,
     NavigationControllerImpl* controller) {
@@ -93,8 +94,8 @@ scoped_ptr<NavigationRequest> NavigationRequest::CreateBrowserInitiated(
 
   scoped_ptr<NavigationRequest> navigation_request(new NavigationRequest(
       frame_tree_node, entry.ConstructCommonNavigationParams(
-                           dest_url, dest_referrer, navigation_type,
-                           LOFI_UNSPECIFIED, navigation_start),
+                           dest_url, dest_referrer, navigation_type, lofi_state,
+                           navigation_start),
       BeginNavigationParams(method, headers.ToString(),
                             LoadFlagFromNavigationType(navigation_type),
                             false,  // has_user_gestures
@@ -227,8 +228,13 @@ void NavigationRequest::BeginNavigation() {
 }
 
 void NavigationRequest::CreateNavigationHandle() {
-  navigation_handle_ = NavigationHandleImpl::Create(
-      common_params_.url, frame_tree_node_, common_params_.navigation_start);
+  // TODO(nasko): Update the NavigationHandle creation to ensure that the
+  // proper values are specified for is_synchronous and is_srcdoc.
+  navigation_handle_ =
+      NavigationHandleImpl::Create(common_params_.url, frame_tree_node_,
+                                   false,  // is_synchronous
+                                   false,  // is_srcdoc
+                                   common_params_.navigation_start);
 }
 
 void NavigationRequest::TransferNavigationHandleOwnership(
@@ -271,6 +277,12 @@ void NavigationRequest::OnResponseStarted(
         navigation_handle_->service_worker_handle()
             ->service_worker_provider_host_id();
   }
+
+  // Update the lofi state of the request.
+  if (response->head.is_using_lofi)
+    common_params_.lofi_state = LOFI_ON;
+  else
+    common_params_.lofi_state = LOFI_OFF;
 
   frame_tree_node_->navigator()->CommitNavigation(
       frame_tree_node_, response.get(), std::move(body));
@@ -327,7 +339,6 @@ void NavigationRequest::OnRedirectChecksComplete(
   }
 
   loader_->FollowRedirect();
-  navigation_handle_->DidRedirectNavigation(common_params_.url);
 }
 
 void NavigationRequest::InitializeServiceWorkerHandleIfNeeded() {

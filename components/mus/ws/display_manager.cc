@@ -7,6 +7,7 @@
 #include "base/numerics/safe_conversions.h"
 #include "build/build_config.h"
 #include "cc/output/compositor_frame.h"
+#include "cc/output/copy_output_request.h"
 #include "cc/output/delegated_frame_data.h"
 #include "cc/quads/render_pass.h"
 #include "cc/quads/shared_quad_state.h"
@@ -27,8 +28,8 @@
 #include "mojo/converters/surfaces/surfaces_type_converters.h"
 #include "mojo/converters/surfaces/surfaces_utils.h"
 #include "mojo/converters/transform/transform_type_converters.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_impl.h"
+#include "mojo/shell/public/cpp/connection.h"
+#include "mojo/shell/public/cpp/shell.h"
 #include "third_party/skia/include/core/SkXfermode.h"
 #include "ui/base/cursor/cursor_loader.h"
 #include "ui/events/event.h"
@@ -154,22 +155,19 @@ DisplayManagerFactory* DisplayManager::factory_ = nullptr;
 
 // static
 DisplayManager* DisplayManager::Create(
-    mojo::ApplicationImpl* app_impl,
+    mojo::Shell* shell,
     const scoped_refptr<GpuState>& gpu_state,
     const scoped_refptr<SurfacesState>& surfaces_state) {
-  if (factory_) {
-    return factory_->CreateDisplayManager(app_impl, gpu_state,
-                                          surfaces_state);
-  }
-  return new DefaultDisplayManager(app_impl, gpu_state,
-                                   surfaces_state);
+  if (factory_)
+    return factory_->CreateDisplayManager(shell, gpu_state, surfaces_state);
+  return new DefaultDisplayManager(shell, gpu_state, surfaces_state);
 }
 
 DefaultDisplayManager::DefaultDisplayManager(
-    mojo::ApplicationImpl* app_impl,
+    mojo::Shell* shell,
     const scoped_refptr<GpuState>& gpu_state,
     const scoped_refptr<SurfacesState>& surfaces_state)
-    : app_impl_(app_impl),
+    : shell_(shell),
       gpu_state_(gpu_state),
       surfaces_state_(surfaces_state),
       delegate_(nullptr),
@@ -235,6 +233,14 @@ void DefaultDisplayManager::SetViewportSize(const gfx::Size& size) {
 
 void DefaultDisplayManager::SetTitle(const base::string16& title) {
   platform_window_->SetTitle(title);
+}
+
+void DefaultDisplayManager::SetCapture() {
+  platform_window_->SetCapture();
+}
+
+void DefaultDisplayManager::ReleaseCapture() {
+  platform_window_->ReleaseCapture();
 }
 
 void DefaultDisplayManager::SetCursorById(int32_t cursor_id) {
@@ -355,19 +361,6 @@ void DefaultDisplayManager::OnDamageRect(const gfx::Rect& damaged_region) {
 void DefaultDisplayManager::DispatchEvent(ui::Event* event) {
   delegate_->OnEvent(*event);
 
-  switch (event->type()) {
-    case ui::ET_MOUSE_PRESSED:
-    case ui::ET_TOUCH_PRESSED:
-      platform_window_->SetCapture();
-      break;
-    case ui::ET_MOUSE_RELEASED:
-    case ui::ET_TOUCH_RELEASED:
-      platform_window_->ReleaseCapture();
-      break;
-    default:
-      break;
-  }
-
 #if defined(USE_X11)
   // We want to emulate the WM_CHAR generation behaviour of Windows.
   //
@@ -404,7 +397,9 @@ void DefaultDisplayManager::OnClosed() {
 void DefaultDisplayManager::OnWindowStateChanged(
     ui::PlatformWindowState new_state) {}
 
-void DefaultDisplayManager::OnLostCapture() {}
+void DefaultDisplayManager::OnLostCapture() {
+  delegate_->OnNativeCaptureLost();
+}
 
 void DefaultDisplayManager::OnAcceleratedWidgetAvailable(
     gfx::AcceleratedWidget widget,
@@ -423,6 +418,12 @@ void DefaultDisplayManager::OnAcceleratedWidgetDestroyed() {
 }
 
 void DefaultDisplayManager::OnActivationChanged(bool active) {}
+
+void DefaultDisplayManager::RequestCopyOfOutput(
+    scoped_ptr<cc::CopyOutputRequest> output_request) {
+  if (top_level_display_client_)
+    top_level_display_client_->RequestCopyOfOutput(std::move(output_request));
+}
 
 }  // namespace ws
 

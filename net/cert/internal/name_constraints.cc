@@ -179,13 +179,22 @@ WARN_UNUSED_RESULT bool ParseGeneralName(
       name_type = GENERAL_NAME_X400_ADDRESS;
       break;
     // directoryName                   [4]     Name,
-    case 4:
+    case 4: {
       if (!der::IsConstructed(tag))
         return false;
       name_type = GENERAL_NAME_DIRECTORY_NAME;
-      subtrees->directory_names.push_back(std::vector<uint8_t>(
-          value.UnsafeData(), value.UnsafeData() + value.Length()));
+      // Name is a CHOICE { rdnSequence  RDNSequence }, therefore the SEQUENCE
+      // tag is explicit. Remove it, since the name matching functions expect
+      // only the value portion.
+      der::Parser name_parser(value);
+      der::Input name_value;
+      if (!name_parser.ReadTag(der::kSequence, &name_value) || parser.HasMore())
+        return false;
+      subtrees->directory_names.push_back(
+          std::vector<uint8_t>(name_value.UnsafeData(),
+                               name_value.UnsafeData() + name_value.Length()));
       break;
+    }
     // ediPartyName                    [5]     EDIPartyName,
     case 5:
       if (!der::IsConstructed(tag))
@@ -387,7 +396,8 @@ bool NameConstraints::Parse(const der::Input& extension_value,
 
 bool NameConstraints::IsPermittedCert(
     const der::Input& subject_rdn_sequence,
-    const der::Input& subject_alt_name_extnvalue_tlv) const {
+    bool has_subject_alt_name,
+    const der::Input& subject_alt_name_tlv) const {
   // Subject Alternative Name handling:
   //
   // RFC 5280 section 4.2.1.6:
@@ -398,12 +408,7 @@ bool NameConstraints::IsPermittedCert(
   // GeneralNames ::= SEQUENCE SIZE (1..MAX) OF GeneralName
 
   GeneralNames san_names;
-  if (subject_alt_name_extnvalue_tlv.Length()) {
-    der::Parser extnvalue_parser(subject_alt_name_extnvalue_tlv);
-    der::Input subject_alt_name_tlv;
-    if (!extnvalue_parser.ReadTag(der::kOctetString, &subject_alt_name_tlv))
-      return false;
-
+  if (has_subject_alt_name) {
     der::Parser subject_alt_name_parser(subject_alt_name_tlv);
     der::Parser san_sequence_parser;
     if (!subject_alt_name_parser.ReadSequence(&san_sequence_parser))
@@ -457,6 +462,8 @@ bool NameConstraints::IsPermittedCert(
       if (!IsPermittedIP(ip_address))
         return false;
     }
+  } else {
+    DCHECK_EQ(0U, subject_alt_name_tlv.Length());
   }
 
   // Subject handling:
@@ -468,7 +475,7 @@ bool NameConstraints::IsPermittedCert(
   // form, but the certificate does not include a subject alternative name, the
   // rfc822Name constraint MUST be applied to the attribute of type emailAddress
   // in the subject distinguished name.
-  if (!subject_alt_name_extnvalue_tlv.Length() &&
+  if (!has_subject_alt_name &&
       (ConstrainedNameTypes() & GENERAL_NAME_RFC822_NAME)) {
     bool contained_email_address = false;
     if (!NameContainsEmailAddress(subject_rdn_sequence,
@@ -487,10 +494,8 @@ bool NameConstraints::IsPermittedCert(
   // This code assumes that criticality condition is checked by the caller, and
   // therefore only needs to avoid the IsPermittedDirectoryName check against an
   // empty subject in such a case.
-  if (subject_alt_name_extnvalue_tlv.Length() &&
-      subject_rdn_sequence.Length() == 0) {
+  if (has_subject_alt_name && subject_rdn_sequence.Length() == 0)
     return true;
-  }
 
   return IsPermittedDirectoryName(subject_rdn_sequence);
 }

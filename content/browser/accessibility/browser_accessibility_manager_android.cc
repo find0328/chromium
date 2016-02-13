@@ -153,6 +153,10 @@ void BrowserAccessibilityManagerAndroid::NotifyAccessibilityEvent(
       Java_BrowserAccessibilityManager_handleCheckStateChanged(
           env, obj.obj(), node->GetId());
       break;
+    case ui::AX_EVENT_CLICKED:
+      Java_BrowserAccessibilityManager_handleClicked(env, obj.obj(),
+                                                     node->GetId());
+      break;
     case ui::AX_EVENT_SCROLL_POSITION_CHANGED:
       Java_BrowserAccessibilityManager_handleScrollPositionChanged(
           env, obj.obj(), node->GetId());
@@ -331,6 +335,11 @@ jboolean BrowserAccessibilityManagerAndroid::PopulateAccessibilityNodeInfo(
       parent_relative_rect.x(), parent_relative_rect.y(),
       absolute_rect.width(), absolute_rect.height(),
       is_root);
+
+  Java_BrowserAccessibilityManager_setAccessibilityNodeInfoKitKatAttributes(
+      env, obj, info,
+      base::android::ConvertUTF16ToJavaString(
+          env, node->GetRoleDescription()).obj());
 
   Java_BrowserAccessibilityManager_setAccessibilityNodeInfoLollipopAttributes(
       env, obj, info,

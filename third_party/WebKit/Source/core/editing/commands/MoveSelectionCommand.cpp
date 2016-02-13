@@ -36,7 +36,7 @@ MoveSelectionCommand::MoveSelectionCommand(PassRefPtrWillBeRawPtr<DocumentFragme
     ASSERT(m_fragment);
 }
 
-void MoveSelectionCommand::doApply()
+void MoveSelectionCommand::doApply(EditingState*)
 {
     ASSERT(endingSelection().isNonOrphanedRange());
 
@@ -55,7 +55,7 @@ void MoveSelectionCommand::doApply()
             pos = Position(pos.computeContainerNode(), pos.offsetInContainerNode() + selectionStart.offsetInContainerNode());
     }
 
-    deleteSelection(m_smartDelete);
+    deleteSelection(ASSERT_NO_EDITING_ABORT, m_smartDelete);
 
     // If the node for the destination has been removed as a result of the deletion,
     // set the destination to the ending point after the deletion.

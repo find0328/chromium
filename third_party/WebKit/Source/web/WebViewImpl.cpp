@@ -112,6 +112,7 @@
 #include "platform/exported/WebActiveGestureAnimation.h"
 #include "platform/fonts/FontCache.h"
 #include "platform/graphics/Color.h"
+#include "platform/graphics/CompositorFactory.h"
 #include "platform/graphics/FirstPaintInvalidationTracking.h"
 #include "platform/graphics/GraphicsContext.h"
 #include "platform/graphics/Image.h"
@@ -128,6 +129,7 @@
 #include "public/platform/WebGestureCurve.h"
 #include "public/platform/WebImage.h"
 #include "public/platform/WebLayerTreeView.h"
+#include "public/platform/WebScheduler.h"
 #include "public/platform/WebURLRequest.h"
 #include "public/platform/WebVector.h"
 #include "public/platform/WebViewScheduler.h"
@@ -1022,6 +1024,9 @@ void WebViewImpl::setShowScrollBottleneckRects(bool show)
 
 void WebViewImpl::acceptLanguagesChanged()
 {
+    if (m_client)
+        FontCache::acceptLanguagesChanged(m_client->acceptLanguages());
+
     if (!page())
         return;
 
@@ -1185,7 +1190,7 @@ WebRect WebViewImpl::computeBlockBound(const WebPoint& pointInRootFrame, bool ig
         return WebRect();
 
     // Find the block type node based on the hit node.
-    // FIXME: This wants to walk composed tree with LayoutTreeBuilderTraversal::parent().
+    // FIXME: This wants to walk flat tree with LayoutTreeBuilderTraversal::parent().
     while (node && (!node->layoutObject() || node->layoutObject()->isInline()))
         node = LayoutTreeBuilderTraversal::parent(*node);
 
@@ -2338,6 +2343,7 @@ bool WebViewImpl::confirmComposition(ConfirmCompositionBehavior selectionBehavio
 
 bool WebViewImpl::confirmComposition(const WebString& text)
 {
+    UserGestureIndicator gestureIndicator(DefinitelyProcessingNewUserGesture);
     return confirmComposition(text, DoNotKeepSelection);
 }
 
@@ -4279,16 +4285,16 @@ void WebViewImpl::scheduleAnimation()
         m_client->scheduleAnimation();
 }
 
-void WebViewImpl::attachCompositorAnimationTimeline(WebCompositorAnimationTimeline* timeline)
+void WebViewImpl::attachCompositorAnimationTimeline(CompositorAnimationTimeline* timeline)
 {
     if (m_layerTreeView)
-        m_layerTreeView->attachCompositorAnimationTimeline(timeline);
+        m_layerTreeView->attachCompositorAnimationTimeline(timeline->animationTimeline());
 }
 
-void WebViewImpl::detachCompositorAnimationTimeline(WebCompositorAnimationTimeline* timeline)
+void WebViewImpl::detachCompositorAnimationTimeline(CompositorAnimationTimeline* timeline)
 {
     if (m_layerTreeView)
-        m_layerTreeView->detachCompositorAnimationTimeline(timeline);
+        m_layerTreeView->detachCompositorAnimationTimeline(timeline->animationTimeline());
 }
 
 void WebViewImpl::initializeLayerTreeView()
@@ -4310,8 +4316,7 @@ void WebViewImpl::initializeLayerTreeView()
     ASSERT(m_layerTreeView || !m_client || m_client->allowsBrokenNullLayerTreeView());
 
     if (RuntimeEnabledFeatures::compositorAnimationTimelinesEnabled() && Platform::current()->isThreadedAnimationEnabled() && m_layerTreeView) {
-        ASSERT(Platform::current()->compositorSupport());
-        m_linkHighlightsTimeline = adoptPtr(Platform::current()->compositorSupport()->createAnimationTimeline());
+        m_linkHighlightsTimeline = adoptPtr(CompositorFactory::current().createAnimationTimeline());
         attachCompositorAnimationTimeline(m_linkHighlightsTimeline.get());
     }
 

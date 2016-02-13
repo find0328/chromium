@@ -139,7 +139,7 @@ Browser* ActivateBrowser(Profile* profile) {
 Browser* CreateBrowser(Profile* profile) {
   {
     base::AutoReset<bool> auto_reset_in_run(&g_is_opening_new_window, true);
-    chrome::NewEmptyWindow(profile, chrome::HOST_DESKTOP_TYPE_NATIVE);
+    chrome::NewEmptyWindow(profile);
   }
 
   Browser* browser = chrome::GetLastActiveBrowser();
@@ -851,8 +851,7 @@ class AppControllerProfileObserver : public ProfileInfoCacheObserver {
         // downloads page if the user chooses to wait.
         Browser* browser = chrome::FindBrowserWithProfile(profiles[i]);
         if (!browser) {
-          browser = new Browser(Browser::CreateParams(
-              profiles[i], chrome::HOST_DESKTOP_TYPE_NATIVE));
+          browser = new Browser(Browser::CreateParams(profiles[i]));
           browser->window()->Show();
         }
         DCHECK(browser);
@@ -982,6 +981,16 @@ class AppControllerProfileObserver : public ProfileInfoCacheObserver {
           enable = menuState_->IsCommandEnabled(tag) ?
                    ![self keyWindowIsModal] : NO;
       }
+    }
+
+    // "Show as tab" should only appear when the current window is a popup.
+    // Since |validateUserInterfaceItem:| is called only when there are no
+    // key windows, we should just hide this.
+    // This is handled outside of the switch statement because we want to hide
+    // this regardless if the command is supported or not.
+    if (tag == IDC_SHOW_AS_TAB) {
+      NSMenuItem* menuItem = base::mac::ObjCCast<NSMenuItem>(item);
+      [menuItem setHidden:YES];
     }
   } else if (action == @selector(terminate:)) {
     enable = YES;
@@ -1372,8 +1381,7 @@ class AppControllerProfileObserver : public ProfileInfoCacheObserver {
   Browser* browser = chrome::GetLastActiveBrowser();
   // if no browser window exists then create one with no tabs to be filled in
   if (!browser) {
-    browser = new Browser(Browser::CreateParams(
-        [self lastProfile], chrome::HOST_DESKTOP_TYPE_NATIVE));
+    browser = new Browser(Browser::CreateParams([self lastProfile]));
     browser->window()->Show();
   }
 

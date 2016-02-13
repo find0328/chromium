@@ -14,14 +14,13 @@
 #include "base/message_loop/message_loop.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "mojo/common/weak_binding_set.h"
+#include "mojo/public/cpp/bindings/weak_binding_set.h"
 #include "mojo/shell/application_loader.h"
 #include "mojo/shell/application_manager.h"
 #include "mojo/shell/package_manager/package_manager_impl.h"
-#include "mojo/shell/public/cpp/application_connection.h"
-#include "mojo/shell/public/cpp/application_delegate.h"
-#include "mojo/shell/public/cpp/application_impl.h"
 #include "mojo/shell/public/cpp/interface_factory.h"
+#include "mojo/shell/public/cpp/shell_client.h"
+#include "mojo/shell/public/cpp/shell_connection.h"
 #include "mojo/shell/public/interfaces/content_handler.mojom.h"
 #include "mojo/util/filename_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -30,7 +29,7 @@ namespace mojo {
 namespace shell {
 namespace {
 
-class TestContentHandler : public ApplicationDelegate,
+class TestContentHandler : public ShellClient,
                            public InterfaceFactory<mojom::ContentHandler>,
                            public mojom::ContentHandler {
  public:
@@ -41,22 +40,22 @@ class TestContentHandler : public ApplicationDelegate,
   const URLResponse* latest_response() const { return latest_response_.get(); }
 
  private:
-  // Overridden from ApplicationDelegate:
-  void Initialize(ApplicationImpl* app) override {}
-  bool AcceptConnection(ApplicationConnection* connection) override {
-    connection->AddService<mojom::ContentHandler>(this);
+  // Overridden from ShellClient:
+  void Initialize(Shell* shell, const std::string& url, uint32_t id) override {}
+  bool AcceptConnection(Connection* connection) override {
+    connection->AddInterface<mojom::ContentHandler>(this);
     return true;
   }
 
   // Overridden from InterfaceFactory<mojom::ContentHandler>:
-  void Create(ApplicationConnection* connection,
+  void Create(Connection* connection,
               InterfaceRequest<mojom::ContentHandler> request) override {
     bindings_.AddBinding(this, std::move(request));
   }
 
   // Overridden from mojom::ContentHandler:
   void StartApplication(
-      InterfaceRequest<mojom::Application> application,
+      InterfaceRequest<mojom::ShellClient> request,
       URLResponsePtr response,
       const Callback<void()>& destruct_callback) override {
     response_number_++;
@@ -64,9 +63,9 @@ class TestContentHandler : public ApplicationDelegate,
     destruct_callback.Run();
 
     // Drop |application| request. This results in the application manager
-    // dropping the ServiceProvider interface request provided by the client
+    // dropping the InterfaceProvider interface request provided by the client
     // who made the ConnectToApplication() call. Therefore the client could
-    // listen for connection error of the ServiceProvider interface to learn
+    // listen for connection error of the InterfaceProvider interface to learn
     // that StartApplication() has been called.
   }
 
@@ -79,18 +78,18 @@ class TestContentHandler : public ApplicationDelegate,
 
 class TestLoader : public ApplicationLoader {
  public:
-  explicit TestLoader(ApplicationDelegate* delegate) : delegate_(delegate) {}
+  explicit TestLoader(ShellClient* delegate) : delegate_(delegate) {}
   ~TestLoader() override {}
 
  private:
   // Overridden from ApplicationLoader:
   void Load(const GURL& url,
-            InterfaceRequest<mojom::Application> request) override {
-    app_.reset(new ApplicationImpl(delegate_, std::move(request)));
+            InterfaceRequest<mojom::ShellClient> request) override {
+    app_.reset(new ShellConnection(delegate_, std::move(request)));
   }
 
-  ApplicationDelegate* delegate_;
-  scoped_ptr<ApplicationImpl> app_;
+  ShellClient* delegate_;
+  scoped_ptr<ShellConnection> app_;
 
   DISALLOW_COPY_AND_ASSIGN(TestLoader);
 };
@@ -108,20 +107,20 @@ class AboutFetcherTest : public testing::Test {
   void ConnectAndWait(const std::string& url) {
     base::RunLoop run_loop;
 
-    ServiceProviderPtr service_provider;
-    InterfaceRequest<ServiceProvider> service_provider_request =
-        GetProxy(&service_provider);
+    shell::mojom::InterfaceProviderPtr remote_interfaces;
+    shell::mojom::InterfaceProviderRequest remote_request =
+        GetProxy(&remote_interfaces);
     // This connection error handler will be called when:
     // - TestContentHandler::StartApplication() has been called (please see
     //   comments in that method); or
     // - the application manager fails to fetch the requested URL.
-    service_provider.set_connection_error_handler(
+    remote_interfaces.set_connection_error_handler(
         [&run_loop]() { run_loop.Quit(); });
 
     scoped_ptr<ConnectToApplicationParams> params(
         new ConnectToApplicationParams);
     params->SetTargetURL(GURL(url));
-    params->set_services(std::move(service_provider_request));
+    params->set_remote_interfaces(std::move(remote_request));
     application_manager_->ConnectToApplication(std::move(params));
 
     run_loop.Run();

@@ -63,7 +63,7 @@ bool InsertLineBreakCommand::shouldUseBreakElement(const Position& insertionPos)
     return p.anchorNode()->layoutObject() && !p.anchorNode()->layoutObject()->style()->preserveNewline();
 }
 
-void InsertLineBreakCommand::doApply()
+void InsertLineBreakCommand::doApply(EditingState*)
 {
     deleteSelection();
     VisibleSelection selection = endingSelection();
@@ -78,7 +78,7 @@ void InsertLineBreakCommand::doApply()
 
     Position pos(caret.deepEquivalent());
 
-    pos = positionAvoidingSpecialElementBoundary(pos);
+    pos = positionAvoidingSpecialElementBoundary(pos, ASSERT_NO_EDITING_ABORT);
 
     pos = positionOutsideTabSpan(pos);
 

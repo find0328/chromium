@@ -178,6 +178,25 @@ TEST_F(WebPluginContainerTest, PluginDocumentPluginIsFocused)
     EXPECT_EQ(document.focusedElement(), pluginContainer->element());
 }
 
+TEST_F(WebPluginContainerTest, IFramePluginDocumentNotFocused)
+{
+    URLTestHelpers::registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("test.pdf"), WebString::fromUTF8("application/pdf"));
+    URLTestHelpers::registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("iframe_pdf.html"), WebString::fromUTF8("text/html"));
+
+    TestPluginWebFrameClient pluginWebFrameClient; // Must outlive webViewHelper.
+    FrameTestHelpers::WebViewHelper webViewHelper;
+    WebView* webView = webViewHelper.initializeAndLoad(m_baseURL + "iframe_pdf.html", true, &pluginWebFrameClient);
+    ASSERT(webView);
+    webView->updateAllLifecyclePhases();
+
+    WebDocument document = webView->mainFrame()->document();
+    WebFrame* iframe = webView->mainFrame()->firstChild();
+    EXPECT_TRUE(iframe->document().isPluginDocument());
+    WebPluginContainer* pluginContainer = iframe->document().getElementById("plugin").pluginContainer();
+    EXPECT_NE(document.focusedElement(), pluginContainer->element());
+    EXPECT_NE(iframe->document().focusedElement(), pluginContainer->element());
+}
+
 TEST_F(WebPluginContainerTest, PrintOnePage)
 {
     URLTestHelpers::registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("test.pdf"), WebString::fromUTF8("application/pdf"));
@@ -442,6 +461,38 @@ TEST_F(WebPluginContainerTest, ClippedRectsForIframedElement)
     EXPECT_RECT_EQ(IntRect(10, 210, 300, 300), windowRect);
     EXPECT_RECT_EQ(IntRect(0, 0, 240, 90), clipRect);
     EXPECT_RECT_EQ(IntRect(0, 0, 240, 160), unobscuredRect);
+
+    // Cause the plugin's frame to be detached.
+    webViewHelper.reset();
+}
+
+TEST_F(WebPluginContainerTest, ClippedRectsForSubpixelPositionedPlugin)
+{
+    URLTestHelpers::registerMockedURLFromBaseURL(WebString::fromUTF8(m_baseURL.c_str()), WebString::fromUTF8("plugin_container.html"));
+
+    TestPluginWebFrameClient pluginWebFrameClient; // Must outlive webViewHelper.
+    FrameTestHelpers::WebViewHelper webViewHelper;
+    WebView* webView = webViewHelper.initializeAndLoad(m_baseURL + "plugin_container.html", true, &pluginWebFrameClient);
+    ASSERT(webView);
+    webView->settings()->setPluginsEnabled(true);
+    webView->resize(WebSize(300, 300));
+    webView->updateAllLifecyclePhases();
+    runPendingTasks();
+
+    WebElement pluginElement = webView->mainFrame()->document().getElementById("subpixel-positioned-plugin");
+    RefPtrWillBeRawPtr<WebPluginContainerImpl> pluginContainerImpl = toWebPluginContainerImpl(pluginElement.pluginContainer());
+
+    ASSERT(pluginContainerImpl.get());
+
+    IntRect windowRect, clipRect, unobscuredRect;
+    Vector<IntRect> cutOutRects;
+
+    calculateGeometry(pluginContainerImpl.get(), windowRect, clipRect, unobscuredRect, cutOutRects);
+    // TODO(chrishtr): these values should not be -1, they should be 0. They are -1 because WebPluginContainerImpl currently uses an IntRect for
+    // frameRect() to determine the position of the plugin, which results in a loss of precision if it is actually subpixel positioned.
+    EXPECT_RECT_EQ(IntRect(0, 0, 40, 40), windowRect);
+    EXPECT_RECT_EQ(IntRect(-1, -1, 41, 41), clipRect);
+    EXPECT_RECT_EQ(IntRect(-1, -1, 41, 41), unobscuredRect);
 
     // Cause the plugin's frame to be detached.
     webViewHelper.reset();

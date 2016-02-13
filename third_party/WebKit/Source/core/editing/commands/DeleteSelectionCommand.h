@@ -50,7 +50,7 @@ private:
     DeleteSelectionCommand(Document&, bool smartDelete, bool mergeBlocksAfterDelete, bool expandForSpecialElements, bool santizeMarkup);
     DeleteSelectionCommand(const VisibleSelection&, bool smartDelete, bool mergeBlocksAfterDelete, bool expandForSpecialElements, bool sanitizeMarkup);
 
-    void doApply() override;
+    void doApply(EditingState*) override;
     EditAction editingAction() const override;
 
     bool preservesTypingStyle() const override;
@@ -60,16 +60,16 @@ private:
     void initializePositionData();
     void saveTypingStyleState();
     bool handleSpecialCaseBRDelete();
-    void handleGeneralDelete();
+    void handleGeneralDelete(EditingState*);
     void fixupWhitespace();
     void mergeParagraphs();
     void removePreviouslySelectedEmptyTableRows();
     void calculateTypingStyleAfterDelete();
     void clearTransientState();
     void makeStylingElementsDirectChildrenOfEditableRootToPreventStyleLoss();
-    void removeNode(PassRefPtrWillBeRawPtr<Node>, ShouldAssumeContentIsAlwaysEditable = DoNotAssumeContentIsAlwaysEditable) override;
+    void removeNode(PassRefPtrWillBeRawPtr<Node>, EditingState* = ASSERT_NO_EDITING_ABORT, ShouldAssumeContentIsAlwaysEditable = DoNotAssumeContentIsAlwaysEditable) override;
     void deleteTextFromNode(PassRefPtrWillBeRawPtr<Text>, unsigned, unsigned) override;
-    void removeRedundantBlocks();
+    void removeRedundantBlocks(EditingState*);
 
     bool m_hasSelectionToDelete;
     bool m_smartDelete;

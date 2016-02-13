@@ -32,10 +32,10 @@ import org.chromium.chrome.browser.ChromeFeatureList;
 import org.chromium.chrome.browser.ChromeSwitches;
 import org.chromium.chrome.browser.NativePage;
 import org.chromium.chrome.browser.UrlConstants;
+import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.compositor.layouts.content.InvalidationAwareThumbnailProvider;
 import org.chromium.chrome.browser.document.DocumentMetricIds;
 import org.chromium.chrome.browser.document.DocumentUtils;
-import org.chromium.chrome.browser.enhancedbookmarks.EnhancedBookmarkUtils;
 import org.chromium.chrome.browser.favicon.FaviconHelper;
 import org.chromium.chrome.browser.favicon.FaviconHelper.FaviconImageCallback;
 import org.chromium.chrome.browser.favicon.FaviconHelper.IconAvailabilityCallback;
@@ -61,6 +61,7 @@ import org.chromium.chrome.browser.search_engines.TemplateUrlService;
 import org.chromium.chrome.browser.search_engines.TemplateUrlService.TemplateUrlServiceObserver;
 import org.chromium.chrome.browser.snackbar.Snackbar;
 import org.chromium.chrome.browser.snackbar.SnackbarManager.SnackbarController;
+import org.chromium.chrome.browser.sync.SyncSessionsMetrics;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
@@ -396,7 +397,7 @@ public class NewTabPage
         public void navigateToBookmarks() {
             if (mIsDestroyed) return;
             RecordUserAction.record("MobileNTPSwitchToBookmarks");
-            EnhancedBookmarkUtils.showBookmarkManager(mActivity);
+            BookmarkUtils.showBookmarkManager(mActivity);
         }
 
         @Override
@@ -529,6 +530,8 @@ public class NewTabPage
                 tileTypes[i] = items[i].getTileType();
             }
             mMostVisitedSites.recordTileTypeMetrics(tileTypes);
+
+            SyncSessionsMetrics.recordYoungestForeignTabAgeOnNTP();
         }
     };
 

@@ -278,11 +278,6 @@ class CC_EXPORT LayerImpl : public LayerAnimationValueObserver,
   virtual void GetContentsResourceId(ResourceId* resource_id,
                                      gfx::Size* resource_size) const;
 
-  virtual bool HasDelegatedContent() const;
-  virtual bool HasContributingDelegatedRenderPasses() const;
-  virtual RenderPassId FirstContributingRenderPassId() const;
-  virtual RenderPassId NextContributingRenderPassId(RenderPassId id) const;
-
   virtual void NotifyTileStateChanged(const Tile* tile) {}
 
   virtual ScrollbarLayerImplBase* ToScrollbarLayer();
@@ -701,6 +696,8 @@ class CC_EXPORT LayerImpl : public LayerAnimationValueObserver,
     was_ever_ready_since_last_transform_animation_ = was_ready;
   }
 
+  void NoteLayerPropertyChanged();
+
  protected:
   LayerImpl(LayerTreeImpl* layer_impl,
             int id,
@@ -721,7 +718,6 @@ class CC_EXPORT LayerImpl : public LayerAnimationValueObserver,
                              SkColor color,
                              float width) const;
 
-  void NoteLayerPropertyChanged();
   void NoteLayerPropertyChangedForSubtree();
 
   // Note carefully this does not affect the current layer.

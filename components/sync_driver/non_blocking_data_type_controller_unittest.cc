@@ -35,7 +35,10 @@ class TestController : public NonBlockingDataTypeController {
                  const base::Closure& error_callback,
                  syncer::ModelType model_type,
                  sync_driver::SyncClient* sync_client)
-      : NonBlockingDataTypeController(ui_thread, error_callback, sync_client),
+      : NonBlockingDataTypeController(ui_thread,
+                                      error_callback,
+                                      model_type,
+                                      sync_client),
         model_type_(model_type) {}
 
   // TODO(stanisc): This will likely have to change. It should be controller's
@@ -55,11 +58,6 @@ class TestController : public NonBlockingDataTypeController {
 
   syncer::ModelType type() const override { return model_type_; }
 
-  base::WeakPtr<syncer_v2::SharedModelTypeProcessor> type_processor()
-      const override {
-    return type_processor_;
-  }
-
   bool RunOnModelThread(const tracked_objects::Location& from_here,
                         const base::Closure& task) override {
     if (model_task_runner_) {
@@ -75,7 +73,6 @@ class TestController : public NonBlockingDataTypeController {
   ~TestController() override {}
 
   syncer::ModelType model_type_;
-  base::WeakPtr<syncer_v2::SharedModelTypeProcessor> type_processor_;
   scoped_refptr<base::TaskRunner> model_task_runner_;
 };
 
@@ -96,7 +93,7 @@ class MockSyncBackend {
   void Connect(syncer::ModelType type,
                scoped_ptr<syncer_v2::ActivationContext> activation_context) {
     enabled_types_.Put(type);
-    activation_context->type_processor->OnConnect(
+    activation_context->type_processor->ConnectSync(
         make_scoped_ptr(new NullCommitQueue()));
   }
 
@@ -188,6 +185,11 @@ class NonBlockingDataTypeControllerTest : public testing::Test,
     RunQueuedUIThreadTasks();
   }
 
+  base::WeakPtr<syncer_v2::ModelTypeService> GetModelTypeServiceForType(
+      syncer::ModelType type) override {
+    return service_.AsWeakPtr();
+  }
+
  protected:
   void CreateTypeProcessor() {
     // TODO(stanisc): Controller should discover the service via SyncClient.
@@ -232,20 +234,34 @@ class NonBlockingDataTypeControllerTest : public testing::Test,
     }
   }
 
-  void TestTypeProcessor(bool isEnabled, bool isConnected) {
+  void TestTypeProcessor(bool isAllowingChanges, bool isConnected) {
     if (model_thread_runner_->BelongsToCurrentThread()) {
-      EXPECT_EQ(isEnabled, type_processor_->IsEnabled());
+      EXPECT_EQ(isAllowingChanges, type_processor_->IsAllowingChanges());
       EXPECT_EQ(isConnected, type_processor_->IsConnected());
     } else {
       model_thread_runner_->PostTask(
           FROM_HERE,
           base::Bind(&NonBlockingDataTypeControllerTest::TestTypeProcessor,
-                     base::Unretained(this), isEnabled, isConnected));
+                     base::Unretained(this), isAllowingChanges, isConnected));
+      RunQueuedModelThreadTasks();
+    }
+  }
+
+  void OnMetadataLoaded() {
+    if (model_thread_runner_->BelongsToCurrentThread()) {
+      type_processor_->OnMetadataLoaded(
+          make_scoped_ptr(new syncer_v2::MetadataBatch()));
+    } else {
+      model_thread_runner_->PostTask(
+          FROM_HERE,
+          base::Bind(&NonBlockingDataTypeControllerTest::OnMetadataLoaded,
+                     base::Unretained(this)));
       RunQueuedModelThreadTasks();
     }
   }
 
   void LoadModels() {
+    OnMetadataLoaded();
     controller_->LoadModels(
         base::Bind(&NonBlockingDataTypeControllerTest::LoadModelsDone,
                    base::Unretained(this)));

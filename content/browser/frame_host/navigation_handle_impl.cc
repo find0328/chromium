@@ -33,14 +33,18 @@ void UpdateThrottleCheckResult(
 scoped_ptr<NavigationHandleImpl> NavigationHandleImpl::Create(
     const GURL& url,
     FrameTreeNode* frame_tree_node,
+    bool is_synchronous,
+    bool is_srcdoc,
     const base::TimeTicks& navigation_start) {
-  return scoped_ptr<NavigationHandleImpl>(
-      new NavigationHandleImpl(url, frame_tree_node, navigation_start));
+  return scoped_ptr<NavigationHandleImpl>(new NavigationHandleImpl(
+      url, frame_tree_node, is_synchronous, is_srcdoc, navigation_start));
 }
 
 NavigationHandleImpl::NavigationHandleImpl(
     const GURL& url,
     FrameTreeNode* frame_tree_node,
+    bool is_synchronous,
+    bool is_srcdoc,
     const base::TimeTicks& navigation_start)
     : url_(url),
       is_post_(false),
@@ -50,6 +54,9 @@ NavigationHandleImpl::NavigationHandleImpl(
       net_error_code_(net::OK),
       render_frame_host_(nullptr),
       is_same_page_(false),
+      is_synchronous_(is_synchronous),
+      is_srcdoc_(is_srcdoc),
+      was_redirected_(false),
       state_(INITIAL),
       is_transferring_(false),
       frame_tree_node_(frame_tree_node),
@@ -78,6 +85,36 @@ const GURL& NavigationHandleImpl::GetURL() {
 
 bool NavigationHandleImpl::IsInMainFrame() {
   return frame_tree_node_->IsMainFrame();
+}
+
+bool NavigationHandleImpl::IsParentMainFrame() {
+  if (frame_tree_node_->parent())
+    return frame_tree_node_->parent()->IsMainFrame();
+
+  return false;
+}
+
+bool NavigationHandleImpl::IsSynchronousNavigation() {
+  return is_synchronous_;
+}
+
+bool NavigationHandleImpl::IsSrcdoc() {
+  return is_srcdoc_;
+}
+
+bool NavigationHandleImpl::WasServerRedirect() {
+  return was_redirected_;
+}
+
+int NavigationHandleImpl::GetFrameTreeNodeId() {
+  return frame_tree_node_->frame_tree_node_id();
+}
+
+int NavigationHandleImpl::GetParentFrameTreeNodeId() {
+  if (frame_tree_node_->IsMainFrame())
+    return FrameTreeNode::kFrameTreeNodeInvalidId;
+
+  return frame_tree_node_->parent()->frame_tree_node_id();
 }
 
 const base::TimeTicks& NavigationHandleImpl::NavigationStart() {
@@ -133,9 +170,6 @@ bool NavigationHandleImpl::IsSamePage() {
 }
 
 const net::HttpResponseHeaders* NavigationHandleImpl::GetResponseHeaders() {
-  DCHECK(state_ >= WILL_REDIRECT_REQUEST)
-      << "This accessor should only be called when the request encountered a "
-         "redirect or received a response";
    return response_headers_.get();
 }
 
@@ -277,6 +311,7 @@ void NavigationHandleImpl::WillRedirectRequest(
   sanitized_referrer_ = Referrer::SanitizeForRequest(url_, sanitized_referrer_);
   is_external_protocol_ = new_is_external_protocol;
   response_headers_ = response_headers;
+  was_redirected_ = true;
 
   state_ = WILL_REDIRECT_REQUEST;
   complete_callback_ = callback;
@@ -309,11 +344,6 @@ void NavigationHandleImpl::WillProcessResponse(
   // If the navigation is not deferred, run the callback.
   if (result != NavigationThrottle::DEFER)
     RunCompleteCallback(result);
-}
-
-void NavigationHandleImpl::DidRedirectNavigation(const GURL& new_url) {
-  url_ = new_url;
-  GetDelegate()->DidRedirectNavigation(this);
 }
 
 void NavigationHandleImpl::ReadyToCommitNavigation(
@@ -406,6 +436,11 @@ NavigationHandleImpl::CheckWillRedirectRequest() {
   }
   next_index_ = 0;
   state_ = WILL_REDIRECT_REQUEST;
+
+  // Notify the delegate that a redirect was encountered and will be followed.
+  if (GetDelegate())
+    GetDelegate()->DidRedirectNavigation(this);
+
   return NavigationThrottle::PROCEED;
 }
 
