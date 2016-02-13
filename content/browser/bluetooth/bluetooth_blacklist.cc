@@ -32,13 +32,10 @@ void BluetoothBlacklist::AddOrDie(const device::BluetoothUUID& uuid,
 }
 
 bool BluetoothBlacklist::IsExcluded(const BluetoothUUID& uuid) const {
-  if (!uuid.IsValid())
-    return true;
-
+  CHECK(uuid.IsValid());
   const auto& it = blacklisted_uuids_.find(uuid);
   if (it == blacklisted_uuids_.end())
     return false;
-
   return it->second == Value::EXCLUDE;
 }
 
@@ -55,24 +52,18 @@ bool BluetoothBlacklist::IsExcluded(
 }
 
 bool BluetoothBlacklist::IsExcludedFromReads(const BluetoothUUID& uuid) const {
-  if (!uuid.IsValid())
-    return true;
-
+  CHECK(uuid.IsValid());
   const auto& it = blacklisted_uuids_.find(uuid);
   if (it == blacklisted_uuids_.end())
     return false;
-
   return it->second == Value::EXCLUDE || it->second == Value::EXCLUDE_READS;
 }
 
 bool BluetoothBlacklist::IsExcludedFromWrites(const BluetoothUUID& uuid) const {
-  if (!uuid.IsValid())
-    return true;
-
+  CHECK(uuid.IsValid());
   const auto& it = blacklisted_uuids_.find(uuid);
   if (it == blacklisted_uuids_.end())
     return false;
-
   return it->second == Value::EXCLUDE || it->second == Value::EXCLUDE_WRITES;
 }
 
