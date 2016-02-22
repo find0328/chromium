@@ -32,8 +32,9 @@
 #include "chrome/browser/native_window_notification_source.h"
 #include "chrome/browser/profiles/avatar_menu.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_attributes_entry.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
-#include "chrome/browser/profiles/profile_info_cache.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_window.h"
 #include "chrome/browser/profiles/profiles_state.h"
@@ -260,8 +261,7 @@ void PaintDetachedBookmarkBar(gfx::Canvas* canvas,
 void PaintBackgroundAttachedMode(gfx::Canvas* canvas,
                                  const ui::ThemeProvider* theme_provider,
                                  const gfx::Rect& bounds,
-                                 const gfx::Point& background_origin,
-                                 chrome::HostDesktopType host_desktop_type) {
+                                 const gfx::Point& background_origin) {
   canvas->FillRect(bounds,
                    theme_provider->GetColor(ThemeProperties::COLOR_TOOLBAR));
 
@@ -279,8 +279,8 @@ void PaintBackgroundAttachedMode(gfx::Canvas* canvas,
                          bounds.height());
   }
 
-  if (host_desktop_type == chrome::HOST_DESKTOP_TYPE_ASH &&
-      !ui::MaterialDesignController::IsModeMaterial()) {
+#if defined(USE_ASH)
+  if (!ui::MaterialDesignController::IsModeMaterial()) {
     // The pre-material design version of Ash provides additional lightening
     // at the edges of the toolbar.
     gfx::ImageSkia* toolbar_left =
@@ -298,22 +298,19 @@ void PaintBackgroundAttachedMode(gfx::Canvas* canvas,
                          toolbar_right->width(),
                          bounds.height());
   }
+#endif  // USE_ASH
 }
 
 void PaintAttachedBookmarkBar(gfx::Canvas* canvas,
                               BookmarkBarView* view,
                               BrowserView* browser_view,
-                              chrome::HostDesktopType host_desktop_type,
                               int toolbar_overlap) {
   // Paint background for attached state, this is fade in/out.
   gfx::Point background_image_offset =
       browser_view->OffsetPointForToolbarBackgroundImage(
           gfx::Point(view->GetMirroredX(), view->y()));
-  PaintBackgroundAttachedMode(canvas,
-                              view->GetThemeProvider(),
-                              view->GetLocalBounds(),
-                              background_image_offset,
-                              host_desktop_type);
+  PaintBackgroundAttachedMode(canvas, view->GetThemeProvider(),
+                              view->GetLocalBounds(), background_image_offset);
   if (view->height() >= toolbar_overlap) {
     // Draw the separator below the Bookmarks Bar; this is fading in/out.
     if (ui::MaterialDesignController::IsModeMaterial()) {
@@ -432,10 +429,7 @@ void BookmarkBarViewBackground::Paint(gfx::Canvas* canvas,
   SkAlpha detached_alpha = static_cast<SkAlpha>(
       bookmark_bar_view_->size_animation().CurrentValueBetween(0xff, 0));
   if (detached_alpha != 0xff) {
-    PaintAttachedBookmarkBar(canvas,
-                             bookmark_bar_view_,
-                             browser_view_,
-                             browser_->host_desktop_type(),
+    PaintAttachedBookmarkBar(canvas, bookmark_bar_view_, browser_view_,
                              toolbar_overlap);
   }
 
@@ -531,8 +525,7 @@ BrowserView::~BrowserView() {
 void BrowserView::Init(Browser* browser) {
   browser_.reset(browser);
   browser_->tab_strip_model()->AddObserver(this);
-  immersive_mode_controller_.reset(
-      chrome::CreateImmersiveModeController(browser_->host_desktop_type()));
+  immersive_mode_controller_.reset(chrome::CreateImmersiveModeController());
 }
 
 // static
@@ -642,10 +635,9 @@ bool BrowserView::ShouldShowAvatar() const {
   // Tests may not have a profile manager.
   if (!g_browser_process->profile_manager())
     return false;
-  ProfileInfoCache& cache =
-      g_browser_process->profile_manager()->GetProfileInfoCache();
-  if (cache.GetIndexOfProfileWithPath(browser_->profile()->GetPath()) ==
-      std::string::npos) {
+  ProfileAttributesEntry* entry;
+  if (!g_browser_process->profile_manager()->GetProfileAttributesStorage().
+      GetProfileAttributesWithPath(browser_->profile()->GetPath(), &entry)) {
     return false;
   }
 
@@ -1429,7 +1421,7 @@ void BrowserView::ShowAppMenu() {
       immersive_mode_controller_->GetRevealedLock(
           ImmersiveModeController::ANIMATE_REVEAL_NO));
 
-  toolbar_->app_menu_button()->Activate();
+  toolbar_->app_menu_button()->Activate(nullptr);
 }
 
 bool BrowserView::PreHandleKeyboardEvent(const NativeWebKeyboardEvent& event,
@@ -2436,7 +2428,8 @@ void BrowserView::LoadAccelerators() {
   //             investigate, but for now just disable accelerators in this
   //             mode.
 #if defined(MOJO_SHELL_CLIENT)
-  if (content::MojoShellConnection::Get())
+  if (content::MojoShellConnection::Get() &&
+      content::MojoShellConnection::Get()->UsingExternalShell())
     return;
 #endif
 
@@ -2584,7 +2577,7 @@ void BrowserView::ShowAvatarBubbleFromAvatarButton(
     AvatarBubbleMode mode,
     const signin::ManageAccountsParams& manage_accounts_params,
     signin_metrics::AccessPoint access_point) {
-#if defined(FRAME_AVATAR_BUTTON)
+#if !defined(OS_CHROMEOS)
   // Do not show avatar bubble if there is no avatar menu button.
   if (!frame_->GetNewAvatarMenuButton())
     return;

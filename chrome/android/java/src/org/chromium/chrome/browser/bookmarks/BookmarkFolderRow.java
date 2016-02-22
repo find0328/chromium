@@ -8,12 +8,12 @@ import android.content.Context;
 import android.util.AttributeSet;
 
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
 import org.chromium.chrome.browser.widget.TintedDrawable;
 import org.chromium.components.bookmarks.BookmarkId;
 
 /**
- * A row view that shows folder info in the enhanced bookmarks UI.
+ * A row view that shows folder info in the bookmarks UI.
  */
 public class BookmarkFolderRow extends BookmarkRow {
 
@@ -28,7 +28,7 @@ public class BookmarkFolderRow extends BookmarkRow {
     protected void onFinishInflate() {
         super.onFinishInflate();
         mIconImageView.setImageDrawable(
-                TintedDrawable.constructTintedDrawable(getResources(), R.drawable.eb_folder));
+                TintedDrawable.constructTintedDrawable(getResources(), R.drawable.bookmark_folder));
     }
 
     // BookmarkRow implementation.

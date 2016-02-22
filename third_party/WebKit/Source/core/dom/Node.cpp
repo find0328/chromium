@@ -44,6 +44,7 @@
 #include "core/dom/ElementTraversal.h"
 #include "core/dom/ExceptionCode.h"
 #include "core/dom/LayoutTreeBuilderTraversal.h"
+#include "core/dom/Microtask.h"
 #include "core/dom/NodeRareData.h"
 #include "core/dom/NodeTraversal.h"
 #include "core/dom/ProcessingInstruction.h"
@@ -65,6 +66,7 @@
 #include "core/events/EventDispatcher.h"
 #include "core/events/EventListener.h"
 #include "core/events/GestureEvent.h"
+#include "core/events/InputEvent.h"
 #include "core/events/KeyboardEvent.h"
 #include "core/events/MouseEvent.h"
 #include "core/events/MutationEvent.h"
@@ -85,6 +87,7 @@
 #include "core/page/Page.h"
 #include "core/svg/graphics/SVGImage.h"
 #include "platform/EventDispatchForbiddenScope.h"
+#include "platform/RuntimeEnabledFeatures.h"
 #include "platform/TraceEvent.h"
 #include "platform/TracedValue.h"
 #include "wtf/HashSet.h"
@@ -690,6 +693,11 @@ void Node::markAncestorsWithChildNeedsStyleInvalidation()
 void Node::markAncestorsWithChildNeedsDistributionRecalc()
 {
     ScriptForbiddenScope forbidScriptDuringRawIteration;
+    if (RuntimeEnabledFeatures::shadowDOMV1Enabled() && inDocument() && !document().childNeedsDistributionRecalc()) {
+        // TODO(hayato): Support a non-document composed tree.
+        // TODO(hayato): Enqueue a task only if a 'slotchange' event listner is registered in the document composed tree.
+        Microtask::enqueueMicrotask(WTF::bind(&Document::updateDistribution, PassRefPtrWillBeRawPtr<Document>(&document())));
+    }
     for (Node* node = this; node && !node->childNeedsDistributionRecalc(); node = node->parentOrShadowHostNode())
         node->setChildNeedsDistributionRecalc();
     document().scheduleLayoutTreeUpdateIfNeeded();
@@ -2077,7 +2085,13 @@ void Node::dispatchSimulatedClick(Event* underlyingEvent, SimulatedClickMouseEve
 
 void Node::dispatchInputEvent()
 {
-    dispatchScopedEvent(Event::createBubble(EventTypeNames::input));
+    if (RuntimeEnabledFeatures::inputEventEnabled()) {
+        InputEventInit eventInitDict;
+        eventInitDict.setBubbles(true);
+        dispatchScopedEvent(InputEvent::create(EventTypeNames::input, eventInitDict));
+    } else {
+        dispatchScopedEvent(Event::createBubble(EventTypeNames::input));
+    }
 }
 
 void Node::defaultEventHandler(Event* event)
@@ -2262,8 +2276,10 @@ PassRefPtrWillBeRawPtr<StaticNodeList> Node::getDestinationInsertionPoints()
 HTMLSlotElement* Node::assignedSlot() const
 {
     ASSERT(!needsDistributionRecalc());
-    if (ElementShadow* shadow = parentElementShadow())
-        return shadow->assignedSlotFor(*this);
+    if (ElementShadow* shadow = parentElementShadow()) {
+        if (shadow->isV1())
+            return shadow->assignedSlotFor(*this);
+    }
     return nullptr;
 }
 

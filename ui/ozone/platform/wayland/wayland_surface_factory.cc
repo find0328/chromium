@@ -6,6 +6,7 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <wayland-client.h>
 
 #include "base/memory/shared_memory.h"
 #include "third_party/skia/include/core/SkSurface.h"
@@ -47,7 +48,7 @@ class WaylandCanvasSurface : public SurfaceOzoneCanvas {
 
 WaylandCanvasSurface::WaylandCanvasSurface(WaylandDisplay* display,
                                            WaylandWindow* window)
-    : display_(display), window_(window) {}
+    : display_(display), window_(window), size_(window->GetBounds().size()) {}
 
 WaylandCanvasSurface::~WaylandCanvasSurface() {}
 

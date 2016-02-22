@@ -445,42 +445,12 @@ static PassRefPtrWillBeRawPtr<CSSValueList> valuesForBackgroundShorthand(const C
     return ret.release();
 }
 
-static StyleContentAlignmentData resolveJustifyContentAuto(const ComputedStyle& style)
-{
-    const StyleContentAlignmentData& data = style.justifyContent();
-    if (data.position() != ContentPositionAuto || data.distribution() != ContentDistributionDefault)
-        return data;
-
-    if (!RuntimeEnabledFeatures::cssGridLayoutEnabled())
-        return {ContentPositionFlexStart, ContentDistributionDefault, OverflowAlignmentDefault};
-
-    if (style.isDisplayFlexibleBox())
-        return {ContentPositionFlexStart, ContentDistributionDefault, OverflowAlignmentDefault};
-
-    return {ContentPositionStart, ContentDistributionDefault, OverflowAlignmentDefault};
-}
-
-static StyleContentAlignmentData resolveAlignContentAuto(const ComputedStyle& style)
-{
-    const StyleContentAlignmentData& data = style.alignContent();
-    if (data.position() != ContentPositionAuto || data.distribution() != ContentDistributionDefault)
-        return data;
-
-    if (!RuntimeEnabledFeatures::cssGridLayoutEnabled())
-        return {ContentPositionAuto, ContentDistributionStretch, OverflowAlignmentDefault};
-
-    if (style.isDisplayFlexibleBox())
-        return {ContentPositionAuto, ContentDistributionStretch, OverflowAlignmentDefault};
-
-    return {ContentPositionStart, ContentDistributionDefault, OverflowAlignmentDefault};
-}
-
 static PassRefPtrWillBeRawPtr<CSSValueList> valueForContentPositionAndDistributionWithOverflowAlignment(const StyleContentAlignmentData& data)
 {
     RefPtrWillBeRawPtr<CSSValueList> result = CSSValueList::createSpaceSeparated();
     if (data.distribution() != ContentDistributionDefault)
         result->append(CSSPrimitiveValue::create(data.distribution()));
-    if (data.distribution() == ContentDistributionDefault || data.position() != ContentPositionAuto)
+    if (data.distribution() == ContentDistributionDefault || data.position() != ContentPositionNormal)
         result->append(CSSPrimitiveValue::create(data.position()));
     if ((data.position() >= ContentPositionCenter || data.distribution() != ContentDistributionDefault) && data.overflow() != OverflowAlignmentDefault)
         result->append(CSSPrimitiveValue::create(data.overflow()));
@@ -1353,6 +1323,45 @@ static PassRefPtrWillBeRawPtr<CSSValue> valueForScrollSnapCoordinate(const Vecto
     return list.release();
 }
 
+static EBreak mapToPageBreakValue(EBreak genericBreakValue)
+{
+    switch (genericBreakValue) {
+    case BreakAvoidColumn:
+    case BreakColumn:
+    case BreakRecto:
+    case BreakVerso:
+        return BreakAuto;
+    case BreakLeft:
+    case BreakRight:
+        // TODO(mstensho): "left" and "right" should simply be mapped to that, not "always", according to spec.
+    case BreakPage:
+        return BreakAlways;
+    case BreakAvoidPage:
+        return BreakAvoid;
+    default:
+        return genericBreakValue;
+    }
+}
+
+static EBreak mapToColumnBreakValue(EBreak genericBreakValue)
+{
+    switch (genericBreakValue) {
+    case BreakAvoidPage:
+    case BreakLeft:
+    case BreakPage:
+    case BreakRecto:
+    case BreakRight:
+    case BreakVerso:
+        return BreakAuto;
+    case BreakColumn:
+        return BreakAlways;
+    case BreakAvoidColumn:
+        return BreakAvoid;
+    default:
+        return genericBreakValue;
+    }
+}
+
 PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(const AtomicString customPropertyName, const ComputedStyle& style)
 {
     StyleVariableData* variables = style.variables();
@@ -1547,32 +1556,32 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
         return cssValuePool().createColorValue(allowVisitedStyle ? style.visitedDependentColor(CSSPropertyColor).rgb() : style.color().rgb());
     case CSSPropertyWebkitPrintColorAdjust:
         return cssValuePool().createValue(style.printColorAdjust());
-    case CSSPropertyWebkitColumnCount:
+    case CSSPropertyColumnCount:
         if (style.hasAutoColumnCount())
             return cssValuePool().createIdentifierValue(CSSValueAuto);
         return cssValuePool().createValue(style.columnCount(), CSSPrimitiveValue::UnitType::Number);
     case CSSPropertyColumnFill:
         ASSERT(RuntimeEnabledFeatures::columnFillEnabled());
         return cssValuePool().createValue(style.columnFill());
-    case CSSPropertyWebkitColumnGap:
+    case CSSPropertyColumnGap:
         if (style.hasNormalColumnGap())
             return cssValuePool().createIdentifierValue(CSSValueNormal);
         return zoomAdjustedPixelValue(style.columnGap(), style);
-    case CSSPropertyWebkitColumnRuleColor:
+    case CSSPropertyColumnRuleColor:
         return allowVisitedStyle ? cssValuePool().createColorValue(style.visitedDependentColor(CSSPropertyOutlineColor).rgb()) : currentColorOrValidColor(style, style.columnRuleColor());
-    case CSSPropertyWebkitColumnRuleStyle:
+    case CSSPropertyColumnRuleStyle:
         return cssValuePool().createValue(style.columnRuleStyle());
-    case CSSPropertyWebkitColumnRuleWidth:
+    case CSSPropertyColumnRuleWidth:
         return zoomAdjustedPixelValue(style.columnRuleWidth(), style);
-    case CSSPropertyWebkitColumnSpan:
+    case CSSPropertyColumnSpan:
         return cssValuePool().createIdentifierValue(style.columnSpan() ? CSSValueAll : CSSValueNone);
     case CSSPropertyWebkitColumnBreakAfter:
-        return cssValuePool().createValue(style.columnBreakAfter());
+        return cssValuePool().createValue(mapToColumnBreakValue(style.breakAfter()));
     case CSSPropertyWebkitColumnBreakBefore:
-        return cssValuePool().createValue(style.columnBreakBefore());
+        return cssValuePool().createValue(mapToColumnBreakValue(style.breakBefore()));
     case CSSPropertyWebkitColumnBreakInside:
-        return cssValuePool().createValue(style.columnBreakInside());
-    case CSSPropertyWebkitColumnWidth:
+        return cssValuePool().createValue(mapToColumnBreakValue(style.breakInside()));
+    case CSSPropertyColumnWidth:
         if (style.hasAutoColumnWidth())
             return cssValuePool().createIdentifierValue(CSSValueAuto);
         return zoomAdjustedPixelValue(style.columnWidth(), style);
@@ -1603,7 +1612,7 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
     case CSSPropertyEmptyCells:
         return cssValuePool().createValue(style.emptyCells());
     case CSSPropertyAlignContent:
-        return valueForContentPositionAndDistributionWithOverflowAlignment(resolveAlignContentAuto(style));
+        return valueForContentPositionAndDistributionWithOverflowAlignment(style.alignContent());
     case CSSPropertyAlignItems:
         return valueForItemPositionWithOverflowAlignment(resolveAlignmentAuto(style.alignItemsPosition(), &style), style.alignItemsOverflowAlignment(), NonLegacyPosition);
     case CSSPropertyAlignSelf: {
@@ -1630,7 +1639,7 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
     case CSSPropertyFlexWrap:
         return cssValuePool().createValue(style.flexWrap());
     case CSSPropertyJustifyContent:
-        return valueForContentPositionAndDistributionWithOverflowAlignment(resolveJustifyContentAuto(style));
+        return valueForContentPositionAndDistributionWithOverflowAlignment(style.justifyContent());
     case CSSPropertyOrder:
         return cssValuePool().createValue(style.order(), CSSPrimitiveValue::UnitType::Number);
     case CSSPropertyFloat:
@@ -1914,17 +1923,18 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
             return zoomAdjustedPixelValueForLength(paddingLeft, style);
         return zoomAdjustedPixelValue(toLayoutBox(layoutObject)->computedCSSPaddingLeft(), style);
     }
+    case CSSPropertyBreakAfter:
+        return cssValuePool().createValue(style.breakAfter());
+    case CSSPropertyBreakBefore:
+        return cssValuePool().createValue(style.breakBefore());
+    case CSSPropertyBreakInside:
+        return cssValuePool().createValue(style.breakInside());
     case CSSPropertyPageBreakAfter:
-        return cssValuePool().createValue(style.pageBreakAfter());
+        return cssValuePool().createValue(mapToPageBreakValue(style.breakAfter()));
     case CSSPropertyPageBreakBefore:
-        return cssValuePool().createValue(style.pageBreakBefore());
-    case CSSPropertyPageBreakInside: {
-        EPageBreak pageBreak = style.pageBreakInside();
-        ASSERT(pageBreak != PBALWAYS);
-        if (pageBreak == PBALWAYS)
-            return nullptr;
-        return cssValuePool().createValue(style.pageBreakInside());
-    }
+        return cssValuePool().createValue(mapToPageBreakValue(style.breakBefore()));
+    case CSSPropertyPageBreakInside:
+        return cssValuePool().createValue(mapToPageBreakValue(style.breakInside()));
     case CSSPropertyPosition:
         return cssValuePool().createValue(style.position());
     case CSSPropertyQuotes:
@@ -2435,10 +2445,10 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
         return valuesForShorthandProperty(borderTopShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
     case CSSPropertyBorderWidth:
         return valuesForSidesShorthand(borderWidthShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
-    case CSSPropertyWebkitColumnRule:
-        return valuesForShorthandProperty(webkitColumnRuleShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
-    case CSSPropertyWebkitColumns:
-        return valuesForShorthandProperty(webkitColumnsShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
+    case CSSPropertyColumnRule:
+        return valuesForShorthandProperty(columnRuleShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
+    case CSSPropertyColumns:
+        return valuesForShorthandProperty(columnsShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
     case CSSPropertyListStyle:
         return valuesForShorthandProperty(listStyleShorthand(), style, layoutObject, styledNode, allowVisitedStyle);
     case CSSPropertyMargin:
@@ -2718,13 +2728,22 @@ PassRefPtrWillBeRawPtr<CSSValue> ComputedStyleCSSValueMapping::get(CSSPropertyID
             return cssValuePool().createIdentifierValue(CSSValueStrict);
 
         RefPtrWillBeRawPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
-        if (style.contain() & ContainsStyle)
+        if (style.containsStyle())
             list->append(cssValuePool().createIdentifierValue(CSSValueStyle));
         if (style.contain() & ContainsLayout)
             list->append(cssValuePool().createIdentifierValue(CSSValueLayout));
         if (style.containsPaint())
             list->append(cssValuePool().createIdentifierValue(CSSValuePaint));
         ASSERT(list->length());
+        return list.release();
+    }
+    case CSSPropertySnapHeight: {
+        if (!style.snapHeightUnit())
+            return cssValuePool().createValue(0, CSSPrimitiveValue::UnitType::Pixels);
+        RefPtrWillBeRawPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
+        list->append(cssValuePool().createValue(style.snapHeightUnit(), CSSPrimitiveValue::UnitType::Pixels));
+        if (style.snapHeightPosition())
+            list->append(cssValuePool().createValue(style.snapHeightPosition(), CSSPrimitiveValue::UnitType::Integer));
         return list.release();
     }
     case CSSPropertyVariable:

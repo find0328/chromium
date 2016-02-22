@@ -85,6 +85,7 @@
 #include "cc/trees/tree_synchronizer.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
+#include "ui/gfx/geometry/point_conversions.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/scroll_offset.h"
 #include "ui/gfx/geometry/size_conversions.h"
@@ -1704,6 +1705,10 @@ void LayerTreeHostImpl::DrawLayers(FrameData* frame) {
         DidDrawDamagedArea();
   }
   active_tree_->root_layer()->ResetAllChangeTrackingForSubtree();
+  active_tree_->root_layer()
+      ->layer_tree_impl()
+      ->property_trees()
+      ->transform_tree.ResetChangeTracking();
 
   active_tree_->set_has_ever_been_drawn(true);
   devtools_instrumentation::DidDrawFrame(id_);
@@ -1991,6 +1996,12 @@ void LayerTreeHostImpl::ActivateSyncTree() {
     TreeSynchronizer::PushProperties(pending_tree_->root_layer(),
                                      active_tree_->root_layer());
     pending_tree_->PushPropertiesTo(active_tree_.get());
+    if (pending_tree_->root_layer()) {
+      pending_tree_->root_layer()
+          ->layer_tree_impl()
+          ->property_trees()
+          ->transform_tree.ResetChangeTracking();
+    }
 
     // Now that we've synced everything from the pending tree to the active
     // tree, rename the pending tree the recycle tree so we can reuse it on the
@@ -2215,7 +2226,7 @@ void LayerTreeHostImpl::CreateResourceAndTileTaskWorkerPool(
 
     *tile_task_worker_pool = ZeroCopyTileTaskWorkerPool::Create(
         GetTaskRunner(), task_graph_runner, resource_provider_.get(),
-        settings_.renderer_settings.use_rgba_4444_textures);
+        settings_.renderer_settings.preferred_tile_format);
     return;
   }
 
@@ -2229,7 +2240,7 @@ void LayerTreeHostImpl::CreateResourceAndTileTaskWorkerPool(
       GetTaskRunner(), task_graph_runner, context_provider,
       resource_provider_.get(), max_copy_texture_chromium_size,
       settings_.use_partial_raster, settings_.max_staging_buffer_usage_in_bytes,
-      settings_.renderer_settings.use_rgba_4444_textures);
+      settings_.renderer_settings.preferred_tile_format);
 }
 
 void LayerTreeHostImpl::RecordMainFrameTiming(
@@ -2417,6 +2428,98 @@ void LayerTreeHostImpl::BindToClient(InputHandlerClient* client) {
   input_handler_client_ = client;
 }
 
+InputHandler::ScrollStatus LayerTreeHostImpl::TryScroll(
+    const gfx::PointF& screen_space_point,
+    InputHandler::ScrollInputType type,
+    const ScrollTree& scroll_tree,
+    ScrollNode* scroll_node) const {
+  InputHandler::ScrollStatus scroll_status;
+  scroll_status.main_thread_scrolling_reasons =
+      MainThreadScrollingReason::kNotScrollingOnMain;
+  if (!!scroll_node->data.main_thread_scrolling_reasons) {
+    TRACE_EVENT0("cc", "LayerImpl::TryScroll: Failed ShouldScrollOnMainThread");
+    scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
+    scroll_status.main_thread_scrolling_reasons =
+        scroll_node->data.main_thread_scrolling_reasons;
+    return scroll_status;
+  }
+
+  gfx::Transform screen_space_transform =
+      scroll_tree.ScreenSpaceTransform(scroll_node->id);
+  if (!screen_space_transform.IsInvertible()) {
+    TRACE_EVENT0("cc", "LayerImpl::TryScroll: Ignored NonInvertibleTransform");
+    scroll_status.thread = InputHandler::SCROLL_IGNORED;
+    scroll_status.main_thread_scrolling_reasons =
+        MainThreadScrollingReason::kNonInvertibleTransform;
+    return scroll_status;
+  }
+
+  if (scroll_node->data.contains_non_fast_scrollable_region) {
+    bool clipped = false;
+    gfx::Transform inverse_screen_space_transform(
+        gfx::Transform::kSkipInitialization);
+    if (!screen_space_transform.GetInverse(&inverse_screen_space_transform)) {
+      // TODO(shawnsingh): We shouldn't be applying a projection if screen space
+      // transform is uninvertible here. Perhaps we should be returning
+      // SCROLL_ON_MAIN_THREAD in this case?
+    }
+
+    gfx::PointF hit_test_point_in_layer_space = MathUtil::ProjectPoint(
+        inverse_screen_space_transform, screen_space_point, &clipped);
+    if (!clipped &&
+        active_tree()
+            ->LayerById(scroll_node->owner_id)
+            ->non_fast_scrollable_region()
+            .Contains(gfx::ToRoundedPoint(hit_test_point_in_layer_space))) {
+      TRACE_EVENT0("cc",
+                   "LayerImpl::tryScroll: Failed NonFastScrollableRegion");
+      scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
+      scroll_status.main_thread_scrolling_reasons =
+          MainThreadScrollingReason::kNonFastScrollableRegion;
+      return scroll_status;
+    }
+  }
+
+  if (type == InputHandler::WHEEL || type == InputHandler::ANIMATED_WHEEL) {
+    EventListenerProperties event_properties =
+        active_tree()->event_listener_properties(
+            EventListenerClass::kMouseWheel);
+    if (event_properties == EventListenerProperties::kBlocking ||
+        event_properties == EventListenerProperties::kBlockingAndPassive ||
+        (!active_tree()->settings().use_mouse_wheel_gestures &&
+         event_properties == EventListenerProperties::kPassive)) {
+      TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed WheelEventHandlers");
+      scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
+      scroll_status.main_thread_scrolling_reasons =
+          MainThreadScrollingReason::kEventHandlers;
+      return scroll_status;
+    }
+  }
+
+  if (!scroll_node->data.scrollable) {
+    TRACE_EVENT0("cc", "LayerImpl::tryScroll: Ignored not scrollable");
+    scroll_status.thread = InputHandler::SCROLL_IGNORED;
+    scroll_status.main_thread_scrolling_reasons =
+        MainThreadScrollingReason::kNotScrollable;
+    return scroll_status;
+  }
+
+  gfx::ScrollOffset max_scroll_offset =
+      scroll_tree.MaxScrollOffset(scroll_node->id);
+  if (max_scroll_offset.x() <= 0 && max_scroll_offset.y() <= 0) {
+    TRACE_EVENT0("cc",
+                 "LayerImpl::tryScroll: Ignored. Technically scrollable,"
+                 " but has no affordance in either direction.");
+    scroll_status.thread = InputHandler::SCROLL_IGNORED;
+    scroll_status.main_thread_scrolling_reasons =
+        MainThreadScrollingReason::kNotScrollable;
+    return scroll_status;
+  }
+
+  scroll_status.thread = InputHandler::SCROLL_ON_IMPL_THREAD;
+  return scroll_status;
+}
+
 LayerImpl* LayerTreeHostImpl::FindScrollLayerForDeviceViewportPoint(
     const gfx::PointF& device_viewport_point,
     InputHandler::ScrollInputType type,
@@ -2435,12 +2538,12 @@ LayerImpl* LayerTreeHostImpl::FindScrollLayerForDeviceViewportPoint(
     ScrollNode* scroll_node = scroll_tree.Node(layer_impl->scroll_tree_index());
     for (; scroll_tree.parent(scroll_node);
          scroll_node = scroll_tree.parent(scroll_node)) {
-      layer_impl = active_tree_->LayerById(scroll_node->owner_id);
       // The content layer can also block attempts to scroll outside the main
       // thread.
-      ScrollStatus status = layer_impl->TryScroll(device_viewport_point, type);
+      ScrollStatus status =
+          TryScroll(device_viewport_point, type, scroll_tree, scroll_node);
       if (status.thread == SCROLL_ON_MAIN_THREAD) {
-        if (layer_impl->should_scroll_on_main_thread()) {
+        if (!!scroll_node->data.main_thread_scrolling_reasons) {
           DCHECK(MainThreadScrollingReason::MainThreadCanSetScrollReasons(
               status.main_thread_scrolling_reasons));
         } else {
@@ -2455,7 +2558,8 @@ LayerImpl* LayerTreeHostImpl::FindScrollLayerForDeviceViewportPoint(
 
       if (status.thread == InputHandler::SCROLL_ON_IMPL_THREAD &&
           !potentially_scrolling_layer_impl) {
-        potentially_scrolling_layer_impl = layer_impl;
+        potentially_scrolling_layer_impl =
+            active_tree_->LayerById(scroll_node->owner_id);
       }
     }
   }
@@ -3544,6 +3648,8 @@ void LayerTreeHostImpl::CreateUIResource(UIResourceId uid,
   AutoLockUIResourceBitmap bitmap_lock(bitmap);
   resource_provider_->CopyToResource(id, bitmap_lock.GetPixels(),
                                      bitmap.GetSize());
+
+  resource_provider_->GenerateSyncTokenForResource(id);
   MarkUIResourceNotEvicted(uid);
 }
 

@@ -287,6 +287,9 @@ IPC_STRUCT_BEGIN_WITH_PARENT(FrameHostMsg_DidCommitProvisionalLoad_Params,
   // True if the document for the load is enforcing strict mixed content
   // checking.
   IPC_STRUCT_MEMBER(bool, should_enforce_strict_mixed_content_checking)
+
+  // True if the navigation originated as an srcdoc attribute.
+  IPC_STRUCT_MEMBER(bool, is_srcdoc)
 IPC_STRUCT_END()
 
 IPC_STRUCT_BEGIN(FrameMsg_PostMessage_Params)
@@ -376,6 +379,7 @@ IPC_STRUCT_TRAITS_BEGIN(content::FrameReplicationState)
   IPC_STRUCT_TRAITS_MEMBER(origin)
   IPC_STRUCT_TRAITS_MEMBER(sandbox_flags)
   IPC_STRUCT_TRAITS_MEMBER(name)
+  IPC_STRUCT_TRAITS_MEMBER(unique_name)
   IPC_STRUCT_TRAITS_MEMBER(scope)
   IPC_STRUCT_TRAITS_MEMBER(should_enforce_strict_mixed_content_checking)
 IPC_STRUCT_TRAITS_END()
@@ -514,6 +518,15 @@ IPC_STRUCT_BEGIN(FrameHostMsg_HittestData_Params)
   // If |ignored_for_hittest| then this surface should be ignored during
   // hittesting.
   IPC_STRUCT_MEMBER(bool, ignored_for_hittest)
+IPC_STRUCT_END()
+
+IPC_STRUCT_BEGIN(FrameHostMsg_CreateChildFrame_Params)
+  IPC_STRUCT_MEMBER(int32_t, parent_routing_id)
+  IPC_STRUCT_MEMBER(blink::WebTreeScopeType, scope)
+  IPC_STRUCT_MEMBER(std::string, frame_name)
+  IPC_STRUCT_MEMBER(std::string, frame_unique_name)
+  IPC_STRUCT_MEMBER(blink::WebSandboxFlags, sandbox_flags)
+  IPC_STRUCT_MEMBER(blink::WebFrameOwnerProperties, frame_owner_properties)
 IPC_STRUCT_END()
 
 #if defined(OS_MACOSX) || defined(OS_ANDROID)
@@ -742,7 +755,9 @@ IPC_MESSAGE_ROUTED1(FrameMsg_DidUpdateSandboxFlags, blink::WebSandboxFlags)
 
 // Update a proxy's window.name property.  Used when the frame's name is
 // changed in another process.
-IPC_MESSAGE_ROUTED1(FrameMsg_DidUpdateName, std::string /* name */)
+IPC_MESSAGE_ROUTED2(FrameMsg_DidUpdateName,
+                    std::string /* name */,
+                    std::string /* unique_name */)
 
 // Update a proxy's replicated enforcement of strict mixed content
 // checking.  Used when the frame's mixed content setting is changed in
@@ -870,14 +885,9 @@ IPC_MESSAGE_ROUTED4(FrameHostMsg_AddMessageToConsole,
 //
 // Each of these messages will have a corresponding FrameHostMsg_Detach message
 // sent when the frame is detached from the DOM.
-IPC_SYNC_MESSAGE_CONTROL5_1(
-    FrameHostMsg_CreateChildFrame,
-    int32_t /* parent_routing_id */,
-    blink::WebTreeScopeType /* scope */,
-    std::string /* frame_name */,
-    blink::WebSandboxFlags /* sandbox flags */,
-    blink::WebFrameOwnerProperties /* frame_owner_properties */,
-    int32_t /* new_routing_id */)
+IPC_SYNC_MESSAGE_CONTROL1_1(FrameHostMsg_CreateChildFrame,
+                            FrameHostMsg_CreateChildFrame_Params,
+                            int32_t /* new_routing_id */)
 
 // Sent by the renderer to the parent RenderFrameHost when a child frame is
 // detached from the DOM.
@@ -916,9 +926,6 @@ IPC_MESSAGE_ROUTED4(FrameHostMsg_DidFailLoadWithError,
                     base::string16 /* error_description */,
                     bool /* was_ignored_by_handler */)
 
-// Sent when the renderer decides to ignore a navigation.
-IPC_MESSAGE_ROUTED0(FrameHostMsg_DidDropNavigation)
-
 // Sent when the renderer starts loading the page. |to_different_document| will
 // be true unless the load is a fragment navigation, or triggered by
 // history.pushState/replaceState.
@@ -932,7 +939,9 @@ IPC_MESSAGE_ROUTED0(FrameHostMsg_DidStopLoading)
 IPC_MESSAGE_ROUTED1(FrameHostMsg_UpdateState, content::PageState /* state */)
 
 // Sent when the frame changes its window.name.
-IPC_MESSAGE_ROUTED1(FrameHostMsg_DidChangeName, std::string /* name */)
+IPC_MESSAGE_ROUTED2(FrameHostMsg_DidChangeName,
+                    std::string /* name */,
+                    std::string /* unique_name */)
 
 // Sent when the frame starts enforcing strict mixed content
 // checking. Sending this information in DidCommitProvisionalLoad isn't

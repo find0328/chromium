@@ -48,6 +48,7 @@
 #include "third_party/WebKit/public/platform/WebMessagePortChannel.h"
 #include "third_party/WebKit/public/platform/WebPassOwnPtr.h"
 #include "third_party/WebKit/public/platform/WebReferrerPolicy.h"
+#include "third_party/WebKit/public/platform/WebSecurityOrigin.h"
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/platform/modules/background_sync/WebSyncRegistration.h"
 #include "third_party/WebKit/public/platform/modules/notifications/WebNotificationData.h"
@@ -99,6 +100,7 @@ class WebServiceWorkerNetworkProviderImpl
             static_cast<DataSourceExtraData*>(data_source->extraData()));
     scoped_ptr<RequestExtraData> extra_data(new RequestExtraData);
     extra_data->set_service_worker_provider_id(provider->provider_id());
+    extra_data->set_originated_from_service_worker(true);
     request.setExtraData(extra_data.release());
   }
 };
@@ -673,9 +675,11 @@ void ServiceWorkerContextClient::claim(
 }
 
 void ServiceWorkerContextClient::registerForeignFetchScopes(
-    const blink::WebVector<blink::WebURL>& sub_scopes) {
+    const blink::WebVector<blink::WebURL>& sub_scopes,
+    const blink::WebVector<blink::WebSecurityOrigin>& origins) {
   Send(new ServiceWorkerHostMsg_RegisterForeignFetchScopes(
-      GetRoutingID(), std::vector<GURL>(sub_scopes.begin(), sub_scopes.end())));
+      GetRoutingID(), std::vector<GURL>(sub_scopes.begin(), sub_scopes.end()),
+      std::vector<url::Origin>(origins.begin(), origins.end())));
 }
 
 void ServiceWorkerContextClient::DispatchSyncEvent(

@@ -9,6 +9,7 @@
 
 #include "mojo/public/cpp/bindings/interface_ptr.h"
 #include "mojo/public/cpp/system/handle.h"
+#include "mojo/shell/identity.h"
 
 class GURL;
 
@@ -19,7 +20,8 @@ class ApplicationManager;
 
 ScopedMessagePipeHandle ConnectToInterfaceByName(
     ApplicationManager* application_manager,
-    const GURL& application_url,
+    const Identity& source,
+    const Identity& target,
     const std::string& interface_name);
 
 // Must only be used by shell internals and test code as it does not forward
@@ -27,11 +29,23 @@ ScopedMessagePipeHandle ConnectToInterfaceByName(
 // filter.
 template <typename Interface>
 inline void ConnectToInterface(ApplicationManager* application_manager,
+                               const Identity& source,
+                               const Identity& target,
+                               InterfacePtr<Interface>* ptr) {
+  ScopedMessagePipeHandle service_handle = ConnectToInterfaceByName(
+      application_manager, source, target, Interface::Name_);
+  ptr->Bind(InterfacePtrInfo<Interface>(std::move(service_handle), 0u));
+}
+
+template <typename Interface>
+inline void ConnectToInterface(ApplicationManager* application_manager,
+                               const Identity& source,
                                const GURL& application_url,
                                InterfacePtr<Interface>* ptr) {
-  ScopedMessagePipeHandle service_handle =
-      ConnectToInterfaceByName(application_manager, application_url,
-                               Interface::Name_);
+  ScopedMessagePipeHandle service_handle = ConnectToInterfaceByName(
+      application_manager, source,
+      Identity(application_url, std::string(), GetPermissiveCapabilityFilter()),
+      Interface::Name_);
   ptr->Bind(InterfacePtrInfo<Interface>(std::move(service_handle), 0u));
 }
 

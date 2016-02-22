@@ -44,6 +44,7 @@
 #include "core/dom/DOMNodeIds.h"
 #include "core/dom/Document.h"
 #include "core/dom/Element.h"
+#include "core/dom/StyleEngine.h"
 #include "core/html/HTMLStyleElement.h"
 #include "core/html/parser/HTMLParserIdioms.h"
 #include "core/inspector/IdentifiersFactory.h"
@@ -986,7 +987,7 @@ bool InspectorStyleSheet::setText(const String& text, ExceptionState& exceptionS
     if (listener())
         listener()->didReparseStyleSheet();
     onStyleSheetTextChanged();
-    m_pageStyleSheet->ownerDocument()->styleResolverChanged(FullStyleUpdate);
+    m_pageStyleSheet->ownerDocument()->styleEngine().resolverChanged(FullStyleUpdate);
     return true;
 }
 
@@ -1427,7 +1428,9 @@ PassRefPtr<protocol::TypeBuilder::CSS::CSSKeyframeRule> InspectorStyleSheet::bui
         return nullptr;
 
     RefPtr<protocol::TypeBuilder::CSS::Value> keyText = protocol::TypeBuilder::CSS::Value::create().setText(keyframeRule->keyText());
-    keyText->setRange(buildSourceRangeObject(sourceDataForRule(keyframeRule)->ruleHeaderRange));
+    RefPtrWillBeRawPtr<CSSRuleSourceData> sourceData = sourceDataForRule(keyframeRule);
+    if (sourceData)
+        keyText->setRange(buildSourceRangeObject(sourceData->ruleHeaderRange));
     RefPtr<protocol::TypeBuilder::CSS::CSSKeyframeRule> result = protocol::TypeBuilder::CSS::CSSKeyframeRule::create()
         // TODO(samli): keyText() normalises 'from' and 'to' keyword values.
         .setKeyText(keyText)
@@ -1487,7 +1490,8 @@ String InspectorStyleSheet::sourceURL()
     String styleSheetText;
     bool success = getText(&styleSheetText);
     if (success) {
-        String commentValue = V8ContentSearchUtil::findSourceURL(styleSheetText, true);
+        bool deprecated = false;
+        String commentValue = V8ContentSearchUtil::findSourceURL(styleSheetText, true, &deprecated);
         if (!commentValue.isEmpty()) {
             m_sourceURL = commentValue;
             return commentValue;
@@ -1538,7 +1542,8 @@ String InspectorStyleSheet::sourceMapURL()
     String styleSheetText;
     bool success = getText(&styleSheetText);
     if (success) {
-        String commentValue = V8ContentSearchUtil::findSourceMapURL(styleSheetText, true);
+        bool deprecated = false;
+        String commentValue = V8ContentSearchUtil::findSourceMapURL(styleSheetText, true, &deprecated);
         if (!commentValue.isEmpty())
             return commentValue;
     }

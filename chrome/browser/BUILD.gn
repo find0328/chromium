@@ -513,7 +513,6 @@ source_set("browser") {
               gypi_values.chrome_browser_policy_shared_with_ios_not_chromeos_sources,
               ".",
               "//chrome")
-      defines = [ "FRAME_AVATAR_BUTTON=1" ]
     }
     if (is_win || is_mac || is_desktop_linux) {
       sources += rebase_path(gypi_values.chrome_browser_policy_desktop_sources,
@@ -904,6 +903,12 @@ source_set("browser") {
     }
   }
 
+  if (is_linux || is_win) {
+    sources += rebase_path(gypi_values.chrome_browser_non_mac_desktop_sources,
+                           ".",
+                           "//chrome")
+  }
+
   if (is_desktop_linux) {
     sources += rebase_path(gypi_values.chrome_browser_linux_desktop_sources,
                            ".",
@@ -958,10 +963,10 @@ source_set("browser") {
     deps += [ "//chrome/browser/media/router" ]
   }
 
-  if (enable_mojo_media == "browser") {
-    deps += [ "//media/mojo/services:application" ]
-  } else if (enable_mojo_media != "none") {
-    configs += [ "//media/mojo/services:enable_mojo_media_config" ]
+  if (mojo_media_host == "browser") {
+    deps += [ "//media/mojo/services:application_factory" ]
+  } else if (enable_mojo_media) {
+    configs += [ "//media/mojo/services:mojo_media_config" ]
   }
 
   if (enable_wayland_server) {

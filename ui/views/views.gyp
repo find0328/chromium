@@ -35,6 +35,8 @@
       'animation/ink_drop_state.h',
       'animation/scroll_animator.cc',
       'animation/scroll_animator.h',
+      'animation/square_ink_drop_animation.cc',
+      'animation/square_ink_drop_animation.h',
       'background.cc',
       'background.h',
       'border.cc',
@@ -474,6 +476,10 @@
     'views_test_support_sources': [
       'animation/test/ink_drop_animation_test_api.cc',
       'animation/test/ink_drop_animation_test_api.h',
+      'animation/test/square_ink_drop_animation_test_api.cc',
+      'animation/test/square_ink_drop_animation_test_api.h',
+      'animation/test/test_ink_drop_animation_observer.cc',
+      'animation/test/test_ink_drop_animation_observer.h',
       'animation/test/test_ink_drop_host.cc',
       'animation/test/test_ink_drop_host.h',
       'controls/textfield/textfield_test_api.cc',
@@ -536,6 +542,7 @@
       'animation/ink_drop_animation_controller_impl_unittest.cc',
       'animation/ink_drop_animation_unittest.cc',
       'animation/ink_drop_hover_unittest.cc',
+      'animation/square_ink_drop_animation_unittest.cc',
       'bubble/bubble_border_unittest.cc',
       'bubble/bubble_delegate_unittest.cc',
       'bubble/bubble_frame_view_unittest.cc',
@@ -931,6 +938,32 @@
     },  # target_name: views_unittests
   ],  # targets
   'conditions': [
+    ['test_isolation_mode != "noop"', {
+      'targets': [
+        {
+          'target_name': 'views_unittests_run',
+          'type': 'none',
+          'dependencies': [
+            'views_unittests',
+          ],
+          'includes': [
+            '../../build/isolate.gypi',
+          ],
+          'sources': [
+            'views_unittests.isolate',
+          ],
+          'conditions': [
+            ['use_x11==1',
+              {
+                'dependencies': [
+                  '../../tools/xdisplaycheck/xdisplaycheck.gyp:xdisplaycheck',
+                ],
+              }
+            ],
+          ],
+        },
+      ],
+    }],
     ['OS=="mac"', {
       'targets': [
         {

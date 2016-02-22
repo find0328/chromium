@@ -29,9 +29,9 @@ AudioOutputDevices status=stable
 AudioVideoTracks depends_on=Media, status=experimental
 AuthorShadowDOMForAnyElement
 BackgroundSync status=stable
-CacheStorageMatchAll status=stable
+CacheIgnoreSearchOption status=experimental
 ClientHints status=stable
-ColumnFill status=experimental
+ColumnFill status=stable
 CompositedSelectionUpdate
 CompositorWorker status=experimental
 // Unified Chrome Compositor and Blink Animations engine (Project Heaviside). crbug.com/394772
@@ -51,6 +51,7 @@ CSSIndependentTransformProperties status=experimental
 CSSMaskSourceType status=experimental
 CSSOMSmoothScroll status=experimental
 CSSPropertyD status=experimental
+CSSSnapSize status=experimental
 CSSStickyPosition
 CSSTouchActionPanDirections status=experimental
 CSSTypedOM status=experimental
@@ -67,6 +68,7 @@ DurableStorage status=experimental
 ForceDisplayList2dCanvas
 // See crbug.com/585250.
 ForceDisable2dCanvasCopyOnWrite
+// See https://crbug.com/582618.
 EncryptedMedia status=stable
 ExecCommandInJavaScript status=test
 ComputedAccessibilityInfo status=experimental
@@ -97,6 +99,7 @@ ImageOrientation status=test
 ImageRenderingPixelated status=stable
 IndexedDBExperimental status=experimental
 InputDeviceCapabilities status=stable
+InputEvent status=experimental
 InputModeAttribute status=experimental
 IntersectionObserver status=experimental
 IterableCollections status=experimental
@@ -109,7 +112,8 @@ LinkHeader status=stable
 FractionalScrollOffsets status=experimental
 Media status=stable
 MediaCapture
-MediaCaptureFromElement status=experimental
+MediaCaptureFromCanvas status=experimental
+MediaCaptureFromVideo status=test
 MediaConstraints status=test
 MediaDevices status=stable
 MediaRecorder status=stable
@@ -141,7 +145,6 @@ Permissions status=stable
 PermissionsRequestRevoke status=experimental
 PointerEvent
 PreciseMemoryInfo
-PrefixedEncryptedMedia status=test
 // This feature is deprecated and we are evangelizing affected sites.
 // See https://crbug.com/346236 for current status.
 PrefixedVideoFullscreen status=stable
@@ -149,7 +152,7 @@ Presentation status=stable
 PresentationReceiver status=test
 PromiseRejectionEvent status=stable
 PushMessaging status=stable
-PushMessagingData status=experimental
+PushMessagingData status=stable
 QuotaPromise status=experimental
 ReducedReferrerGranularity
 RenderingPipelineThrottling status=experimental
@@ -214,4 +217,4 @@ ScrollRestoration status=stable
 WakeLock status=experimental
 WebFontsIntervention status=experimental
 WebFontsInterventionTrigger
-Worklet
+Worklet status=test

@@ -4,71 +4,22 @@
 
 #include "net/base/net_util.h"
 
+#include "build/build_config.h"
+
+#if defined(OS_POSIX)
+#include <netinet/in.h>
+#elif defined(OS_WIN)
+#include <ws2tcpip.h>
+#endif
+
 #include "base/logging.h"
-#include "base/strings/string_util.h"
-#include "net/base/address_list.h"
 #include "net/base/ip_address_number.h"
+#include "net/base/url_util.h"
 
 namespace net {
 
-namespace {
-
-std::string NormalizeHostname(base::StringPiece host) {
-  std::string result = base::ToLowerASCII(host);
-  if (!result.empty() && *result.rbegin() == '.')
-    result.resize(result.size() - 1);
-  return result;
-}
-
-bool IsNormalizedLocalhostTLD(const std::string& host) {
-  return base::EndsWith(host, ".localhost", base::CompareCase::SENSITIVE);
-}
-
-// |host| should be normalized.
-bool IsLocalHostname(const std::string& host) {
-  return host == "localhost" || host == "localhost.localdomain" ||
-         IsNormalizedLocalhostTLD(host);
-}
-
-// |host| should be normalized.
-bool IsLocal6Hostname(const std::string& host) {
-  return host == "localhost6" || host == "localhost6.localdomain6";
-}
-
-}  // namespace
-
-bool ResolveLocalHostname(base::StringPiece host,
-                          uint16_t port,
-                          AddressList* address_list) {
-  static const unsigned char kLocalhostIPv4[] = {127, 0, 0, 1};
-  static const unsigned char kLocalhostIPv6[] = {
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-
-  std::string normalized_host = NormalizeHostname(host);
-
-  address_list->clear();
-
-  bool is_local6 = IsLocal6Hostname(normalized_host);
-  if (!is_local6 && !IsLocalHostname(normalized_host))
-    return false;
-
-  address_list->push_back(
-      IPEndPoint(IPAddressNumber(kLocalhostIPv6,
-                                 kLocalhostIPv6 + arraysize(kLocalhostIPv6)),
-                 port));
-  if (!is_local6) {
-    address_list->push_back(
-        IPEndPoint(IPAddressNumber(kLocalhostIPv4,
-                                   kLocalhostIPv4 + arraysize(kLocalhostIPv4)),
-                   port));
-  }
-
-  return true;
-}
-
 bool IsLocalhost(base::StringPiece host) {
-  std::string normalized_host = NormalizeHostname(host);
-  if (IsLocalHostname(normalized_host) || IsLocal6Hostname(normalized_host))
+  if (IsLocalHostname(host, nullptr))
     return true;
 
   IPAddressNumber ip_number;

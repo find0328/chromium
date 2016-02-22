@@ -76,6 +76,8 @@
       'display/display_info.h',
       'display/display_layout.cc',
       'display/display_layout.h',
+      'display/display_layout_builder.cc',
+      'display/display_layout_builder.h',
       'display/display_layout_store.cc',
       'display/display_layout_store.h',
       'display/display_manager.cc',
@@ -802,8 +804,6 @@
       'shell/content/client/shell_main_delegate.h',
       'shell/content/shell_content_state_impl.cc',
       'shell/content/shell_content_state_impl.h',
-      'shell/content/shell_main_parts.cc',
-      'shell/content/shell_main_parts.h',
     ],
     'ash_unittests_sources': [
       'accelerators/accelerator_commands_unittest.cc',

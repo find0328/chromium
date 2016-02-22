@@ -221,12 +221,12 @@
 #include "chrome/browser/ui/views/chrome_browser_main_extra_parts_views.h"
 #endif
 
-#if defined(USE_ASH)
-#include "chrome/browser/ui/views/ash/chrome_browser_main_extra_parts_ash.h"
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+#include "chrome/browser/ui/views/chrome_browser_main_extra_parts_views_linux.h"
 #endif
 
-#if defined(USE_AURA)
-#include "chrome/browser/ui/aura/chrome_browser_main_extra_parts_aura.h"
+#if defined(USE_ASH)
+#include "chrome/browser/ui/views/ash/chrome_browser_main_extra_parts_ash.h"
 #endif
 
 #if defined(USE_X11)
@@ -297,7 +297,7 @@
 #endif
 
 #if defined(ENABLE_MOJO_MEDIA_IN_BROWSER_PROCESS)
-#include "media/mojo/services/mojo_media_application.h"
+#include "media/mojo/services/mojo_media_application_factory.h"
 #endif
 
 using base::FileDescriptor;
@@ -695,6 +695,14 @@ void CreateWebUsbPermissionBubble(
 }
 #endif  // !defined(OS_ANDROID) && !defined(OS_IOS)
 
+bool GetDataSaverEnabledPref(const PrefService* prefs) {
+  // Enable data saver only when data saver pref is enabled and not part of
+  // "Disabled" group of "SaveDataHeader" experiment.
+  return prefs->GetBoolean(prefs::kDataSaverEnabled) &&
+         base::FieldTrialList::FindFullName("SaveDataHeader")
+             .compare("Disabled");
+}
+
 }  // namespace
 
 ChromeContentBrowserClient::ChromeContentBrowserClient()
@@ -780,17 +788,17 @@ content::BrowserMainParts* ChromeContentBrowserClient::CreateBrowserMainParts(
   // Construct additional browser parts. Stages are called in the order in
   // which they are added.
 #if defined(TOOLKIT_VIEWS)
+#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
+  main_parts->AddParts(new ChromeBrowserMainExtraPartsViewsLinux());
+#else
   main_parts->AddParts(new ChromeBrowserMainExtraPartsViews());
+#endif
 #endif
 
 // TODO(oshima): Athena on chrome currently requires USE_ASH to build.
 // We should reduce the dependency as much as possible.
 #if defined(USE_ASH)
   main_parts->AddParts(new ChromeBrowserMainExtraPartsAsh());
-#endif
-
-#if defined(USE_AURA)
-  main_parts->AddParts(new ChromeBrowserMainExtraPartsAura());
 #endif
 
 #if defined(USE_X11)
@@ -2379,8 +2387,7 @@ void ChromeContentBrowserClient::OverrideWebkitPrefs(
     web_prefs->strict_powerful_feature_restrictions = true;
   }
 
-  web_prefs->data_saver_enabled =
-      prefs->GetBoolean(prefs::kDataSaverEnabled);
+  web_prefs->data_saver_enabled = GetDataSaverEnabledPref(prefs);
 
   for (size_t i = 0; i < extra_parts_.size(); ++i)
     extra_parts_[i]->OverrideWebkitPrefs(rvh, web_prefs);
@@ -2729,8 +2736,8 @@ void ChromeContentBrowserClient::RegisterRenderFrameMojoServices(
 void ChromeContentBrowserClient::RegisterInProcessMojoApplications(
     StaticMojoApplicationMap* apps) {
 #if (ENABLE_MOJO_MEDIA_IN_BROWSER_PROCESS)
-  apps->insert(std::make_pair(
-      GURL("mojo:media"), base::Bind(&media::MojoMediaApplication::CreateApp)));
+  apps->insert(std::make_pair(GURL("mojo:media"),
+                              base::Bind(&media::CreateMojoMediaApplication)));
 #endif
 }
 

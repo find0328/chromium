@@ -306,6 +306,9 @@ class CacheStorageCacheTest : public testing::Test {
     body_request_ =
         ServiceWorkerFetchRequest(GURL("http://example.com/body.html"), "GET",
                                   headers, Referrer(), false);
+    body_request_with_query_ = ServiceWorkerFetchRequest(
+        GURL("http://example.com/body.html?query=test"), "GET", headers,
+        Referrer(), false);
     no_body_request_ =
         ServiceWorkerFetchRequest(GURL("http://example.com/no_body.html"),
                                   "GET", headers, Referrer(), false);
@@ -323,6 +326,12 @@ class CacheStorageCacheTest : public testing::Test {
 
     body_response_ = ServiceWorkerResponse(
         GURL("http://example.com/body.html"), 200, "OK",
+        blink::WebServiceWorkerResponseTypeDefault, headers,
+        blob_handle_->uuid(), expected_blob_data_.size(), GURL(),
+        blink::WebServiceWorkerResponseErrorUnknown);
+
+    body_response_with_query_ = ServiceWorkerResponse(
+        GURL("http://example.com/body.html?query=test"), 200, "OK",
         blink::WebServiceWorkerResponseTypeDefault, headers,
         blob_handle_->uuid(), expected_blob_data_.size(), GURL(),
         blink::WebServiceWorkerResponseErrorUnknown);
@@ -379,14 +388,24 @@ class CacheStorageCacheTest : public testing::Test {
     return callback_error_ == CACHE_STORAGE_OK;
   }
 
-  bool MatchAll(scoped_ptr<CacheStorageCache::Responses>* responses,
+  bool MatchAll(const ServiceWorkerFetchRequest& request,
+                const CacheStorageCacheQueryParams& match_params,
+                scoped_ptr<CacheStorageCache::Responses>* responses,
                 scoped_ptr<CacheStorageCache::BlobDataHandles>* body_handles) {
     base::RunLoop loop;
-    cache_->MatchAll(base::Bind(
-        &CacheStorageCacheTest::ResponsesAndErrorCallback,
-        base::Unretained(this), loop.QuitClosure(), responses, body_handles));
+    cache_->MatchAll(
+        CopyFetchRequest(request), match_params,
+        base::Bind(&CacheStorageCacheTest::ResponsesAndErrorCallback,
+                   base::Unretained(this), loop.QuitClosure(), responses,
+                   body_handles));
     loop.Run();
     return callback_error_ == CACHE_STORAGE_OK;
+  }
+
+  bool MatchAll(scoped_ptr<CacheStorageCache::Responses>* responses,
+                scoped_ptr<CacheStorageCache::BlobDataHandles>* body_handles) {
+    return MatchAll(ServiceWorkerFetchRequest(), CacheStorageCacheQueryParams(),
+                    responses, body_handles);
   }
 
   bool Delete(const ServiceWorkerFetchRequest& request) {
@@ -428,6 +447,14 @@ class CacheStorageCacheTest : public testing::Test {
     base::RunLoop run_loop;
     cache_->Size(base::Bind(&CacheStorageCacheTest::SizeCallback,
                             base::Unretained(this), &run_loop));
+    run_loop.Run();
+    return callback_size_;
+  }
+
+  int64_t GetSizeThenClose() {
+    base::RunLoop run_loop;
+    cache_->GetSizeThenClose(base::Bind(&CacheStorageCacheTest::SizeCallback,
+                                        base::Unretained(this), &run_loop));
     run_loop.Run();
     return callback_size_;
   }
@@ -548,6 +575,8 @@ class CacheStorageCacheTest : public testing::Test {
 
   ServiceWorkerFetchRequest body_request_;
   ServiceWorkerResponse body_response_;
+  ServiceWorkerFetchRequest body_request_with_query_;
+  ServiceWorkerResponse body_response_with_query_;
   ServiceWorkerFetchRequest no_body_request_;
   ServiceWorkerResponse no_body_response_;
   scoped_ptr<storage::BlobDataHandle> blob_handle_;
@@ -769,6 +798,34 @@ TEST_P(CacheStorageCacheTestP, MatchAll_TwoResponsesThenOne) {
   EXPECT_TRUE(body_handles->empty());
 }
 
+TEST_P(CacheStorageCacheTestP, MatchAll_IgnoreSearch) {
+  EXPECT_TRUE(Put(body_request_, body_response_));
+  EXPECT_TRUE(Put(body_request_with_query_, body_response_with_query_));
+  EXPECT_TRUE(Put(no_body_request_, no_body_response_));
+
+  scoped_ptr<CacheStorageCache::Responses> responses;
+  scoped_ptr<CacheStorageCache::BlobDataHandles> body_handles;
+  CacheStorageCacheQueryParams match_params;
+  match_params.ignore_search = true;
+  EXPECT_TRUE(MatchAll(body_request_, match_params, &responses, &body_handles));
+
+  ASSERT_EQ(2u, responses->size());
+  ASSERT_EQ(2u, body_handles->size());
+
+  // Order of returned responses is not guaranteed.
+  std::set<std::string> matched_set;
+  for (const ServiceWorkerResponse& response : *responses) {
+    if (response.url.spec() == "http://example.com/body.html?query=test") {
+      EXPECT_TRUE(ResponseMetadataEqual(body_response_with_query_, response));
+      matched_set.insert(response.url.spec());
+    } else if (response.url.spec() == "http://example.com/body.html") {
+      EXPECT_TRUE(ResponseMetadataEqual(body_response_, response));
+      matched_set.insert(response.url.spec());
+    }
+  }
+  EXPECT_EQ(2u, matched_set.size());
+}
+
 TEST_P(CacheStorageCacheTestP, Vary) {
   body_request_.headers["vary_foo"] = "foo";
   body_response_.headers["vary"] = "vary_foo";
@@ -985,6 +1042,13 @@ TEST_P(CacheStorageCacheTestP, Size) {
 
   EXPECT_TRUE(Delete(body_request_));
   EXPECT_EQ(0, Size());
+}
+
+TEST_P(CacheStorageCacheTestP, GetSizeThenClose) {
+  EXPECT_TRUE(Put(body_request_, body_response_));
+  int64_t cache_size = Size();
+  EXPECT_EQ(cache_size, GetSizeThenClose());
+  VerifyAllOpsFail();
 }
 
 TEST_P(CacheStorageCacheTestP, OpsFailOnClosedBackendNeverCreated) {

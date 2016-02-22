@@ -22,6 +22,7 @@
 #include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "net/base/address_family.h"
+#include "net/base/ip_address.h"
 #include "net/base/net_errors.h"
 #include "net/quic/crypto/crypto_protocol.h"
 #include "net/quic/crypto/quic_decrypter.h"
@@ -1335,7 +1336,7 @@ void QuicConnection::CheckForAddressMigration(const IPEndPoint& self_address,
     peer_port_changed_ = (peer_address.port() != peer_address_.port());
 
     // Store in case we want to migrate connection in ProcessValidatedPacket.
-    migrating_peer_ip_ = peer_address.address().bytes();
+    migrating_peer_ip_ = peer_address.address();
     migrating_peer_port_ = peer_address.port();
   }
 
@@ -1510,27 +1511,7 @@ void QuicConnection::WritePendingRetransmissions() {
     // does not require the creator to be flushed.
     packet_generator_.FlushAllQueuedFrames();
     char buffer[kMaxPacketSize];
-    SerializedPacket serialized_packet =
-        packet_generator_.ReserializeAllFrames(pending, buffer, kMaxPacketSize);
-    if (FLAGS_quic_retransmit_via_onserializedpacket) {
-      DCHECK(serialized_packet.encrypted_buffer == nullptr);
-      continue;
-    }
-    if (serialized_packet.encrypted_buffer == nullptr) {
-      // We failed to serialize the packet, so close the connection.
-      // CloseConnection does not send close packet, so no infinite loop here.
-      // TODO(ianswett): This is actually an internal error, not an encryption
-      // failure.
-      CloseConnection(QUIC_ENCRYPTION_FAILURE,
-                      ConnectionCloseSource::FROM_SELF);
-      return;
-    }
-
-    DVLOG(1) << ENDPOINT << "Retransmitting " << pending.packet_number << " as "
-             << serialized_packet.packet_number;
-    serialized_packet.original_packet_number = pending.packet_number;
-    serialized_packet.transmission_type = pending.transmission_type;
-    SendOrQueuePacket(&serialized_packet);
+    packet_generator_.ReserializeAllFrames(pending, buffer, kMaxPacketSize);
   }
 }
 
@@ -2485,7 +2466,7 @@ void QuicConnection::MaybeMigrateConnectionToNewPeerAddress() {
     last_peer_address = last_packet_source_address_;
   } else {
     last_peer_address = IPEndPoint(
-        peer_ip_changed_ ? migrating_peer_ip_ : peer_address_.address().bytes(),
+        peer_ip_changed_ ? migrating_peer_ip_ : peer_address_.address(),
         peer_port_changed_ ? migrating_peer_port_ : peer_address_.port());
   }
   PeerAddressChangeType peer_address_change_type =
@@ -2514,7 +2495,7 @@ void QuicConnection::MaybeMigrateConnectionToNewPeerAddress() {
   if (peer_ip_changed_ || peer_port_changed_) {
     IPEndPoint old_peer_address = peer_address_;
     peer_address_ = IPEndPoint(
-        peer_ip_changed_ ? migrating_peer_ip_ : peer_address_.address().bytes(),
+        peer_ip_changed_ ? migrating_peer_ip_ : peer_address_.address(),
         peer_port_changed_ ? migrating_peer_port_ : peer_address_.port());
 
     DVLOG(1) << ENDPOINT << "Peer's ip:port changed from "

@@ -707,12 +707,8 @@ class CONTENT_EXPORT WebContentsImpl
   // Unsets the currently showing interstitial.
   void DetachInterstitialPage() override;
 
-  // Changes the IsLoading state and notifies the delegate as needed.
-  // |details| is used to provide details on the load that just finished
-  // (but can be null if not applicable).
-  void SetIsLoading(bool is_loading,
-                    bool to_different_document,
-                    LoadNotificationDetails* details) override;
+  // Unpause the throbber if it was paused.
+  void DidProceedOnInterstitial() override;
 
   typedef base::Callback<void(WebContents*)> CreatedCallback;
 
@@ -819,6 +815,12 @@ class CONTENT_EXPORT WebContentsImpl
   // Traverses all the RenderFrameHosts in the FrameTree and creates a set
   // all the unique RenderWidgetHostViews.
   std::set<RenderWidgetHostView*> GetRenderWidgetHostViewsInTree();
+
+  // Called with the result of a DownloadImage() request.
+  void OnDidDownloadImage(const ImageDownloadCallback& callback,
+                          int id,
+                          const GURL& image_url,
+                          image_downloader::DownloadResultPtr result);
 
   // Callback function when showing JavaScript dialogs.  Takes in a routing ID
   // pair to identify the RenderFrameHost that opened the dialog, because it's
@@ -979,6 +981,15 @@ class CONTENT_EXPORT WebContentsImpl
   // Notifies the delegate that the load progress was updated.
   void SendChangeLoadProgress();
 
+  // Notifies the delegate of a change in loading state.
+  // |details| is used to provide details on the load that just finished
+  // (but can be null if not applicable).
+  // |due_to_interstitial| is true if the change in load state occurred because
+  // an interstitial page started showing/proceeded.
+  void LoadingStateChanged(bool to_different_document,
+                           bool due_to_interstitial,
+                           LoadNotificationDetails* details);
+
   // Misc non-view stuff -------------------------------------------------------
 
   // Sets the history for a specified RenderViewHost to |history_length|
@@ -1073,9 +1084,6 @@ class CONTENT_EXPORT WebContentsImpl
   scoped_refptr<SavePackage> save_package_;
 
   // Data for loading state ----------------------------------------------------
-
-  // Indicates whether we're currently loading a resource.
-  bool is_loading_;
 
   // Indicates whether the current load is to a different document. Only valid
   // if is_loading_ is true.
@@ -1310,6 +1318,7 @@ class CONTENT_EXPORT WebContentsImpl
   bool page_scale_factor_is_one_;
 
   base::WeakPtrFactory<WebContentsImpl> loading_weak_factory_;
+  base::WeakPtrFactory<WebContentsImpl> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(WebContentsImpl);
 };

@@ -7,6 +7,7 @@
 #include "core/HTMLNames.h"
 #include "core/dom/ElementTraversal.h"
 #include "core/dom/NodeTraversal.h"
+#include "core/dom/shadow/ElementShadow.h"
 #include "core/dom/shadow/InsertionPoint.h"
 #include "core/dom/shadow/ShadowRoot.h"
 #include "core/html/HTMLSlotElement.h"
@@ -75,6 +76,8 @@ void SlotAssignment::resolveAssignment(ShadowRoot& shadowRoot)
     // Update each slot's distribution in reverse tree order so that a child slot is visited before its parent slot.
     for (auto slot = slots.rbegin(); slot != slots.rend(); ++slot)
         (*slot)->updateDistributedNodesWithFallback();
+    for (const auto& slot : slots)
+        slot->didUpdateDistribution();
 }
 
 void SlotAssignment::assign(Node& hostChild, HTMLSlotElement& slot)
@@ -86,6 +89,8 @@ void SlotAssignment::assign(Node& hostChild, HTMLSlotElement& slot)
         slot.appendDistributedNodesFrom(toHTMLSlotElement(hostChild));
     else
         slot.appendDistributedNode(hostChild);
+    if (slot.isChildOfV1ShadowHost())
+        slot.parentElementShadow()->setNeedsDistributionRecalc();
 }
 
 DEFINE_TRACE(SlotAssignment)

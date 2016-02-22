@@ -347,8 +347,6 @@ WebInspector.TimelineFlameChartDataProvider.prototype = {
         /** @type {!Array.<!WebInspector.TimelineFlameChartMarker>} */
         this._markers = [];
         this._asyncColorByCategory = {};
-        /** @type {!Map<string, boolean>} */
-        this._blackboxingURLCache = new Map();
     },
 
     /**
@@ -473,11 +471,7 @@ WebInspector.TimelineFlameChartDataProvider.prototype = {
      */
     _isBlackboxedURL: function(url)
     {
-        if (this._blackboxingURLCache.has(url))
-            return /** @type {boolean} */ (this._blackboxingURLCache.get(url));
-        var result = WebInspector.BlackboxSupport.isBlackboxedURL(url);
-        this._blackboxingURLCache.set(url, result);
-        return result;
+        return WebInspector.blackboxManager.isBlackboxedURL(url);
     },
 
     /**
@@ -1237,10 +1231,10 @@ WebInspector.TimelineFlameChartView = function(delegate, timelineModel, frameMod
     this._splitWidget = new WebInspector.SplitWidget(false, false, "timelineFlamechartMainView", 150);
 
     this._dataProvider = new WebInspector.TimelineFlameChartDataProvider(this._model, frameModel, irModel);
-    this._mainView = new WebInspector.FlameChart(this._dataProvider, this, true);
+    this._mainView = new WebInspector.FlameChart(this._dataProvider, this);
 
     this._networkDataProvider = new WebInspector.TimelineFlameChartNetworkDataProvider(this._model);
-    this._networkView = new WebInspector.FlameChart(this._networkDataProvider, this, true);
+    this._networkView = new WebInspector.FlameChart(this._networkDataProvider, this);
 
     if (Runtime.experiments.isEnabled("networkRequestsOnTimeline")) {
         this._splitWidget.setMainWidget(this._mainView);
@@ -1255,7 +1249,7 @@ WebInspector.TimelineFlameChartView = function(delegate, timelineModel, frameMod
     this._model.addEventListener(WebInspector.TimelineModel.Events.RecordingStarted, this._onRecordingStarted, this);
     this._mainView.addEventListener(WebInspector.FlameChart.Events.EntrySelected, this._onMainEntrySelected, this);
     this._networkView.addEventListener(WebInspector.FlameChart.Events.EntrySelected, this._onNetworkEntrySelected, this);
-    WebInspector.BlackboxSupport.addChangeListener(this.refreshRecords, this);
+    WebInspector.blackboxManager.addChangeListener(this.refreshRecords, this);
 }
 
 WebInspector.TimelineFlameChartView.prototype = {
@@ -1267,7 +1261,7 @@ WebInspector.TimelineFlameChartView.prototype = {
         this._model.removeEventListener(WebInspector.TimelineModel.Events.RecordingStarted, this._onRecordingStarted, this);
         this._mainView.removeEventListener(WebInspector.FlameChart.Events.EntrySelected, this._onMainEntrySelected, this);
         this._networkView.removeEventListener(WebInspector.FlameChart.Events.EntrySelected, this._onNetworkEntrySelected, this);
-        WebInspector.BlackboxSupport.removeChangeListener(this.refreshRecords, this);
+        WebInspector.blackboxManager.removeChangeListener(this.refreshRecords, this);
     },
 
     /**

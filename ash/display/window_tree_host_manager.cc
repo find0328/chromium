@@ -392,33 +392,24 @@ WindowTreeHostManager::GetAllRootWindowControllers() {
 }
 
 void WindowTreeHostManager::SetPrimaryDisplayId(int64_t id) {
-  DCHECK_NE(gfx::Display::kInvalidDisplayID, id);
-  if (id == gfx::Display::kInvalidDisplayID || primary_display_id == id)
-    return;
-
-  const gfx::Display& display = GetDisplayManager()->GetDisplayForId(id);
-  if (display.is_valid())
-    SetPrimaryDisplay(display);
-}
-
-void WindowTreeHostManager::SetPrimaryDisplay(
-    const gfx::Display& new_primary_display) {
   // TODO(oshima): Move primary display management to DisplayManager.
-  DisplayManager* display_manager = GetDisplayManager();
-  DCHECK(new_primary_display.is_valid());
-  DCHECK(display_manager->GetDisplayForId(new_primary_display.id()).is_valid());
+  DCHECK_NE(gfx::Display::kInvalidDisplayID, id);
+  if (id == gfx::Display::kInvalidDisplayID || primary_display_id == id ||
+      window_tree_hosts_.size() < 2) {
+    return;
+  }
 
-  if (!new_primary_display.is_valid() ||
-      !display_manager->GetDisplayForId(new_primary_display.id()).is_valid()) {
+  const gfx::Display& new_primary_display =
+      GetDisplayManager()->GetDisplayForId(id);
+  if (!new_primary_display.is_valid()) {
     LOG(ERROR) << "Invalid or non-existent display is requested:"
                << new_primary_display.ToString();
     return;
   }
 
-  if (primary_display_id == new_primary_display.id() ||
-      window_tree_hosts_.size() < 2) {
-    return;
-  }
+  DisplayManager* display_manager = GetDisplayManager();
+  DCHECK(new_primary_display.is_valid());
+  DCHECK(display_manager->GetDisplayForId(new_primary_display.id()).is_valid());
 
   AshWindowTreeHost* non_primary_host =
       window_tree_hosts_[new_primary_display.id()];
@@ -445,15 +436,18 @@ void WindowTreeHostManager::SetPrimaryDisplay(
   GetRootWindowSettings(GetWindow(non_primary_host))->display_id =
       old_primary_display.id();
 
-  DisplayLayout layout = GetDisplayManager()->GetCurrentDisplayLayout();
+  const DisplayLayout& layout = GetDisplayManager()->GetCurrentDisplayLayout();
+  // The requested primary id can be same as one in the stored layout
+  // when the primary id is set after new displays are connected.
+  // Only update the layout if it is requested to swap primary display.
   if (layout.primary_id != new_primary_display.id()) {
-    layout.placement.Swap();
-    layout.primary_id = new_primary_display.id();
+    scoped_ptr<DisplayLayout> swapped_layout(layout.Copy());
+    swapped_layout->placement.Swap();
+    swapped_layout->primary_id = new_primary_display.id();
+    DisplayIdList list = display_manager->GetCurrentDisplayIdList();
+    GetDisplayManager()->layout_store()->RegisterLayoutForDisplayIdList(
+        list, std::move(swapped_layout));
   }
-
-  DisplayIdList list = display_manager->GetCurrentDisplayIdList();
-  GetDisplayManager()->layout_store()->RegisterLayoutForDisplayIdList(list,
-                                                                      layout);
 
   primary_display_id = new_primary_display.id();
 
@@ -768,19 +762,14 @@ void WindowTreeHostManager::PostDisplayConfigurationChange() {
   DisplayLayoutStore* layout_store = display_manager->layout_store();
   if (display_manager->num_connected_displays() > 1) {
     DisplayIdList list = display_manager->GetCurrentDisplayIdList();
-    DisplayLayout layout = layout_store->GetRegisteredDisplayLayout(list);
+    const DisplayLayout& layout =
+        layout_store->GetRegisteredDisplayLayout(list);
     layout_store->UpdateMultiDisplayState(
         list, display_manager->IsInMirrorMode(), layout.default_unified);
     if (gfx::Screen::GetScreen()->GetNumDisplays() > 1) {
-      int64_t primary_id = layout.primary_id;
-      SetPrimaryDisplayId(
-          primary_id == gfx::Display::kInvalidDisplayID ? list[0] : primary_id);
-      // Update the primary_id in case the above call is
-      // ignored. Happens when a) default layout's primary id
-      // doesn't exist, or b) the primary_id has already been
-      // set to the same and didn't update it.
-      layout_store->UpdatePrimaryDisplayId(
-          list, gfx::Screen::GetScreen()->GetPrimaryDisplay().id());
+      SetPrimaryDisplayId(layout.primary_id == gfx::Display::kInvalidDisplayID
+                              ? list[0]
+                              : layout.primary_id);
     }
   }
   FOR_EACH_OBSERVER(Observer, observers_, OnDisplayConfigurationChanged());

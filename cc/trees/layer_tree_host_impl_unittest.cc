@@ -112,7 +112,6 @@ class LayerTreeHostImplTest : public testing::Test,
     settings.renderer_settings.texture_id_allocation_chunk_size = 1;
     settings.gpu_rasterization_enabled = true;
     settings.use_compositor_animation_timelines = true;
-    settings.verify_property_trees = true;
     return settings;
   }
 
@@ -860,11 +859,13 @@ TEST_F(LayerTreeHostImplTest, FlingOnlyWhenScrollingTouchpad) {
 TEST_F(LayerTreeHostImplTest, NoFlingWhenScrollingOnMain) {
   SetupScrollAndContentsLayers(gfx::Size(100, 100));
   host_impl_->SetViewportSize(gfx::Size(50, 50));
-  DrawFrame();
   LayerImpl* root = host_impl_->active_tree()->root_layer();
 
   root->set_main_thread_scrolling_reasons(
       MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects);
+
+  SetNeedsRebuildPropertyTrees();
+  DrawFrame();
 
   // Start scrolling a layer
   InputHandler::ScrollStatus status = host_impl_->ScrollBegin(
@@ -883,11 +884,12 @@ TEST_F(LayerTreeHostImplTest, NoFlingWhenScrollingOnMain) {
 TEST_F(LayerTreeHostImplTest, ShouldScrollOnMainThread) {
   SetupScrollAndContentsLayers(gfx::Size(100, 100));
   host_impl_->SetViewportSize(gfx::Size(50, 50));
-  DrawFrame();
   LayerImpl* root = host_impl_->active_tree()->root_layer();
 
   root->set_main_thread_scrolling_reasons(
       MainThreadScrollingReason::kHasBackgroundAttachmentFixedObjects);
+  SetNeedsRebuildPropertyTrees();
+  DrawFrame();
 
   InputHandler::ScrollStatus status = host_impl_->ScrollBegin(
       BeginState(gfx::Point()).get(), InputHandler::WHEEL);
@@ -909,6 +911,7 @@ TEST_F(LayerTreeHostImplTest, NonFastScrollableRegionBasic) {
   LayerImpl* root = host_impl_->active_tree()->root_layer();
   root->SetNonFastScrollableRegion(gfx::Rect(0, 0, 50, 50));
 
+  SetNeedsRebuildPropertyTrees();
   DrawFrame();
 
   // All scroll types inside the non-fast scrollable region should fail.
@@ -966,6 +969,7 @@ TEST_F(LayerTreeHostImplTest, NonFastScrollableRegionWithOffset) {
   root->SetPosition(gfx::PointF(-25.f, 0.f));
   root->SetDrawsContent(true);
 
+  SetNeedsRebuildPropertyTrees();
   DrawFrame();
 
   // This point would fall into the non-fast scrollable region except that we've
@@ -2723,7 +2727,6 @@ class LayerTreeHostImplTestScrollbarOpacity : public LayerTreeHostImplTest {
     settings.scrollbar_animator = animator;
     settings.scrollbar_fade_delay_ms = 20;
     settings.scrollbar_fade_duration_ms = 20;
-    settings.verify_property_trees = true;
     gfx::Size content_size(100, 100);
 
     CreateHostImpl(settings, CreateOutputSurface());
@@ -3268,6 +3271,7 @@ TEST_F(LayerTreeHostImplTest, DidDrawNotCalledOnHiddenLayer) {
 
   // Ensure visible_layer_rect for layer is not empty
   layer->SetPosition(gfx::PointF());
+  layer->NoteLayerPropertyChanged();
 
   EXPECT_FALSE(layer->will_draw_called());
   EXPECT_FALSE(layer->did_draw_called());
@@ -6594,6 +6598,10 @@ TEST_F(LayerTreeHostImplTest, PartialSwapReceivesDamageRect) {
   // expected swap rect: vertically flipped, with origin at bottom left corner.
   layer_tree_host_impl->active_tree()->root_layer()->children()[0]->SetPosition(
       gfx::PointF());
+  layer_tree_host_impl->active_tree()
+      ->root_layer()
+      ->children()[0]
+      ->NoteLayerPropertyChanged();
   layer_tree_host_impl->active_tree()->property_trees()->needs_rebuild = true;
   layer_tree_host_impl->active_tree()->BuildPropertyTreesForTesting();
   EXPECT_EQ(DRAW_SUCCESS, layer_tree_host_impl->PrepareToDraw(&frame));

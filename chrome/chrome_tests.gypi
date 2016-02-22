@@ -213,6 +213,7 @@
       'browser/extensions/api/webstore_private/webstore_private_apitest.cc',
       'browser/extensions/app_background_page_apitest.cc',
       'browser/extensions/app_process_apitest.cc',
+      'browser/extensions/app_window_overrides_browsertest.cc',
       'browser/extensions/background_app_browsertest.cc',
       'browser/extensions/background_page_apitest.cc',
       'browser/extensions/background_scripts_apitest.cc',
@@ -257,6 +258,7 @@
       'browser/extensions/extension_storage_apitest.cc',
       'browser/extensions/extension_storage_monitor_browsertest.cc',
       'browser/extensions/extension_tabs_apitest.cc',
+      'browser/extensions/extension_tab_util_browsertest.cc',
       'browser/extensions/extension_url_rewrite_browsertest.cc',
       'browser/extensions/extension_view_host_factory_browsertest.cc',
       'browser/extensions/extension_websocket_apitest.cc',
@@ -390,6 +392,8 @@
       'browser/renderer_context_menu/render_view_context_menu_test_util.cc',
       'browser/renderer_context_menu/render_view_context_menu_test_util.h',
       'browser/renderer_context_menu/spelling_menu_observer_browsertest.cc',
+      'browser/renderer_context_menu/mock_render_view_context_menu.cc',
+      'browser/renderer_context_menu/mock_render_view_context_menu.h',
       'browser/renderer_host/chrome_resource_dispatcher_host_delegate_browsertest.cc',
       'browser/renderer_host/render_process_host_chrome_browsertest.cc',
       'browser/repost_form_warning_browsertest.cc',
@@ -641,6 +645,10 @@
     'chrome_browser_tests_views_non_mac_sources': [
       # This assumes the AppListService is views-based.
       'browser/ui/app_list/app_list_service_views_browsertest.cc',
+
+      # This test is for the spelling options submenu that's only for Windows,
+      # ChromeOS, and Linux.
+      'browser/renderer_context_menu/spelling_options_submenu_observer_browsertest.cc',
 
       # TODO(tapted): Move these to chrome_browser_tests_views_sources when the
       # the corresponding files are moved in chrome_browser_ui.gypi (i.e. out of
@@ -2277,6 +2285,9 @@
             'browser/extensions/extension_nacl_browsertest.cc',
             'browser/nacl_host/test/gdb_debug_stub_browsertest.cc',
           ],
+          'dependencies': [
+            'test/data/nacl/nacl_test_data.gyp:pnacl_url_loader_test',
+          ],
           'conditions': [
             ['disable_nacl_untrusted==0', {
               'sources': [
@@ -2562,9 +2573,6 @@
           'sources': [ '<@(chrome_browser_tests_views_non_mac_sources)' ],
         }],
         ['toolkit_views==1 and OS!="mac" and chromeos == 0', {
-          # A temporary define to make it easier to remove CrOS dependencies on
-          # avatar button code. TODO(estade): remove.
-          'defines': [ 'FRAME_AVATAR_BUTTON=1', ],
           'sources': [ '<@(chrome_browser_tests_views_non_cros_or_mac_sources)' ],
         }],
         ['OS=="ios"', {
@@ -3130,8 +3138,11 @@
             'src_paths': [
               'android/junit/',
             ],
+            'test_type': 'junit',
+            'wrapper_script_name': 'helper/<(_target_name)',
           },
           'includes': [
+            '../build/android/test_runner.gypi',
             '../build/host_jar.gypi',
           ],
         },
@@ -3228,6 +3239,36 @@
                 'chrome.gyp:crash_service',
               ],
             }],
+          ],
+        },
+        {
+          'target_name': 'gpu_tests_base',
+          'type': 'none',
+          'dependencies': [
+            # depend on icu to fix races. http://crbug.com/417583
+            '../third_party/icu/icu.gyp:icudata',
+          ],
+          # Set this so we aren't included as a target in files that
+          # include this file via a wildcard (such as chrome_tests.gypi).
+          # If we didn't do this the All target ends up with a rule that
+          # makes it unnecessarily compile in certain situations.
+          'suppress_wildcard': 1,
+          'direct_dependent_settings': {
+            'includes': [
+              '../build/isolate.gypi',
+            ],
+          },
+        },
+        {
+          # GN: //gpu:angle_unittests_run
+          'target_name': 'angle_unittests_run',
+          'type': 'none',
+          'dependencies': [
+            '../gpu/gpu.gyp:angle_unittests',
+            'gpu_tests_base',
+          ],
+          'sources': [
+            'angle_unittests.isolate',
           ],
         },
         {
@@ -3357,36 +3398,6 @@
       'conditions': [
         ['archive_gpu_tests==1', {
           'targets': [
-            {
-              'target_name': 'gpu_tests_base',
-              'type': 'none',
-              'dependencies': [
-                # depend on icu to fix races. http://crbug.com/417583
-                '../third_party/icu/icu.gyp:icudata',
-              ],
-              # Set this so we aren't included as a target in files that
-              # include this file via a wildcard (such as chrome_tests.gypi).
-              # If we didn't do this the All target ends up with a rule that
-              # makes it unnecessarily compile in certain situations.
-              'suppress_wildcard': 1,
-              'direct_dependent_settings': {
-                'includes': [
-                  '../build/isolate.gypi',
-                ],
-              },
-            },
-            {
-              # GN: //gpu:angle_unittests_run
-              'target_name': 'angle_unittests_run',
-              'type': 'none',
-              'dependencies': [
-                '../gpu/gpu.gyp:angle_unittests',
-                'gpu_tests_base',
-              ],
-              'sources': [
-                'angle_unittests.isolate',
-              ],
-            },
             {
               # GN: //gpu:gl_tests_run
               'target_name': 'gl_tests_run',

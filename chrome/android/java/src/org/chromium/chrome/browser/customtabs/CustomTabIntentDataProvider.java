@@ -26,6 +26,7 @@ import org.chromium.base.Log;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeActivity;
+import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.preferences.ChromePreferenceManager;
 import org.chromium.chrome.browser.util.IntentUtils;
 import org.chromium.chrome.browser.widget.TintedDrawable;
@@ -46,11 +47,25 @@ public class CustomTabIntentDataProvider {
     public static final String EXTRA_KEEP_ALIVE = "android.support.customtabs.extra.KEEP_ALIVE";
 
     /**
-     * Extra used by Chrome to tell the CustomTabActivity to finish itself and open the current URL
-     * in the browser.  Guarded explicitly for use only by PendingIntents with the Chrome package.
+     * Herb: Extra used by Chrome to tell the CustomTabActivity to finish itself and open the
+     * current URL in the browser.  Guarded explicitly for use only by PendingIntents with the
+     * Chrome package.
      */
     public static final String EXTRA_FINISH_AFTER_OPENING_IN_BROWSER =
             "org.chromium.chrome.browser.customtabs.FINISH_AFTER_OPENING_IN_BROWSER";
+
+    /**
+     * Herb: Extra used by the main Chrome browser to tell the {@link CustomTabActivity} that it
+     * sits on top of the main browser Activity.
+     */
+    public static final String EXTRA_OPENED_BY_BROWSER =
+            "org.chromium.chrome.browser.customtabs.OPENED_BY_BROWSER";
+
+    /**
+     * Herb: Extra used by the main Chrome browser to enable the bookmark icon in the menu.
+     */
+    public static final String EXTRA_SHOW_STAR_ICON =
+            "org.chromium.chrome.browser.customtabs.SHOW_STAR_ICON";
 
     private static final int MAX_CUSTOM_MENU_ITEMS = 5;
     private static final String ANIMATION_BUNDLE_PREFIX =
@@ -71,11 +86,19 @@ public class CustomTabIntentDataProvider {
     private List<Pair<String, PendingIntent>> mMenuEntries = new ArrayList<>();
     private Bundle mAnimationBundle;
     private boolean mShowShareItem;
-    private boolean mFinishAfterOpeningInBrowser;
     private CustomButtonParams mToolbarButton;
     private List<CustomButtonParams> mBottombarButtons = new ArrayList<>(2);
     // OnFinished listener for PendingIntents. Used for testing only.
     private PendingIntent.OnFinished mOnFinished;
+
+    /** Herb: "Open in Browser" will send the Tab to the Browser and kill this Activity. */
+    private boolean mFinishAfterOpeningInBrowser;
+
+    /** Herb: Whether or not this CustomTabActivity was opened by the Browser directly. */
+    private boolean mIsOpenedByBrowser;
+
+    /** Herb: Whether or not the bookmark button should be shown. */
+    private boolean mShowBookmarkItem;
 
     /**
      * Constructs a {@link CustomTabIntentDataProvider}.
@@ -83,9 +106,7 @@ public class CustomTabIntentDataProvider {
     public CustomTabIntentDataProvider(Intent intent, Context context) {
         if (intent == null) assert false;
         mSession = IntentUtils.safeGetBinderExtra(intent, CustomTabsIntent.EXTRA_SESSION);
-        mFinishAfterOpeningInBrowser = !TextUtils.isEmpty(ChromePreferenceManager.getHerbFlavor())
-                && IntentUtils.safeGetBooleanExtra(
-                        intent, EXTRA_FINISH_AFTER_OPENING_IN_BROWSER, false);
+        parseHerbExtras(intent, context);
 
         retrieveCustomButtons(intent, context);
         retrieveToolbarColor(intent, context);
@@ -228,6 +249,13 @@ public class CustomTabIntentDataProvider {
      */
     public boolean shouldShowShareMenuItem() {
         return mShowShareItem;
+    }
+
+    /**
+     * @return Whether the bookmark item should be shown in the menu.
+     */
+    public boolean shouldShowBookmarkMenuItem() {
+        return mShowBookmarkItem;
     }
 
     /**
@@ -376,7 +404,32 @@ public class CustomTabIntentDataProvider {
     /**
      * @return See {@link #EXTRA_FINISH_AFTER_OPENING_IN_BROWSER}.
      */
-    public boolean finishAfterOpeningInBrowser() {
+    boolean finishAfterOpeningInBrowser() {
         return mFinishAfterOpeningInBrowser;
+    }
+
+    /**
+     * @return See {@link #EXTRA_OPENED_BY_BROWSER}.
+     */
+    boolean isOpenedByBrowser() {
+        return mIsOpenedByBrowser;
+    }
+
+    /**
+     * Parses out extras specifically added for Herb.
+     *
+     * @param intent Intent fired to open the CustomTabActivity.
+     * @param context Context for the package.
+     */
+    private void parseHerbExtras(Intent intent, Context context) {
+        if (TextUtils.isEmpty(ChromePreferenceManager.getHerbFlavor())) return;
+        if (!IntentHandler.isIntentChromeOrFirstParty(intent, context)) return;
+
+        mFinishAfterOpeningInBrowser = IntentUtils.safeGetBooleanExtra(
+                intent, EXTRA_FINISH_AFTER_OPENING_IN_BROWSER, false);
+        mIsOpenedByBrowser = IntentUtils.safeGetBooleanExtra(
+                intent, EXTRA_OPENED_BY_BROWSER, false);
+        mShowBookmarkItem = IntentUtils.safeGetBooleanExtra(
+                intent, EXTRA_SHOW_STAR_ICON, false);
     }
 }

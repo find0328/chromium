@@ -4,8 +4,6 @@
 
 #include "mojo/shell/identity.h"
 
-#include "mojo/shell/query_util.h"
-
 namespace mojo {
 namespace shell {
 namespace {
@@ -30,17 +28,17 @@ CapabilityFilter CanonicalizeFilter(const CapabilityFilter& filter) {
 Identity::Identity() {}
 
 Identity::Identity(const GURL& url)
-    : url_(GetBaseURLAndQuery(url, nullptr)),
+    : url_(url),
       qualifier_(url_.spec()) {}
 
 Identity::Identity(const GURL& url, const std::string& qualifier)
-    : url_(GetBaseURLAndQuery(url, nullptr)),
+    : url_(url),
       qualifier_(qualifier.empty() ? url_.spec() : qualifier) {}
 
 Identity::Identity(const GURL& url,
                    const std::string& qualifier,
                    CapabilityFilter filter)
-    : url_(GetBaseURLAndQuery(url, nullptr)),
+    : url_(url),
       qualifier_(qualifier.empty() ? url_.spec() : qualifier),
       filter_(CanonicalizeFilter(filter)) {}
 
@@ -53,6 +51,16 @@ bool Identity::operator<(const Identity& other) const {
   if (url_ != other.url_)
     return url_ < other.url_;
   return qualifier_ < other.qualifier_;
+}
+
+bool Identity::operator==(const Identity& other) const {
+  return other.url_ == url_ && other.qualifier_ == qualifier_ &&
+    other.filter_ == filter_;
+}
+
+Identity CreateShellIdentity() {
+  return Identity(GURL("mojo://shell/"), std::string(),
+                  GetPermissiveCapabilityFilter());
 }
 
 }  // namespace shell

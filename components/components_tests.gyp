@@ -76,8 +76,10 @@
       'bookmarks/managed/managed_bookmarks_tracker_unittest.cc',
     ],
     'browser_sync_unittest_sources': [
+      'browser_sync/browser/profile_sync_service_autofill_unittest.cc',
       'browser_sync/browser/profile_sync_service_startup_unittest.cc',
       'browser_sync/browser/profile_sync_service_unittest.cc',
+      'browser_sync/browser/profile_sync_service_typed_url_unittest.cc',
     ],
     'browser_watcher_unittest_sources': [
       'browser_watcher/crash_reporting_metrics_win_unittest.cc',
@@ -289,7 +291,6 @@
       'history/core/browser/url_database_unittest.cc',
       'history/core/browser/url_utils_unittest.cc',
       'history/core/browser/visit_database_unittest.cc',
-      'history/core/browser/visit_filter_unittest.cc',
       'history/core/browser/visit_tracker_unittest.cc',
       'history/core/browser/web_history_service_unittest.cc',
       'history/core/common/thumbnail_score_unittest.cc',
@@ -349,6 +350,7 @@
       'metrics/cloned_install_detector_unittest.cc',
       'metrics/daily_event_unittest.cc',
       'metrics/drive_metrics_provider_unittest.cc',
+      'metrics/file_metrics_provider_unittest.cc',
       'metrics/histogram_encoder_unittest.cc',
       'metrics/machine_id_provider_win_unittest.cc',
       'metrics/metrics_log_manager_unittest.cc',
@@ -630,7 +632,7 @@
     'safe_browsing_db_unittest_sources': [
       'safe_browsing_db/prefix_set_unittest.cc',
       'safe_browsing_db/util_unittest.cc',
-      'safe_browsing_db/v4_protocol_manager_unittest.cc',
+      'safe_browsing_db/v4_get_hash_protocol_manager_unittest.cc',
     ],
     'safe_json_unittest_sources': [
       'safe_json/json_sanitizer_unittest.cc',
@@ -693,7 +695,7 @@
       'sessions/core/serialized_navigation_entry_unittest.cc',
       'sessions/core/session_backend_unittest.cc',
       'sessions/core/session_types_unittest.cc',
-      'sessions/ios/ios_serialized_navigation_builder_unittest.cc',
+      'sessions/ios/ios_serialized_navigation_builder_unittest.mm',
       'sessions/ios/ios_serialized_navigation_driver_unittest.cc',
     ],
     'signin_unittest_sources': [
@@ -784,12 +786,14 @@
       'tracing/trace_config_file_unittest.cc',
     ],
     'translate_unittest_sources': [
+      'translate/core/browser/mock_translate_driver.cc',
       'translate/core/browser/language_state_unittest.cc',
       'translate/core/browser/translate_browser_metrics_unittest.cc',
       'translate/core/browser/translate_language_list_unittest.cc',
       'translate/core/browser/translate_manager_unittest.cc',
       'translate/core/browser/translate_prefs_unittest.cc',
       'translate/core/browser/translate_script_unittest.cc',
+      'translate/core/browser/translate_ui_delegate_unittest.cc',
       'translate/core/common/translate_metrics_unittest.cc',
       'translate/core/common/translate_util_unittest.cc',
       'translate/core/language_detection/language_detection_util_unittest.cc',
@@ -1104,6 +1108,7 @@
         'components.gyp:ssl_errors',
         'components.gyp:suggestions',
         'components.gyp:sync_bookmarks',
+        'components.gyp:sync_driver',
         'components.gyp:sync_driver_features',
         'components.gyp:sync_driver_test_support',
         'components.gyp:sync_sessions',
@@ -1124,6 +1129,7 @@
         'components.gyp:variations_net',
         'components.gyp:variations_service',
         'components.gyp:version_info',
+        'components.gyp:webdata_services_test_support',
         'components.gyp:web_resource',
         'components.gyp:web_resource_test_support',
         'components_resources.gyp:components_resources',
@@ -1666,6 +1672,7 @@
               'policy/android/junit/',
               'web_restrictions/junit/'
             ],
+            'wrapper_script_name': 'helper/<(_target_name)',
           },
           'includes': [ '../build/host_jar.gypi' ],
         },

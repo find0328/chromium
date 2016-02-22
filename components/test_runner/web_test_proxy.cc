@@ -592,7 +592,7 @@ void WebTestProxyBase::LayoutAndPaintAsyncThen(const base::Closure& callback) {
 
 void WebTestProxyBase::GetScreenOrientationForTesting(
     blink::WebScreenInfo& screen_info) {
-  if (!screen_orientation_client_)
+  if (!screen_orientation_client_ || !screen_orientation_client_->is_active())
     return;
   // Override screen orientation information with mock data.
   screen_info.orientationType =
@@ -658,9 +658,6 @@ void WebTestProxyBase::PostAccessibilityEvent(const blink::WebAXObject& obj,
   // ignore them here.
   if (!test_interfaces_->GetTestRunner()->TestIsRunning())
     return;
-
-  if (event == blink::WebAXEventFocus)
-    test_interfaces_->GetAccessibilityController()->SetFocusedElement(obj);
 
   const char* event_name = NULL;
   switch (event) {
@@ -1036,8 +1033,7 @@ void WebTestProxyBase::DidDetectXSS(const blink::WebURL& insecure_url,
     delegate_->PrintMessage("didDetectXSS\n");
 }
 
-void WebTestProxyBase::DidDispatchPingLoader(blink::WebLocalFrame* frame,
-                                             const blink::WebURL& url) {
+void WebTestProxyBase::DidDispatchPingLoader(const blink::WebURL& url) {
   if (test_interfaces_->GetTestRunner()->shouldDumpPingLoaderCallbacks())
     delegate_->PrintMessage(std::string("PingLoader dispatched to '") +
                             URLDescription(url).c_str() + "'.\n");
@@ -1120,7 +1116,6 @@ void WebTestProxyBase::WillSendRequest(
 }
 
 void WebTestProxyBase::DidReceiveResponse(
-    blink::WebLocalFrame* frame,
     unsigned identifier,
     const blink::WebURLResponse& response) {
   if (test_interfaces_->GetTestRunner()->shouldDumpResourceLoadCallbacks()) {
@@ -1148,7 +1143,6 @@ void WebTestProxyBase::DidReceiveResponse(
 }
 
 void WebTestProxyBase::DidChangeResourcePriority(
-    blink::WebLocalFrame* frame,
     unsigned identifier,
     const blink::WebURLRequest::Priority& priority,
     int intra_priority_value) {

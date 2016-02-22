@@ -466,6 +466,7 @@ crbug.com/490511 imported/web-platform-tests/html/rendering/non-replaced-element
 crbug.com/490511 imported/web-platform-tests/html/rendering/non-replaced-elements/the-hr-element-0/width.html [ Failure Pass ]
 crbug.com/490511 imported/web-platform-tests/html/semantics/document-metadata/styling/LinkStyle.html [ Failure Pass ]
 crbug.com/525896 imported/web-platform-tests/html/semantics/embedded-content/the-embed-element/embed-represent-nothing-01.html [ Failure ]
+crbug.com/588797 imported/web-platform-tests/html/semantics/embedded-content/the-img-element/img.complete.html [ Failure Pass Timeout ]
 crbug.com/490511 imported/web-platform-tests/html/semantics/embedded-content/media-elements/interfaces/HTMLElement/HTMLTrackElement/src.html [ Failure ]
 crbug.com/526920 imported/web-platform-tests/html/semantics/embedded-content/media-elements/location-of-the-media-resource/currentSrc.html [ Failure ]
 crbug.com/525889 imported/web-platform-tests/html/webappapis/scripting/processing-model-2/compile-error-in-setInterval.html [ Failure ]
@@ -893,6 +894,7 @@ crbug.com/418091 [ Mac10.6 ] fast/text/international/zerowidthjoiner.html [ Fail
 crbug.com/425345 [ Mac ] fast/text/line-break-after-question-mark.html [ Failure ]
 
 crbug.com/574283 [ Mac ] virtual/threaded/fast/scroll-behavior/smooth-scroll/mousewheel-scroll-interrupted.html [ Skip ]
+crbug.com/587165 [ Win7 Debug ] virtual/threaded/fast/scroll-behavior/smooth-scroll/mousewheel-scroll-interrupted.html [ Pass Failure ]
 
 # When drawing subpixel smoothed glyphs, CoreGraphics will fake bold the glyphs.
 # In this configuration, the pixel smoothed glyphs will be created from subpixel smoothed glyphs.
@@ -1001,6 +1003,37 @@ crbug.com/467127 [ Mac Win ] imported/csswg-test/css-flexbox-1/ttwf-reftest-flex
 crbug.com/467127 [ Mac Win ] imported/csswg-test/css-flexbox-1/ttwf-reftest-flex-wrap.html [ Failure ]
 
 crbug.com/570894 [ Win ] imported/csswg-test/css-flexbox-1/flexbox_flex-natural-mixed-basis-auto.html [ Failure Pass ]
+
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-align-content-vert-001a.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-align-content-vert-001b.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-basic-canvas-vert-001.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-basic-iframe-vert-001.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-basic-img-vert-001.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-basic-textarea-horiz-001.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-basic-textarea-vert-001.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-basic-video-vert-001.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-break-request-horiz-001a.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-break-request-horiz-001b.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-break-request-vert-001a.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-break-request-vert-001b.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-collapsed-item-baseline-001.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-collapsed-item-horiz-001.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-collapsed-item-horiz-002.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-collapsed-item-horiz-003.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-mbp-horiz-004.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-min-height-auto-002a.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-min-height-auto-002b.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-min-height-auto-002c.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-min-width-auto-002a.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-min-width-auto-002c.html [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-paint-ordering-002.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-table-fixup-001a.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-table-fixup-001b.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-whitespace-handling-001a.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-whitespace-handling-001b.xhtml [ Failure ]
+crbug.com/553838 imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-with-pseudo-elements-003.html [ Failure ]
+crbug.com/553838 [ Mac ] imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-align-self-baseline-horiz-001a.xhtml [ Failure ]
+crbug.com/553838 [ Mac ] imported/csswg-test/vendor-imports/mozilla/mozilla-central-reftests/flexbox/flexbox-align-self-baseline-horiz-001b.xhtml [ Failure ]
 
 crbug.com/471066 [ Mac10.6 ] fast/text/apply-start-width-after-skipped-text.html [ Failure ]
 crbug.com/471066 [ Mac10.6 ] fast/text/bidi-explicit-embedding-past-end.html [ Failure ]
@@ -1345,6 +1378,8 @@ crbug.com/571765 [ Linux Trusty Mac10.9 ] inspector/console/worker-eval-contains
 
 crbug.com/571773 inspector/console/worker-exception-message-contains-stack.html [ Failure Timeout Crash Pass ]
 
+crbug.com/551843 fast/text/fallback-traits-fixup.html [ NeedsManualRebaseline ]
+
 crbug.com/399951 http/tests/mime/javascript-mimetype-usecounters.html [ Pass Failure ]
 
 crbug.com/572710 [ Debug ] inspector/extensions/extensions-sidebar.html [ Timeout Pass ]
@@ -1368,6 +1403,20 @@ crbug.com/581038 fast/text/first-letter-bad-line-boxes-crash.html [ Crash Pass ]
 # No baselines, but this js test is also showing FAIL
 crbug.com/583675 fast/dom/shadow/scoped-events-by-ua-stopped.html [ Failure ]
 
-crbug.com/581203 [ Linux ] web-animations-api/player-finish-sample-only.html [ Failure Pass ]
-
 crbug.com/585724 fast/js/JSON-parse.html [ NeedsManualRebaseline ]
+
+crbug.com/587136 [ Linux Debug ] http/tests/security/xss-DENIED-cross-origin-stack-overflow.html [ Timeout Pass ]
+
+crbug.com/587593 [ Android ] fast/js/pic/cached-single-entry-transition.html [ Pass Failure ]
+
+crbug.com/587779 [ Mac10.9 Mac10.10 ] fast/dynamic/window-resize-scrollbars-test.html [ Timeout Failure Pass ]
+
+crbug.com/587950 [ Mac Win ] virtual/threaded/animations/background-shorthand-crash.html [ Failure ]
+
+crbug.com/588056 [ Linux Debug ] webaudio/periodicwave-normalization.html [ Timeout Pass ]
+
+crbug.com/588061 [ Debug ] inspector/sources/debugger-breakpoints/debugger-reload-breakpoints-with-source-maps.html [ Pass Failure ]
+
+crbug.com/248063 [ Win ] plugins/plugin-clip-subframe.html [ Pass Failure ]
+
+crbug.com/588103 fast/xmlhttprequest/xmlhttprequest-responsetype-arraybuffer.html [ Pass Failure ]

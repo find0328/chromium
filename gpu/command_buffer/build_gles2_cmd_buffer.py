@@ -1452,6 +1452,14 @@ _NAMED_TYPE_INFO = {
       'GL_EXTENSIONS',
     ],
   },
+  'IndexedStringType': {
+    'type': 'GLenum',
+    'is_complete': True,
+    'valid': [
+      'GL_EXTENSIONS',
+    ],
+  },
+
   'TextureParameter': {
     'type': 'GLenum',
     'valid': [
@@ -3230,6 +3238,12 @@ _FUNCTION_INFO = {
     'client_test': False,
     'cmd_args': 'GLenumStringType name, uint32_t bucket_id',
   },
+  'GetStringi': {
+    'type': 'Custom',
+    'client_test': False,
+    'gen_cmd': False,
+    'unsafe': True,
+  },
   'GetSynciv': {
     'type': 'GETn',
     'cmd_args': 'GLuint sync, GLenumSyncParameter pname, void* values',
@@ -3712,6 +3726,8 @@ _FUNCTION_INFO = {
   },
   'TexStorage3D': {
     'unsafe': True,
+    'unit_test': False,
+    'decoder_func': 'DoTexStorage3D',
     'trace_level': 2,
   },
   'TexSubImage2D': {

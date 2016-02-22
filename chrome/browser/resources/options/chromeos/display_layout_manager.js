@@ -4,50 +4,6 @@
 
 cr.exportPath('options');
 
-/**
- * Enumeration of display layout. These values must match the C++ values in
- * ash::DisplayController.
- * @enum {number}
- */
-options.DisplayLayoutType = {
-  TOP: 0,
-  RIGHT: 1,
-  BOTTOM: 2,
-  LEFT: 3
-};
-
-/**
- * @typedef {{
- *   left: number,
- *   top: number,
- *   width: number,
- *   height: number
- * }}
- */
-options.DisplayBounds;
-
-/**
- * @typedef {{
- *   x: number,
- *   y: number
- * }}
- */
-options.DisplayPosition;
-
-/**
- * @typedef {{
- *   bounds: !options.DisplayBounds,
- *   div: ?HTMLElement,
- *   id: string,
- *   layoutType: options.DisplayLayoutType,
- *   name: string,
- *   offset: number,
- *   originalPosition: !options.DisplayPosition,
- *   parentId: string
- * }}
- */
-options.DisplayLayout;
-
 cr.define('options', function() {
   'use strict';
 
@@ -57,7 +13,7 @@ cr.define('options', function() {
    * @param {!options.DisplayPosition} point The point to check the position.
    * @return {options.DisplayLayoutType}
    */
-  function getPositionToRectangle(rect, point) {
+  function getLayoutTypeForPosition(rect, point) {
     // Separates the area into four (LEFT/RIGHT/TOP/BOTTOM) by the diagonals of
     // the rect, and decides which area the display should reside.
     var diagonalSlope = rect.height / rect.width;
@@ -78,30 +34,22 @@ cr.define('options', function() {
   }
 
   /**
-   * Snaps the region [point, width] to [basePoint, baseWidth] if
-   * the [point, width] is close enough to the base's edge.
-   * @param {number} point The starting point of the region.
-   * @param {number} width The width of the region.
-   * @param {number} basePoint The starting point of the base region.
-   * @param {number} baseWidth The width of the base region.
-   * @return {number} The moved point. Returns the point itself if it doesn't
-   *     need to snap to the edge.
-   * @private
+   * @param {options.DisplayLayoutType} layoutType
+   * @return {!options.DisplayLayoutType}
    */
-  function snapToEdge(point, width, basePoint, baseWidth) {
-    // If the edge of the region is smaller than this, it will snap to the
-    // base's edge.
-    /** @const */ var SNAP_DISTANCE_PX = 16;
-
-    var startDiff = Math.abs(point - basePoint);
-    var endDiff = Math.abs(point + width - (basePoint + baseWidth));
-    // Prefer the closer one if both edges are close enough.
-    if (startDiff < SNAP_DISTANCE_PX && startDiff < endDiff)
-      return basePoint;
-    else if (endDiff < SNAP_DISTANCE_PX)
-      return basePoint + baseWidth - width;
-
-    return point;
+  function invertLayoutType(layoutType) {
+    switch (layoutType) {
+      case options.DisplayLayoutType.RIGHT:
+        return options.DisplayLayoutType.LEFT;
+      case options.DisplayLayoutType.LEFT:
+        return options.DisplayLayoutType.RIGHT;
+      case options.DisplayLayoutType.TOP:
+        return options.DisplayLayoutType.BOTTOM;
+      case options.DisplayLayoutType.BOTTOM:
+        return options.DisplayLayoutType.TOP;
+    }
+    assertNotReached();
+    return layoutType;
   }
 
   /**
@@ -236,12 +184,8 @@ cr.define('options', function() {
       var baseLayout = this.getBaseLayout_(displayLayout);
       var baseDiv = baseLayout.div;
 
-      newPosition.x = snapToEdge(
-          newPosition.x, div.offsetWidth, baseDiv.offsetLeft,
-          baseDiv.offsetWidth);
-      newPosition.y = snapToEdge(
-          newPosition.y, div.offsetHeight, baseDiv.offsetTop,
-          baseDiv.offsetHeight);
+      newPosition.x = displayLayout.snapToX(newPosition.x, baseDiv);
+      newPosition.y = displayLayout.snapToY(newPosition.y, baseDiv);
 
       /** @type {!options.DisplayPosition} */ var newCenter = {
         x: newPosition.x + div.offsetWidth / 2,
@@ -259,86 +203,40 @@ cr.define('options', function() {
       // a single parent with one child.
       var isPrimary = displayLayout.parentId == '';
 
-      // layoutType is always stored in the child layout.
-      var layoutType =
-          isPrimary ? baseLayout.layoutType : displayLayout.layoutType;
-
-      switch (getPositionToRectangle(baseBounds, newCenter)) {
-        case options.DisplayLayoutType.RIGHT:
-          layoutType = isPrimary ? options.DisplayLayoutType.LEFT :
-                                   options.DisplayLayoutType.RIGHT;
-          break;
-        case options.DisplayLayoutType.LEFT:
-          layoutType = isPrimary ? options.DisplayLayoutType.RIGHT :
-                                   options.DisplayLayoutType.LEFT;
-          break;
-        case options.DisplayLayoutType.TOP:
-          layoutType = isPrimary ? options.DisplayLayoutType.BOTTOM :
-                                   options.DisplayLayoutType.TOP;
-          break;
-        case options.DisplayLayoutType.BOTTOM:
-          layoutType = isPrimary ? options.DisplayLayoutType.TOP :
-                                   options.DisplayLayoutType.BOTTOM;
-          break;
-      }
+      var layoutType = getLayoutTypeForPosition(baseBounds, newCenter);
+      if (isPrimary)
+        layoutType = invertLayoutType(layoutType);
 
       if (layoutType == options.DisplayLayoutType.LEFT ||
           layoutType == options.DisplayLayoutType.RIGHT) {
-        if (newPosition.y > baseDiv.offsetTop + baseDiv.offsetHeight)
+        if (newPosition.y > baseDiv.offsetTop + baseDiv.offsetHeight) {
           layoutType = isPrimary ? options.DisplayLayoutType.TOP :
                                    options.DisplayLayoutType.BOTTOM;
-        else if (newPosition.y + div.offsetHeight < baseDiv.offsetTop)
+        } else if (newPosition.y + div.offsetHeight < baseDiv.offsetTop) {
           layoutType = isPrimary ? options.DisplayLayoutType.BOTTOM :
                                    options.DisplayLayoutType.TOP;
+        }
       } else {
-        if (newPosition.x > baseDiv.offsetLeft + baseDiv.offsetWidth)
+        if (newPosition.x > baseDiv.offsetLeft + baseDiv.offsetWidth) {
           layoutType = isPrimary ? options.DisplayLayoutType.LEFT :
                                    options.DisplayLayoutType.RIGHT;
-        else if (newPosition.x + div.offsetWidth < baseDiv.offsetLeft)
+        } else if (newPosition.x + div.offsetWidth < baseDiv.offsetLeft) {
           layoutType = isPrimary ? options.DisplayLayoutType.RIGHT :
                                    options.DisplayLayoutType.LEFT;
+        }
       }
 
+      // layout is always relative to primary and stored in the child layout.
       var layoutToBase;
       if (!isPrimary) {
         displayLayout.layoutType = layoutType;
         layoutToBase = layoutType;
       } else {
         baseLayout.layoutType = layoutType;
-        switch (layoutType) {
-          case options.DisplayLayoutType.RIGHT:
-            layoutToBase = options.DisplayLayoutType.LEFT;
-            break;
-          case options.DisplayLayoutType.LEFT:
-            layoutToBase = options.DisplayLayoutType.RIGHT;
-            break;
-          case options.DisplayLayoutType.TOP:
-            layoutToBase = options.DisplayLayoutType.BOTTOM;
-            break;
-          case options.DisplayLayoutType.BOTTOM:
-            layoutToBase = options.DisplayLayoutType.TOP;
-            break;
-        }
+        layoutToBase = invertLayoutType(layoutType);
       }
 
-      switch (layoutToBase) {
-        case options.DisplayLayoutType.RIGHT:
-          div.style.left = baseDiv.offsetLeft + baseDiv.offsetWidth + 'px';
-          div.style.top = newPosition.y + 'px';
-          break;
-        case options.DisplayLayoutType.LEFT:
-          div.style.left = baseDiv.offsetLeft - div.offsetWidth + 'px';
-          div.style.top = newPosition.y + 'px';
-          break;
-        case options.DisplayLayoutType.TOP:
-          div.style.top = baseDiv.offsetTop - div.offsetHeight + 'px';
-          div.style.left = newPosition.x + 'px';
-          break;
-        case options.DisplayLayoutType.BOTTOM:
-          div.style.top = baseDiv.offsetTop + baseDiv.offsetHeight + 'px';
-          div.style.left = newPosition.x + 'px';
-          break;
-      }
+      displayLayout.setDivPosition(newPosition, baseDiv, layoutToBase);
     },
 
     /**
@@ -348,42 +246,27 @@ cr.define('options', function() {
      * @return {boolean} True if the final position differs from the original.
      */
     finalizePosition: function(id) {
-      // Make sure the dragging location is connected.
       var displayLayout = this.displayLayoutMap_[id];
       var div = displayLayout.div;
       var baseLayout = this.getBaseLayout_(displayLayout);
-      var baseDiv = baseLayout.div;
 
       var isPrimary = displayLayout.parentId == '';
       var layoutType =
           isPrimary ? baseLayout.layoutType : displayLayout.layoutType;
 
-      // The number of pixels to share the edges between displays.
-      /** @const */ var MIN_OFFSET_OVERLAP = 5;
-
-      if (layoutType == options.DisplayLayoutType.LEFT ||
-          layoutType == options.DisplayLayoutType.RIGHT) {
-        var top = Math.max(
-            div.offsetTop,
-            baseDiv.offsetTop - div.offsetHeight + MIN_OFFSET_OVERLAP);
-        top = Math.min(
-            top, baseDiv.offsetTop + baseDiv.offsetHeight - MIN_OFFSET_OVERLAP);
-        div.style.top = top + 'px';
-      } else {
-        var left = Math.max(
-            div.offsetLeft,
-            baseDiv.offsetLeft - div.offsetWidth + MIN_OFFSET_OVERLAP);
-        left = Math.min(
-            left,
-            baseDiv.offsetLeft + baseDiv.offsetWidth - MIN_OFFSET_OVERLAP);
-        div.style.left = left + 'px';
-      }
+      // Make sure the dragging location is connected.
+      displayLayout.adjustCorners(baseLayout.div, layoutType);
 
       // Calculate the offset of the child display.
-      this.calculateOffset_(isPrimary ? baseLayout : displayLayout);
+      if (isPrimary) {
+        baseLayout.calculateOffset(this.visualScale_, displayLayout);
+      } else {
+        var parent = this.displayLayoutMap_[displayLayout.parentId];
+        displayLayout.calculateOffset(this.visualScale_, parent);
+      }
 
-      return displayLayout.originalPosition.x != div.offsetLeft ||
-          displayLayout.originalPosition.y != div.offsetTop;
+      return displayLayout.originalDivOffsets.x != div.offsetLeft ||
+          displayLayout.originalDivOffsets.y != div.offsetTop;
     },
 
     /**
@@ -442,16 +325,17 @@ cr.define('options', function() {
     createDisplayLayoutDiv_: function(id, displayAreaDiv) {
       var displayLayout = this.displayLayoutMap_[id];
       var parentId = displayLayout.parentId;
-      var offset = this.displayAreaOffset_;
+      var parentLayout = null;
       if (parentId) {
         // Ensure the parent div is created first.
-        var parentLayout = this.displayLayoutMap_[parentId];
+        parentLayout = this.displayLayoutMap_[parentId];
         if (!parentLayout.div)
           this.createDisplayLayoutDiv_(parentId, displayAreaDiv);
       }
 
       var div = /** @type {!HTMLElement} */ (document.createElement('div'));
       div.className = 'displays-display';
+      displayLayout.div = div;
 
       // div needs to be added to the DOM tree first, otherwise offsetHeight for
       // nameContainer below cannot be computed.
@@ -461,74 +345,18 @@ cr.define('options', function() {
       nameContainer.textContent = displayLayout.name;
       div.appendChild(nameContainer);
 
-      var bounds = displayLayout.bounds;
-      div.style.width = Math.floor(bounds.width * this.visualScale_) + 'px';
-      var newHeight = Math.floor(bounds.height * this.visualScale_);
-      div.style.height = newHeight + 'px';
+      var newHeight =
+          Math.floor(displayLayout.bounds.height * this.visualScale_);
       nameContainer.style.marginTop =
           (newHeight - nameContainer.offsetHeight) / 2 + 'px';
 
-      if (displayLayout.parentId == '') {
-        div.style.left =
-            Math.floor(bounds.left * this.visualScale_) + offset.x + 'px';
-        div.style.top =
-            Math.floor(bounds.top * this.visualScale_) + offset.y + 'px';
-      } else {
-        // Don't trust the child display's x or y, because it may cause a
-        // 1px gap due to rounding, which will create a fake update on end
-        // dragging. See crbug.com/386401
-        var parentDiv = this.displayLayoutMap_[displayLayout.parentId].div;
-        switch (displayLayout.layoutType) {
-          case options.DisplayLayoutType.TOP:
-            div.style.left =
-                Math.floor(bounds.left * this.visualScale_) + offset.x + 'px';
-            div.style.top = parentDiv.offsetTop - div.offsetHeight + 'px';
-            break;
-          case options.DisplayLayoutType.RIGHT:
-            div.style.left =
-                parentDiv.offsetLeft + parentDiv.offsetWidth + 'px';
-            div.style.top =
-                Math.floor(bounds.top * this.visualScale_) + offset.y + 'px';
-            break;
-          case options.DisplayLayoutType.BOTTOM:
-            div.style.left =
-                Math.floor(bounds.left * this.visualScale_) + offset.x + 'px';
-            div.style.top = parentDiv.offsetTop + parentDiv.offsetHeight + 'px';
-            break;
-          case options.DisplayLayoutType.LEFT:
-            div.style.left = parentDiv.offsetLeft - div.offsetWidth + 'px';
-            div.style.top =
-                Math.floor(bounds.top * this.visualScale_) + offset.y + 'px';
-            break;
-        }
-      }
+      displayLayout.layoutDivFromBounds(
+          this.displayAreaOffset_, this.visualScale_, parentLayout);
 
-      displayLayout.div = div;
-      displayLayout.originalPosition.x = div.offsetLeft;
-      displayLayout.originalPosition.y = div.offsetTop;
+      displayLayout.originalDivOffsets.x = div.offsetLeft;
+      displayLayout.originalDivOffsets.y = div.offsetTop;
 
-      this.calculateOffset_(displayLayout);
-    },
-
-    /**
-     * Calculates the offset for display |id| relative to its parent.
-     * @param {options.DisplayLayout} displayLayout
-     */
-    calculateOffset_: function(displayLayout) {
-      // Offset is calculated from top or left edge.
-      var parent = this.displayLayoutMap_[displayLayout.parentId];
-      if (!parent) {
-        displayLayout.offset = 0;
-        return;
-      }
-      var offset;
-      if (displayLayout.layoutType == options.DisplayLayoutType.LEFT ||
-          displayLayout.layoutType == options.DisplayLayoutType.RIGHT) {
-        offset = displayLayout.div.offsetTop - parent.div.offsetTop;
-      } else {
-        offset = displayLayout.div.offsetLeft - parent.div.offsetLeft;
-      }
-      displayLayout.offset = Math.floor(offset / this.visualScale_);
+      displayLayout.calculateOffset(this.visualScale_, parentLayout);
     },
 
     /**

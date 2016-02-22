@@ -280,7 +280,7 @@ InspectorTest.captureStackTraceIntoString = function(callFrames, asyncStackTrace
             var frame = callFrames[i];
             var script = frame.location().script();
             var uiLocation = WebInspector.debuggerWorkspaceBinding.rawLocationToUILocation(frame.location());
-            var isFramework = WebInspector.BlackboxSupport.isBlackboxedURL(script.sourceURL);
+            var isFramework = WebInspector.blackboxManager.isBlackboxedRawLocation(frame.location());
             if (options.dropFrameworkCallFrames && isFramework)
                 continue;
             var url;
@@ -511,7 +511,7 @@ InspectorTest.createScriptMock = function(url, startLine, startColumn, isContent
     var lineCount = source.lineEndings().length;
     var endLine = startLine + lineCount - 1;
     var endColumn = lineCount === 1 ? startColumn + source.length : source.length - source.lineEndings()[lineCount - 2];
-    var hasSourceURL = !!source.match(/\/\/#\ssourceURL=\s*(\S*?)\s*$/m);
+    var hasSourceURL = !!source.match(/\/\/#\ssourceURL=\s*(\S*?)\s*$/m) || !!source.match(/\/\/@\ssourceURL=\s*(\S*?)\s*$/m);
     var script = new WebInspector.Script(debuggerModel, scriptId, url, startLine, startColumn, endLine, endColumn, 0, isContentScript, false, false, undefined, hasSourceURL);
     script.requestContent = function()
     {

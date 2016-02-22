@@ -29,6 +29,40 @@ _TIMING_NAMES_MAPPING = {
 Timing = collections.namedtuple('Timing', _TIMING_NAMES_MAPPING.values())
 
 
+def IntervalBetween(first, second, reason):
+  """Returns the start and end of the inteval between two requests, in ms.
+
+  This is defined as:
+  - [first.headers, second.start] if reason is 'parser'. This is to account
+    for incremental parsing.
+  - [first.end, second.start] if reason is 'script', 'redirect' or 'other'.
+
+  Args:
+    first: (Request) First request.
+    second: (Request) Second request.
+    reason: (str) Link between the two requests, in Request.INITIATORS.
+
+  Returns:
+    (start_msec (float), end_msec (float)),
+  """
+  assert reason in Request.INITIATORS
+  second_ms = second.timing.request_time * 1000
+  if reason == 'parser':
+    first_offset_ms = first.timing.receive_headers_end
+  else:
+    first_offset_ms = max(
+        [0] + [t for f, t in first.timing._asdict().iteritems()
+               if f != 'request_time'])
+  return (first.timing.request_time * 1000 + first_offset_ms, second_ms)
+
+
+def TimeBetween(first, second, reason):
+  """(end_msec - start_msec), with the values as returned by IntervalBetween().
+  """
+  (first_ms, second_ms) = IntervalBetween(first, second, reason)
+  return second_ms - first_ms
+
+
 def TimingAsList(timing):
   """Transform Timing to a list, eg as is used in JSON output.
 
@@ -94,6 +128,7 @@ class Request(object):
     self.url = None
     self.protocol = None
     self.method = None
+    self.mime_type = None
     self.request_headers = None
     self.response_headers = None
     self.initial_priority = None
@@ -144,9 +179,36 @@ class Request(object):
       result.timing = TimingFromDict({'requestTime': result.timestamp})
     return result
 
+  def GetHTTPResponseHeader(self, header_name):
+    """Gets the value of a HTTP response header.
+
+    Does a case-insensitive search for the header name in the HTTP response
+    headers, in order to support servers that use a wrong capitalization.
+    """
+    lower_case_name = header_name.lower()
+    result = None
+    for name, value in self.response_headers.iteritems():
+      if name.lower() == lower_case_name:
+        result = value
+        break
+    return result
+
   def GetContentType(self):
     """Returns the content type, or None."""
-    content_type = self.response_headers.get('Content-Type', None)
+    # Check for redirects. Use the "Location" header, because the HTTP status is
+    # not reliable.
+    if self.GetHTTPResponseHeader('Location') is not None:
+      return 'redirect'
+
+    # Check if the response is empty.
+    if (self.GetHTTPResponseHeader('Content-Length') == '0' or
+        self.status == 204):
+      return 'ping'
+
+    if self.mime_type:
+      return self.mime_type
+
+    content_type = self.GetHTTPResponseHeader('Content-Type')
     if not content_type or ';' not in content_type:
       return content_type
     else:
@@ -161,7 +223,8 @@ class Request(object):
     cache_control = {}
     if not self.response_headers:
       return -1
-    cache_control_str = self.response_headers.get('Cache-Control', None)
+
+    cache_control_str = self.GetHTTPResponseHeader('Cache-Control')
     if cache_control_str is not None:
       directives = [s.strip() for s in cache_control_str.split(',')]
       for directive in directives:
@@ -220,6 +283,10 @@ class RequestTrack(devtools_monitor.Track):
     if connection:  # Optional for testing.
       for method in RequestTrack._METHOD_TO_HANDLER:
         self._connection.RegisterListener(method, self)
+      # Enable asynchronous callstacks to get full javascript callstacks in
+      # initiators
+      self._connection.SetScopedState('Debugger.setAsyncCallStackDepth',
+                                      {'maxDepth': 4}, {'maxDepth': 0}, True)
     # responseReceived message are sometimes duplicated. Records the message to
     # detect this.
     self._request_id_to_response_received = {}
@@ -424,12 +491,14 @@ class RequestTrack(devtools_monitor.Track):
                       # network stack.
                       ('requestHeaders', 'request_headers'),
                       ('headers', 'response_headers')))
-    # data URLs don't have a timing dict.
     timing_dict = {}
-    if r.protocol != 'data':
-      timing_dict = response['timing']
-    else:
+    # data URLs don't have a timing dict, and timings for cached requests are
+    # stale.
+    # TODO(droger): the timestamp is inacurate, get the real timings instead.
+    if r.protocol == 'data' or r.served_from_cache:
       timing_dict = {'requestTime': r.timestamp}
+    else:
+      timing_dict = response['timing']
     r.timing = TimingFromDict(timing_dict)
     self._requests_in_flight[request_id] = (r, RequestTrack._STATUS_RESPONSE)
     self._request_id_to_response_received[request_id] = params

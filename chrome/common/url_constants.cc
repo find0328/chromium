@@ -18,6 +18,10 @@ namespace chrome {
 const char kCrosScheme[] = "cros";
 #endif
 
+#if defined(OS_ANDROID)
+const char kAndroidAppScheme[] = "android-app";
+#endif
+
 // Add Chrome UI URLs as necessary, in alphabetical order.
 // Be sure to add the corresponding kChromeUI*Host constant below.
 // This is a WebUI page that lists other WebUI pages.
@@ -96,6 +100,7 @@ const char kChromeUIContextualSearchPromoURL[] =
 const char kChromeUINativeScheme[] = "chrome-native";
 const char kChromeUINativeNewTabURL[] = "chrome-native://newtab/";
 const char kChromeUINativeBookmarksURL[] = "chrome-native://bookmarks/";
+const char kChromeUINativePhysicalWebURL[] = "chrome-native://physical-web/";
 const char kChromeUINativeRecentTabsURL[] = "chrome-native://recent-tabs/";
 #endif
 
@@ -264,6 +269,7 @@ const char kChromeUISandboxHost[] = "sandbox";
 
 #if defined(OS_ANDROID)
 const char kChromeUIContextualSearchPromoHost[] = "contextual-search-promo";
+const char kChromeUIPhysicalWebHost[] = "physical-web";
 const char kChromeUIPopularSitesInternalsHost[] = "popular-sites-internals";
 #endif
 
@@ -759,5 +765,8 @@ const char kMac10_678_DeprecationURL[] =
 const char kWindowsXPVistaDeprecationURL[] =
     "https://support.google.com/chrome/answer/95346";
 #endif
+
+const char kChooserBluetoothOverviewURL[] =
+    "https://support.google.com/chrome?p=bluetooth";
 
 }  // namespace chrome

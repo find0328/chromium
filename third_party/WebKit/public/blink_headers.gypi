@@ -6,6 +6,7 @@
   'variables': {
     'blink_public_sources': [
       "platform/Platform.h",
+      "platform/FilePathConversion.h",
       "platform/URLConversion.h",
       "platform/WebApiKeyValidator.h",
       "platform/WebApplicationCacheHost.h",
@@ -233,9 +234,9 @@
       "platform/modules/bluetooth/WebBluetooth.h",
       "platform/modules/bluetooth/WebBluetoothDevice.h",
       "platform/modules/bluetooth/WebBluetoothError.h",
-      "platform/modules/bluetooth/WebBluetoothGATTCharacteristic.h",
-      "platform/modules/bluetooth/WebBluetoothGATTCharacteristicInit.h",
-      "platform/modules/bluetooth/WebBluetoothGATTService.h",
+      "platform/modules/bluetooth/WebBluetoothRemoteGATTCharacteristic.h",
+      "platform/modules/bluetooth/WebBluetoothRemoteGATTCharacteristicInit.h",
+      "platform/modules/bluetooth/WebBluetoothRemoteGATTService.h",
       "platform/modules/bluetooth/WebRequestDeviceOptions.h",
       "platform/modules/device_orientation/WebDeviceMotionData.h",
       "platform/modules/device_orientation/WebDeviceMotionListener.h",

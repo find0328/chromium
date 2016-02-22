@@ -40,9 +40,8 @@ class MEDIA_EXPORT AudioDecoder {
   // available. Only non-EOS frames should be returned via this callback.
   typedef base::Callback<void(const scoped_refptr<AudioBuffer>&)> OutputCB;
 
-  // Callback for Decode(). Called after the decoder has completed decoding
-  // corresponding DecoderBuffer, indicating that it's ready to accept another
-  // buffer to decode.
+  // Callback for Decode(). Called after the decoder has accepted corresponding
+  // DecoderBuffer, indicating that the pipeline can send next buffer to decode.
   typedef base::Callback<void(Status)> DecodeCB;
 
   AudioDecoder();
@@ -85,6 +84,9 @@ class MEDIA_EXPORT AudioDecoder {
   // Resets decoder state. All pending Decode() requests will be finished or
   // aborted before |closure| is called.
   virtual void Reset(const base::Closure& closure) = 0;
+
+  // Returns true if the decoder needs bitstream conversion before decoding.
+  virtual bool NeedsBitstreamConversion() const;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(AudioDecoder);

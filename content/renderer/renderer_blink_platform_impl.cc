@@ -78,12 +78,12 @@
 #include "ipc/ipc_sync_message_filter.h"
 #include "media/audio/audio_output_device.h"
 #include "media/base/audio_hardware_config.h"
-#include "media/base/key_systems.h"
 #include "media/base/mime_util.h"
 #include "media/blink/webcontentdecryptionmodule_impl.h"
 #include "media/filters/stream_parser_factory.h"
 #include "storage/common/database/database_identifier.h"
 #include "storage/common/quota/quota_types.h"
+#include "third_party/WebKit/public/platform/FilePathConversion.h"
 #include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebBatteryStatusListener.h"
 #include "third_party/WebKit/public/platform/WebBlobRegistry.h"
@@ -191,8 +191,7 @@ class RendererBlinkPlatformImpl::MimeRegistry
  public:
   blink::WebMimeRegistry::SupportsType supportsMediaMIMEType(
       const blink::WebString& mime_type,
-      const blink::WebString& codecs,
-      const blink::WebString& key_system) override;
+      const blink::WebString& codecs) override;
   bool supportsMediaSourceMIMEType(const blink::WebString& mime_type,
                                    const blink::WebString& codecs) override;
   blink::WebString mimeTypeForExtension(
@@ -453,30 +452,8 @@ WebFileSystem* RendererBlinkPlatformImpl::fileSystem() {
 WebMimeRegistry::SupportsType
 RendererBlinkPlatformImpl::MimeRegistry::supportsMediaMIMEType(
     const WebString& mime_type,
-    const WebString& codecs,
-    const WebString& key_system) {
+    const WebString& codecs) {
   const std::string mime_type_ascii = ToASCIIOrEmpty(mime_type);
-
-  if (!key_system.isEmpty()) {
-    // Check whether the key system is supported with the mime_type and codecs.
-
-    // Chromium only supports ASCII parameters.
-    if (!base::IsStringASCII(key_system))
-      return IsNotSupported;
-
-    std::string key_system_ascii =
-        media::GetUnprefixedKeySystemName(base::UTF16ToASCII(
-            base::StringPiece16(key_system)));
-    std::vector<std::string> codec_vector;
-    media::ParseCodecString(ToASCIIOrEmpty(codecs), &codec_vector, true);
-
-    if (!media::PrefixedIsSupportedKeySystemWithMediaMimeType(
-            mime_type_ascii, codec_vector, key_system_ascii)) {
-      return IsNotSupported;
-    }
-
-    // Continue processing the mime_type and codecs.
-  }
 
   std::vector<std::string> codec_vector;
   media::ParseCodecString(ToASCIIOrEmpty(codecs), &codec_vector, false);
@@ -506,7 +483,7 @@ WebString RendererBlinkPlatformImpl::MimeRegistry::mimeTypeForExtension(
   std::string mime_type;
   RenderThread::Get()->Send(
       new MimeRegistryMsg_GetMimeTypeFromExtension(
-          base::FilePath::FromUTF16Unsafe(file_extension).value(), &mime_type));
+          blink::WebStringToFilePath(file_extension).value(), &mime_type));
   return base::ASCIIToUTF16(mime_type);
 }
 
@@ -518,7 +495,7 @@ bool RendererBlinkPlatformImpl::FileUtilities::getFileInfo(
   base::File::Info file_info;
   base::File::Error status = base::File::FILE_ERROR_MAX;
   if (!SendSyncMessageFromAnyThread(new FileUtilitiesMsg_GetFileInfo(
-           base::FilePath::FromUTF16Unsafe(path), &file_info, &status)) ||
+           blink::WebStringToFilePath(path), &file_info, &status)) ||
       status != base::File::FILE_OK) {
     return false;
   }

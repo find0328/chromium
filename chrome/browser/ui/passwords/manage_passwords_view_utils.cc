@@ -9,9 +9,12 @@
 #include <algorithm>
 
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sync/profile_sync_service_factory.h"
 #include "chrome/grit/chromium_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/autofill/core/common/password_form.h"
+#include "components/browser_sync/browser/profile_sync_service.h"
 #include "components/password_manager/core/browser/affiliation_utils.h"
 #include "components/url_formatter/elide_url.h"
 #include "grit/components_strings.h"
@@ -36,7 +39,7 @@ bool SameDomainOrHost(const GURL& gurl1, const GURL& gurl2) {
 
 }  // namespace
 
-const int kAvatarImageSize = 40;
+const int kAvatarImageSize = 32;
 
 gfx::ImageSkia ScaleImageForAccountAvatar(gfx::ImageSkia skia_image) {
   gfx::Size size = skia_image.size();
@@ -50,6 +53,22 @@ gfx::ImageSkia ScaleImageForAccountAvatar(gfx::ImageSkia skia_image) {
       skia_image,
       skia::ImageOperations::RESIZE_BEST,
       gfx::Size(kAvatarImageSize, kAvatarImageSize));
+}
+
+std::pair<base::string16, base::string16> GetCredentialLabelsForAccountChooser(
+    const autofill::PasswordForm& form) {
+  const base::string16& upper_string =
+      form.display_name.empty() ? form.username_value : form.display_name;
+  base::string16 lower_string;
+  if (form.federation_url.is_empty()) {
+    if (!form.display_name.empty())
+      lower_string = form.username_value;
+  } else {
+    lower_string = l10n_util::GetStringFUTF16(
+        IDS_PASSWORDS_VIA_FEDERATION,
+        base::UTF8ToUTF16(form.federation_url.host()));
+  }
+  return std::make_pair(upper_string, lower_string);
 }
 
 void GetSavePasswordDialogTitleTextAndLinkRange(
@@ -152,4 +171,12 @@ base::string16 GetDisplayUsername(const autofill::PasswordForm& form) {
   return form.username_value.empty()
              ? l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_EMPTY_LOGIN)
              : form.username_value;
+}
+
+bool IsSyncingSettings(Profile* profile) {
+  const ProfileSyncService* sync_service =
+      ProfileSyncServiceFactory::GetForProfile(profile);
+  return (sync_service && sync_service->IsFirstSetupComplete() &&
+          sync_service->IsSyncActive() &&
+          sync_service->GetActiveDataTypes().Has(syncer::PREFERENCES));
 }

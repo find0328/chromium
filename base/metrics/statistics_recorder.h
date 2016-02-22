@@ -23,6 +23,7 @@
 #include "base/lazy_instance.h"
 #include "base/macros.h"
 #include "base/metrics/histogram_base.h"
+#include "base/strings/string_piece.h"
 
 namespace base {
 
@@ -99,7 +100,7 @@ class BASE_EXPORT StatisticsRecorder {
 
   // Find a histogram by name. It matches the exact name. This method is thread
   // safe.  It returns NULL if a matching histogram is not found.
-  static HistogramBase* FindHistogram(const std::string& name);
+  static HistogramBase* FindHistogram(base::StringPiece name);
 
   // Support for iterating over known histograms.
   static HistogramIterator begin(bool include_persistent);
@@ -129,6 +130,15 @@ class BASE_EXPORT StatisticsRecorder {
   // histogram. This method is thread safe.
   static OnSampleCallback FindCallback(const std::string& histogram_name);
 
+  // Clears all of the known histograms and resets static variables to a
+  // state that allows a new initialization.
+  static void ResetForTesting();
+
+  // Removes a histogram from the internal set of known ones. This can be
+  // necessary during testing persistent histograms where the underlying
+  // memory is being released.
+  static void ForgetHistogramForTesting(base::StringPiece name);
+
  private:
   // We keep a map of callbacks to histograms, so that as histograms are
   // created, we can set the callback properly.
@@ -156,6 +166,7 @@ class BASE_EXPORT StatisticsRecorder {
   StatisticsRecorder();
   ~StatisticsRecorder();
 
+  static void Reset();
   static void DumpHistogramsToVlog(void* instance);
 
   static HistogramMap* histograms_;

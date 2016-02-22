@@ -61,6 +61,7 @@ class CONTENT_EXPORT FrameTreeNode {
                 RenderFrameHostManager::Delegate* manager_delegate,
                 blink::WebTreeScopeType scope,
                 const std::string& name,
+                const std::string& unique_name,
                 const blink::WebFrameOwnerProperties& frame_owner_properties);
 
   ~FrameTreeNode();
@@ -140,7 +141,7 @@ class CONTENT_EXPORT FrameTreeNode {
   void SetCurrentOrigin(const url::Origin& origin);
 
   // Set the current name and notify proxies about the update.
-  void SetFrameName(const std::string& name);
+  void SetFrameName(const std::string& name, const std::string& unique_name);
 
   // Sets the current enforcement of strict mixed content checking and
   // notifies proxies about the update.
@@ -235,7 +236,11 @@ class CONTENT_EXPORT FrameTreeNode {
   // A RenderFrameHost in this node started loading.
   // |to_different_document| will be true unless the load is a fragment
   // navigation, or triggered by history.pushState/replaceState.
-  void DidStartLoading(bool to_different_document);
+  // |was_previously_loading| is false if the FrameTree was not loading before.
+  // The caller is required to provide this boolean as the delegate should only
+  // be notified if the FrameTree went from non-loading to loading state.
+  // However, when it is called, the FrameTree should be in a loading state.
+  void DidStartLoading(bool to_different_document, bool was_previously_loading);
 
   // A RenderFrameHost in this node stopped loading.
   void DidStopLoading();
@@ -256,6 +261,11 @@ class CONTENT_EXPORT FrameTreeNode {
   // Called when this node becomes focused.  Updates the node's last focused
   // time and notifies observers.
   void DidFocus();
+
+  // Called when the user closed the modal dialogue for BeforeUnload and
+  // cancelled the navigation. This should stop any load happening in the
+  // FrameTreeNode.
+  void BeforeUnloadCanceled();
 
  private:
   class OpenerDestroyedObserver;

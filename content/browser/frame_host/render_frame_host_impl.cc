@@ -214,6 +214,7 @@ RenderFrameHostImpl::RenderFrameHostImpl(SiteInstance* site_instance,
   g_routing_id_frame_map.Get().insert(std::make_pair(
       RenderFrameHostID(GetProcess()->GetID(), routing_id_),
       this));
+  site_instance_->AddObserver(this);
 
   if (is_swapped_out) {
     rfh_state_ = STATE_SWAPPED_OUT;
@@ -261,6 +262,8 @@ RenderFrameHostImpl::~RenderFrameHostImpl() {
   GetProcess()->RemoveRoute(routing_id_);
   g_routing_id_frame_map.Get().erase(
       RenderFrameHostID(GetProcess()->GetID(), routing_id_));
+
+  site_instance_->RemoveObserver(this);
 
   if (delegate_ && render_frame_created_)
     delegate_->RenderFrameDeleted(this);
@@ -463,6 +466,10 @@ bool RenderFrameHostImpl::Send(IPC::Message* message) {
 }
 
 bool RenderFrameHostImpl::OnMessageReceived(const IPC::Message &msg) {
+  // Only process messages if the RenderFrame is alive.
+  if (!render_frame_created_)
+    return false;
+
   // Filter out most IPC messages if this frame is swapped out.
   // We still want to handle certain ACKs to keep our state consistent.
   if (is_swapped_out()) {
@@ -517,7 +524,6 @@ bool RenderFrameHostImpl::OnMessageReceived(const IPC::Message &msg) {
                         OnDidFailLoadWithError)
     IPC_MESSAGE_HANDLER_GENERIC(FrameHostMsg_DidCommitProvisionalLoad,
                                 OnDidCommitProvisionalLoad(msg))
-    IPC_MESSAGE_HANDLER(FrameHostMsg_DidDropNavigation, OnDidDropNavigation)
     IPC_MESSAGE_HANDLER(FrameHostMsg_UpdateState, OnUpdateState)
     IPC_MESSAGE_HANDLER(FrameHostMsg_OpenURL, OnOpenURL)
     IPC_MESSAGE_HANDLER(FrameHostMsg_DocumentOnLoadCompleted,
@@ -610,7 +616,7 @@ void RenderFrameHostImpl::AccessibilitySetSelection(int anchor_object_id,
                                                     int focus_object_id,
                                                     int focus_offset) {
   Send(new AccessibilityMsg_SetSelection(routing_id_,
-                                         focus_object_id,
+                                         anchor_object_id,
                                          anchor_offset,
                                          focus_object_id,
                                          focus_offset));
@@ -688,6 +694,13 @@ gfx::NativeViewAccessible
   if (view)
     return view->AccessibilityGetNativeViewAccessible();
   return NULL;
+}
+
+void RenderFrameHostImpl::RenderProcessGone(SiteInstanceImpl* site_instance) {
+  DCHECK_EQ(site_instance_.get(), site_instance);
+
+  // The renderer process is gone, so this frame can no longer be loading.
+  ResetLoadingState();
 }
 
 bool RenderFrameHostImpl::CreateRenderFrame(int proxy_routing_id,
@@ -816,8 +829,12 @@ void RenderFrameHostImpl::OnCreateChildFrame(
     int new_routing_id,
     blink::WebTreeScopeType scope,
     const std::string& frame_name,
+    const std::string& frame_unique_name,
     blink::WebSandboxFlags sandbox_flags,
     const blink::WebFrameOwnerProperties& frame_owner_properties) {
+  // TODO(lukasza): Call ReceivedBadMessage when |frame_unique_name| is empty.
+  DCHECK(!frame_unique_name.empty());
+
   // It is possible that while a new RenderFrameHost was committed, the
   // RenderFrame corresponding to this host sent an IPC message to create a
   // frame and it is delivered after this host is swapped out.
@@ -827,7 +844,7 @@ void RenderFrameHostImpl::OnCreateChildFrame(
     return;
 
   frame_tree_->AddFrame(frame_tree_node_, GetProcess()->GetID(), new_routing_id,
-                        scope, frame_name, sandbox_flags,
+                        scope, frame_name, frame_unique_name, sandbox_flags,
                         frame_owner_properties);
 }
 
@@ -1017,8 +1034,19 @@ void RenderFrameHostImpl::OnDidCommitProvisionalLoad(const IPC::Message& msg) {
     navigation_handle_ =
         NavigationHandleImpl::Create(validated_params.url, frame_tree_node_,
                                      true,   // is_synchronous
-                                     false,  // is_srcdoc
+                                     validated_params.is_srcdoc,
                                      base::TimeTicks::Now());
+    // PlzNavigate
+    if (IsBrowserSideNavigationEnabled()) {
+      // PlzNavigate: synchronous loads happen in the renderer, and the browser
+      // has not been notified about the start of the load yet. Do it now.
+      if (!is_loading()) {
+        bool was_loading = frame_tree_node()->frame_tree()->IsLoading();
+        is_loading_ = true;
+        frame_tree_node()->DidStartLoading(true, was_loading);
+      }
+      pending_commit_ = false;
+    }
   }
 
   accessibility_reset_count_ = 0;
@@ -1036,19 +1064,6 @@ void RenderFrameHostImpl::OnDidCommitProvisionalLoad(const IPC::Message& msg) {
     RenderWidgetHostImpl::From(GetView()->GetRenderWidgetHost())
         ->StartNewContentRenderingTimeout();
   }
-
-  // PlzNavigate
-  if (IsBrowserSideNavigationEnabled())
-    pending_commit_ = false;
-}
-
-void RenderFrameHostImpl::OnDidDropNavigation() {
-  // At the end of Navigate(), the FrameTreeNode's DidStartLoading is called to
-  // force the spinner to start, even if the renderer didn't yet begin the load.
-  // If it turns out that the renderer dropped the navigation, the spinner needs
-  // to be turned off.
-  frame_tree_node_->DidStopLoading();
-  navigation_handle_.reset();
 }
 
 void RenderFrameHostImpl::OnUpdateState(const PageState& state) {
@@ -1417,9 +1432,15 @@ void RenderFrameHostImpl::OnDidChangeOpener(int32_t opener_routing_id) {
                                                       GetSiteInstance());
 }
 
-void RenderFrameHostImpl::OnDidChangeName(const std::string& name) {
+void RenderFrameHostImpl::OnDidChangeName(const std::string& name,
+                                          const std::string& unique_name) {
+  if (GetParent() != nullptr) {
+    // TODO(lukasza): Call ReceivedBadMessage when |unique_name| is empty.
+    DCHECK(!unique_name.empty());
+  }
+
   std::string old_name = frame_tree_node()->frame_name();
-  frame_tree_node()->SetFrameName(name);
+  frame_tree_node()->SetFrameName(name, unique_name);
   if (old_name.empty() && !name.empty())
     frame_tree_node_->render_manager()->CreateProxiesForNewNamedFrame();
   delegate_->DidChangeName(this, name);
@@ -1701,23 +1722,20 @@ void RenderFrameHostImpl::OnToggleFullscreen(bool enter_fullscreen) {
 }
 
 void RenderFrameHostImpl::OnDidStartLoading(bool to_different_document) {
-  // Any main frame load to a new document should reset the load since it will
-  // replace the current page and any frames.
-  if (to_different_document && !GetParent())
-    is_loading_ = false;
-
-  // This method should never be called when the frame is loading.
-  // Unfortunately, it can happen if a history navigation happens during a
-  // BeforeUnload or Unload event.
-  // TODO(fdegans): Change this to a DCHECK after LoadEventProgress has been
-  // refactored in Blink. See crbug.com/466089
-  if (is_loading_) {
-    LOG(WARNING) << "OnDidStartLoading was called twice.";
+  if (IsBrowserSideNavigationEnabled() && to_different_document) {
+    bad_message::ReceivedBadMessage(GetProcess(),
+                                    bad_message::RFH_UNEXPECTED_LOAD_START);
     return;
   }
-
-  frame_tree_node_->DidStartLoading(to_different_document);
+  bool was_previously_loading = frame_tree_node_->frame_tree()->IsLoading();
   is_loading_ = true;
+
+  // Only inform the FrameTreeNode of a change in load state if the load state
+  // of this RenderFrameHost is being tracked.
+  if (rfh_state_ == STATE_DEFAULT) {
+    frame_tree_node_->DidStartLoading(to_different_document,
+                                      was_previously_loading);
+  }
 }
 
 void RenderFrameHostImpl::OnDidStopLoading() {
@@ -1732,8 +1750,12 @@ void RenderFrameHostImpl::OnDidStopLoading() {
   }
 
   is_loading_ = false;
-  frame_tree_node_->DidStopLoading();
   navigation_handle_.reset();
+
+  // Only inform the FrameTreeNode of a change in load state if the load state
+  // of this RenderFrameHost is being tracked.
+  if (rfh_state_ == STATE_DEFAULT)
+    frame_tree_node_->DidStopLoading();
 }
 
 void RenderFrameHostImpl::OnDidChangeLoadProgress(double load_progress) {
@@ -1913,7 +1935,7 @@ void RenderFrameHostImpl::Navigate(
   // Blink doesn't send throb notifications for JavaScript URLs, so it is not
   // done here either.
   if (!common_params.url.SchemeIs(url::kJavaScriptScheme))
-    frame_tree_node_->DidStartLoading(true);
+    OnDidStartLoading(true);
 }
 
 void RenderFrameHostImpl::NavigateToInterstitialURL(const GURL& data_url) {
@@ -2250,6 +2272,18 @@ RenderFrameHostImpl::GetMojoImageDownloader() {
         mojo::GetProxy(&mojo_image_downloader_));
   }
   return mojo_image_downloader_;
+}
+
+void RenderFrameHostImpl::ResetLoadingState() {
+  if (is_loading()) {
+    // When pending deletion, just set the loading state to not loading.
+    // Otherwise, OnDidStopLoading will take care of that, as well as sending
+    // notification to the FrameTreeNode about the change in loading state.
+    if (rfh_state_ != STATE_DEFAULT)
+      is_loading_ = false;
+    else
+      OnDidStopLoading();
+  }
 }
 
 bool RenderFrameHostImpl::IsSameSiteInstance(

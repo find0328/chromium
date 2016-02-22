@@ -293,6 +293,9 @@ const char kDisableWebSecurity[]            = "disable-web-security";
 // Disables Blink's XSSAuditor. The XSSAuditor mitigates reflective XSS.
 const char kDisableXSSAuditor[]             = "disable-xss-auditor";
 
+// Disable gesture generation for wheel events.
+const char kDisableWheelGestures[] = "disable-wheel-gestures";
+
 // Disable rasterizer that writes directly to GPU memory associated with tiles.
 const char kDisableZeroCopy[]                = "disable-zero-copy";
 
@@ -402,6 +405,10 @@ const char kEnableNetworkInformation[]      = "enable-network-information";
 // to-refresh).
 const char kEnableNonValidatingReloadOnRefreshContent[] =
     "enable-non-validating-reload-on-refresh-content";
+
+// Enables action button icons for the Web Notification API.
+const char kEnableNotificationActionIcons[] =
+    "enable-notification-action-icons";
 
 // Enables partial raster. Enabling this switch also enables the use of
 // persistent gpu memory buffers.
@@ -587,6 +594,9 @@ const char kIgnoreCertificateErrors[]       = "ignore-certificate-errors";
 // Ignores GPU blacklist.
 const char kIgnoreGpuBlacklist[]            = "ignore-gpu-blacklist";
 
+// Makes all APIs reflect the layout viewport.
+const char kInertVisualViewport[]           = "inert-visual-viewport";
+
 // Run the GPU process as a thread in the browser process.
 const char kInProcessGPU[]                  = "in-process-gpu";
 
@@ -699,10 +709,15 @@ const char kPpapiPluginProcess[]            = "ppapi";
 // --no-sandbox as well or the sandbox won't allow the dialog to display.
 const char kPpapiStartupDialog[]            = "ppapi-startup-dialog";
 
-// Runs a single process for each site (i.e., group of pages from the same
-// registered domain) the user visits.  We default to using a renderer process
-// for each site instance (i.e., group of pages from the same registered
-// domain with script connections to each other).
+// Enable the "Process Per Site" process model for all domains. This mode
+// consolidates same-site pages so that they share a single process.
+//
+// More details here:
+// - http://www.chromium.org/developers/design-documents/process-models
+// - The class comment in site_instance.h, listing the supported process models.
+//
+// IMPORTANT: This isn't to be confused with --site-per-process (which is about
+// isolation, not consolidation). You probably want the other one.
 const char kProcessPerSite[]                = "process-per-site";
 
 // Runs each set of script-connected tabs (i.e., a BrowsingInstance) in its own
@@ -771,7 +786,12 @@ const char kSingleProcess[]                 = "single-process";
 //  * <iframe>s are rendered out-of-process whenever the src= is cross-site.
 //
 // More details here:
-// http://www.chromium.org/developers/design-documents/site-isolation
+// - http://www.chromium.org/developers/design-documents/site-isolation
+// - http://www.chromium.org/developers/design-documents/process-models
+// - The class comment in site_instance.h, listing the supported process models.
+//
+// IMPORTANT: this isn't to be confused with --process-per-site (which is about
+// process consolidation, not isolation). You probably want this one.
 const char kSitePerProcess[]                = "site-per-process";
 
 // Skip gpu info collection, blacklist loading, and blacklist auto-update

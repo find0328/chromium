@@ -293,30 +293,41 @@ public class ChromeLauncherActivity extends Activity
     }
 
     /**
-     * @return Whether or not a Custom Tab will be forcefully used for the incoming Intent.
+     * @return Whether or not an Herb prototype may hijack an Intent.
      */
-    private boolean isHerbIntent() {
+    public static boolean canBeHijackedByHerb(Intent intent) {
         // Only VIEW Intents with URLs are rerouted to Custom Tabs.
-        if (getIntent() == null || !TextUtils.equals(Intent.ACTION_VIEW, getIntent().getAction())
-                || TextUtils.isEmpty(IntentHandler.getUrlFromIntent(getIntent()))) {
+        if (intent == null || !TextUtils.equals(Intent.ACTION_VIEW, intent.getAction())
+                || TextUtils.isEmpty(IntentHandler.getUrlFromIntent(intent))) {
             return false;
         }
 
         // Don't reroute Chrome Intents.
-        if (TextUtils.equals(getPackageName(),
-                IntentUtils.safeGetStringExtra(getIntent(), Browser.EXTRA_APPLICATION_ID))) {
+        Context context = ApplicationStatus.getApplicationContext();
+        if (TextUtils.equals(context.getPackageName(),
+                IntentUtils.safeGetStringExtra(intent, Browser.EXTRA_APPLICATION_ID))) {
             return false;
         }
 
         // Custom Tabs have to be available.
-        if (!ChromePreferenceManager.getInstance(this).getCustomTabsEnabled()) return false;
+        if (!ChromePreferenceManager.getInstance(context).getCustomTabsEnabled()) return false;
+
+        return true;
+    }
+
+    /**
+     * @return Whether or not a Custom Tab will be forcefully used for the incoming Intent.
+     */
+    private boolean isHerbIntent() {
+        if (!canBeHijackedByHerb(getIntent())) return false;
 
         // Different Herb flavors handle incoming intents differently.
         String flavor = ChromePreferenceManager.getHerbFlavor();
         if (TextUtils.isEmpty(flavor)) {
             return false;
         } else if (TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_ANISE)
-                || TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_BASIL)) {
+                || TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_BASIL)
+                || TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_DILL)) {
             // Only Intents without NEW_TASK and NEW_DOCUMENT will trigger a Custom Tab.
             boolean isSameTask = (getIntent().getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK) == 0;
             boolean isSameDocument =
@@ -325,22 +336,22 @@ public class ChromeLauncherActivity extends Activity
                     + isSameTask + ", SAME DOCUMENT: " + isSameDocument);
             return isSameTask && isSameDocument;
         } else if (TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_CHIVE)) {
-            // Chive sends all View Intents to the main browser.
+            // Send all View Intents to the main browser.
             return false;
-        } else if (TextUtils.equals(flavor, ChromeSwitches.HERB_FLAVOR_DILL)) {
-            // Dill always opens View Intents in Custom Tabs -- even home screen shortcuts.
-            return true;
         } else {
             assert false;
             return false;
         }
     }
 
-    private void addHerbIntentExtras(Intent newIntent, Uri uri) {
+    /**
+     * Adds extras to the Intent that are needed by Herb.
+     */
+    public static void addHerbIntentExtras(Context context, Intent newIntent, Uri uri) {
         Bundle herbBundle = new Bundle();
 
         Bitmap herbIcon =
-                BitmapFactory.decodeResource(getResources(), R.drawable.btn_open_in_chrome);
+                BitmapFactory.decodeResource(context.getResources(), R.drawable.btn_open_in_chrome);
         herbBundle.putParcelable(CustomTabsIntent.KEY_ICON, herbIcon);
 
         // Fallback in case the Custom Tab fails to trigger opening in Chrome.
@@ -349,14 +360,19 @@ public class ChromeLauncherActivity extends Activity
         intent.putExtra(EXTRA_IS_ALLOWED_TO_RETURN_TO_PARENT, false);
 
         PendingIntent pendingIntent =
-                PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_ONE_SHOT);
+                PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_ONE_SHOT);
         herbBundle.putParcelable(CustomTabsIntent.KEY_PENDING_INTENT, pendingIntent);
 
         herbBundle.putString(CustomTabsIntent.KEY_DESCRIPTION,
-                getResources().getString(R.string.menu_open_in_chrome));
+                context.getResources().getString(R.string.menu_open_in_chrome));
 
         newIntent.putExtra(CustomTabsIntent.EXTRA_ACTION_BUTTON_BUNDLE, herbBundle);
+        newIntent.putExtra(CustomTabsIntent.EXTRA_DEFAULT_SHARE_MENU_ITEM, true);
         newIntent.putExtra(CustomTabIntentDataProvider.EXTRA_FINISH_AFTER_OPENING_IN_BROWSER, true);
+        newIntent.putExtra(CustomTabIntentDataProvider.EXTRA_SHOW_STAR_ICON, true);
+
+        // Mark this as a trusted Chrome Intent.
+        IntentHandler.addTrustedIntentExtras(newIntent, context);
     }
 
     /**
@@ -375,6 +391,23 @@ public class ChromeLauncherActivity extends Activity
     }
 
     /**
+     * Creates an Intent that can be used to launch a {@link CustomTabActivity}.
+     */
+    public static Intent createCustomTabActivityIntent(
+            Context context, Intent intent, boolean addHerbExtras) {
+        // Use the copy constructor to carry over the myriad of extras.
+        Uri uri = Uri.parse(IntentHandler.getUrlFromIntent(intent));
+
+        Intent newIntent = new Intent(intent);
+        newIntent.setAction(Intent.ACTION_VIEW);
+        newIntent.setClassName(context, CustomTabActivity.class.getName());
+        newIntent.setData(uri);
+        if (addHerbExtras) addHerbIntentExtras(context, newIntent, uri);
+
+        return newIntent;
+    }
+
+    /**
      * Handles launching a {@link CustomTabActivity}, which will sit on top of a client's activity
      * in the same task.
      */
@@ -382,17 +415,9 @@ public class ChromeLauncherActivity extends Activity
         boolean handled = CustomTabActivity.handleInActiveContentIfNeeded(getIntent());
         if (handled) return;
 
-        // Create and fire a launch intent. Use the copy constructor to carry over the myriad of
-        // extras.
-        Uri uri = Uri.parse(IntentHandler.getUrlFromIntent(getIntent()));
-
-        Intent newIntent = new Intent(getIntent());
-        newIntent.setAction(Intent.ACTION_VIEW);
-        newIntent.setClassName(this, CustomTabActivity.class.getName());
-        newIntent.setData(uri);
-        if (!isCustomTabIntent() && mIsHerbIntent) addHerbIntentExtras(newIntent, uri);
-
-        startActivity(newIntent);
+        // Create and fire a launch intent.
+        startActivity(createCustomTabActivityIntent(
+                this, getIntent(), !isCustomTabIntent() && mIsHerbIntent));
     }
 
     /**

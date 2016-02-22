@@ -242,11 +242,14 @@ WebInspector.SourcesPanel.prototype = {
         }
 
         /**
-         * @param {!WebInspector.UILocation} uiLocation
+         * @param {!WebInspector.LiveLocation} liveLocation
          * @this {WebInspector.SourcesPanel}
          */
-        function didGetUILocation(uiLocation)
+        function didGetUILocation(liveLocation)
         {
+            var uiLocation = liveLocation.uiLocation();
+            if (!uiLocation)
+                return;
             var breakpoint = WebInspector.breakpointManager.findBreakpointOnLine(uiLocation.uiSourceCode, uiLocation.lineNumber);
             if (!breakpoint)
                 return;
@@ -388,10 +391,13 @@ WebInspector.SourcesPanel.prototype = {
     },
 
     /**
-     * @param {!WebInspector.UILocation} uiLocation
+     * @param {!WebInspector.LiveLocation} liveLocation
      */
-    _executionLineChanged: function(uiLocation)
+    _executionLineChanged: function(liveLocation)
     {
+        var uiLocation = liveLocation.uiLocation();
+        if (!uiLocation)
+            return;
         this._sourcesView.clearCurrentExecutionLine();
         this._sourcesView.setExecutionLocation(uiLocation);
         if (window.performance.now() - this._lastModificationTime < WebInspector.SourcesPanel._lastModificationTimeout)
@@ -928,7 +934,8 @@ WebInspector.SourcesPanel.prototype = {
         if (contentType.hasScripts() && projectType !== WebInspector.projectTypes.Snippets) {
             var networkURL = this._networkMapping.networkURL(uiSourceCode);
             var url = projectType === WebInspector.projectTypes.Formatter ? uiSourceCode.url() : networkURL;
-            this.sidebarPanes.callstack.appendBlackboxURLContextMenuItems(contextMenu, url, projectType === WebInspector.projectTypes.ContentScripts);
+            var isBlackboxed = WebInspector.blackboxManager.isBlackboxedUISourceCode(uiSourceCode);
+            this.sidebarPanes.callstack.appendBlackboxURLContextMenuItems(contextMenu, url, projectType === WebInspector.projectTypes.ContentScripts, isBlackboxed);
         }
     },
 

@@ -316,18 +316,13 @@ class BookmarkFolderButton : public views::MenuButton {
     return !tooltip->empty();
   }
 
-  bool IsTriggerableEvent(const ui::Event& e) override {
-    // Left clicks and taps should show the menu contents and right clicks
-    // should show the context menu. They should not trigger the opening of
-    // underlying urls.
-    if (e.type() == ui::ET_GESTURE_TAP ||
-        (e.IsMouseEvent() && (e.flags() &
-             (ui::EF_LEFT_MOUSE_BUTTON | ui::EF_RIGHT_MOUSE_BUTTON))))
-      return false;
-
-    if (e.IsMouseEvent())
-      return ui::DispositionFromEventFlags(e.flags()) != CURRENT_TAB;
-    return false;
+  bool IsTriggerableEventType(const ui::Event& e) override {
+    // Bookmark folders handle normal menu button events (i.e., left click) as
+    // well as clicks to open bookmarks in new tabs that would otherwise be
+    // ignored.
+    return views::MenuButton::IsTriggerableEventType(e) ||
+           (e.IsMouseEvent() &&
+                ui::DispositionFromEventFlags(e.flags()) != CURRENT_TAB);
   }
 
  private:
@@ -1399,7 +1394,7 @@ bool BookmarkBarView::CanStartDragForView(views::View* sender,
         if (node && node->is_folder()) {
           views::MenuButton* menu_button =
               static_cast<views::MenuButton*>(sender);
-          menu_button->Activate();
+          menu_button->Activate(nullptr);
           return false;
         }
         break;
@@ -1409,8 +1404,9 @@ bool BookmarkBarView::CanStartDragForView(views::View* sender,
   return true;
 }
 
-void BookmarkBarView::OnMenuButtonClicked(views::View* view,
-                                          const gfx::Point& point) {
+void BookmarkBarView::OnMenuButtonClicked(views::MenuButton* view,
+                                          const gfx::Point& point,
+                                          const ui::Event* event) {
   const BookmarkNode* node;
 
   int start_index = 0;
@@ -1429,11 +1425,20 @@ void BookmarkBarView::OnMenuButtonClicked(views::View* view,
     node = model_->bookmark_bar_node()->GetChild(button_index);
   }
 
-  RecordBookmarkFolderOpen(GetBookmarkLaunchLocation());
-  bookmark_menu_ = new BookmarkMenuController(
-      browser_, page_navigator_, GetWidget(), node, start_index, false);
-  bookmark_menu_->set_observer(this);
-  bookmark_menu_->RunMenuAt(this);
+  // Clicking the middle mouse button opens all bookmarks in the folder in new
+  // tabs.
+  if (event && (event->flags() & ui::EF_MIDDLE_MOUSE_BUTTON) != 0) {
+    WindowOpenDisposition disposition_from_event_flags =
+        ui::DispositionFromEventFlags(event->flags());
+    chrome::OpenAll(GetWidget()->GetNativeWindow(), page_navigator_, node,
+                    disposition_from_event_flags, browser_->profile());
+  } else {
+    RecordBookmarkFolderOpen(GetBookmarkLaunchLocation());
+    bookmark_menu_ = new BookmarkMenuController(
+        browser_, page_navigator_, GetWidget(), node, start_index, false);
+    bookmark_menu_->set_observer(this);
+    bookmark_menu_->RunMenuAt(this);
+  }
 }
 
 void BookmarkBarView::ButtonPressed(views::Button* sender,
@@ -1457,16 +1462,14 @@ void BookmarkBarView::ButtonPressed(views::Button* sender,
   const BookmarkNode* node = model_->bookmark_bar_node()->GetChild(index);
   DCHECK(page_navigator_);
 
-  if (node->is_url()) {
-    RecordAppLaunch(browser_->profile(), node->url());
-    OpenURLParams params(
-        node->url(), Referrer(), disposition_from_event_flags,
-        ui::PAGE_TRANSITION_AUTO_BOOKMARK, false);
-    page_navigator_->OpenURL(params);
-  } else {
-    chrome::OpenAll(GetWidget()->GetNativeWindow(), page_navigator_, node,
-                    disposition_from_event_flags, browser_->profile());
-  }
+  // Only URL nodes have regular buttons on the bookmarks bar; folder clicks
+  // are directed to OnMenuButtonClicked().
+  DCHECK(node->is_url());
+  RecordAppLaunch(browser_->profile(), node->url());
+  OpenURLParams params(
+      node->url(), Referrer(), disposition_from_event_flags,
+      ui::PAGE_TRANSITION_AUTO_BOOKMARK, false);
+  page_navigator_->OpenURL(params);
 
   RecordBookmarkLaunch(node, GetBookmarkLaunchLocation());
 }
@@ -1557,8 +1560,7 @@ void BookmarkBarView::Init() {
       base::Bind(&BookmarkBarView::OnShowManagedBookmarksPrefChanged,
                  base::Unretained(this)));
   apps_page_shortcut_->SetVisible(
-      chrome::ShouldShowAppsShortcutInBookmarkBar(
-          browser_->profile(), browser_->host_desktop_type()));
+      chrome::ShouldShowAppsShortcutInBookmarkBar(browser_->profile()));
 
   bookmarks_separator_view_ = new ButtonSeparatorView();
   AddChildView(bookmarks_separator_view_);
@@ -2060,8 +2062,8 @@ void BookmarkBarView::UpdateBookmarksSeparatorVisibility() {
 void BookmarkBarView::OnAppsPageShortcutVisibilityPrefChanged() {
   DCHECK(apps_page_shortcut_);
   // Only perform layout if required.
-  bool visible = chrome::ShouldShowAppsShortcutInBookmarkBar(
-      browser_->profile(), browser_->host_desktop_type());
+  bool visible =
+      chrome::ShouldShowAppsShortcutInBookmarkBar(browser_->profile());
   if (apps_page_shortcut_->visible() == visible)
     return;
   apps_page_shortcut_->SetVisible(visible);

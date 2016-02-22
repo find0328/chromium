@@ -236,7 +236,14 @@ group("both_gn_and_gyp") {
   }
 
   if (use_aura) {
-    deps += [ "//ui/wm:wm_unittests" ]
+    deps += [
+      "//ash:ash_shell_with_content",
+      "//ash:ash_unittests",
+      "//ui/aura:aura_unittests",
+      "//ui/aura:bench",
+      "//ui/aura:demo",
+      "//ui/wm:wm_unittests",
+    ]
   }
 
   if (use_ozone) {
@@ -464,16 +471,6 @@ group("both_gn_and_gyp") {
     if (media_use_ffmpeg && !is_android) {
       deps += [ "//media:ffmpeg_regression_tests" ]
     }
-
-    if (use_aura) {
-      deps += [
-        "//ash:ash_shell_with_content",
-        "//ash:ash_unittests",
-        "//ui/aura:aura_unittests",
-        "//ui/aura:bench",
-        "//ui/aura:demo",
-      ]
-    }
   }
 
   if (is_android || (is_linux && !is_chromeos)) {
@@ -484,7 +481,6 @@ group("both_gn_and_gyp") {
       "//breakpad:microdump_stackwalk($host_toolchain)",
       "//breakpad:minidump_dump($host_toolchain)",
       "//breakpad:minidump_stackwalk($host_toolchain)",
-      "//cloud_print:cloud_print_unittests",
       "//components/network_hints/browser",
       "//content/public/app:browser",
       "//content/public/app:child",
@@ -551,8 +547,6 @@ group("both_gn_and_gyp") {
       "//chrome/installer/setup:setup_unittests",
       "//chrome_elf:chrome_elf_unittests",
       "//chrome_elf:dll_hash_main",
-      "//cloud_print:cloud_print_unittests",
-      "//cloud_print/service/win:cloud_print_service",
       "//components/wifi:wifi_test",
       "//net:quic_client",
       "//net:quic_server",
@@ -599,20 +593,16 @@ group("mojo_apptests") {
   if (is_win || is_linux) {
     deps += [
       "//components/filesystem:apptests",
+      "//components/leveldb:apptests",
       "//components/mus/ws:tests",
       "//components/resource_provider:apptests",
       "//components/resource_provider:resource_provider_unittests",
       "//mash/wm:tests",
       "//media/mojo/services:tests",
       "//mojo/services/network:apptests",
-      "//mojo/shell:apptests",
-      "//sql/mojo:apptests",
+      "//mojo/shell/tests:apptests",
       "//ui/views/mus:tests",
     ]
-  }
-
-  if (is_android) {
-    deps += [ "//mojo/shell/standalone:mojo_shell_standalone_apptests_apk" ]
   }
 }
 
@@ -722,9 +712,6 @@ group("gn_only") {
         "//third_party/libjpeg_turbo:simd_asm",
       ]
     }
-    if (enable_nacl) {
-      deps += [ "//native_client/src/trusted/service_runtime:sel_ldr" ]
-    }
     if (use_ozone) {
       deps += [ "//ui/ozone/demo" ]
     }
@@ -732,6 +719,10 @@ group("gn_only") {
     if (is_linux && current_toolchain == host_toolchain) {
       deps += [ "//v8:d8" ]
     }
+  }
+
+  if (enable_nacl) {
+    deps += [ "//native_client_sdk/src:nacl_core_sdk" ]
   }
 
   if (is_android) {

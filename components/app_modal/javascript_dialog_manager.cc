@@ -4,6 +4,7 @@
 
 #include "components/app_modal/javascript_dialog_manager.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/bind.h"
@@ -13,7 +14,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "components/app_modal/app_modal_dialog.h"
 #include "components/app_modal/app_modal_dialog_queue.h"
-#include "components/app_modal/javascript_app_modal_dialog.h"
 #include "components/app_modal/javascript_dialog_extensions_client.h"
 #include "components/app_modal/javascript_native_dialog_factory.h"
 #include "components/app_modal/native_app_modal_dialog.h"
@@ -26,6 +26,7 @@
 #include "ui/gfx/font_list.h"
 
 namespace app_modal {
+
 namespace {
 
 #if !defined(OS_ANDROID)
@@ -55,6 +56,32 @@ class DefaultExtensionsClient : public JavaScriptDialogExtensionsClient {
 bool ShouldDisplaySuppressCheckbox(
     ChromeJavaScriptDialogExtraData* extra_data) {
   return extra_data->has_already_shown_a_dialog_;
+}
+
+enum class DialogType {
+  JAVASCRIPT,
+  ON_BEFORE_UNLOAD,
+};
+
+void LogUMAMessageLengthStats(const base::string16& message, DialogType type) {
+  if (type == DialogType::JAVASCRIPT) {
+    UMA_HISTOGRAM_COUNTS("JSDialogs.CountOfJSDialogMessageCharacters",
+                         static_cast<int32_t>(message.length()));
+  } else {
+    UMA_HISTOGRAM_COUNTS("JSDialogs.CountOfOnBeforeUnloadMessageCharacters",
+                         static_cast<int32_t>(message.length()));
+  }
+
+  int32_t newline_count =
+      std::count_if(message.begin(), message.end(),
+                    [](const base::char16& c) { return c == '\n'; });
+  if (type == DialogType::JAVASCRIPT) {
+    UMA_HISTOGRAM_COUNTS("JSDialogs.CountOfJSDialogMessageNewlines",
+                         newline_count);
+  } else {
+    UMA_HISTOGRAM_COUNTS("JSDialogs.CountOfOnBeforeUnloadMessageNewlines",
+                         newline_count);
+  }
 }
 
 }  // namespace
@@ -99,9 +126,7 @@ void JavaScriptDialogManager::RunJavaScriptDialog(
   *did_suppress_message = false;
 
   ChromeJavaScriptDialogExtraData* extra_data =
-      &javascript_dialog_extra_data_
-          [JavaScriptAppModalDialog::GetSerializedOriginForWebContents(
-              web_contents)];
+      &javascript_dialog_extra_data_[web_contents];
 
   if (extra_data->suppress_javascript_messages_) {
     // If a page tries to open dialogs in a tight loop, the number of
@@ -148,6 +173,7 @@ void JavaScriptDialogManager::RunJavaScriptDialog(
 
   extensions_client_->OnDialogOpened(web_contents);
 
+  LogUMAMessageLengthStats(message_text, DialogType::JAVASCRIPT);
   AppModalDialogQueue::GetInstance()->AddDialog(new JavaScriptAppModalDialog(
       web_contents,
       &javascript_dialog_extra_data_,
@@ -168,9 +194,7 @@ void JavaScriptDialogManager::RunBeforeUnloadDialog(
     bool is_reload,
     const DialogClosedCallback& callback) {
   ChromeJavaScriptDialogExtraData* extra_data =
-      &javascript_dialog_extra_data_
-          [JavaScriptAppModalDialog::GetSerializedOriginForWebContents(
-              web_contents)];
+      &javascript_dialog_extra_data_[web_contents];
 
   if (extra_data->suppress_javascript_messages_) {
     // If a site harassed the user enough for them to put it on mute, then it
@@ -189,6 +213,7 @@ void JavaScriptDialogManager::RunBeforeUnloadDialog(
 
   extensions_client_->OnDialogOpened(web_contents);
 
+  LogUMAMessageLengthStats(message_text, DialogType::ON_BEFORE_UNLOAD);
   AppModalDialogQueue::GetInstance()->AddDialog(new JavaScriptAppModalDialog(
       web_contents,
       &javascript_dialog_extra_data_,
@@ -199,7 +224,7 @@ void JavaScriptDialogManager::RunBeforeUnloadDialog(
       ShouldDisplaySuppressCheckbox(extra_data),
       true,        // is_before_unload_dialog
       is_reload,
-      base::Bind(&JavaScriptDialogManager::OnDialogClosed,
+      base::Bind(&JavaScriptDialogManager::OnBeforeUnloadDialogClosed,
                  base::Unretained(this), web_contents, callback)));
 }
 
@@ -228,9 +253,7 @@ bool JavaScriptDialogManager::HandleJavaScriptDialog(
 void JavaScriptDialogManager::ResetDialogState(
     content::WebContents* web_contents) {
   CancelActiveAndPendingDialogs(web_contents);
-  javascript_dialog_extra_data_.erase(
-      JavaScriptAppModalDialog::GetSerializedOriginForWebContents(
-          web_contents));
+  javascript_dialog_extra_data_.erase(web_contents);
 }
 
 base::string16 JavaScriptDialogManager::GetTitle(
@@ -284,6 +307,24 @@ void JavaScriptDialogManager::CancelActiveAndPendingDialogs(
   }
   if (active_dialog && active_dialog->web_contents() == web_contents)
     active_dialog->Invalidate();
+}
+
+void JavaScriptDialogManager::OnBeforeUnloadDialogClosed(
+    content::WebContents* web_contents,
+    DialogClosedCallback callback,
+    bool success,
+    const base::string16& user_input) {
+  enum class StayVsLeave {
+    STAY = 0,
+    LEAVE = 1,
+    MAX,
+  };
+  UMA_HISTOGRAM_ENUMERATION(
+      "JSDialogs.OnBeforeUnloadStayVsLeave",
+      static_cast<int>(success ? StayVsLeave::LEAVE : StayVsLeave::STAY),
+      static_cast<int>(StayVsLeave::MAX));
+
+  OnDialogClosed(web_contents, callback, success, user_input);
 }
 
 void JavaScriptDialogManager::OnDialogClosed(

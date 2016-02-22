@@ -98,13 +98,7 @@
         "test": "mojo_system_unittests"
       },
       {
-        "test": "mojo_view_manager_lib_unittests"
-      },
-      {
         "test": "net_unittests"
-      },
-      {
-        "test": "resource_provider_unittests"
       },
       {
         "test": "sql_unittests"
@@ -123,9 +117,6 @@
       },
       {
         "test": "unit_tests"
-      },
-      {
-        "test": "window_manager_unittests"
       }
     ]
   },
@@ -144,6 +135,12 @@
           "--isolate_file_path=src/base/base_unittests.isolate"
         ],
         "test": "base_unittests"
+      },
+      {
+        "args": [
+          "--isolate_file_path=src/third_party/WebKit/Source/platform/heap/BlinkHeapUnitTests.isolate"
+        ],
+        "test": "blink_heap_unittests"
       },
       {
         "args": [
@@ -283,6 +280,12 @@
           "--isolate_file_path=src/base/base_unittests.isolate"
         ],
         "test": "base_unittests"
+      },
+      {
+        "args": [
+          "--isolate_file_path=src/third_party/WebKit/Source/platform/heap/BlinkHeapUnitTests.isolate"
+        ],
+        "test": "blink_heap_unittests"
       },
       {
         "args": [
@@ -512,6 +515,9 @@
         "test": "net_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "ppapi_unittests"
       },
       {
@@ -548,15 +554,12 @@
   },
   "Linux Builder": {
     "additional_compile_targets": [
-      "battor_agent",
-      "blimp",
-      "mash:all",
-      "remoting_all"
+      "all"
     ]
   },
   "Linux Builder (dbg)": {
     "additional_compile_targets": [
-      "gn_all"
+      "all"
     ]
   },
   "Linux Tests": {
@@ -863,6 +866,9 @@
         "test": "net_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "ppapi_unittests"
       },
       {
@@ -935,6 +941,9 @@
         "test": "url_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "views_unittests"
       },
       {
@@ -1262,6 +1271,9 @@
         "test": "net_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "ppapi_unittests"
       },
       {
@@ -1334,6 +1346,9 @@
         "test": "url_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "views_unittests"
       },
       {
@@ -1379,6 +1394,10 @@
       {
         "name": "nacl_integration",
         "script": "nacl_integration.py"
+      },
+      {
+        "name": "mojo_apptests",
+        "script": "mojo_apptests.py"
       }
     ]
   },
@@ -1635,6 +1654,9 @@
         "test": "net_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "ppapi_unittests"
       },
       {
@@ -1704,6 +1726,9 @@
         "test": "url_unittests"
       },
       {
+        "swarming": {
+          "can_use_on_swarming_builders": true
+        },
         "test": "views_unittests"
       },
       {

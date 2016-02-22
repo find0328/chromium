@@ -258,10 +258,10 @@ public final class PrefServiceBridge {
     }
 
     /**
-     * @return whether push notifications are enabled.
+     * @return whether notifications are enabled.
      */
-    public boolean isPushNotificationsEnabled() {
-        return nativeGetPushNotificationsEnabled();
+    public boolean isNotificationsEnabled() {
+        return nativeGetNotificationsEnabled();
     }
 
     /**
@@ -659,6 +659,24 @@ public final class PrefServiceBridge {
     }
 
     /**
+     * Gets the time period for which browsing data will be deleted.
+     * @return The currently selected browsing data deletion time period (from the shared enum
+     *      {@link org.chromium.chrome.browser.TimePeriod}).
+     */
+    public int getBrowsingDataDeletionTimePeriod() {
+        return nativeGetBrowsingDataDeletionTimePeriod();
+    }
+
+    /**
+     * Sets the time period for which browsing data will be deleted.
+     * @param timePeriod The selected browsing data deletion time period (from the shared enum
+     *      {@link org.chromium.chrome.browser.TimePeriod}).
+     */
+    public void setBrowsingDataDeletionTimePeriod(int timePeriod) {
+        nativeSetBrowsingDataDeletionTimePeriod(timePeriod);
+    }
+
+    /**
      * Clear the specified types of browsing data asynchronously.
      * |listener| is an object to be notified when clearing completes.
      * It can be null, but many operations (e.g. navigation) are
@@ -708,8 +726,8 @@ public final class PrefServiceBridge {
         nativeSetPasswordManagerAutoSigninEnabled(enabled);
     }
 
-    public void setPushNotificationsEnabled(boolean allow) {
-        nativeSetPushNotificationsEnabled(allow);
+    public void setNotificationsEnabled(boolean allow) {
+        nativeSetNotificationsEnabled(allow);
     }
 
     public void setAllowLocationEnabled(boolean allow) {
@@ -1000,6 +1018,8 @@ public final class PrefServiceBridge {
     private native void nativeSetJavaScriptAllowed(String pattern, int setting);
     private native boolean nativeGetBrowsingDataDeletionPreference(int dataType);
     private native void nativeSetBrowsingDataDeletionPreference(int dataType, boolean value);
+    private native int nativeGetBrowsingDataDeletionTimePeriod();
+    private native void nativeSetBrowsingDataDeletionTimePeriod(int timePeriod);
     private native void nativeClearBrowsingData(int[] dataTypes);
     private native boolean nativeCanDeleteBrowsingHistory();
     private native void nativeSetAllowCookiesEnabled(boolean allow);
@@ -1010,9 +1030,9 @@ public final class PrefServiceBridge {
     private native void nativeSetPasswordManagerAutoSigninEnabled(boolean enabled);
     private native void nativeSetProtectedMediaIdentifierEnabled(boolean enabled);
     private native boolean nativeGetAllowLocationEnabled();
-    private native boolean nativeGetPushNotificationsEnabled();
+    private native boolean nativeGetNotificationsEnabled();
     private native void nativeSetAllowLocationEnabled(boolean allow);
-    private native void nativeSetPushNotificationsEnabled(boolean allow);
+    private native void nativeSetNotificationsEnabled(boolean allow);
     private native void nativeSetPasswordEchoEnabled(boolean enabled);
     private native void nativeSetPopupException(String pattern, int setting);
     private native void nativeSetCrashReporting(boolean reporting);

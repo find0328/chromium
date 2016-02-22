@@ -109,8 +109,6 @@
         'history/core/browser/visit_database.h',
         'history/core/browser/visit_delegate.cc',
         'history/core/browser/visit_delegate.h',
-        'history/core/browser/visit_filter.cc',
-        'history/core/browser/visit_filter.h',
         'history/core/browser/visit_tracker.cc',
         'history/core/browser/visit_tracker.h',
         'history/core/browser/visitsegment_database.cc',
@@ -259,8 +257,8 @@
           'sources': [
             'history/ios/browser/history_database_helper.cc',
             'history/ios/browser/history_database_helper.h',
-            'history/ios/browser/web_state_top_sites_observer.cc',
             'history/ios/browser/web_state_top_sites_observer.h',
+            'history/ios/browser/web_state_top_sites_observer.mm',
           ],
         },
       ],

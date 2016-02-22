@@ -70,6 +70,8 @@
 #include "remoting/host/oauth_token_getter_impl.h"
 #include "remoting/host/pairing_registry_delegate.h"
 #include "remoting/host/policy_watcher.h"
+#include "remoting/host/security_key/gnubby_auth_handler.h"
+#include "remoting/host/security_key/gnubby_extension.h"
 #include "remoting/host/shutdown_watchdog.h"
 #include "remoting/host/signaling_connector.h"
 #include "remoting/host/single_window_desktop_environment.h"
@@ -425,7 +427,8 @@ class HostProcess : public ConfigWatcher::Delegate,
 
   bool curtain_required_;
   ThirdPartyAuthConfig third_party_auth_config_;
-  bool enable_gnubby_auth_;
+  bool gnubby_auth_policy_enabled_;
+  bool gnubby_extension_supported_;
 
   // Boolean to change flow, where necessary, if we're
   // capturing a window instead of the entire desktop.
@@ -461,9 +464,6 @@ class HostProcess : public ConfigWatcher::Delegate,
   // Accessed on the UI thread.
   scoped_ptr<IPC::ChannelProxy> daemon_channel_;
 
-  // AttachmentBroker for |daemon_channel_|.
-  scoped_ptr<IPC::AttachmentBrokerUnprivileged> attachment_broker_;
-
   // Owned as |desktop_environment_factory_|.
   DesktopSessionConnector* desktop_session_connector_ = nullptr;
 #endif  // defined(REMOTING_MULTI_PROCESS)
@@ -492,7 +492,8 @@ HostProcess::HostProcess(scoped_ptr<ChromotingHostContext> context,
       allow_relay_(true),
       allow_pairing_(true),
       curtain_required_(false),
-      enable_gnubby_auth_(false),
+      gnubby_auth_policy_enabled_(false),
+      gnubby_extension_supported_(false),
       enable_window_capture_(false),
       window_id_(0),
       self_(this),
@@ -545,11 +546,10 @@ bool HostProcess::InitWithCommandLine(const base::CommandLine* cmd_line) {
                                               this,
                                               context_->network_task_runner());
 
-  attachment_broker_ = IPC::AttachmentBrokerUnprivileged::CreateBroker();
-  if (attachment_broker_) {
-    attachment_broker_->DesignateBrokerCommunicationChannel(
-        daemon_channel_.get());
-  }
+  IPC::AttachmentBrokerUnprivileged::CreateBrokerIfNeeded();
+  IPC::AttachmentBroker* broker = IPC::AttachmentBroker::GetGlobal();
+  if (broker && !broker->IsPrivilegedBroker())
+    broker->RegisterBrokerCommunicationChannel(daemon_channel_.get());
 
 #else  // !defined(REMOTING_MULTI_PROCESS)
   if (cmd_line->HasSwitch(kHostConfigSwitchName)) {
@@ -888,8 +888,10 @@ void HostProcess::StartOnUiThread() {
 
   base::FilePath gnubby_socket_name = base::CommandLine::ForCurrentProcess()->
       GetSwitchValuePath(kAuthSocknameSwitchName);
-  if (!gnubby_socket_name.empty())
+  if (!gnubby_socket_name.empty()) {
     remoting::GnubbyAuthHandler::SetGnubbySocketName(gnubby_socket_name);
+    gnubby_extension_supported_ = true;
+  }
 #endif  // defined(OS_LINUX)
 
   // Create a desktop environment factory appropriate to the build type &
@@ -897,34 +899,25 @@ void HostProcess::StartOnUiThread() {
 #if defined(REMOTING_MULTI_PROCESS)
   IpcDesktopEnvironmentFactory* desktop_environment_factory =
       new IpcDesktopEnvironmentFactory(
-          context_->audio_task_runner(),
-          context_->network_task_runner(),
-          context_->video_capture_task_runner(),
-          context_->network_task_runner(),
-          daemon_channel_.get());
+          context_->audio_task_runner(), context_->network_task_runner(),
+          context_->network_task_runner(), daemon_channel_.get());
   desktop_session_connector_ = desktop_environment_factory;
 #else  // !defined(REMOTING_MULTI_PROCESS)
   BasicDesktopEnvironmentFactory* desktop_environment_factory;
   if (enable_window_capture_) {
-    desktop_environment_factory =
-      new SingleWindowDesktopEnvironmentFactory(
-          context_->network_task_runner(),
-          context_->input_task_runner(),
-          context_->ui_task_runner(),
-          window_id_);
+    desktop_environment_factory = new SingleWindowDesktopEnvironmentFactory(
+        context_->network_task_runner(), context_->video_capture_task_runner(),
+        context_->input_task_runner(), context_->ui_task_runner(), window_id_);
   } else {
-    desktop_environment_factory =
-      new Me2MeDesktopEnvironmentFactory(
-          context_->network_task_runner(),
-          context_->input_task_runner(),
-          context_->ui_task_runner());
+    desktop_environment_factory = new Me2MeDesktopEnvironmentFactory(
+        context_->network_task_runner(), context_->video_capture_task_runner(),
+        context_->input_task_runner(), context_->ui_task_runner());
   }
 #endif  // !defined(REMOTING_MULTI_PROCESS)
   desktop_environment_factory->set_supports_touch_events(
       InputInjector::SupportsTouchEvents());
 
   desktop_environment_factory_.reset(desktop_environment_factory);
-  desktop_environment_factory_->SetEnableGnubbyAuth(enable_gnubby_auth_);
 
   context_->network_task_runner()->PostTask(
       FROM_HERE,
@@ -939,7 +932,9 @@ void HostProcess::ShutdownOnUiThread() {
   policy_watcher_.reset();
 
 #if defined(REMOTING_MULTI_PROCESS)
-  attachment_broker_.reset();
+  IPC::AttachmentBroker* broker = IPC::AttachmentBroker::GetGlobal();
+  if (broker && !broker->IsPrivilegedBroker())
+    broker->DeregisterBrokerCommunicationChannel(daemon_channel_.get());
   daemon_channel_.reset();
 #endif  // defined(REMOTING_MULTI_PROCESS)
 
@@ -1404,18 +1399,15 @@ bool HostProcess::OnGnubbyAuthPolicyUpdate(base::DictionaryValue* policies) {
   DCHECK(context_->network_task_runner()->BelongsToCurrentThread());
 
   if (!policies->GetBoolean(policy::key::kRemoteAccessHostAllowGnubbyAuth,
-                            &enable_gnubby_auth_)) {
+                            &gnubby_auth_policy_enabled_)) {
     return false;
   }
 
-  if (enable_gnubby_auth_) {
+  if (gnubby_auth_policy_enabled_) {
     HOST_LOG << "Policy enables gnubby auth.";
   } else {
     HOST_LOG << "Policy disables gnubby auth.";
   }
-
-  if (desktop_environment_factory_)
-    desktop_environment_factory_->SetEnableGnubbyAuth(enable_gnubby_auth_);
 
   return true;
 }
@@ -1543,12 +1535,14 @@ void HostProcess::StartHost() {
   }
   session_manager->set_protocol_config(std::move(protocol_config));
 
-  host_.reset(new ChromotingHost(
-      desktop_environment_factory_.get(), std::move(session_manager),
-      transport_context, context_->audio_task_runner(),
-      context_->input_task_runner(), context_->video_capture_task_runner(),
-      context_->video_encode_task_runner(), context_->network_task_runner(),
-      context_->ui_task_runner()));
+  host_.reset(new ChromotingHost(desktop_environment_factory_.get(),
+                                 std::move(session_manager), transport_context,
+                                 context_->audio_task_runner(),
+                                 context_->video_encode_task_runner()));
+
+  if (gnubby_auth_policy_enabled_ && gnubby_extension_supported_) {
+    host_->AddExtension(make_scoped_ptr(new GnubbyExtension()));
+  }
 
   if (frame_recorder_buffer_size_ > 0) {
     scoped_ptr<VideoFrameRecorderHostExtension> frame_recorder_extension(

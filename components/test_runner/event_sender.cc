@@ -487,6 +487,7 @@ class EventSenderBindings : public gin::Wrappable<EventSenderBindings> {
                          float velocity_x,
                          float velocity_y,
                          gin::Arguments* args);
+  bool IsFlinging() const;
   void GestureScrollFirstPoint(int x, int y);
   void TouchStart();
   void TouchMove();
@@ -614,6 +615,7 @@ EventSenderBindings::GetObjectTemplateBuilder(v8::Isolate* isolate) {
                  &EventSenderBindings::DumpFilenameBeingDragged)
       .SetMethod("gestureFlingCancel", &EventSenderBindings::GestureFlingCancel)
       .SetMethod("gestureFlingStart", &EventSenderBindings::GestureFlingStart)
+      .SetMethod("isFlinging", &EventSenderBindings::IsFlinging)
       .SetMethod("gestureScrollFirstPoint",
                  &EventSenderBindings::GestureScrollFirstPoint)
       .SetMethod("touchStart", &EventSenderBindings::TouchStart)
@@ -785,6 +787,12 @@ void EventSenderBindings::GestureFlingStart(float x,
                                             gin::Arguments* args) {
   if (sender_)
     sender_->GestureFlingStart(x, y, velocity_x, velocity_y, args);
+}
+
+bool EventSenderBindings::IsFlinging() const {
+  if (sender_)
+    return sender_->IsFlinging();
+  return false;
 }
 
 void EventSenderBindings::GestureScrollFirstPoint(int x, int y) {
@@ -1808,6 +1816,10 @@ void EventSender::GestureFlingStart(float x,
   HandleInputEventOnViewOrPopup(event);
 }
 
+bool EventSender::IsFlinging() const {
+  return view_->isFlinging();
+}
+
 void EventSender::GestureScrollFirstPoint(int x, int y) {
   current_gesture_location_ = WebPoint(x, y);
 }
@@ -1845,6 +1857,16 @@ void EventSender::LeapForward(int milliseconds) {
 }
 
 void EventSender::BeginDragWithFiles(const std::vector<std::string>& files) {
+  if (!current_drag_data_.isNull()) {
+    // Nested dragging not supported, fuzzer code a likely culprit.
+    // Cancel the current drag operation and throw an error.
+    KeyDown("escape", 0, DOMKeyLocationStandard);
+    v8::Isolate* isolate = blink::mainThreadIsolate();
+    isolate->ThrowException(v8::Exception::Error(
+        gin::StringToV8(isolate,
+                        "Nested beginDragWithFiles() not supported.")));
+    return;
+  }
   current_drag_data_.initialize();
   WebVector<WebString> absolute_filenames(files.size());
   for (size_t i = 0; i < files.size(); ++i) {

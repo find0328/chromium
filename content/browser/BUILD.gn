@@ -41,7 +41,6 @@ source_set("browser") {
     "//mojo/common",
     "//mojo/public/cpp/bindings",
     "//mojo/shell",
-    "//mojo/shell/package_manager",
     "//mojo/shell/public/cpp:cpp_for_chromium",
     "//mojo/shell/public/interfaces",
     "//net",
@@ -118,6 +117,7 @@ source_set("browser") {
     deps += [
       "//cc",
       "//cc/surfaces",
+      "//components/leveldb:lib",
       "//components/scheduler:common",
       "//content/app/resources",
       "//content/app/strings",
@@ -181,7 +181,7 @@ source_set("browser") {
   }
 
   # TODO(GYP)
-  #   ['OS!="ios" and chrome_multiple_dll!=1', {
+  #   [chrome_multiple_dll!=1', {
   #     'dependencies': [
   #       '../third_party/WebKit/public/blink.gyp:blink',
   #     ],
@@ -500,13 +500,6 @@ source_set("browser") {
     deps += [ "//ui/compositor" ]
   }
 
-  if (!is_ios) {
-    sources += [
-      "compositor/surface_utils.cc",
-      "compositor/surface_utils.h",
-    ]
-  }
-
   if (enable_web_speech) {
     deps += [ "//third_party/flac" ]
   }
@@ -526,8 +519,8 @@ source_set("browser") {
     deps += [ "//third_party/boringssl" ]
   }
 
-  if (enable_mojo_media != "none") {
-    configs += [ "//media/mojo/services:enable_mojo_media_config" ]
+  if (enable_mojo_media) {
+    configs += [ "//media/mojo/services:mojo_media_config" ]
   }
 
   if (enable_webvr) {

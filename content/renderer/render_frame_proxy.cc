@@ -58,8 +58,18 @@ RenderFrameProxy* RenderFrameProxy::CreateProxyToReplaceFrame(
   // follow later.
   blink::WebRemoteFrame* web_frame =
       blink::WebRemoteFrame::create(scope, proxy.get());
-  proxy->Init(web_frame, frame_to_replace->render_view(),
-              frame_to_replace->GetRenderWidget());
+
+  // If frame_to_replace has a RenderFrameProxy parent, then its
+  // RenderWidget will be destroyed along with it, so the new
+  // RenderFrameProxy uses its parent's RenderWidget.
+  RenderWidget* widget =
+      (!frame_to_replace->GetWebFrame()->parent() ||
+       frame_to_replace->GetWebFrame()->parent()->isWebLocalFrame())
+          ? frame_to_replace->GetRenderWidget()
+          : RenderFrameProxy::FromWebFrame(
+                frame_to_replace->GetWebFrame()->parent())
+                ->render_widget();
+  proxy->Init(web_frame, frame_to_replace->render_view(), widget);
   return proxy.release();
 }
 
@@ -100,6 +110,7 @@ RenderFrameProxy* RenderFrameProxy::CreateFrameProxy(
     web_frame = parent->web_frame()->createRemoteChild(
         replicated_state.scope,
         blink::WebString::fromUTF8(replicated_state.name),
+        blink::WebString::fromUTF8(replicated_state.unique_name),
         replicated_state.sandbox_flags, proxy.get());
     render_view = parent->render_view();
     render_widget = parent->render_widget();
@@ -213,7 +224,8 @@ void RenderFrameProxy::SetReplicatedState(const FrameReplicationState& state) {
   DCHECK(web_frame_);
   web_frame_->setReplicatedOrigin(state.origin);
   web_frame_->setReplicatedSandboxFlags(state.sandbox_flags);
-  web_frame_->setReplicatedName(blink::WebString::fromUTF8(state.name));
+  web_frame_->setReplicatedName(blink::WebString::fromUTF8(state.name),
+                                blink::WebString::fromUTF8(state.unique_name));
   web_frame_->setReplicatedShouldEnforceStrictMixedContentChecking(
       state.should_enforce_strict_mixed_content_checking);
 }
@@ -268,7 +280,7 @@ bool RenderFrameProxy::Send(IPC::Message* message) {
 }
 
 void RenderFrameProxy::OnDeleteProxy() {
-  DCHECK(web_frame_->isWebRemoteFrame());
+  DCHECK(web_frame_);
   web_frame_->detach();
 }
 
@@ -333,8 +345,10 @@ void RenderFrameProxy::OnDispatchLoad() {
   web_frame_->DispatchLoadEventForFrameOwner();
 }
 
-void RenderFrameProxy::OnDidUpdateName(const std::string& name) {
-  web_frame_->setReplicatedName(blink::WebString::fromUTF8(name));
+void RenderFrameProxy::OnDidUpdateName(const std::string& name,
+                                       const std::string& unique_name) {
+  web_frame_->setReplicatedName(blink::WebString::fromUTF8(name),
+                                blink::WebString::fromUTF8(unique_name));
 }
 
 void RenderFrameProxy::OnEnforceStrictMixedContentChecking(

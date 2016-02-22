@@ -78,6 +78,7 @@ FrameTreeNode::FrameTreeNode(
     RenderFrameHostManager::Delegate* manager_delegate,
     blink::WebTreeScopeType scope,
     const std::string& name,
+    const std::string& unique_name,
     const blink::WebFrameOwnerProperties& frame_owner_properties)
     : frame_tree_(frame_tree),
       navigator_(navigator),
@@ -94,6 +95,7 @@ FrameTreeNode::FrameTreeNode(
       replication_state_(
           scope,
           name,
+          unique_name,
           blink::WebSandboxFlags::None,
           false /* should enforce strict mixed content checking */),
       pending_sandbox_flags_(blink::WebSandboxFlags::None),
@@ -203,10 +205,16 @@ void FrameTreeNode::SetCurrentOrigin(const url::Origin& origin) {
   replication_state_.origin = origin;
 }
 
-void FrameTreeNode::SetFrameName(const std::string& name) {
-  if (name != replication_state_.name)
-    render_manager_.OnDidUpdateName(name);
+void FrameTreeNode::SetFrameName(const std::string& name,
+                                 const std::string& unique_name) {
+  if (name == replication_state_.name) {
+    // |unique_name| shouldn't change unless |name| changes.
+    DCHECK_EQ(unique_name, replication_state_.unique_name);
+    return;
+  }
+  render_manager_.OnDidUpdateName(name, unique_name);
   replication_state_.name = name;
+  replication_state_.unique_name = unique_name;
 }
 
 void FrameTreeNode::SetEnforceStrictMixedContentChecking(bool should_enforce) {
@@ -287,30 +295,33 @@ void FrameTreeNode::CreatedNavigationRequest(
     scoped_ptr<NavigationRequest> navigation_request) {
   CHECK(IsBrowserSideNavigationEnabled());
 
+  bool was_previously_loading = frame_tree()->IsLoading();
+
   // There's no need to reset the state: there's still an ongoing load, and the
   // RenderFrameHostManager will take care of updates to the speculative
   // RenderFrameHost in DidCreateNavigationRequest below.
-  ResetNavigationRequest(true);
+  if (was_previously_loading)
+    ResetNavigationRequest(true);
+
+  navigation_request_ = std::move(navigation_request);
+  render_manager()->DidCreateNavigationRequest(*navigation_request_);
 
   // Force the throbber to start to keep it in sync with what is happening in
   // the UI. Blink doesn't send throb notifications for JavaScript URLs, so it
   // is not done here either.
-  if (!navigation_request->common_params().url.SchemeIs(
+  if (!navigation_request_->common_params().url.SchemeIs(
           url::kJavaScriptScheme)) {
     // TODO(fdegans): Check if this is a same-document navigation and set the
     // proper argument.
-    DidStartLoading(true);
+    DidStartLoading(true, was_previously_loading);
   }
-
-  navigation_request_ = std::move(navigation_request);
-
-  render_manager()->DidCreateNavigationRequest(*navigation_request_);
 }
 
 void FrameTreeNode::ResetNavigationRequest(bool keep_state) {
   CHECK(IsBrowserSideNavigationEnabled());
   if (!navigation_request_)
     return;
+  bool was_renderer_initiated = !navigation_request_->browser_initiated();
   navigation_request_.reset();
 
   if (keep_state)
@@ -320,6 +331,14 @@ void FrameTreeNode::ResetNavigationRequest(bool keep_state) {
   // it created for the navigation. Also register that the load stopped.
   DidStopLoading();
   render_manager_.CleanUpNavigation();
+
+  // If the navigation is renderer-initiated, the renderer should also be
+  // informed that the navigation stopped.
+  if (was_renderer_initiated) {
+    current_frame_host()->Send(
+        new FrameMsg_Stop(current_frame_host()->GetRoutingID()));
+  }
+
 }
 
 bool FrameTreeNode::has_started_loading() const {
@@ -330,7 +349,8 @@ void FrameTreeNode::reset_loading_progress() {
   loading_progress_ = kLoadingProgressNotStarted;
 }
 
-void FrameTreeNode::DidStartLoading(bool to_different_document) {
+void FrameTreeNode::DidStartLoading(bool to_different_document,
+                                    bool was_previously_loading) {
   // Any main frame load to a new document should reset the load progress since
   // it will replace the current page and any frames. The WebContents will
   // be notified when DidChangeLoadProgress is called.
@@ -338,7 +358,7 @@ void FrameTreeNode::DidStartLoading(bool to_different_document) {
     frame_tree_->ResetLoadProgress();
 
   // Notify the WebContents.
-  if (!frame_tree_->IsLoading())
+  if (!was_previously_loading)
     navigator()->GetDelegate()->DidStartLoading(this, to_different_document);
 
   // Set initial load progress and update overall progress. This will notify
@@ -403,6 +423,29 @@ bool FrameTreeNode::StopLoading() {
 void FrameTreeNode::DidFocus() {
   last_focus_time_ = base::TimeTicks::Now();
   FOR_EACH_OBSERVER(Observer, observers_, OnFrameTreeNodeFocused(this));
+}
+
+void FrameTreeNode::BeforeUnloadCanceled() {
+  // TODO(clamy): Support BeforeUnload in subframes.
+  if (!IsMainFrame())
+    return;
+
+  RenderFrameHostImpl* current_frame_host =
+      render_manager_.current_frame_host();
+  DCHECK(current_frame_host);
+  current_frame_host->ResetLoadingState();
+
+  if (IsBrowserSideNavigationEnabled()) {
+    RenderFrameHostImpl* speculative_frame_host =
+        render_manager_.speculative_frame_host();
+    if (speculative_frame_host)
+      speculative_frame_host->ResetLoadingState();
+  } else {
+    RenderFrameHostImpl* pending_frame_host =
+        render_manager_.pending_frame_host();
+    if (pending_frame_host)
+      pending_frame_host->ResetLoadingState();
+  }
 }
 
 }  // namespace content

@@ -23,7 +23,6 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeActivity;
-import org.chromium.chrome.browser.ChromeBrowserProviderClient;
 import org.chromium.chrome.browser.TabLoadStatus;
 import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.WindowDelegate;
@@ -31,7 +30,7 @@ import org.chromium.chrome.browser.appmenu.AppMenuButtonHelper;
 import org.chromium.chrome.browser.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.appmenu.AppMenuObserver;
 import org.chromium.chrome.browser.appmenu.AppMenuPropertiesDelegate;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge;
 import org.chromium.chrome.browser.compositor.Invalidator;
 import org.chromium.chrome.browser.compositor.layouts.EmptyOverviewModeObserver;
 import org.chromium.chrome.browser.compositor.layouts.Layout;
@@ -48,6 +47,7 @@ import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
 import org.chromium.chrome.browser.partnercustomizations.HomepageManager;
 import org.chromium.chrome.browser.partnercustomizations.HomepageManager.HomepageStateListener;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.provider.ChromeBrowserProviderClient;
 import org.chromium.chrome.browser.search_engines.TemplateUrlService;
 import org.chromium.chrome.browser.search_engines.TemplateUrlService.TemplateUrl;
 import org.chromium.chrome.browser.search_engines.TemplateUrlService.TemplateUrlServiceObserver;
@@ -68,6 +68,7 @@ import org.chromium.chrome.browser.widget.findinpage.FindToolbarManager;
 import org.chromium.chrome.browser.widget.findinpage.FindToolbarObserver;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.NavigationController;
+import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.PageTransition;
@@ -118,14 +119,14 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
     private MenuDelegatePhone mMenuDelegatePhone;
     private final ToolbarModelImpl mToolbarModel;
     private Profile mCurrentProfile;
-    private BookmarksBridge mBookmarksBridge;
+    private BookmarkBridge mBookmarkBridge;
     private TemplateUrlServiceObserver mTemplateUrlObserver;
     private final LocationBar mLocationBar;
     private FindToolbarManager mFindToolbarManager;
     private final AppMenuPropertiesDelegate mAppMenuPropertiesDelegate;
 
     private final TabObserver mTabObserver;
-    private final BookmarksBridge.BookmarkModelObserver mBookmarksObserver;
+    private final BookmarkBridge.BookmarkModelObserver mBookmarksObserver;
     private final List<FindToolbarObserver> mFindToolbarObservers;
     private final OverviewModeObserver mOverviewModeObserver;
     private final SceneChangeObserver mSceneChangeObserver;
@@ -243,7 +244,6 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
             public void onTabModelSelected(TabModel newModel, TabModel oldModel) {
                 refreshSelectedTab();
                 updateTabCount();
-                mControlContainer.invalidateBitmap();
             }
 
             @Override
@@ -291,6 +291,8 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
         };
 
         mTabObserver = new EmptyTabObserver() {
+            private boolean mIsLoadingNativePage;
+
             @Override
             public void onSSLStateUpdated(Tab tab) {
                 super.onSSLStateUpdated(tab);
@@ -314,8 +316,20 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
 
             @Override
             public void onPageLoadStarted(Tab tab, String url) {
-                if (NativePageFactory.isNativePageUrl(url, tab.isIncognito())) {
+                // Recheck the URL to determine if it is a native page or not.  This was done using
+                // the pending URL in onLoadStarted, but we sanity check the URL here to ensure
+                // the final URL is in the same state.  If the state has changed, update the
+                // progress bar to reflect the correct state.
+                boolean isNativePage = NativePageFactory.isNativePageUrl(url, tab.isIncognito());
+
+                if (isNativePage == mIsLoadingNativePage) return;
+                mIsLoadingNativePage = isNativePage;
+
+                if (mIsLoadingNativePage) {
                     finishLoadProgress(false);
+                } else {
+                    mToolbar.startLoadProgress();
+                    setLoadProgress(tab.getProgress());
                 }
             }
 
@@ -349,7 +363,19 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
                 updateTabLoadingState(true);
                 mLoadProgressSimulator.cancel();
 
-                if (NativePageFactory.isNativePageUrl(tab.getUrl(), tab.isIncognito())) {
+                mIsLoadingNativePage = false;
+
+                NavigationEntry pendingEntry =
+                        tab.getWebContents().getNavigationController().getPendingEntry();
+                // At this point, the URL on the tab is not guaranteed to be correct, so we peek at
+                // the pending URL.  We only use this as a signal for starting the progress bar,
+                // and can not use it for anything security related.
+                if (pendingEntry != null) {
+                    mIsLoadingNativePage = NativePageFactory.isNativePageUrl(
+                            pendingEntry.getUrl(), tab.isIncognito());
+                }
+
+                if (mIsLoadingNativePage) {
                     finishLoadProgress(false);
                 } else {
                     mToolbar.startLoadProgress();
@@ -372,6 +398,8 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
 
             @Override
             public void onLoadProgressChanged(Tab tab, int progress) {
+                if (mIsLoadingNativePage) return;
+
                 // TODO(kkimlabs): Investigate using float progress all the way up to Blink.
                 setLoadProgress(progress / 100.0f);
             }
@@ -443,7 +471,7 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
             }
         };
 
-        mBookmarksObserver = new BookmarksBridge.BookmarkModelObserver() {
+        mBookmarksObserver = new BookmarkBridge.BookmarkModelObserver() {
             @Override
             public void bookmarkModelChanged() {
                 updateBookmarkButtonStatus();
@@ -497,6 +525,10 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
             public void onTabSelectionHinted(int tabId) {
                 mPreselectedTabId = tabId;
                 refreshSelectedTab();
+
+                if (mToolbar.setForceTextureCapture(true)) {
+                    mControlContainer.invalidateBitmap();
+                }
             }
 
             @Override
@@ -560,6 +592,7 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
         mToolbar.setOnNewTabClickHandler(newTabClickHandler);
         mToolbar.setBookmarkClickHandler(bookmarkClickHandler);
         mToolbar.setCustomTabCloseClickHandler(customTabsBackClickHandler);
+        mToolbar.setLayoutUpdateHost(layoutDriver);
 
         mToolbarModel.initializeWithNative();
 
@@ -572,9 +605,9 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
                 for (TabModel model : mTabModelSelector.getModels()) {
                     model.removeObserver(mTabModelObserver);
                 }
-                if (mBookmarksBridge != null) {
-                    mBookmarksBridge.destroy();
-                    mBookmarksBridge = null;
+                if (mBookmarkBridge != null) {
+                    mBookmarkBridge.destroy();
+                    mBookmarkBridge = null;
                 }
                 if (mTemplateUrlObserver != null) {
                     TemplateUrlService.getInstance().removeObserver(mTemplateUrlObserver);
@@ -631,8 +664,8 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
     /**
      * @return The bookmarks bridge.
      */
-    public BookmarksBridge getBookmarksBridge() {
-        return mBookmarksBridge;
+    public BookmarkBridge getBookmarkBridge() {
+        return mBookmarkBridge;
     }
 
     /**
@@ -986,8 +1019,8 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
         Tab currentTab = mToolbarModel.getTab();
         boolean isBookmarked = currentTab != null
                 && currentTab.getBookmarkId() != ChromeBrowserProviderClient.INVALID_BOOKMARK_ID;
-        boolean editingAllowed = currentTab == null || mBookmarksBridge == null
-                || mBookmarksBridge.isEditBookmarksEnabled();
+        boolean editingAllowed = currentTab == null || mBookmarkBridge == null
+                || mBookmarkBridge.isEditBookmarksEnabled();
         mToolbar.updateBookmarkButton(isBookmarked, editingAllowed);
     }
 
@@ -1045,10 +1078,10 @@ public class ToolbarManager implements ToolbarTabController, UrlFocusChangeListe
 
         Profile profile = mTabModelSelector.getModel(isIncognito).getProfile();
         if (mCurrentProfile != profile) {
-            if (mBookmarksBridge != null) mBookmarksBridge.destroy();
-            mBookmarksBridge = new BookmarksBridge(profile);
-            mBookmarksBridge.addObserver(mBookmarksObserver);
-            mAppMenuPropertiesDelegate.setBookmarksBridge(mBookmarksBridge);
+            if (mBookmarkBridge != null) mBookmarkBridge.destroy();
+            mBookmarkBridge = new BookmarkBridge(profile);
+            mBookmarkBridge.addObserver(mBookmarksObserver);
+            mAppMenuPropertiesDelegate.setBookmarkBridge(mBookmarkBridge);
             mLocationBar.setAutocompleteProfile(profile);
             mCurrentProfile = profile;
         }

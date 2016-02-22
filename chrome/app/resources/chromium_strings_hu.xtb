@@ -127,7 +127,6 @@
 <translation id="5859963531214966875">A Chromium jövőbeli verziói nem fogják támogatni ezt a Linux rendszert.</translation>
 <translation id="5862307444128926510">Üdvözli a Chromium!</translation>
 <translation id="5877064549588274448">Módosult a csatorna. Indítsa újra az eszközt a módosítások alkalmazásához.</translation>
-<translation id="5909170354645388250">Nincs használatban a Chromiumban. Az erőforrástérképeket szinkronban tartó helyőrző. A következő argumentumot várja: $1.</translation>
 <translation id="5942225298871134766">A Chromium tárolja ezt a(z) <ph name="SAVED_PASSWORD_LINK" /> segítségével, és emlékezni fog, amikor legközelebb szükség lesz rá.</translation>
 <translation id="5942520288919337908">A(z) <ph name="EXTENSION_NAME" /> hozzá lett adva a Chromiumhoz.</translation>
 <translation id="59625444380784159">A névjegyek részletei révén gyorsabban kitöltheti az űrlapokat a Chromiumban.</translation>
@@ -205,7 +204,6 @@ A Chromium nem tudja visszaállítani a beállításait.</translation>
 <translation id="8586442755830160949">Copyright <ph name="YEAR" /> – A Chromium szerzői. Minden jog fenntartva.</translation>
 <translation id="8621669128220841554">A telepítés egy meg nem határozott hiba miatt nem sikerült. Kérjük, töltse le újra a Chromiumot.</translation>
 <translation id="8628626585870903697">A Chromium nem tartalmazza a PDF Viewer alkalmazást, amely a Nyomtatási előnézet működéséhez szükséges.</translation>
-<translation id="8684913864886094367">A Chromium nem záródott be megfelelően.</translation>
 <translation id="8697124171261953979">Továbbá azt is szabályozza, hogy melyik oldal jelenik meg a Chromium indításakor vagy a cím- és keresősávban indított kereséskor.</translation>
 <translation id="8704119203788522458">Ez az Ön Chromiumja</translation>
 <translation id="872034308864968620">A Chromium fusson a háttérben</translation>

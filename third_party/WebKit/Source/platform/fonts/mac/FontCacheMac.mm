@@ -96,8 +96,6 @@ static inline bool isAppKitFontWeightBold(NSInteger appKitFontWeight)
     return appKitFontWeight >= 7;
 }
 
-void FontCache::acceptLanguagesChanged(const String&) {}
-
 PassRefPtr<SimpleFontData> FontCache::fallbackFontForCharacter(const FontDescription& fontDescription, UChar32 character, const SimpleFontData* fontDataToSubstitute)
 {
     // FIXME: We should fix getFallbackFamily to take a UChar32
@@ -169,8 +167,14 @@ PassRefPtr<SimpleFontData> FontCache::fallbackFontForCharacter(const FontDescrip
     substituteFontTraits = [fontManager traitsOfFont:substituteFont];
     substituteFontWeight = [fontManager weightOfFont:substituteFont];
 
+    // TODO(eae): Remove once skia supports bold emoji. See https://bugs.chromium.org/p/skia/issues/detail?id=4904
+    // Bold emoji look the same as normal emoji, so syntheticBold isn't needed.
+    bool syntheticBold = isAppKitFontWeightBold(weight) &&
+        !isAppKitFontWeightBold(substituteFontWeight) &&
+        ![substituteFont.familyName isEqual:@"Apple Color Emoji"];
+
     FontPlatformData alternateFont(substituteFont, platformData.size(),
-        isAppKitFontWeightBold(weight) && !isAppKitFontWeightBold(substituteFontWeight),
+        syntheticBold,
         (traits & NSFontItalicTrait) && !(substituteFontTraits & NSFontItalicTrait),
         platformData.orientation());
 
@@ -213,7 +217,12 @@ PassOwnPtr<FontPlatformData> FontCache::createFontPlatformData(const FontDescrip
 
     NSFont *platformFont = useHinting() ? [nsFont screenFont] : [nsFont printerFont];
     NSInteger appKitWeight = toAppKitFontWeight(fontDescription.weight());
-    bool syntheticBold = (isAppKitFontWeightBold(appKitWeight) && !isAppKitFontWeightBold(actualWeight)) || fontDescription.isSyntheticBold();
+
+    // TODO(eae): Remove once skia supports bold emoji. See https://bugs.chromium.org/p/skia/issues/detail?id=4904
+    // Bold emoji look the same as normal emoji, so syntheticBold isn't needed.
+    bool syntheticBold = [platformFont.familyName isEqual:@"Apple Color Emoji"] ? false :
+        (isAppKitFontWeightBold(appKitWeight) && !isAppKitFontWeightBold(actualWeight)) || fontDescription.isSyntheticBold();
+
     bool syntheticItalic = ((traits & NSFontItalicTrait) && !(actualTraits & NSFontItalicTrait)) || fontDescription.isSyntheticItalic();
 
     // FontPlatformData::typeface() is null in the case of Chromium out-of-process font loading failing.

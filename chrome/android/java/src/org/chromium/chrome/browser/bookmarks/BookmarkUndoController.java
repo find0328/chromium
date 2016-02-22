@@ -7,8 +7,8 @@ package org.chromium.chrome.browser.bookmarks;
 import android.content.Context;
 
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkModelObserver;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserver;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel.BookmarkDeleteObserver;
 import org.chromium.chrome.browser.snackbar.Snackbar;
 import org.chromium.chrome.browser.snackbar.SnackbarManager;
@@ -16,7 +16,7 @@ import org.chromium.chrome.browser.snackbar.SnackbarManager;
 import java.util.Locale;
 
 /**
- * Shows an undo bar when the user modifies enhanced bookmarks,
+ * Shows an undo bar when the user modifies bookmarks,
  * allowing them to undo their changes.
  * TODO(danduong): Add move undo
  */
@@ -30,7 +30,7 @@ public class BookmarkUndoController extends BookmarkModelObserver implements
     /**
      * Creates an instance of {@link BookmarkUndoController}.
      * @param context The {@link Context} in which snackbar is shown.
-     * @param model The enhanced bookmark model.
+     * @param model The bookmark model.
      * @param snackbarManager SnackManager passed from activity.
      */
     public BookmarkUndoController(Context context, BookmarkModel model,
@@ -85,13 +85,13 @@ public class BookmarkUndoController extends BookmarkModelObserver implements
         if (titles.length == 1) {
             mSnackbarManager.showSnackbar(Snackbar.make(titles[0], this, Snackbar.TYPE_ACTION)
                     .setTemplateText(mContext.getString(R.string.undo_bar_delete_message))
-                    .setAction(mContext.getString(R.string.undo_bar_button_text), null));
+                    .setAction(mContext.getString(R.string.undo), null));
         } else {
             mSnackbarManager.showSnackbar(
                     Snackbar.make(String.format(Locale.getDefault(), "%d", titles.length), this,
                             Snackbar.TYPE_ACTION)
                     .setTemplateText(mContext.getString(R.string.undo_bar_multiple_delete_message))
-                    .setAction(mContext.getString(R.string.undo_bar_button_text), null));
+                    .setAction(mContext.getString(R.string.undo), null));
         }
     }
 }

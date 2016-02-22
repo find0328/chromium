@@ -201,6 +201,13 @@ bool HTMLSelectElement::valueMissing() const
     return firstSelectionIndex < 0 || (!firstSelectionIndex && hasPlaceholderLabelOption());
 }
 
+String HTMLSelectElement::defaultToolTip() const
+{
+    if (form() && form()->noValidate())
+        return String();
+    return validationMessage();
+}
+
 void HTMLSelectElement::listBoxSelectItem(int listIndex, bool allowMultiplySelections, bool shift, bool fireOnChangeNow)
 {
     if (!multiple()) {
@@ -1912,14 +1919,14 @@ LayoutUnit HTMLSelectElement::clientPaddingLeft() const
 {
     if (layoutObject() && layoutObject()->isMenuList())
         return toLayoutMenuList(layoutObject())->clientPaddingLeft();
-    return 0;
+    return LayoutUnit();
 }
 
 LayoutUnit HTMLSelectElement::clientPaddingRight() const
 {
     if (layoutObject() && layoutObject()->isMenuList())
         return toLayoutMenuList(layoutObject())->clientPaddingRight();
-    return 0;
+    return LayoutUnit();
 }
 
 void HTMLSelectElement::popupDidHide()

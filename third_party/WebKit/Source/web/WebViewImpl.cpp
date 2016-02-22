@@ -638,6 +638,10 @@ void WebViewImpl::handleMouseUp(LocalFrame& mainFrame, const WebMouseEvent& even
 
 WebInputEventResult WebViewImpl::handleMouseWheel(LocalFrame& mainFrame, const WebMouseWheelEvent& event)
 {
+    // Halt an in-progress fling on a wheel tick.
+    if (!event.hasPreciseScrollingDeltas)
+        endActiveFlingAnimation();
+
     hidePopups();
     return PageWidgetEventHandler::handleMouseWheel(mainFrame, event);
 }
@@ -1661,7 +1665,9 @@ PagePopup* WebViewImpl::openPagePopup(PagePopupClient* client)
     ASSERT(!m_pagePopup);
 
     WebWidget* popupWidget = m_client->createPopupMenu(WebPopupTypePage);
-    ASSERT(popupWidget);
+    // createPopupMenu returns nullptr if this renderer process is about to die.
+    if (!popupWidget)
+        return nullptr;
     m_pagePopup = toWebPagePopupImpl(popupWidget);
     if (!m_pagePopup->initialize(this, client)) {
         m_pagePopup->closePopup();
@@ -1943,6 +1949,7 @@ void WebViewImpl::beginFrame(double lastFrameTimeMonotonic)
     if (!m_page)
         return;
 
+    DocumentLifecycle::AllowThrottlingScope throttlingScope(mainFrameImpl()->frame()->document()->lifecycle());
     PageWidgetDelegate::animate(*m_page, lastFrameTimeMonotonic);
 }
 
@@ -1952,6 +1959,7 @@ void WebViewImpl::updateAllLifecyclePhases()
     if (!mainFrameImpl())
         return;
 
+    DocumentLifecycle::AllowThrottlingScope throttlingScope(mainFrameImpl()->frame()->document()->lifecycle());
     updateLayerTreeBackgroundColor();
 
     PageWidgetDelegate::updateAllLifecyclePhases(*m_page, *mainFrameImpl()->frame());
@@ -3528,6 +3536,7 @@ WebHitTestResult WebViewImpl::hitTestResultAt(const WebPoint& point)
 
 HitTestResult WebViewImpl::coreHitTestResultAt(const WebPoint& pointInViewport)
 {
+    DocumentLifecycle::AllowThrottlingScope throttlingScope(mainFrameImpl()->frame()->document()->lifecycle());
     FrameView* view = mainFrameImpl()->frameView();
     IntPoint pointInRootFrame = view->contentsToFrame(view->viewportToContents(pointInViewport));
     return hitTestResultForRootFramePos(pointInRootFrame);
@@ -4544,7 +4553,6 @@ void WebViewImpl::attachPaintArtifactCompositor()
     // TODO(jbroman): This should probably have hookups for overlays, visual
     // viewport, etc.
 
-    m_paintArtifactCompositor.initializeIfNeeded();
     WebLayer* rootLayer = m_paintArtifactCompositor.webLayer();
     ASSERT(rootLayer);
     m_layerTreeView->setRootLayer(*rootLayer);

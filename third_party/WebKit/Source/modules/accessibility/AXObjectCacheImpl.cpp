@@ -149,23 +149,37 @@ AXObject* AXObjectCacheImpl::focusedImageMapUIElement(HTMLAreaElement* areaEleme
     return 0;
 }
 
-AXObject* AXObjectCacheImpl::focusedUIElementForPage(const Page* page)
+AXObject* AXObjectCacheImpl::focusedObject()
 {
-    if (!page->settings().accessibilityEnabled())
+    if (!accessibilityEnabled())
         return 0;
 
-    // Cross-process accessibility is not yet implemented.
-    if (!page->focusController().focusedOrMainFrame()->isLocalFrame())
+    // We don't have to return anything if the focused frame is not local;
+    // the remote frame will have its own AXObjectCacheImpl and the focused
+    // object will be sorted out by the browser process.
+    Page* page = m_document->page();
+    if (!page->focusController().focusedFrame())
         return 0;
 
-    // get the focused node in the page
-    Document* focusedDocument = toLocalFrame(page->focusController().focusedOrMainFrame())->document();
+    // Get the focused node in the page.
+    Document* focusedDocument = page->focusController().focusedFrame()->document();
     Node* focusedNode = focusedDocument->focusedElement();
     if (!focusedNode)
         focusedNode = focusedDocument;
 
-    if (isHTMLAreaElement(*focusedNode))
+    // If it's an image map, get the focused link within the image map.
+    if (isHTMLAreaElement(focusedNode))
         return focusedImageMapUIElement(toHTMLAreaElement(focusedNode));
+
+    // See if there's a page popup, for example a calendar picker.
+    Element* adjustedFocusedElement = focusedDocument->adjustedFocusedElement();
+    if (isHTMLInputElement(adjustedFocusedElement)) {
+        if (AXObject* axPopup = toHTMLInputElement(adjustedFocusedElement)->popupRootAXObject()) {
+            if (Element* focusedElementInPopup = axPopup->document()->focusedElement())
+                focusedNode = focusedElementInPopup;
+        }
+
+    }
 
     AXObject* obj = getOrCreate(focusedNode);
     if (!obj)
@@ -566,6 +580,16 @@ void AXObjectCacheImpl::removeAXID(AXObject* object)
     ASSERT(m_idsInUse.contains(objID));
     object->setAXObjectID(0);
     m_idsInUse.remove(objID);
+
+    if (m_ariaOwnerToChildrenMapping.contains(objID)) {
+        Vector<AXID> childAXIDs = m_ariaOwnerToChildrenMapping.get(objID);
+        for (size_t i = 0; i < childAXIDs.size(); ++i)
+            m_ariaOwnedChildToOwnerMapping.remove(childAXIDs[i]);
+        m_ariaOwnerToChildrenMapping.remove(objID);
+    }
+    m_ariaOwnedChildToOwnerMapping.remove(objID);
+    m_ariaOwnedChildToRealParentMapping.remove(objID);
+    m_ariaOwnerToIdsMapping.remove(objID);
 }
 
 void AXObjectCacheImpl::selectionChanged(Node* node)
@@ -1120,7 +1144,7 @@ void AXObjectCacheImpl::handleFocusedUIElementChanged(Node* oldFocusedNode, Node
     if (!page)
         return;
 
-    AXObject* focusedObject = focusedUIElementForPage(page);
+    AXObject* focusedObject = this->focusedObject();
     if (!focusedObject)
         return;
 

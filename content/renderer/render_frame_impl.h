@@ -96,6 +96,7 @@ class CdmFactory;
 class MediaPermission;
 class MediaServiceProvider;
 class RendererWebMediaPlayerDelegate;
+class SurfaceManager;
 class UrlIndex;
 class WebEncryptedMediaClientImpl;
 }
@@ -133,6 +134,7 @@ class RendererCdmManager;
 class RendererMediaPlayerManager;
 class RendererMediaSessionManager;
 class RendererPpapiHost;
+class RendererSurfaceViewManager;
 class RenderFrameObserver;
 class RenderViewImpl;
 class RenderWidget;
@@ -413,7 +415,6 @@ class CONTENT_EXPORT RenderFrameImpl
   blink::WebPlugin* createPlugin(blink::WebLocalFrame* frame,
                                  const blink::WebPluginParams& params) override;
   blink::WebMediaPlayer* createMediaPlayer(
-      blink::WebLocalFrame* frame,
       blink::WebMediaPlayer::LoadType load_type,
       const blink::WebURL& url,
       blink::WebMediaPlayerClient* client,
@@ -423,29 +424,28 @@ class CONTENT_EXPORT RenderFrameImpl
       blink::WebMediaSession* media_session) override;
   blink::WebMediaSession* createMediaSession() override;
   blink::WebApplicationCacheHost* createApplicationCacheHost(
-      blink::WebLocalFrame* frame,
       blink::WebApplicationCacheHostClient* client) override;
   blink::WebWorkerContentSettingsClientProxy*
-  createWorkerContentSettingsClientProxy(blink::WebLocalFrame* frame) override;
+  createWorkerContentSettingsClientProxy() override;
   blink::WebExternalPopupMenu* createExternalPopupMenu(
       const blink::WebPopupMenuInfo& popup_menu_info,
       blink::WebExternalPopupMenuClient* popup_menu_client) override;
-  blink::WebCookieJar* cookieJar(blink::WebLocalFrame* frame) override;
-  blink::WebServiceWorkerProvider* createServiceWorkerProvider(
-      blink::WebLocalFrame* frame) override;
-  void didAccessInitialDocument(blink::WebLocalFrame* frame) override;
+  blink::WebCookieJar* cookieJar() override;
+  blink::WebServiceWorkerProvider* createServiceWorkerProvider() override;
+  void didAccessInitialDocument() override;
   blink::WebFrame* createChildFrame(
       blink::WebLocalFrame* parent,
       blink::WebTreeScopeType scope,
       const blink::WebString& name,
-      blink::WebSandboxFlags sandboxFlags,
-      const blink::WebFrameOwnerProperties& frameOwnerProperties) override;
+      const blink::WebString& unique_name,
+      blink::WebSandboxFlags sandbox_flags,
+      const blink::WebFrameOwnerProperties& frame_owner_properties) override;
   void didChangeOpener(blink::WebFrame* frame) override;
   void frameDetached(blink::WebFrame* frame, DetachType type) override;
   void frameFocused() override;
   void willClose(blink::WebFrame* frame) override;
-  void didChangeName(blink::WebLocalFrame* frame,
-                     const blink::WebString& name) override;
+  void didChangeName(const blink::WebString& name,
+                     const blink::WebString& unique_name) override;
   void didEnforceStrictMixedContentChecking() override;
   void didChangeSandboxFlags(blink::WebFrame* child_frame,
                              blink::WebSandboxFlags flags) override;
@@ -470,10 +470,8 @@ class CONTENT_EXPORT RenderFrameImpl
   blink::WebNavigationPolicy decidePolicyForNavigation(
       const NavigationPolicyInfo& info) override;
   blink::WebHistoryItem historyItemForNewChildFrame() override;
-  void willSendSubmitEvent(blink::WebLocalFrame* frame,
-                           const blink::WebFormElement& form) override;
-  void willSubmitForm(blink::WebLocalFrame* frame,
-                      const blink::WebFormElement& form) override;
+  void willSendSubmitEvent(const blink::WebFormElement& form) override;
+  void willSubmitForm(const blink::WebFormElement& form) override;
   void didCreateDataSource(blink::WebLocalFrame* frame,
                            blink::WebDataSource* datasource) override;
   void didStartProvisionalLoad(blink::WebLocalFrame* frame,
@@ -505,7 +503,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void didNavigateWithinPage(blink::WebLocalFrame* frame,
                              const blink::WebHistoryItem& item,
                              blink::WebHistoryCommitType commit_type) override;
-  void didUpdateCurrentHistoryItem(blink::WebLocalFrame* frame) override;
+  void didUpdateCurrentHistoryItem() override;
   void didChangeThemeColor() override;
   void dispatchLoad() override;
   void requestNotificationPermission(
@@ -529,11 +527,9 @@ class CONTENT_EXPORT RenderFrameImpl
                        unsigned identifier,
                        blink::WebURLRequest& request,
                        const blink::WebURLResponse& redirect_response) override;
-  void didReceiveResponse(blink::WebLocalFrame* frame,
-                          unsigned identifier,
+  void didReceiveResponse(unsigned identifier,
                           const blink::WebURLResponse& response) override;
   void didLoadResourceFromMemoryCache(
-      blink::WebLocalFrame* frame,
       const blink::WebURLRequest& request,
       const blink::WebURLResponse& response) override;
   void didDisplayInsecureContent() override;
@@ -565,8 +561,7 @@ class CONTENT_EXPORT RenderFrameImpl
   void reportFindInPageSelection(int request_id,
                                  int active_match_ordinal,
                                  const blink::WebRect& sel) override;
-  void requestStorageQuota(blink::WebLocalFrame* frame,
-                           blink::WebStorageQuotaType type,
+  void requestStorageQuota(blink::WebStorageQuotaType type,
                            unsigned long long requested_size,
                            blink::WebStorageQuotaCallbacks callbacks) override;
   void willOpenWebSocket(blink::WebSocketHandle* handle) override;
@@ -575,7 +570,6 @@ class CONTENT_EXPORT RenderFrameImpl
   blink::WebPushClient* pushClient() override;
   blink::WebPresentationClient* presentationClient() override;
   void willStartUsingPeerConnectionHandler(
-      blink::WebLocalFrame* frame,
       blink::WebRTCPeerConnectionHandler* handler) override;
   blink::WebUserMediaClient* userMediaClient() override;
   blink::WebEncryptedMediaClient* encryptedMediaClient() override;
@@ -585,11 +579,10 @@ class CONTENT_EXPORT RenderFrameImpl
       blink::WebFrame* target_frame,
       blink::WebSecurityOrigin target_origin,
       blink::WebDOMMessageEvent event) override;
-  blink::WebString userAgentOverride(blink::WebLocalFrame* frame) override;
-  blink::WebString doNotTrackValue(blink::WebLocalFrame* frame) override;
-  bool allowWebGL(blink::WebLocalFrame* frame, bool default_value) override;
-  void didLoseWebGLContext(blink::WebLocalFrame* frame,
-                           int arb_robustness_status_code) override;
+  blink::WebString userAgentOverride() override;
+  blink::WebString doNotTrackValue() override;
+  bool allowWebGL(bool default_value) override;
+  void didLoseWebGLContext(int arb_robustness_status_code) override;
   blink::WebScreenOrientationClient* webScreenOrientationClient() override;
   bool isControlledByServiceWorker(blink::WebDataSource& data_source) override;
   int64_t serviceWorkerID(blink::WebDataSource& data_source) override;
@@ -602,7 +595,7 @@ class CONTENT_EXPORT RenderFrameImpl
       int start_offset,
       const blink::WebAXObject& end_object,
       int end_offset) override;
-  void didChangeManifest(blink::WebLocalFrame*) override;
+  void didChangeManifest() override;
   bool enterFullscreen() override;
   bool exitFullscreen() override;
   blink::WebPermissionClient* permissionClient() override;
@@ -1123,6 +1116,8 @@ class CONTENT_EXPORT RenderFrameImpl
   RendererMediaPlayerManager* media_player_manager_;
   RendererMediaSessionManager* media_session_manager_;
 #endif
+
+  media::SurfaceManager* media_surface_manager_;
 
 #if defined(ENABLE_BROWSER_CDMS)
   // Manage all CDMs in this render frame for communicating with the real CDM in

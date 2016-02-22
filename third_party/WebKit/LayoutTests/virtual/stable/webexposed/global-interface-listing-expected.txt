@@ -546,10 +546,6 @@ interface DOMImplementation
 interface DOMParser
     method constructor
     method parseFromString
-interface DOMSettableTokenList : DOMTokenList
-    getter value
-    method constructor
-    setter value
 interface DOMStringList
     getter length
     method constructor
@@ -559,6 +555,7 @@ interface DOMStringMap
     method constructor
 interface DOMTokenList
     getter length
+    getter value
     method add
     method constructor
     method contains
@@ -571,6 +568,7 @@ interface DOMTokenList
     method toString
     method toggle
     method values
+    setter value
 interface DataTransfer
     getter dropEffect
     getter effectAllowed
@@ -649,7 +647,6 @@ interface Document : Node
     getter contentType
     getter cookie
     getter currentScript
-    getter defaultCharset
     getter defaultView
     getter designMode
     getter dir
@@ -1003,6 +1000,7 @@ interface Element : Node
     method webkitMatchesSelector
     method webkitRequestFullScreen
     method webkitRequestFullscreen
+    setter classList
     setter className
     setter id
     setter innerHTML
@@ -1986,6 +1984,7 @@ interface HTMLLinkElement : HTMLElement
     setter integrity
     setter media
     setter rel
+    setter relList
     setter rev
     setter sizes
     setter target
@@ -2729,7 +2728,6 @@ interface KeyboardEvent : UIEvent
     getter ctrlKey
     getter keyCode
     getter keyIdentifier
-    getter keyLocation
     getter location
     getter metaKey
     getter repeat
@@ -3374,6 +3372,7 @@ interface PushManager
 interface PushSubscription
     getter endpoint
     method constructor
+    method getKey
     method toJSON
     method unsubscribe
 interface RTCCertificate
@@ -4591,6 +4590,24 @@ interface SharedWorker : EventTarget
     getter workerStart
     method constructor
     setter onerror
+interface SourceBuffer : EventTarget
+    getter appendWindowEnd
+    getter appendWindowStart
+    getter buffered
+    getter mode
+    getter timestampOffset
+    getter updating
+    method abort
+    method appendBuffer
+    method constructor
+    method remove
+    setter appendWindowEnd
+    setter appendWindowStart
+    setter mode
+    setter timestampOffset
+interface SourceBufferList : EventTarget
+    getter length
+    method constructor
 interface SpeechSynthesisEvent : Event
     getter charIndex
     getter elapsedTime
@@ -5839,9 +5856,9 @@ interface webkitURL
     attribute BluetoothAdvertisingData
     attribute BluetoothCharacteristicProperties
     attribute BluetoothDevice
-    attribute BluetoothGATTCharacteristic
-    attribute BluetoothGATTRemoteServer
-    attribute BluetoothGATTService
+    attribute BluetoothRemoteGATTCharacteristic
+    attribute BluetoothRemoteGATTServer
+    attribute BluetoothRemoteGATTService
     attribute BluetoothUUID
     attribute GCController
     attribute accessibilityController

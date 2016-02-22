@@ -67,7 +67,7 @@ struct SameSizeAsComputedStyle : public RefCounted<SameSizeAsComputedStyle> {
     } inherited_flags;
 
     struct NonInheritedFlags {
-        unsigned m_bitfields[2];
+        unsigned m_bitfields[3];
     } noninherited_flags;
 };
 
@@ -109,7 +109,7 @@ ALWAYS_INLINE ComputedStyle::ComputedStyle()
 {
     setBitDefaults(); // Would it be faster to copy this from the default style?
     static_assert((sizeof(InheritedFlags) <= 8), "InheritedFlags should not grow");
-    static_assert((sizeof(NonInheritedFlags) <= 8), "NonInheritedFlags should not grow");
+    static_assert((sizeof(NonInheritedFlags) <= 12), "NonInheritedFlags should not grow");
 }
 
 ALWAYS_INLINE ComputedStyle::ComputedStyle(InitialStyleTag)
@@ -223,6 +223,36 @@ ItemPosition ComputedStyle::resolveJustification(const ComputedStyle& parentStyl
     return childStyle.justifySelfPosition();
 }
 
+static inline ContentPosition resolvedContentAlignmentPosition(const StyleContentAlignmentData& value, const StyleContentAlignmentData& normalValueBehavior)
+{
+    return (value.position() == ContentPositionNormal && value.distribution() == ContentDistributionDefault) ? normalValueBehavior.position() : value.position();
+}
+
+static inline ContentDistributionType resolvedContentAlignmentDistribution(const StyleContentAlignmentData& value, const StyleContentAlignmentData& normalValueBehavior)
+{
+    return (value.position() == ContentPositionNormal && value.distribution() == ContentDistributionDefault) ? normalValueBehavior.distribution() : value.distribution();
+}
+
+ContentPosition ComputedStyle::resolvedJustifyContentPosition(const StyleContentAlignmentData& normalValueBehavior) const
+{
+    return resolvedContentAlignmentPosition(justifyContent(), normalValueBehavior);
+}
+
+ContentDistributionType ComputedStyle::resolvedJustifyContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const
+{
+    return resolvedContentAlignmentDistribution(justifyContent(), normalValueBehavior);
+}
+
+ContentPosition ComputedStyle::resolvedAlignContentPosition(const StyleContentAlignmentData& normalValueBehavior) const
+{
+    return resolvedContentAlignmentPosition(alignContent(), normalValueBehavior);
+}
+
+ContentDistributionType ComputedStyle::resolvedAlignContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const
+{
+    return resolvedContentAlignmentDistribution(alignContent(), normalValueBehavior);
+}
+
 void ComputedStyle::inheritFrom(const ComputedStyle& inheritParent, IsAtShadowBoundary isAtShadowBoundary)
 {
     if (isAtShadowBoundary == AtShadowBoundary) {
@@ -260,9 +290,9 @@ void ComputedStyle::copyNonInheritedFromCached(const ComputedStyle& other)
     noninherited_flags.tableLayout = other.noninherited_flags.tableLayout;
     noninherited_flags.unicodeBidi = other.noninherited_flags.unicodeBidi;
     noninherited_flags.hasViewportUnits = other.noninherited_flags.hasViewportUnits;
-    noninherited_flags.pageBreakBefore = other.noninherited_flags.pageBreakBefore;
-    noninherited_flags.pageBreakAfter = other.noninherited_flags.pageBreakAfter;
-    noninherited_flags.pageBreakInside = other.noninherited_flags.pageBreakInside;
+    noninherited_flags.breakBefore = other.noninherited_flags.breakBefore;
+    noninherited_flags.breakAfter = other.noninherited_flags.breakAfter;
+    noninherited_flags.breakInside = other.noninherited_flags.breakInside;
     noninherited_flags.hasRemUnits = other.noninherited_flags.hasRemUnits;
 
     // Correctly set during selector matching:
@@ -553,6 +583,8 @@ bool ComputedStyle::diffNeedsFullLayoutAndPaintInvalidation(const ComputedStyle&
             || rareInheritedData->m_textCombine != other.rareInheritedData->m_textCombine
             || rareInheritedData->m_tabSize != other.rareInheritedData->m_tabSize
             || rareInheritedData->listStyleImage != other.rareInheritedData->listStyleImage
+            || rareInheritedData->m_snapHeightUnit != other.rareInheritedData->m_snapHeightUnit
+            || rareInheritedData->m_snapHeightPosition != other.rareInheritedData->m_snapHeightPosition
             || rareInheritedData->textStrokeWidth != other.rareInheritedData->textStrokeWidth)
             return true;
 
@@ -1351,7 +1383,7 @@ int ComputedStyle::computedLineHeight() const
         return fontMetrics().lineSpacing();
 
     if (lh.hasPercent())
-        return minimumValueForLength(lh, computedFontSize());
+        return minimumValueForLength(lh, LayoutUnit(computedFontSize()));
 
     return std::min(lh.value(), LayoutUnit::max().toFloat());
 }
@@ -1504,7 +1536,7 @@ Color ComputedStyle::colorIncludingFallback(int colorProperty, bool visitedLink)
     case CSSPropertyOutlineColor:
         result = visitedLink ? visitedLinkOutlineColor() : outlineColor();
         break;
-    case CSSPropertyWebkitColumnRuleColor:
+    case CSSPropertyColumnRuleColor:
         result = visitedLink ? visitedLinkColumnRuleColor() : columnRuleColor();
         break;
     case CSSPropertyWebkitTextEmphasisColor:
@@ -1708,7 +1740,7 @@ bool ComputedStyle::columnRuleEquivalent(const ComputedStyle* otherStyle) const
 {
     return columnRuleStyle() == otherStyle->columnRuleStyle()
         && columnRuleWidth() == otherStyle->columnRuleWidth()
-        && visitedDependentColor(CSSPropertyWebkitColumnRuleColor) == otherStyle->visitedDependentColor(CSSPropertyWebkitColumnRuleColor);
+        && visitedDependentColor(CSSPropertyColumnRuleColor) == otherStyle->visitedDependentColor(CSSPropertyColumnRuleColor);
 }
 
 TextEmphasisMark ComputedStyle::textEmphasisMark() const

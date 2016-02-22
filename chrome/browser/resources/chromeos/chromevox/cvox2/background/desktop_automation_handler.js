@@ -49,6 +49,11 @@ DesktopAutomationHandler = function(node) {
            type: chrome.automation.EventType.loadComplete});
     }
   }
+
+  chrome.automation.getFocus((function(focus) {
+    if (focus)
+      this.onFocus({target: focus, type: 'focus'});
+  }).bind(this));
 };
 
 DesktopAutomationHandler.prototype = {
@@ -94,7 +99,7 @@ DesktopAutomationHandler.prototype = {
       return;
 
     var output = new Output();
-    output.withSpeech(
+    output.withRichSpeech(
         ChromeVoxState.instance.currentRange, prevRange, evt.type);
     if (!this.textEditHandler_) {
       output.withBraille(
@@ -140,8 +145,7 @@ DesktopAutomationHandler.prototype = {
     if (node.role == RoleType.embeddedObject || node.role == RoleType.client)
       return;
 
-    if (this.isEditable_(node))
-      this.createTextEditHandlerIfNeeded_(evt.target);
+    this.createTextEditHandlerIfNeeded_(evt.target);
 
     // Since we queue output mostly for live regions support and there isn't a
     // reliable way to know if this focus event resulted from a user's explicit
@@ -159,10 +163,6 @@ DesktopAutomationHandler.prototype = {
    * @param {Object} evt
    */
   onLoadComplete: function(evt) {
-    if (evt.target.docUrl.indexOf(
-        'chrome-extension://mndnfokpggljbaajbnioimlmbfngpief/' +
-            'cvox2/background/panel.html') == 0)
-      return;
     ChromeVoxState.instance.refreshMode(evt.target.docUrl);
 
     // Don't process nodes inside of web content if ChromeVox Next is inactive.
@@ -178,19 +178,19 @@ DesktopAutomationHandler.prototype = {
       return;
 
     ChromeVoxState.instance.setCurrentRange(cursors.Range.fromNode(evt.target));
-    new Output().withSpeechAndBraille(
+    new Output().withRichSpeechAndBraille(
         ChromeVoxState.instance.currentRange, null, evt.type).go();
   },
 
   /** @override */
   onTextChanged: function(evt) {
-    if (this.isEditable_(evt.target))
+    if (evt.target.state.editable)
       this.onEditableChanged_(evt);
   },
 
   /** @override */
   onTextSelectionChanged: function(evt) {
-    if (this.isEditable_(evt.target))
+    if (evt.target.state.editable)
       this.onEditableChanged_(evt);
   },
 
@@ -227,7 +227,7 @@ DesktopAutomationHandler.prototype = {
    */
   onValueChanged: function(evt) {
     // Delegate to the edit text handler if this is an editable.
-    if (this.isEditable_(evt.target)) {
+    if (evt.target.state.editable) {
       this.onEditableChanged_(evt);
       return;
     }
@@ -271,18 +271,6 @@ DesktopAutomationHandler.prototype = {
         this.textEditHandler_.node !== node) {
       this.textEditHandler_ = editing.TextEditHandler.createForNode(node);
     }
-  },
-
-  /**
-   * Returns true if |node| is editable.
-   * @param {AutomationNode} node
-   * @return {boolean}
-   * @private
-   */
-  isEditable_: function(node) {
-    // Remove the check for role after m47 whereafter the editable state can be
-    // used to know when to create an editable text handler.
-    return node.role == RoleType.textField || node.state.editable;
   }
 };
 

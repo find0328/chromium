@@ -6,8 +6,13 @@
 
 import bisect
 import itertools
+import logging
+import operator
 
 import devtools_monitor
+
+
+DEFAULT_CATEGORIES = None
 
 
 class TracingTrack(devtools_monitor.Track):
@@ -15,7 +20,9 @@ class TracingTrack(devtools_monitor.Track):
 
   See https://goo.gl/Qabkqk for details on the protocol.
   """
-  def __init__(self, connection, categories=None, fetch_stream=False):
+  def __init__(self, connection,
+               categories=DEFAULT_CATEGORIES,
+               fetch_stream=False):
     """Initialize this TracingTrack.
 
     Args:
@@ -39,11 +46,10 @@ class TracingTrack(devtools_monitor.Track):
 
     if connection:
       connection.SyncRequestNoResponse('Tracing.start', params)
-    self._events = []
 
-    self._event_msec_index = None
-    self._event_lists = None
+    self._events = []
     self._base_msec = None
+    self._interval_tree = None
 
   def Handle(self, method, event):
     for e in event['params']['value']:
@@ -51,10 +57,9 @@ class TracingTrack(devtools_monitor.Track):
       self._events.append(event)
       if self._base_msec is None or event.start_msec < self._base_msec:
         self._base_msec = event.start_msec
-    # Just invalidate our indices rather than trying to be fancy and
-    # incrementally update.
-    self._event_msec_index = None
-    self._event_lists = None
+    # Invalidate our index rather than trying to be fancy and incrementally
+    # update.
+    self._interval_tree = None
 
   def GetFirstEventMillis(self):
     """Find the canonical start time for this track.
@@ -79,21 +84,29 @@ class TracingTrack(devtools_monitor.Track):
       sample and counter) events are never included. Event end times are
       exclusive, so that an event ending at the usec parameter will not be
       returned.
-      TODO(mattcary): currently live objects are included. If this is too big we
-      may break that out into a separate index.
     """
     self._IndexEvents()
-    idx = bisect.bisect_right(self._event_msec_index, msec) - 1
-    if idx < 0:
-      return []
-    events = self._event_lists[idx]
-    assert events.start_msec <= msec
-    if not events or events.end_msec < msec:
-      return []
-    return events.event_list
+    return self._interval_tree.EventsAt(msec)
 
   def ToJsonDict(self):
     return {'events': [e.ToJsonDict() for e in self._events]}
+
+  def TracingTrackForThread(self, pid_tid):
+    """Returns a new TracingTrack with only the events from a given thread.
+
+    Args:
+      pid_tid: ((int, int) PID and TID.
+
+    Returns:
+      A new instance of TracingTrack.
+    """
+    (pid, tid) = pid_tid
+    events = [e for e in self._events
+              if (e.tracing_event['pid'] == pid
+                  and e.tracing_event['tid'] == tid)]
+    tracing_track = TracingTrack(None)
+    tracing_track._events = events
+    return tracing_track
 
   @classmethod
   def FromJsonDict(cls, json_dict):
@@ -110,31 +123,30 @@ class TracingTrack(devtools_monitor.Track):
         tracing_track._base_msec = e.start_msec
     return tracing_track
 
+  def _IndexEvents(self, strict=False):
+    if self._interval_tree:
+      return
+    complete_events = []
+    spanning_events = self._SpanningEvents()
+    for event in self._events:
+      if not event.IsIndexable():
+        continue
+      if event.IsComplete():
+        complete_events.append(event)
+        continue
+      matched_event = spanning_events.Match(event, strict)
+      if matched_event is not None:
+        complete_events.append(matched_event)
+    self._interval_tree = _IntervalTree.FromEvents(complete_events)
+
+    if strict and spanning_events.HasPending():
+      raise devtools_monitor.DevToolsConnectionException(
+          'Pending spanning events: %s' %
+          '\n'.join([str(e) for e in spanning_events.PendingEvents()]))
+
   def OverlappingEvents(self, start_msec, end_msec):
-    """Gets the list of events overlapping with an interval.
-
-    Args:
-      start_msec: the start of the range to query, in milliseconds, inclusive.
-      end_msec: the end of the range to query, in milliseconds, inclusive.
-
-    Returns:
-      List of events overlapping with the range. Events are overlapping only if
-      the overlap is strictly larger than 0.
-    """
     self._IndexEvents()
-    low_idx = bisect.bisect_left(self._event_msec_index, start_msec) - 1
-    high_idx = bisect.bisect_right(self._event_msec_index, end_msec)
-    matched_events = set()
-    for i in xrange(max(0, low_idx), high_idx):
-      if self._event_lists[i]:
-        for e in self._event_lists[i].event_list:
-          if e.end_msec is None:
-            continue
-          overlap_duration = max(
-              0, min(end_msec, e.end_msec) - max(start_msec, e.start_msec))
-          if overlap_duration > 0:
-            matched_events.add(e)
-    return list(matched_events)
+    return self._interval_tree.OverlappingEvents(start_msec, end_msec)
 
   def EventsEndingBetween(self, start_msec, end_msec):
     """Gets the list of events ending within an interval.
@@ -150,55 +162,9 @@ class TracingTrack(devtools_monitor.Track):
     return [e for e in overlapping_events
             if start_msec <= e.end_msec <= end_msec]
 
-  def _IndexEvents(self, strict=False):
-    """Computes index for in-flight events.
-
-    Creates a list of timestamps where events start or end, and tracks the
-    current set of in-flight events at the instant after each timestamp. To do
-    this we have to synthesize ending events for complete events, as well as
-    join and track the nesting of async, flow and other spanning events.
-
-    Events such as instant and counter events that aren't indexable are skipped.
-    """
-    if self._event_msec_index is not None:
-      return  # Already indexed.
-
-    if not self._events:
-      raise devtools_monitor.DevToolsConnectionException('No events to index')
-
-    self._event_msec_index = []
-    self._event_lists = []
-    synthetic_events = []
-    for e in self._events:
-      synthetic_events.extend(e.Synthesize())
-    synthetic_events.sort(key=lambda e: e.start_msec)
-    current_events = set()
-    next_idx = 0
-    spanning_events = self._SpanningEvents()
-    while next_idx < len(synthetic_events):
-      current_msec = synthetic_events[next_idx].start_msec
-      while next_idx < len(synthetic_events):
-        event = synthetic_events[next_idx]
-        assert event.IsIndexable()
-        if event.start_msec > current_msec:
-          break
-        matched_event = spanning_events.Match(event)
-        if matched_event is not None:
-          event = matched_event
-        if not event.synthetic and (
-            event.end_msec is None or event.end_msec >= current_msec):
-          current_events.add(event)
-        next_idx += 1
-      current_events -= set([
-          e for e in current_events
-          if e.end_msec is not None and e.end_msec <= current_msec])
-      self._event_msec_index.append(current_msec)
-      self._event_lists.append(self._EventList(current_events))
-
-    if strict and spanning_events.HasPending():
-      raise devtools_monitor.DevToolsConnectionException(
-          'Pending spanning events: %s' %
-          '\n'.join([str(e) for e in spanning_events.PendingEvents()]))
+  def _GetEvents(self):
+    self._IndexEvents()
+    return self._interval_tree.GetEvents()
 
   class _SpanningEvents(object):
     def __init__(self):
@@ -220,9 +186,9 @@ class TracingTrack(devtools_monitor.Track):
           None: self._Ignore,
           }
 
-    def Match(self, event):
+    def Match(self, event, strict=False):
       return self._MATCH_HANDLER.get(
-          event.type, self._Unsupported)(event)
+          event.type, self._Unsupported)(event, strict)
 
     def HasPending(self):
       return (self._duration_stack or
@@ -236,21 +202,21 @@ class TracingTrack(devtools_monitor.Track):
           itertools.chain.from_iterable((
               (e for e in s) for s in self._async_stacks.itervalues())))
 
-    def _AsyncKey(self, event):
+    def _AsyncKey(self, event, _):
       return (event.tracing_event['cat'], event.id)
 
-    def _Ignore(self, _event):
+    def _Ignore(self, _event, _):
       return None
 
-    def _Unsupported(self, event):
+    def _Unsupported(self, event, _):
       raise devtools_monitor.DevToolsConnectionException(
           'Unsupported spanning event type: %s' % event)
 
-    def _DurationBegin(self, event):
+    def _DurationBegin(self, event, _):
       self._duration_stack.append(event)
       return None
 
-    def _DurationEnd(self, event):
+    def _DurationEnd(self, event, _):
       if not self._duration_stack:
         raise devtools_monitor.DevToolsConnectionException(
             'Unmatched duration end: %s' % event)
@@ -258,16 +224,20 @@ class TracingTrack(devtools_monitor.Track):
       start.SetClose(event)
       return start
 
-    def _AsyncStart(self, event):
-      key = self._AsyncKey(event)
+    def _AsyncStart(self, event, strict):
+      key = self._AsyncKey(event, strict)
       self._async_stacks.setdefault(key, []).append(event)
       return None
 
-    def _AsyncEnd(self, event):
-      key = self._AsyncKey(event)
+    def _AsyncEnd(self, event, strict):
+      key = self._AsyncKey(event, strict)
       if key not in self._async_stacks:
-        raise devtools_monitor.DevToolsConnectionException(
-            'Unmatched async end %s: %s' % (key, event))
+        message = 'Unmatched async end %s: %s' % (key, event)
+        if strict:
+          raise devtools_monitor.DevToolsConnectionException(message)
+        else:
+          logging.warning(message)
+        return None
       stack = self._async_stacks[key]
       start = stack.pop()
       if not stack:
@@ -275,7 +245,7 @@ class TracingTrack(devtools_monitor.Track):
       start.SetClose(event)
       return start
 
-    def _ObjectCreated(self, event):
+    def _ObjectCreated(self, event, _):
       # The tracing event format has object deletion timestamps being exclusive,
       # that is the timestamp for a deletion my equal that of the next create at
       # the same address. This asserts that does not happen in practice as it is
@@ -287,7 +257,7 @@ class TracingTrack(devtools_monitor.Track):
       self._objects[event.id] = event
       return None
 
-    def _ObjectDestroyed(self, event):
+    def _ObjectDestroyed(self, event, _):
       if event.id not in self._objects:
         raise devtools_monitor.DevToolsConnectionException(
             'Missing object creation for %s' % event)
@@ -295,31 +265,6 @@ class TracingTrack(devtools_monitor.Track):
       del self._objects[event.id]
       start.SetClose(event)
       return start
-
-  class _EventList(object):
-    def __init__(self, events):
-      self._events = [e for e in events]
-      if self._events:
-        self._start_msec = min(e.start_msec for e in self._events)
-        # Event end times may be changed after this list is created so the end
-        # can't be cached.
-      else:
-        self._start_msec = self._end_msec = None
-
-    @property
-    def event_list(self):
-      return self._events
-
-    @property
-    def start_msec(self):
-      return self._start_msec
-
-    @property
-    def end_msec(self):
-      return max(e.end_msec for e in self._events)
-
-    def __nonzero__(self):
-      return bool(self._events)
 
 
 class Event(object):
@@ -364,12 +309,24 @@ class Event(object):
     return self._tracing_event['ph']
 
   @property
+  def category(self):
+    return self._tracing_event['cat']
+
+  @property
+  def pid(self):
+    return self._tracing_event['pid']
+
+  @property
   def args(self):
     return self._tracing_event.get('args', {})
 
   @property
   def id(self):
     return self._tracing_event.get('id')
+
+  @property
+  def name(self):
+    return self._tracing_event['name']
 
   @property
   def tracing_event(self):
@@ -392,6 +349,9 @@ class Event(object):
         'M'             # Metadata
         ]
 
+  def IsComplete(self):
+    return self.type == 'X'
+
   def Synthesize(self):
     """Expand into synthetic events.
 
@@ -402,7 +362,7 @@ class Event(object):
     """
     if not self.IsIndexable():
       return []
-    if self.type == 'X':
+    if self.IsComplete():
       # Tracing event timestamps are microseconds!
       return [self, Event({'ts': self.end_msec * 1000}, synthetic=True)]
     return [self]
@@ -436,3 +396,82 @@ class Event(object):
   @classmethod
   def FromJsonDict(cls, json_dict):
     return Event(json_dict)
+
+
+class _IntervalTree(object):
+  """Simple interval tree. This is not an optimal one, as the split is done with
+  an equal number of events on each side, according to start time.
+  """
+  _TRESHOLD = 100
+  def __init__(self, start, end, events):
+    """Builds an interval tree.
+
+    Args:
+      start: start timestamp of this node, in ms.
+      end: end timestamp covered by this node, in ms.
+      events: Iterable of objects having start_msec and end_msec fields. Has to
+              be sorted by start_msec.
+    """
+    self.start = start
+    self.end = end
+    self._events = events
+    self._left = self._right = None
+    if len(self._events) > self._TRESHOLD:
+      self._Divide()
+
+  @classmethod
+  def FromEvents(cls, events):
+    """Returns an IntervalTree instance from a list of events."""
+    filtered_events = [e for e in events
+                       if e.start_msec is not None and e.end_msec is not None]
+    filtered_events.sort(key=operator.attrgetter('start_msec'))
+    start = min(event.start_msec for event in filtered_events)
+    end = max(event.end_msec for event in filtered_events)
+    return _IntervalTree(start, end, filtered_events)
+
+  def OverlappingEvents(self, start, end):
+    """Returns a set of events overlapping with [start, end)."""
+    if min(end, self.end) - max(start, self.start) <= 0:
+      return set()
+    elif self._IsLeaf():
+      result = set()
+      for event in self._events:
+        if self._Overlaps(event, start, end):
+          result.add(event)
+      return result
+    else:
+      return (self._left.OverlappingEvents(start, end)
+              | self._right.OverlappingEvents(start, end))
+
+  def EventsAt(self, timestamp):
+    result = set()
+    if self._IsLeaf():
+      for event in self._events:
+        if event.start_msec <= timestamp < event.end_msec:
+          result.add(event)
+    else:
+      if self._left.start <= timestamp < self._left.end:
+        result |= self._left.EventsAt(timestamp)
+      if self._right.start <= timestamp < self._right.end:
+        result |= self._right.EventsAt(timestamp)
+    return result
+
+  def GetEvents(self):
+    return self._events
+
+  def _Divide(self):
+    middle = len(self._events) / 2
+    left_events = self._events[:middle]
+    right_events = self._events[middle:]
+    left_end = max(e.end_msec for e in left_events)
+    right_start = min(e.start_msec for e in right_events)
+    self._left = _IntervalTree(self.start, left_end, left_events)
+    self._right = _IntervalTree(right_start, self.end, right_events)
+
+  def _IsLeaf(self):
+    return self._left is None
+
+  @classmethod
+  def _Overlaps(cls, event, start, end):
+    return (min(end, event.end_msec) - max(start, event.start_msec) > 0
+            or start <= event.start_msec < end)  # For instant events.

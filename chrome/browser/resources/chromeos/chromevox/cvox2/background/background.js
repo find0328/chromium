@@ -122,8 +122,8 @@ Background = function() {
 
   cvox.ExtensionBridge.addMessageListener(this.onMessage_);
 
-  document.addEventListener('keydown', this.onKeyDown.bind(this), true);
-  document.addEventListener('keyup', this.onKeyUp.bind(this), true);
+  document.addEventListener('keydown', this.onKeyDown.bind(this), false);
+  document.addEventListener('keyup', this.onKeyUp.bind(this), false);
   cvox.ChromeVoxKbHandler.commandHandler = this.onGotCommand.bind(this);
 
   // Classic keymap.
@@ -206,6 +206,22 @@ Background.prototype = {
       (new PanelCommand(PanelCommandType.ENABLE_MENUS)).send();
     } else {
       (new PanelCommand(PanelCommandType.DISABLE_MENUS)).send();
+    }
+
+    // If switching to Classic from any automation-API-based mode,
+    // clear the focus ring.
+    if (mode === ChromeVoxMode.CLASSIC && mode != this.mode_) {
+      if (cvox.ChromeVox.isChromeOS)
+        chrome.accessibilityPrivate.setFocusRing([]);
+    }
+
+    // If switching away from Classic to any automation-API-based mode,
+    // update the range based on what's focused.
+    if (this.mode_ === ChromeVoxMode.CLASSIC && mode != this.mode_) {
+      chrome.automation.getFocus((function(focus) {
+        if (focus)
+          this.setCurrentRange(cursors.Range.fromNode(focus));
+      }).bind(this));
     }
 
     this.mode_ = mode;
@@ -448,13 +464,13 @@ Background.prototype = {
 
           this.setCurrentRange(newRange);
 
-          new Output().withSpeechAndBraille(
+          new Output().withRichSpeechAndBraille(
                   this.currentRange_, prevRange, Output.EventType.NAVIGATE)
               .onSpeechEnd(continueReading)
               .go();
         }.bind(this);
 
-        new Output().withSpeechAndBraille(
+        new Output().withRichSpeechAndBraille(
                 this.currentRange_, null, Output.EventType.NAVIGATE)
             .onSpeechEnd(continueReading)
             .go();
@@ -499,6 +515,11 @@ Background.prototype = {
         // Leaving unlocalized as 'next' isn't an official name.
         cvox.ChromeVox.tts.speak(isClassic ?
             'classic' : 'next', cvox.QueueMode.FLUSH, {doNotInterrupt: true});
+
+        // If the new mode is Classic, return now so we don't announce
+        // anything more.
+        if (newMode == ChromeVoxMode.CLASSIC)
+          return false;
         break;
       case 'toggleStickyMode':
         cvox.ChromeVoxBackground.setPref('sticky',
@@ -517,25 +538,69 @@ Background.prototype = {
         return true;
       case 'openChromeVoxMenus':
         (new PanelCommand(PanelCommandType.OPEN_MENUS)).send();
+        return false;
+      case 'showKbExplorerPage':
+        var explorerPage = {url: 'chromevox/background/kbexplorer.html'};
+        chrome.tabs.create(explorerPage);
         break;
       case 'decreaseTtsRate':
         this.increaseOrDecreaseSpeechProperty_(cvox.AbstractTts.RATE, false);
-        break;
+        return false;
       case 'increaseTtsRate':
         this.increaseOrDecreaseSpeechProperty_(cvox.AbstractTts.RATE, true);
-        break;
+        return false;
       case 'decreaseTtsPitch':
         this.increaseOrDecreaseSpeechProperty_(cvox.AbstractTts.PITCH, false);
-        break;
+        return false;
       case 'increaseTtsPitch':
         this.increaseOrDecreaseSpeechProperty_(cvox.AbstractTts.PITCH, true);
-        break;
+        return false;
       case 'decreaseTtsVolume':
         this.increaseOrDecreaseSpeechProperty_(cvox.AbstractTts.VOLUME, false);
-        break;
+        return false;
       case 'increaseTtsVolume':
         this.increaseOrDecreaseSpeechProperty_(cvox.AbstractTts.VOLUME, true);
-        break;
+        return false;
+      case 'stopSpeech':
+        cvox.ChromeVox.tts.stop();
+        global.isReadingContinuously = false;
+        return false;
+      case 'toggleEarcons':
+        cvox.AbstractEarcons.enabled = !cvox.AbstractEarcons.enabled;
+        var announce = cvox.AbstractEarcons.enabled ?
+            Msgs.getMsg('earcons_on') :
+            Msgs.getMsg('earcons_off');
+        cvox.ChromeVox.tts.speak(
+            announce, cvox.QueueMode.FLUSH,
+            cvox.AbstractTts.PERSONALITY_ANNOTATION);
+        return false;
+      case 'cycleTypingEcho':
+        cvox.ChromeVox.typingEcho =
+            cvox.TypingEcho.cycle(cvox.ChromeVox.typingEcho);
+        var announce = '';
+        switch (cvox.ChromeVox.typingEcho) {
+          case cvox.TypingEcho.CHARACTER:
+            announce = Msgs.getMsg('character_echo');
+            break;
+          case cvox.TypingEcho.WORD:
+            announce = Msgs.getMsg('word_echo');
+            break;
+          case cvox.TypingEcho.CHARACTER_AND_WORD:
+            announce = Msgs.getMsg('character_and_word_echo');
+            break;
+          case cvox.TypingEcho.NONE:
+            announce = Msgs.getMsg('none_echo');
+            break;
+        }
+        cvox.ChromeVox.tts.speak(
+            announce, cvox.QueueMode.FLUSH,
+            cvox.AbstractTts.PERSONALITY_ANNOTATION);
+        return false;
+      case 'cyclePunctuationEcho':
+        cvox.ChromeVox.tts.speak(Msgs.getMsg(
+            global.backgroundTts.cyclePunctuationEcho()),
+                       cvox.QueueMode.FLUSH);
+        return false;
       default:
         return true;
     }
@@ -610,7 +675,7 @@ Background.prototype = {
     var prevRange = this.currentRange_;
     this.setCurrentRange(range);
 
-    new Output().withSpeechAndBraille(
+    new Output().withRichSpeechAndBraille(
         range, prevRange, Output.EventType.NAVIGATE)
         .withQueueMode(cvox.QueueMode.FLUSH)
         .go();

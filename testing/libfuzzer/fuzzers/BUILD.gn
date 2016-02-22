@@ -7,6 +7,7 @@
 import("//build/config/features.gni")
 import("//media/media_options.gni")
 import("//testing/libfuzzer/fuzzer_test.gni")
+import("//third_party/pdfium/pdfium.gni")
 
 # root BUILD depenends on this target. Needed for package discovery
 group("fuzzers") {
@@ -226,6 +227,24 @@ fuzzer_test("pdfium_fuzzer") {
   dict = "dicts/pdf.dict"
 }
 
+if (pdf_enable_xfa) {
+  fuzzer_test("pdf_fm2js_fuzzer") {
+    sources = []
+    deps = [
+      "//third_party/pdfium/testing/libfuzzer:pdf_fm2js_fuzzer",
+    ]
+    dict = "dicts/pdf_fm2js.dict"
+  }
+
+  fuzzer_test("pdf_xml_fuzzer") {
+    sources = []
+    deps = [
+      "//third_party/pdfium/testing/libfuzzer:pdf_xml_fuzzer",
+    ]
+    dict = "dicts/pdf_xml.dict"
+  }
+}
+
 fuzzer_test("websocket_frame_parser_fuzzer") {
   sources = [
     "websocket_frame_parser_fuzzer.cc",
@@ -320,6 +339,7 @@ fuzzer_test("v8_script_parser_fuzzer") {
     "//v8:parser_fuzzer",
   ]
   dict = "dicts/js.dict"
+  additional_configs = [ "//testing/libfuzzer:no_clusterfuzz" ]
 }
 
 fuzzer_test("v8_json_parser_fuzzer") {

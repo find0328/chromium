@@ -65,10 +65,12 @@ if config.target_os != config.OS_ANDROID:
       'test': 'mojo:media_apptests',
       'type': 'gtest_isolated',
     },
-    {
-      'test': 'mojo:media_pipeline_integration_apptests',
-      'type': 'gtest_isolated',
-    },
+    # TODO(media): these tests fail in debug, which has no bot-coverage.
+    # http://crbug.com/587523
+#    {
+#      'test': 'mojo:media_pipeline_integration_apptests',
+#      'type': 'gtest_isolated',
+#    },
     # TODO(rockot): Flaky. Re-enable when brokering is sorted out.
     # http://crbug.com/569367.
 #    {
@@ -77,10 +79,6 @@ if config.target_os != config.OS_ANDROID:
 #    },
     # TODO(crbug.com/560626): Fix and enable mus_apptests on Android.
     mus_apptests,
-    {
-      'test': 'mojo:sql_apptests',
-      'type': 'gtest_isolated',
-    },
     # TODO(sky): enable when works (http://crbug.com/577274 and likely
     # http://crbug.com/569367).
 #    {
@@ -89,4 +87,8 @@ if config.target_os != config.OS_ANDROID:
 #      'args': ['--use-x11-test-config',
 #               '--override-use-gl-with-osmesa-for-tests', '--enable-logging']
 #    },
+    {
+      'test': 'mojo:leveldb_apptests',
+      'type': 'gtest_isolated',
+    }
   ]

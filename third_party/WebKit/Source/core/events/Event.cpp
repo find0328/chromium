@@ -44,7 +44,8 @@ static bool defaultScopedFromEventType(const AtomicString& eventType)
         || eventType == EventTypeNames::resize
         || eventType == EventTypeNames::scroll
         || eventType == EventTypeNames::select
-        || eventType == EventTypeNames::selectstart);
+        || eventType == EventTypeNames::selectstart
+        || eventType == EventTypeNames::slotchange);
 }
 
 Event::Event()
@@ -180,6 +181,11 @@ bool Event::isRelatedEvent() const
 }
 
 bool Event::isPointerEvent() const
+{
+    return false;
+}
+
+bool Event::isInputEvent() const
 {
     return false;
 }

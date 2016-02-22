@@ -24,11 +24,18 @@ enum class PasswordTittleType {
   UPDATE_PASSWORD,  // update plain password
 };
 
+class Profile;
+
 // The desired width and height in pixels for an account avatar.
 extern const int kAvatarImageSize;
 
 // Crops and scales |image_skia| to the desired size for an account avatar.
 gfx::ImageSkia ScaleImageForAccountAvatar(gfx::ImageSkia image_skia);
+
+// Returns the upper and lower label to be displayed in the account chooser UI
+// for |form|.
+std::pair<base::string16, base::string16> GetCredentialLabelsForAccountChooser(
+    const autofill::PasswordForm& form);
 
 // Sets the formatted |title| in the Save Password bubble or the Update Password
 // bubble (depending on |dialog_type|). If the registry controlled domain of
@@ -84,5 +91,8 @@ void GetBrandedTextAndLinkRange(
 
 // Returns an username in the form that should be shown in the bubble.
 base::string16 GetDisplayUsername(const autofill::PasswordForm& form);
+
+// Check if |profile| syncing settings. The view appearance might depend on it.
+bool IsSyncingSettings(Profile* profile);
 
 #endif  // CHROME_BROWSER_UI_PASSWORDS_MANAGE_PASSWORDS_VIEW_UTILS_H_

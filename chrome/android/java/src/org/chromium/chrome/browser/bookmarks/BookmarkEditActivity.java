@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.bookmarks;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.widget.Toolbar;
-import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -19,8 +18,8 @@ import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkModelObserver;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserver;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.DeletePageCallback;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.OfflinePageModelObserver;
@@ -65,37 +64,11 @@ public class BookmarkEditActivity extends BookmarkActivityBase {
 
     private BookmarkModelObserver mBookmarkModelObserver = new BookmarkModelObserver() {
         @Override
-        public void bookmarkNodeRemoved(BookmarkItem parent, int oldIndex, BookmarkItem node,
-                boolean isDoingExtensiveChanges) {
-            if (mBookmarkId.equals(node.getId())) {
-                finish();
-            }
-        }
-
-        @Override
-        public void bookmarkNodeMoved(BookmarkItem oldParent, int oldIndex, BookmarkItem newParent,
-                int newIndex) {
-            BookmarkId movedBookmark = mModel.getChildAt(newParent.getId(),
-                    newIndex);
-            if (movedBookmark.equals(mBookmarkId)) {
-                mFolderTextView.setText(newParent.getTitle());
-            }
-        }
-
-        @Override
-        public void bookmarkNodeChanged(BookmarkItem node) {
-            if (mBookmarkId.equals(node.getId()) || node.getId().equals(
-                    mModel.getBookmarkById(mBookmarkId).getParentId())) {
-                updateViewContent();
-            }
-        }
-
-        @Override
         public void bookmarkModelChanged() {
             if (mModel.doesBookmarkExist(mBookmarkId)) {
-                updateViewContent();
+                updateViewContent(true);
             } else {
-                Log.wtf(TAG, "The bookmark was deleted somehow during bookmarkModelChange!",
+                Log.wtf(TAG, "A partner bookmark might be removed while the user is editing it.",
                         new Exception(TAG));
                 finish();
             }
@@ -119,7 +92,7 @@ public class BookmarkEditActivity extends BookmarkActivityBase {
             return;
         }
 
-        setContentView(R.layout.eb_edit);
+        setContentView(R.layout.bookmark_edit);
         mTitleEditText = (EmptyAlertEditText) findViewById(R.id.title_text);
         mFolderTextView = (TextView) findViewById(R.id.folder_text);
         mUrlEditText = (EmptyAlertEditText) findViewById(R.id.url_text);
@@ -155,22 +128,20 @@ public class BookmarkEditActivity extends BookmarkActivityBase {
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        updateViewContent();
+        updateViewContent(false);
     }
 
-    private void updateViewContent() {
+    /**
+     * @param modelChanged Whether this view update is due to a model change in background.
+     */
+    private void updateViewContent(boolean modelChanged) {
         BookmarkItem bookmarkItem = mModel.getBookmarkById(mBookmarkId);
-
-        if (!TextUtils.equals(mTitleEditText.getTrimmedText(), bookmarkItem.getTitle())) {
+        // While the user is editing the bookmark, do not override user's input.
+        if (!modelChanged) {
             mTitleEditText.setText(bookmarkItem.getTitle());
-        }
-        String folderTitle = mModel.getBookmarkTitle(bookmarkItem.getParentId());
-        if (!TextUtils.equals(mFolderTextView.getText(), folderTitle)) {
-            mFolderTextView.setText(folderTitle);
-        }
-        if (!TextUtils.equals(mUrlEditText.getTrimmedText(), bookmarkItem.getUrl())) {
             mUrlEditText.setText(bookmarkItem.getUrl());
         }
+        mFolderTextView.setText(mModel.getBookmarkTitle(bookmarkItem.getParentId()));
         mTitleEditText.setEnabled(bookmarkItem.isEditable());
         mUrlEditText.setEnabled(bookmarkItem.isUrlEditable());
         mFolderTextView.setEnabled(bookmarkItem.isMovable());
@@ -178,7 +149,7 @@ public class BookmarkEditActivity extends BookmarkActivityBase {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        mDeleteButton = menu.add(R.string.enhanced_bookmark_action_bar_delete)
+        mDeleteButton = menu.add(R.string.bookmark_action_bar_delete)
                 .setIcon(TintedDrawable.constructTintedDrawable(
                         getResources(), R.drawable.btn_trash))
                 .setShowAsActionFlags(MenuItem.SHOW_AS_ACTION_IF_ROOM);

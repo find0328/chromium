@@ -127,7 +127,6 @@
 <translation id="5859963531214966875">Chromium เวอร์ชันต่อไปจะไม่รองรับระบบ Linux อีกต่อไป</translation>
 <translation id="5862307444128926510">ยินดีต้อนรับสู่ Chromium</translation>
 <translation id="5877064549588274448">เปลี่ยนช่องแล้ว รีสตาร์ทอุปกรณ์เพื่อใช้การเปลี่ยนแปลง</translation>
-<translation id="5909170354645388250">ไม่ได้ใช้ใน Chromium ตัวยึดตำแหน่งที่ใช้เพื่อให้แผนที่แหล่งข้อมูลซิงค์กัน ต้องใช้อาร์กิวเมนต์หนึ่งรายการ: $1</translation>
 <translation id="5942225298871134766">Chromium จะเก็บข้อมูลนี้ไว้กับ <ph name="SAVED_PASSWORD_LINK" /> และจดจำไว้สำหรับครั้งถัดไปที่คุณต้องการใช้</translation>
 <translation id="5942520288919337908">เพิ่ม <ph name="EXTENSION_NAME" /> ลงใน Chromium แล้ว</translation>
 <translation id="59625444380784159">รายละเอียดจากรายชื่อติดต่อของคุณช่วยให้คุณสามารถกรอกฟอร์มได้อย่างรวดเร็วขึ้นใน Chromium</translation>
@@ -207,7 +206,6 @@ Chromium ไม่สามารถกู้คืนการตั้งค�
 <translation id="8586442755830160949">ลิขสิทธิ์ <ph name="YEAR" /> The Chromium Authors สงวนลิขสิทธิ์</translation>
 <translation id="8621669128220841554">การติดตั้งล้มเหลวเนื่องจากเกิดข้อผิดพลาดที่ไม่ระบุ โปรดดาวน์โหลด Chromium อีกครั้ง</translation>
 <translation id="8628626585870903697">Chromium ไม่มีโปรแกรมดู PDF ที่ต้องใช้ในการทำงานของหน้าตัวอย่างก่อนพิมพ์</translation>
-<translation id="8684913864886094367">Chromium ไม่ได้ปิดอย่างถูกต้อง</translation>
 <translation id="8697124171261953979">อีกทั้งยังควบคุมหน้าที่จะแสดงเมื่อคุณเปิด Chromium หรือทำการค้นหาจากแถบอเนกประสงค์ด้วย</translation>
 <translation id="8704119203788522458">นี่คือ Chromium ของคุณ</translation>
 <translation id="872034308864968620">ให้ Chromium ทำงานในพื้นหลัง</translation>

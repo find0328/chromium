@@ -18,13 +18,12 @@
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread.h"
 #include "build/build_config.h"
-#include "media/base/cdm_factory.h"
 #include "media/base/pipeline.h"
 #include "media/base/renderer_factory.h"
+#include "media/base/surface_manager.h"
 #include "media/base/text_track.h"
 #include "media/blink/buffered_data_source.h"
 #include "media/blink/buffered_data_source_host_impl.h"
-#include "media/blink/encrypted_media_player_support.h"
 #include "media/blink/media_blink_export.h"
 #include "media/blink/multibuffer_data_source.h"
 #include "media/blink/video_frame_compositor.h"
@@ -59,7 +58,6 @@ class WebLayerImpl;
 }
 
 namespace media {
-
 class AudioHardwareConfig;
 class ChunkDemuxer;
 class GpuVideoAcceleratorFactories;
@@ -86,7 +84,6 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
       blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
       base::WeakPtr<WebMediaPlayerDelegate> delegate,
       scoped_ptr<RendererFactory> renderer_factory,
-      CdmFactory* cdm_factory,
       linked_ptr<UrlIndex> url_index,
       const WebMediaPlayerParams& params);
   ~WebMediaPlayerImpl() override;
@@ -161,25 +158,12 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
 
   blink::WebAudioSourceProvider* audioSourceProvider() override;
 
-  MediaKeyException generateKeyRequest(
-      const blink::WebString& key_system,
-      const unsigned char* init_data,
-      unsigned init_data_length) override;
-
-  MediaKeyException addKey(const blink::WebString& key_system,
-                           const unsigned char* key,
-                           unsigned key_length,
-                           const unsigned char* init_data,
-                           unsigned init_data_length,
-                           const blink::WebString& session_id) override;
-
-  MediaKeyException cancelKeyRequest(
-      const blink::WebString& key_system,
-      const blink::WebString& session_id) override;
-
   void setContentDecryptionModule(
       blink::WebContentDecryptionModule* cdm,
       blink::WebContentDecryptionModuleResult result) override;
+
+  void enteredFullscreen() override;
+  void exitedFullscreen() override;
 
   void OnPipelineSeeked(bool time_changed, PipelineStatus status);
   void OnPipelineSuspended(PipelineStatus status);
@@ -229,6 +213,9 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // Initiate resuming the pipeline.
   void Resume();
 
+  // Ask for the renderer to be restarted (destructed and recreated).
+  void ScheduleRestart();
+
   // Called after |defer_load_cb_| has decided to allow the load. If
   // |defer_load_cb_| is null this is called immediately.
   void DoLoad(LoadType load_type,
@@ -240,6 +227,8 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
 
   // Called when the data source is downloading or paused.
   void NotifyDownloading(bool is_downloading);
+
+  void OnSurfaceRequested(const SurfaceCreatedCB& surface_created_cb);
 
   // Creates a Renderer via the |renderer_factory_|.
   scoped_ptr<Renderer> CreateRenderer();
@@ -369,6 +358,13 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // Set while resuming to detect double-resume.
   bool resuming_;
 
+  // Set when doing a restart (a suspend and resume in sequence) of the pipeline
+  // in order to destruct and reinitialize the decoders. This is separate from
+  // |pending_resume_| and |pending_suspend_| because they can be elided in
+  // certain cases, whereas for a restart they must happen.
+  // TODO(sandersd,watk): Create a simpler interface for a pipeline restart.
+  bool pending_suspend_resume_cycle_;
+
   // TODO(scherkus): Replace with an explicit ended signal to HTMLMediaElement,
   // see http://crbug.com/409280
   bool ended_;
@@ -384,6 +380,11 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // Tracks whether to issue time changed notifications during buffering state
   // changes.
   bool should_notify_time_changed_;
+
+  bool fullscreen_;
+
+  // Whether the current decoder requires a restart on fullscreen transitions.
+  bool decoder_requires_restart_for_fullscreen_;
 
   blink::WebMediaPlayerClient* client_;
   blink::WebMediaPlayerEncryptedMediaClient* encrypted_client_;
@@ -431,8 +432,6 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   // playback.
   scoped_ptr<cc_blink::WebLayerImpl> video_weblayer_;
 
-  EncryptedMediaPlayerSupport encrypted_media_support_;
-
   scoped_ptr<blink::WebContentDecryptionModuleResult> set_cdm_result_;
 
   // Whether a CDM has been successfully attached.
@@ -450,6 +449,10 @@ class MEDIA_BLINK_EXPORT WebMediaPlayerImpl
   double volume_multiplier_;
 
   scoped_ptr<RendererFactory> renderer_factory_;
+
+  // For requesting surfaces on behalf of the Android H/W decoder in fullscreen.
+  // This will be null everywhere but Android.
+  SurfaceManager* surface_manager_;
 
   DISALLOW_COPY_AND_ASSIGN(WebMediaPlayerImpl);
 };

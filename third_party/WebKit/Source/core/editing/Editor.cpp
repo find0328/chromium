@@ -291,6 +291,7 @@ bool Editor::deleteWithDirection(SelectionDirection direction, TextGranularity g
     if (!canEdit())
         return false;
 
+    EditingState editingState;
     if (frame().selection().isRange()) {
         if (isTypingAction) {
             ASSERT(frame().document());
@@ -312,7 +313,9 @@ bool Editor::deleteWithDirection(SelectionDirection direction, TextGranularity g
         case DirectionForward:
         case DirectionRight:
             ASSERT(frame().document());
-            TypingCommand::forwardDeleteKeyPressed(*frame().document(), options, granularity);
+            TypingCommand::forwardDeleteKeyPressed(*frame().document(), &editingState, options, granularity);
+            if (editingState.isAborted())
+                return false;
             break;
         case DirectionBackward:
         case DirectionLeft:
@@ -827,7 +830,8 @@ bool Editor::insertLineBreak()
     VisiblePosition caret = frame().selection().selection().visibleStart();
     bool alignToEdge = isEndOfEditableOrNonEditableContent(caret);
     ASSERT(frame().document());
-    TypingCommand::insertLineBreak(*frame().document(), 0);
+    if (!TypingCommand::insertLineBreak(*frame().document(), 0))
+        return false;
     revealSelectionAfterEditingOperation(alignToEdge ? ScrollAlignment::alignToEdgeIfNeeded : ScrollAlignment::alignCenterIfNeeded);
 
     return true;
@@ -844,7 +848,9 @@ bool Editor::insertParagraphSeparator()
     VisiblePosition caret = frame().selection().selection().visibleStart();
     bool alignToEdge = isEndOfEditableOrNonEditableContent(caret);
     ASSERT(frame().document());
-    TypingCommand::insertParagraphSeparator(*frame().document(), 0);
+    EditingState editingState;
+    if (!TypingCommand::insertParagraphSeparator(*frame().document(), 0))
+        return false;
     revealSelectionAfterEditingOperation(alignToEdge ? ScrollAlignment::alignToEdgeIfNeeded : ScrollAlignment::alignCenterIfNeeded);
 
     return true;

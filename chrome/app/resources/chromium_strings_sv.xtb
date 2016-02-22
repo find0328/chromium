@@ -129,7 +129,6 @@ Vissa funktioner kanske inte är tillgängliga och ändringar i inställningarna
 <translation id="5859963531214966875">Framtida versioner av Chromium kommer inte att ha stöd för det här Linux-systemet.</translation>
 <translation id="5862307444128926510">Välkommen till Chromium</translation>
 <translation id="5877064549588274448">Kanalen har ändrats. Starta om enheten om du vill tillämpa ändringarna.</translation>
-<translation id="5909170354645388250">Används inte i Chromium. Platshållare för att hålla resurskartor synkroniserade. Ett argument förväntas: $1.</translation>
 <translation id="5942225298871134766">Chromium sparar detta i <ph name="SAVED_PASSWORD_LINK" /> och kommer ihåg det nästa gång du behöver det.</translation>
 <translation id="5942520288919337908"><ph name="EXTENSION_NAME" /> har lagts till i Chromium.</translation>
 <translation id="59625444380784159">Du kan fylla i formulär snabbare i Chromium med hjälp av uppgifter från dina kontakter.</translation>
@@ -209,7 +208,6 @@ Chromium kan inte återställa dina inställningar.</translation>
 <translation id="8586442755830160949">Upphovsrätt <ph name="YEAR" /> The Chromium Authors. Med ensamrätt.</translation>
 <translation id="8621669128220841554">Installationen misslyckades på grund av ett okänt fel. Ladda ned Chromium igen.</translation>
 <translation id="8628626585870903697">Chromium har inte det PDF-visningsprogram som krävs för att förhandsgranskning ska fungera.</translation>
-<translation id="8684913864886094367">Chromium stängdes inte ordentligt.</translation>
 <translation id="8697124171261953979">Det styr också vilken sida som visas när du startar Chromium eller söker i adressfältet.</translation>
 <translation id="8704119203788522458">Det här är Chromium</translation>
 <translation id="872034308864968620">Låt Chromium köras i bakgrunden</translation>

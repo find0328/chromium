@@ -113,25 +113,26 @@
                 ]
             },
             {
+                "id": "FrameResource",
+                "type": "object",
+                "description": "Information about the Resource on the page.",
+                "properties": [
+                    { "name": "url", "type": "string", "description": "Resource URL." },
+                    { "name": "type", "$ref": "ResourceType", "description": "Type of this resource." },
+                    { "name": "mimeType", "type": "string", "description": "Resource mimeType as determined by the browser." },
+                    { "name": "failed", "type": "boolean", "optional": true, "description": "True if the resource failed to load." },
+                    { "name": "canceled", "type": "boolean", "optional": true, "description": "True if the resource was canceled during loading." }
+                ],
+                "hidden": true
+            },
+            {
                 "id": "FrameResourceTree",
                 "type": "object",
                 "description": "Information about the Frame hierarchy along with their cached resources.",
                 "properties": [
                     { "name": "frame", "$ref": "Frame", "description": "Frame information for this tree item." },
                     { "name": "childFrames", "type": "array", "optional": true, "items": { "$ref": "FrameResourceTree" }, "description": "Child frames." },
-                    { "name": "resources", "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": [
-                                { "name": "url", "type": "string", "description": "Resource URL." },
-                                { "name": "type", "$ref": "ResourceType", "description": "Type of this resource." },
-                                { "name": "mimeType", "type": "string", "description": "Resource mimeType as determined by the browser." },
-                                { "name": "failed", "type": "boolean", "optional": true, "description": "True if the resource failed to load." },
-                                { "name": "canceled", "type": "boolean", "optional": true, "description": "True if the resource was canceled during loading." }
-                            ]
-                        },
-                        "description": "Information about frame resources."
-                    }
+                    { "name": "resources", "type": "array", "items": { "$ref": "FrameResource" }, "description": "Information about frame resources." }
                 ],
                 "hidden": true
             },
@@ -336,7 +337,8 @@
                     { "name": "screenWidth", "type": "integer", "optional": true, "description": "Overriding screen width value in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
                     { "name": "screenHeight", "type": "integer", "optional": true, "description": "Overriding screen height value in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
                     { "name": "positionX", "type": "integer", "optional": true, "description": "Overriding view X position on screen in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
-                    { "name": "positionY", "type": "integer", "optional": true, "description": "Overriding view Y position on screen in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." }
+                    { "name": "positionY", "type": "integer", "optional": true, "description": "Overriding view Y position on screen in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
+                    { "name": "screenOrientation", "$ref": "Emulation.ScreenOrientation", "optional": true, "description": "Screen orientation override." }
                 ],
                 "handlers": ["browser"],
                 "redirect": "Emulation",
@@ -640,6 +642,17 @@
         "domain": "Emulation",
         "description": "This domain emulates different environments for the page.",
         "hidden": true,
+        "types": [
+            {
+                "id": "ScreenOrientation",
+                "type": "object",
+                "description": "Screen orientation.",
+                "properties": [
+                    { "name": "type",  "type": "string", "enum": ["portraitPrimary", "portraitSecondary", "landscapePrimary", "landscapeSecondary"], "description": "Orientation type." },
+                    { "name": "angle",  "type": "integer", "description": "Orientation angle." }
+                ]
+            }
+        ],
         "commands": [
             {
                 "name": "setDeviceMetricsOverride",
@@ -656,7 +669,8 @@
                     { "name": "screenWidth", "type": "integer", "optional": true, "description": "Overriding screen width value in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
                     { "name": "screenHeight", "type": "integer", "optional": true, "description": "Overriding screen height value in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
                     { "name": "positionX", "type": "integer", "optional": true, "description": "Overriding view X position on screen in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
-                    { "name": "positionY", "type": "integer", "optional": true, "description": "Overriding view Y position on screen in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." }
+                    { "name": "positionY", "type": "integer", "optional": true, "description": "Overriding view Y position on screen in pixels (minimum 0, maximum 10000000). Only used for |mobile==true|." },
+                    { "name": "screenOrientation", "$ref": "ScreenOrientation", "optional": true, "description": "Screen orientation override." }
                 ],
                 "handlers": ["browser"]
             },
@@ -1013,7 +1027,8 @@
                     { "name": "scriptId", "$ref": "ScriptId", "description": "Id of the script to run." },
                     { "name": "executionContextId", "$ref": "ExecutionContextId", "description": "Specifies in which isolated context to perform script run. Each content script lives in an isolated context and this parameter is used to specify one of those contexts." },
                     { "name": "objectGroup", "type": "string", "optional": true, "description": "Symbolic group name that can be used to release multiple objects." },
-                    { "name": "doNotPauseOnExceptionsAndMuteConsole", "type": "boolean", "optional": true, "description": "Specifies whether script run should stop on exceptions and mute console. Overrides setPauseOnException state." }
+                    { "name": "doNotPauseOnExceptionsAndMuteConsole", "type": "boolean", "optional": true, "description": "Specifies whether script run should stop on exceptions and mute console. Overrides setPauseOnException state." },
+                    { "name": "includeCommandLineAPI", "type": "boolean", "optional": true, "description": "Determines whether Command Line API should be available during the evaluation." }
                 ],
                 "returns": [
                     { "name": "result", "$ref": "RemoteObject", "description": "Run result." },
@@ -1796,8 +1811,7 @@
                 "description": "Database with an array of object stores.",
                 "properties": [
                     { "name": "name", "type": "string", "description": "Database name." },
-                    { "name": "version", "type": "string", "description": "Deprecated string database version." },
-                    { "name": "intVersion", "type": "integer", "description": "Integer database version." },
+                    { "name": "intVersion", "type": "integer", "description": "Database version." },
                     { "name": "objectStores", "type": "array", "items": { "$ref": "ObjectStore" }, "description": "Object stores in this database." }
                 ]
             },
@@ -2179,109 +2193,6 @@
                 "parameters": [
                     { "name": "isNowOnline", "type": "boolean" }
                 ]
-            }
-        ]
-    },
-    {
-        "domain": "FileSystem",
-        "hidden": true,
-        "types": [
-            {
-                "id": "Entry",
-                "type": "object",
-                "properties": [
-                    { "name": "url", "type": "string", "description": "filesystem: URL for the entry." },
-                    { "name": "name", "type": "string", "description": "The name of the file or directory." },
-                    { "name": "isDirectory", "type": "boolean", "description": "True if the entry is a directory." },
-                    { "name": "mimeType", "type": "string", "optional": true, "description": "MIME type of the entry, available for a file only." },
-                    { "name": "resourceType", "$ref": "Page.ResourceType", "optional": true, "description": "ResourceType of the entry, available for a file only." },
-                    { "name": "isTextFile", "type": "boolean", "optional": true, "description": "True if the entry is a text file." }
-                ],
-                "description": "Represents a browser side file or directory."
-            },
-            {
-                "id": "Metadata",
-                "type": "object",
-                "properties": [
-                    { "name": "modificationTime", "type": "number", "description": "Modification time." },
-                    { "name": "size", "type": "number", "description": "File size. This field is always zero for directories." }
-                ],
-                "description": "Represents metadata of a file or entry."
-            }
-        ],
-        "commands": [
-            {
-                "name": "enable",
-                "description": "Enables events from backend."
-            },
-            {
-                "name": "disable",
-                "description": "Disables events from backend."
-            },
-            {
-                "name": "requestFileSystemRoot",
-                "async": true,
-                "parameters": [
-                    { "name": "origin", "type": "string", "description": "Security origin of requesting FileSystem. One of frames in current page needs to have this security origin." },
-                    { "name": "type", "type": "string", "enum": ["temporary", "persistent"], "description": "FileSystem type of requesting FileSystem." }
-                ],
-                "returns": [
-                    { "name": "errorCode", "type": "integer", "description": "0, if no error. Otherwise, errorCode is set to FileError::ErrorCode value." },
-                    { "name": "root", "$ref": "Entry", "optional": true, "description": "Contains root of the requested FileSystem if the command completed successfully." }
-                ],
-                "description": "Returns root directory of the FileSystem, if exists."
-            },
-            {
-                "name": "requestDirectoryContent",
-                "async": true,
-                "parameters": [
-                    { "name": "url", "type": "string", "description": "URL of the directory that the frontend is requesting to read from." }
-                ],
-                "returns": [
-                    { "name": "errorCode", "type": "integer", "description": "0, if no error. Otherwise, errorCode is set to FileError::ErrorCode value." },
-                    { "name": "entries", "type": "array", "items": { "$ref": "Entry" }, "optional": true, "description": "Contains all entries on directory if the command completed successfully." }
-                ],
-                "description": "Returns content of the directory."
-            },
-            {
-                "name": "requestMetadata",
-                "async": true,
-                "parameters": [
-                    { "name": "url", "type": "string", "description": "URL of the entry that the frontend is requesting to get metadata from." }
-                ],
-                "returns": [
-                    { "name": "errorCode", "type": "integer", "description": "0, if no error. Otherwise, errorCode is set to FileError::ErrorCode value." },
-                    { "name": "metadata", "$ref": "Metadata", "optional": true, "description": "Contains metadata of the entry if the command completed successfully." }
-                ],
-                "description": "Returns metadata of the entry."
-            },
-            {
-                "name": "requestFileContent",
-                "async": true,
-                "parameters": [
-                    { "name": "url", "type": "string", "description": "URL of the file that the frontend is requesting to read from." },
-                    { "name": "readAsText", "type": "boolean", "description": "True if the content should be read as text, otherwise the result will be returned as base64 encoded text." },
-                    { "name": "start", "type": "integer", "optional": true, "description": "Specifies the start of range to read." },
-                    { "name": "end", "type": "integer", "optional": true, "description": "Specifies the end of range to read exclusively." },
-                    { "name": "charset", "type": "string", "optional": true, "description": "Overrides charset of the content when content is served as text." }
-                ],
-                "returns": [
-                    { "name": "errorCode", "type": "integer", "description": "0, if no error. Otherwise, errorCode is set to FileError::ErrorCode value." },
-                    { "name": "content", "type": "string", "optional": true, "description": "Content of the file." },
-                    { "name": "charset", "type": "string", "optional": true, "description": "Charset of the content if it is served as text." }
-                ],
-                "description": "Returns content of the file. Result should be sliced into [start, end)."
-            },
-            {
-                "name": "deleteEntry",
-                "async": true,
-                "parameters": [
-                    { "name": "url", "type": "string", "description": "URL of the entry to delete." }
-                ],
-                "returns": [
-                    { "name": "errorCode", "type": "integer", "description": "0, if no error. Otherwise errorCode is set to FileError::ErrorCode value." }
-                ],
-                "description": "Deletes specified entry. If the entry is a directory, the agent deletes children recursively."
             }
         ]
     },
@@ -3174,6 +3085,16 @@
                     { "name": "style", "$ref": "CSSStyle", "description": "Associated style declaration." }
                 ],
                 "description": "CSS keyframe rule representation."
+            },
+            {
+                "id": "StyleDeclarationEdit",
+                "type": "object",
+                "properties": [
+                    { "name": "styleSheetId", "$ref": "StyleSheetId", "description": "The css style sheet identifier." },
+                    { "name": "range", "$ref": "SourceRange", "description": "The range of the style text in the enclosing stylesheet." },
+                    { "name": "text", "type": "string", "description": "New style text."}
+                ],
+                "description": "A descriptor of operation to mutate style declaration text."
             }
         ],
         "commands": [
@@ -3279,16 +3200,14 @@
                 "description": "Modifies the keyframe rule key text."
             },
             {
-                "name": "setStyleText",
+                "name": "setStyleTexts",
                 "parameters": [
-                    { "name": "styleSheetId", "$ref": "StyleSheetId" },
-                    { "name": "range", "$ref": "SourceRange" },
-                    { "name": "text", "type": "string" }
+                    { "name": "edits", "type": "array", "items": { "$ref": "StyleDeclarationEdit" }}
                 ],
                 "returns": [
-                    { "name": "style", "$ref": "CSSStyle", "description": "The resulting style after the selector modification." }
+                    { "name": "styles", "type": "array", "items": { "$ref": "CSSStyle" }, "description": "The resulting styles after modification." }
                 ],
-                "description": "Modifies the style text."
+                "description": "Applies specified style edits one after another in the given order."
             },
             {
                 "name": "setMediaText",
@@ -3539,15 +3458,11 @@
                 "id": "SetScriptSourceError",
                 "type": "object",
                 "properties": [
-                    { "name": "compileError", "optional": true, "type": "object", "properties":
-                        [
-                            { "name": "message", "type": "string", "description": "Compiler error message" },
-                            { "name": "lineNumber", "type": "integer", "description": "Compile error line number (1-based)" },
-                            { "name": "columnNumber", "type": "integer", "description": "Compile error column number (1-based)" }
-                        ]
-                    }
+                    { "name": "message", "type": "string", "description": "Compiler error message" },
+                    { "name": "lineNumber", "type": "integer", "description": "Compile error line number (1-based)" },
+                    { "name": "columnNumber", "type": "integer", "description": "Compile error column number (1-based)" }
                 ],
-                "description": "Error data for setScriptSource command. compileError is a case type for uncompilable script source error.",
+                "description": "Error data for setScriptSource command. Contains uncompilable script source error.",
                 "hidden": true
             },
             {
@@ -3707,11 +3622,9 @@
                 "returns": [
                     { "name": "callFrames", "type": "array", "optional": true, "items": { "$ref": "CallFrame" }, "description": "New stack trace in case editing has happened while VM was stopped." },
                     { "name": "stackChanged", "type": "boolean", "optional": true, "description": "Whether current call stack  was modified after applying the changes.", "hidden": true },
-                    { "name": "asyncStackTrace", "$ref": "StackTrace", "optional": true, "description": "Async stack trace, if any.", "hidden": true }
+                    { "name": "asyncStackTrace", "$ref": "StackTrace", "optional": true, "description": "Async stack trace, if any.", "hidden": true },
+                    { "name": "compileError", "optional": true, "$ref": "SetScriptSourceError", "description": "Error data if any." }
                 ],
-                "error": {
-                    "$ref": "SetScriptSourceError"
-                },
                 "description": "Edits JavaScript source live."
             },
             {
@@ -3909,7 +3822,8 @@
                     { "name": "isInternalScript", "type": "boolean", "optional": true, "description": "Determines whether this script is an internal script.", "hidden": true },
                     { "name": "isLiveEdit", "type": "boolean", "optional": true, "description": "True, if this script is generated as a result of the live edit operation.", "hidden": true },
                     { "name": "sourceMapURL", "type": "string", "optional": true, "description": "URL of source map associated with script (if any)." },
-                    { "name": "hasSourceURL", "type": "boolean", "optional": true, "description": "True, if this script has sourceURL.", "hidden": true }
+                    { "name": "hasSourceURL", "type": "boolean", "optional": true, "description": "True, if this script has sourceURL.", "hidden": true },
+                    { "name": "deprecatedCommentWasUsed", "type": "boolean", "optional": true, "hidden": true, "description": "True, if '//@ sourceURL' or '//@ sourceMappingURL' was used."}
                 ],
                 "description": "Fired when virtual machine parses script. This event is also fired for all known and uncollected scripts upon enabling debugger."
             },
@@ -3926,7 +3840,8 @@
                     { "name": "isContentScript", "type": "boolean", "optional": true, "description": "Determines whether this script is a user extension script." },
                     { "name": "isInternalScript", "type": "boolean", "optional": true, "description": "Determines whether this script is an internal script.", "hidden": true },
                     { "name": "sourceMapURL", "type": "string", "optional": true, "description": "URL of source map associated with script (if any)." },
-                    { "name": "hasSourceURL", "type": "boolean", "optional": true, "description": "True, if this script has sourceURL.", "hidden": true }
+                    { "name": "hasSourceURL", "type": "boolean", "optional": true, "description": "True, if this script has sourceURL.", "hidden": true },
+                    { "name": "deprecatedCommentWasUsed", "type": "boolean", "optional": true, "hidden": true, "description": "True, if '//@ sourceURL' or '//@ sourceMappingURL' was used."}
                 ],
                 "description": "Fired when virtual machine fails to parse the script."
             },
@@ -4910,32 +4825,6 @@
         ]
     },
     {
-        "domain": "ScreenOrientation",
-        "hidden": true,
-        "types": [
-            {
-                "id": "OrientationType",
-                "type": "string",
-                "enum": ["portraitPrimary", "portraitSecondary", "landscapePrimary", "landscapeSecondary"],
-                "description": "Orientation type"
-            }
-        ],
-        "commands": [
-            {
-                "name": "setScreenOrientationOverride",
-                "description": "Overrides the Screen Orientation.",
-                "parameters": [
-                    { "name": "angle", "type": "integer", "description": "Orientation angle" },
-                    { "name": "type", "$ref": "OrientationType", "description": "Orientation type" }
-                ]
-            },
-            {
-                "name": "clearScreenOrientationOverride",
-                "description": "Clears the overridden Screen Orientation."
-            }
-        ]
-    },
-    {
         "domain": "Tracing",
         "commands": [
             {
@@ -5022,6 +4911,7 @@
                 "hidden": true,
                 "properties": [
                     { "name": "id", "type": "string", "description": "<code>Animation</code>'s id." },
+                    { "name": "name", "type": "string", "description": "<code>Animation</code>'s name." },
                     { "name": "pausedState", "type": "boolean", "hidden": "true", "description": "<code>Animation</code>'s internal paused state." },
                     { "name": "playState", "type": "string", "description": "<code>Animation</code>'s play state." },
                     { "name": "playbackRate", "type": "number", "description": "<code>Animation</code>'s playback rate." },
@@ -5046,7 +4936,6 @@
                     { "name": "duration", "type": "number", "description": "<code>AnimationEffect</code>'s iteration duration." },
                     { "name": "direction", "type": "string", "description": "<code>AnimationEffect</code>'s playback direction." },
                     { "name": "fill", "type": "string", "description": "<code>AnimationEffect</code>'s fill mode." },
-                    { "name": "name", "type": "string", "description": "<code>AnimationEffect</code>'s name." },
                     { "name": "backendNodeId", "$ref": "DOM.BackendNodeId", "description": "<code>AnimationEffect</code>'s target node." },
                     { "name": "keyframesRule", "$ref": "KeyframesRule", "optional": true, "description": "<code>AnimationEffect</code>'s keyframes." },
                     { "name": "easing", "type": "string", "description": "<code>AnimationEffect</code>'s timing function." }

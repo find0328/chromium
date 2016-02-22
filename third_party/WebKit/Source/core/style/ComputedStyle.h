@@ -237,9 +237,9 @@ protected:
                 && tableLayout == other.tableLayout
                 && unicodeBidi == other.unicodeBidi
                 // hasViewportUnits
-                && pageBreakBefore == other.pageBreakBefore
-                && pageBreakAfter == other.pageBreakAfter
-                && pageBreakInside == other.pageBreakInside;
+                && breakBefore == other.breakBefore
+                && breakAfter == other.breakAfter
+                && breakInside == other.breakInside;
                 // styleType
                 // pseudoBits
                 // explicitInheritance
@@ -271,9 +271,9 @@ protected:
 
         // 32 bits
 
-        unsigned pageBreakBefore : 2; // EPageBreak
-        unsigned pageBreakAfter : 2; // EPageBreak
-        unsigned pageBreakInside : 2; // EPageBreak
+        unsigned breakBefore : 4; // EBreak
+        unsigned breakAfter : 4; // EBreak
+        unsigned breakInside : 2; // EBreak
 
         unsigned styleType : 6; // PseudoId
         unsigned pseudoBits : 8;
@@ -288,11 +288,13 @@ protected:
         unsigned affectedByActive : 1;
         unsigned affectedByDrag : 1;
 
+        // 64 bits
+
         unsigned isLink : 1;
 
         mutable unsigned hasRemUnits : 1;
         // If you add more style bits here, you will also need to update ComputedStyle::copyNonInheritedFromCached()
-        // 62 bits
+        // 66 bits
     } noninherited_flags;
 
 // !END SYNC!
@@ -328,9 +330,9 @@ protected:
         noninherited_flags.floating = initialFloating();
         noninherited_flags.tableLayout = initialTableLayout();
         noninherited_flags.unicodeBidi = initialUnicodeBidi();
-        noninherited_flags.pageBreakBefore = initialPageBreak();
-        noninherited_flags.pageBreakAfter = initialPageBreak();
-        noninherited_flags.pageBreakInside = initialPageBreak();
+        noninherited_flags.breakBefore = initialBreakBefore();
+        noninherited_flags.breakAfter = initialBreakAfter();
+        noninherited_flags.breakInside = initialBreakInside();
         noninherited_flags.styleType = NOPSEUDO;
         noninherited_flags.pseudoBits = 0;
         noninherited_flags.explicitInheritance = false;
@@ -371,6 +373,10 @@ public:
     // Computes how the style change should be propagated down the tree.
     static StyleRecalcChange stylePropagationDiff(const ComputedStyle* oldStyle, const ComputedStyle* newStyle);
 
+    ContentPosition resolvedJustifyContentPosition(const StyleContentAlignmentData& normalValueBehavior) const;
+    ContentDistributionType resolvedJustifyContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const;
+    ContentPosition resolvedAlignContentPosition(const StyleContentAlignmentData& normalValueBehavior) const;
+    ContentDistributionType resolvedAlignContentDistribution(const StyleContentAlignmentData& normalValueBehavior) const;
     const StyleSelfAlignmentData resolvedAlignment(const ComputedStyle& parentStyle, ItemPosition resolvedAutoPositionForLayoutObject) const;
     static ItemPosition resolveAlignment(const ComputedStyle& parentStyle, const ComputedStyle& childStyle, ItemPosition resolvedAutoPositionForLayoutObject);
     static ItemPosition resolveJustification(const ComputedStyle& parentStyle, const ComputedStyle& childStyle, ItemPosition resolvedAutoPositionForLayoutObject);
@@ -746,9 +752,9 @@ public:
     short orphans() const { return rareInheritedData->orphans; }
     bool hasAutoWidows() const { return rareInheritedData->widows == 1; }
     bool hasAutoOrphans() const { return rareInheritedData->m_hasAutoOrphans; }
-    EPageBreak pageBreakInside() const { return static_cast<EPageBreak>(noninherited_flags.pageBreakInside); }
-    EPageBreak pageBreakBefore() const { return static_cast<EPageBreak>(noninherited_flags.pageBreakBefore); }
-    EPageBreak pageBreakAfter() const { return static_cast<EPageBreak>(noninherited_flags.pageBreakAfter); }
+    EBreak breakAfter() const { return static_cast<EBreak>(noninherited_flags.breakAfter); }
+    EBreak breakBefore() const { return static_cast<EBreak>(noninherited_flags.breakBefore); }
+    EBreak breakInside() const { return static_cast<EBreak>(noninherited_flags.breakInside); }
 
     // CSS3 Getter Methods
 
@@ -841,6 +847,7 @@ public:
 
     Containment contain() const { return static_cast<Containment>(rareNonInheritedData->m_contain); }
     bool containsPaint() const { return rareNonInheritedData->m_contain & ContainsPaint; }
+    bool containsStyle() const { return rareNonInheritedData->m_contain & ContainsStyle; }
 
     EBoxSizing boxSizing() const { return m_box->boxSizing(); }
     EUserModify userModify() const { return static_cast<EUserModify>(rareInheritedData->userModify); }
@@ -878,9 +885,6 @@ public:
     bool columnRuleIsTransparent() const { return rareNonInheritedData->m_multiCol->m_rule.isTransparent(); }
     bool columnRuleEquivalent(const ComputedStyle* otherStyle) const;
     ColumnSpan columnSpan() const { return static_cast<ColumnSpan>(rareNonInheritedData->m_multiCol->m_columnSpan); }
-    EPageBreak columnBreakBefore() const { return static_cast<EPageBreak>(rareNonInheritedData->m_multiCol->m_breakBefore); }
-    EPageBreak columnBreakInside() const { return static_cast<EPageBreak>(rareNonInheritedData->m_multiCol->m_breakInside); }
-    EPageBreak columnBreakAfter() const { return static_cast<EPageBreak>(rareNonInheritedData->m_multiCol->m_breakAfter); }
     bool hasInlineTransform() const { return rareNonInheritedData->m_hasInlineTransform; }
     bool hasCompositorProxy() const { return rareNonInheritedData->m_hasCompositorProxy; }
     const TransformOperations& transform() const { return rareNonInheritedData->m_transform->m_operations; }
@@ -929,6 +933,9 @@ public:
 
     TextCombine textCombine() const { return static_cast<TextCombine>(rareInheritedData->m_textCombine); }
     bool hasTextCombine() const { return textCombine() != TextCombineNone; }
+
+    uint8_t snapHeightPosition() const { return rareInheritedData->m_snapHeightPosition; }
+    uint8_t snapHeightUnit() const { return rareInheritedData->m_snapHeightUnit; }
 
     TabSize tabSize() const { return rareInheritedData->m_tabSize; }
 
@@ -1298,10 +1305,9 @@ public:
     void setHasAutoOrphans() { SET_VAR(rareInheritedData, m_hasAutoOrphans, true); SET_VAR(rareInheritedData, orphans, initialOrphans()); }
     void setOrphans(short o) { SET_VAR(rareInheritedData, m_hasAutoOrphans, false); SET_VAR(rareInheritedData, orphans, o); }
 
-    // For valid values of page-break-inside see http://www.w3.org/TR/CSS21/page.html#page-break-props
-    void setPageBreakInside(EPageBreak b) { ASSERT(b == PBAUTO || b == PBAVOID); noninherited_flags.pageBreakInside = b; }
-    void setPageBreakBefore(EPageBreak b) { noninherited_flags.pageBreakBefore = b; }
-    void setPageBreakAfter(EPageBreak b) { noninherited_flags.pageBreakAfter = b; }
+    void setBreakAfter(EBreak b) { ASSERT(b <= BreakValueLastAllowedForBreakAfterAndBefore); noninherited_flags.breakAfter = b; }
+    void setBreakBefore(EBreak b) { ASSERT(b <= BreakValueLastAllowedForBreakAfterAndBefore); noninherited_flags.breakBefore = b;  }
+    void setBreakInside(EBreak b) { ASSERT(b <= BreakValueLastAllowedForBreakInside); noninherited_flags.breakInside = b;  }
 
     // CSS3 Setters
     void setOutlineOffset(int v) { SET_VAR(m_background, m_outline.m_offset, v); }
@@ -1397,10 +1403,6 @@ public:
     void setColumnRuleStyle(EBorderStyle b) { SET_NESTED_VAR(rareNonInheritedData, m_multiCol, m_rule.m_style, b); }
     void setColumnRuleWidth(unsigned short w) { SET_NESTED_VAR(rareNonInheritedData, m_multiCol, m_rule.m_width, w); }
     void setColumnSpan(ColumnSpan columnSpan) { SET_NESTED_VAR(rareNonInheritedData, m_multiCol, m_columnSpan, columnSpan); }
-    void setColumnBreakBefore(EPageBreak p) { SET_NESTED_VAR(rareNonInheritedData, m_multiCol, m_breakBefore, p); }
-    // For valid values of column-break-inside see http://www.w3.org/TR/css3-multicol/#break-before-break-after-break-inside
-    void setColumnBreakInside(EPageBreak p) { ASSERT(p == PBAUTO || p == PBAVOID); SET_NESTED_VAR(rareNonInheritedData, m_multiCol, m_breakInside, p); }
-    void setColumnBreakAfter(EPageBreak p) { SET_NESTED_VAR(rareNonInheritedData, m_multiCol, m_breakAfter, p); }
     void inheritColumnPropertiesFrom(const ComputedStyle& parent) { rareNonInheritedData.access()->m_multiCol = parent.rareNonInheritedData->m_multiCol; }
     void setHasInlineTransform(bool b) { SET_VAR(rareNonInheritedData, m_hasInlineTransform, b); }
     void setHasCompositorProxy(bool b) { SET_VAR(rareNonInheritedData, m_hasCompositorProxy, b); }
@@ -1434,6 +1436,9 @@ public:
 
     void setFilter(const FilterOperations& ops) { SET_NESTED_VAR(rareNonInheritedData, m_filter, m_operations, ops); }
     void setBackdropFilter(const FilterOperations& ops) { SET_NESTED_VAR(rareNonInheritedData, m_backdropFilter, m_operations, ops); }
+
+    void setSnapHeightPosition(uint8_t position) { SET_VAR(rareInheritedData, m_snapHeightPosition, position); }
+    void setSnapHeightUnit(uint8_t unit) { SET_VAR(rareInheritedData, m_snapHeightUnit, unit); }
 
     void setTabSize(TabSize size) { SET_VAR(rareInheritedData, m_tabSize, size); }
 
@@ -1660,7 +1665,9 @@ public:
     static EListStyleType initialListStyleType() { return Disc; }
     static EOverflow initialOverflowX() { return OVISIBLE; }
     static EOverflow initialOverflowY() { return OVISIBLE; }
-    static EPageBreak initialPageBreak() { return PBAUTO; }
+    static EBreak initialBreakAfter() { return BreakAuto; }
+    static EBreak initialBreakBefore() { return BreakAuto; }
+    static EBreak initialBreakInside() { return BreakAuto; }
     static EPosition initialPosition() { return StaticPosition; }
     static ETableLayout initialTableLayout() { return TAUTO; }
     static EUnicodeBidi initialUnicodeBidi() { return UBNormal; }
@@ -1713,7 +1720,7 @@ public:
     static float initialFlexShrink() { return 1; }
     static Length initialFlexBasis() { return Length(Auto); }
     static int initialOrder() { return 0; }
-    static StyleContentAlignmentData initialContentAlignment() { return StyleContentAlignmentData(ContentPositionAuto, ContentDistributionDefault, OverflowAlignmentDefault); }
+    static StyleContentAlignmentData initialContentAlignment() { return StyleContentAlignmentData(ContentPositionNormal, ContentDistributionDefault, OverflowAlignmentDefault); }
     static StyleSelfAlignmentData initialSelfAlignment() { return StyleSelfAlignmentData(ItemPositionAuto, OverflowAlignmentDefault); }
     static EFlexDirection initialFlexDirection() { return FlowRow; }
     static EFlexWrap initialFlexWrap() { return FlexNoWrap; }

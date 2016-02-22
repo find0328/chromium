@@ -22,6 +22,7 @@
 #include "mojo/public/cpp/bindings/interface_ptr_info.h"
 #include "mojo/public/cpp/system/core.h"
 #include "mojo/shell/runner/common/switches.h"
+#include "mojo/shell/runner/host/command_line_switch.h"
 
 #if defined(OS_LINUX) && !defined(OS_ANDROID)
 #include "sandbox/linux/services/namespace_sandbox.h"
@@ -34,13 +35,16 @@
 namespace mojo {
 namespace shell {
 
-ChildProcessHost::ChildProcessHost(base::TaskRunner* launch_process_runner,
-                                   bool start_sandboxed,
-                                   const base::FilePath& app_path)
+ChildProcessHost::ChildProcessHost(
+    base::TaskRunner* launch_process_runner,
+    bool start_sandboxed,
+    const base::FilePath& app_path,
+    const std::vector<CommandLineSwitch>& command_line_switches)
     : launch_process_runner_(launch_process_runner),
       start_sandboxed_(start_sandboxed),
       app_path_(app_path),
       start_child_process_event_(false, false),
+      command_line_switches_(command_line_switches),
       weak_factory_(this) {
   node_channel_.reset(new edk::PlatformChannelPair);
   primordial_pipe_token_ = edk::GenerateRandomToken();
@@ -145,6 +149,9 @@ void ChildProcessHost::DoLaunch() {
   child_command_line.AppendSwitchASCII(switches::kPrimordialPipeToken,
                                        primordial_pipe_token_);
 
+  for (const CommandLineSwitch& pair : command_line_switches_)
+    child_command_line.AppendSwitchASCII(pair.key, pair.value);
+
   base::LaunchOptions options;
 #if defined(OS_WIN)
   if (base::win::GetVersion() >= base::win::VERSION_VISTA) {
@@ -158,6 +165,9 @@ void ChildProcessHost::DoLaunch() {
   options.stdin_handle = INVALID_HANDLE_VALUE;
   options.stdout_handle = GetStdHandle(STD_OUTPUT_HANDLE);
   options.stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+  // Always inherit stdout/stderr as a pair.
+  if (!options.stdout_handle || !options.stdin_handle)
+    options.stdin_handle = options.stdout_handle = nullptr;
 
   // Pseudo handles are used when stdout and stderr redirect to the console. In
   // that case, they're automatically inherited by child processes. See
@@ -166,10 +176,13 @@ void ChildProcessHost::DoLaunch() {
   // to fail. When this process is launched from Python
   // (i.e. by apptest_runner.py) then a real handle is used. In that case, we do
   // want to add it to the list of handles that is inherited.
-  if (GetFileType(options.stdout_handle) != FILE_TYPE_CHAR)
+  if (options.stdout_handle &&
+      GetFileType(options.stdout_handle) != FILE_TYPE_CHAR) {
     handle_passing_info_.push_back(options.stdout_handle);
-  if (GetFileType(options.stderr_handle) != FILE_TYPE_CHAR &&
-      options.stdout_handle != options.stdout_handle) {
+  }
+  if (options.stderr_handle &&
+      GetFileType(options.stderr_handle) != FILE_TYPE_CHAR &&
+      options.stdout_handle != options.stderr_handle) {
     handle_passing_info_.push_back(options.stderr_handle);
   }
 #elif defined(OS_POSIX)

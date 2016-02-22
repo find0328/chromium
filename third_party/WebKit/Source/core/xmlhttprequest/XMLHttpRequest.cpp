@@ -47,8 +47,8 @@
 #include "core/fileapi/File.h"
 #include "core/fileapi/FileReaderLoader.h"
 #include "core/fileapi/FileReaderLoaderClient.h"
+#include "core/frame/Deprecation.h"
 #include "core/frame/Settings.h"
-#include "core/frame/UseCounter.h"
 #include "core/frame/csp/ContentSecurityPolicy.h"
 #include "core/html/FormData.h"
 #include "core/html/HTMLDocument.h"
@@ -535,7 +535,7 @@ void XMLHttpRequest::setWithCredentials(bool value, ExceptionState& exceptionSta
     // FIXME: According to XMLHttpRequest Level 2 we should throw InvalidAccessError exception here.
     // However for time being only print warning message to warn web developers.
     if (!m_async)
-        UseCounter::countDeprecation(executionContext(), UseCounter::SyncXHRWithCredentials);
+        Deprecation::countDeprecation(executionContext(), UseCounter::SyncXHRWithCredentials);
 
     m_includeCredentials = value;
 }
@@ -608,7 +608,7 @@ void XMLHttpRequest::open(const AtomicString& method, const KURL& url, bool asyn
         // Refer : https://xhr.spec.whatwg.org/#sync-warning
         // Use count for XHR synchronous requests on main thread only.
         if (!document()->processingBeforeUnload())
-            UseCounter::countDeprecation(executionContext(), UseCounter::XMLHttpRequestSynchronousInNonWorkerOutsideBeforeUnload);
+            Deprecation::countDeprecation(executionContext(), UseCounter::XMLHttpRequestSynchronousInNonWorkerOutsideBeforeUnload);
     }
 
     m_method = FetchUtils::normalizeMethod(method);
@@ -921,12 +921,9 @@ void XMLHttpRequest::createRequest(PassRefPtr<EncodedFormData> httpBody, Excepti
         if (m_upload)
             request.setReportUploadProgress(true);
 
-        // ThreadableLoader::create can return null here, for example if we're no longer attached to a page.
-        // This is true while running onunload handlers.
-        // FIXME: Maybe we need to be able to send XMLHttpRequests from onunload, <http://bugs.webkit.org/show_bug.cgi?id=10904>.
-        // FIXME: Maybe create() can return null for other reasons too?
         ASSERT(!m_loader);
-        m_loader = ThreadableLoader::create(executionContext, this, request, options, resourceLoaderOptions);
+        m_loader = ThreadableLoader::create(executionContext, this, options, resourceLoaderOptions);
+        m_loader->start(request);
 
         return;
     }

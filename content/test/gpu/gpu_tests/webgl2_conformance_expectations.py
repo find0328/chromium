@@ -69,10 +69,6 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     # Note that this test fails on ['win', 'intel'] with bug=483282
     self.Fail('conformance2/buffers/uniform-buffers.html', bug=577368)
 
-    # Command buffer side handling of TexSubImage3D is incorrect.
-    self.Fail('conformance2/textures/misc/tex-storage-and-subimage-3d.html',
-        bug=570453)
-
     # Windows only.
     self.Fail('conformance2/textures/canvas/tex-image-and-sub-image-2d' +
         '-with-canvas-r8-red-unsigned_byte.html',
@@ -129,6 +125,8 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     self.Fail('conformance2/textures/webgl_canvas/tex-image-and-sub-image-2d' +
         '-with-webgl-canvas-rgba4-rgba-unsigned_short_4_4_4_4.html',
         ['win'], bug=483282)
+
+    self.Flaky('deqp/functional/gles3/buffercopy.html', ['win'], bug=587601)
 
     self.Skip('deqp/functional/gles3/readpixel.html', ['win'], bug=483282)
     self.Skip('deqp/functional/gles3/texturestatequery.html',
@@ -239,6 +237,12 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         '-with-canvas-rgba8-rgba-unsigned_byte.html',
         ['win', 'debug'], bug=542901)
 
+    # Win / AMD.
+    self.Flaky('deqp/functional/gles3/clipping.html',
+        ['win', 'amd'], bug=491419)
+    self.Flaky('deqp/functional/gles3/samplerobject.html',
+        ['win', 'amd'], bug=491419)
+
     # Mac only.
     self.Skip('deqp/data/gles3/shaders/qualification_order.html',
         ['mac'], bug=483282)
@@ -284,6 +288,8 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
         ['mac'], bug=570453)
     self.Fail('conformance2/textures/misc/copy-texture-image.html',
         ['mac'], bug=577144)
+    self.Fail('conformance2/textures/misc/tex-storage-and-subimage-3d.html',
+        ['mac'], bug=483282)
     # The following failure is 10.10 only, but we don't have a keyword yet.
     self.Fail('conformance2/reading/read-pixels-from-fbo-test.html',
         ['mac'], bug=584994)
@@ -300,12 +306,21 @@ class WebGL2ConformanceExpectations(WebGLConformanceExpectations):
     self.Fail('deqp/functional/gles3/shaderstruct.html',
         ['mac', ('nvidia', 0xfe9)], bug=483282)
 
+    # Mac AMD
+    self.Fail('deqp/functional/gles3/clipping.html',
+        ['mac', 'amd'], bug=483282)
+
     # Linux only.
     self.Skip('deqp/functional/gles3/shaderswitch.html',
         ['linux'], bug=483282)
     self.Fail('conformance2/glsl3/vector-dynamic-indexing.html',
         ['linux'], bug=483282)
     self.Fail('conformance2/rendering/draw-buffers.html',
+        ['linux'], bug=483282)
+    self.Fail('deqp/functional/gles3/fbostatequery.html',
+        ['linux'], bug=483282)
+
+    self.Flaky('deqp/functional/gles3/negativeshaderapi.html',
         ['linux'], bug=483282)
 
     # Linux AMD only.

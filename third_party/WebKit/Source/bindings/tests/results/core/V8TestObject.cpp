@@ -53,13 +53,13 @@
 #include "bindings/core/v8/V8XPathNSResolver.h"
 #include "core/HTMLNames.h"
 #include "core/dom/ClassCollection.h"
-#include "core/dom/ContextFeatures.h"
 #include "core/dom/DOMArrayBuffer.h"
 #include "core/dom/Document.h"
 #include "core/dom/FlexibleArrayBufferView.h"
 #include "core/dom/MessagePort.h"
 #include "core/dom/TagCollection.h"
 #include "core/dom/custom/CustomElementProcessingStack.h"
+#include "core/frame/Deprecation.h"
 #include "core/frame/ImageBitmap.h"
 #include "core/frame/LocalFrame.h"
 #include "core/frame/UseCounter.h"
@@ -72,7 +72,6 @@
 #include "core/origin_trials/OriginTrials.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/ScriptForbiddenScope.h"
-#include "platform/TraceEvent.h"
 #include "wtf/GetPtr.h"
 #include "wtf/RefPtr.h"
 
@@ -98,7 +97,7 @@ namespace TestObjectV8Internal {
 
 static void DEPRECATED_CONSTANTConstantGetterCallback(v8::Local<v8::Name>, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::Constant);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::Constant);
     v8SetReturnValueInt(info, 1);
 }
 
@@ -2381,7 +2380,7 @@ static void testInterfaceEmptyConstructorAttributeAttributeSetter(v8::Local<v8::
 
 static void testInterfaceEmptyConstructorAttributeAttributeSetterCallback(v8::Local<v8::Name>, v8::Local<v8::Value> v8Value, const v8::PropertyCallbackInfo<void>& info)
 {
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::deprecatedTestInterfaceEmptyConstructorAttribute);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::deprecatedTestInterfaceEmptyConstructorAttribute);
     TestObjectV8Internal::testInterfaceEmptyConstructorAttributeAttributeSetter(v8Value, info);
 }
 
@@ -2474,7 +2473,7 @@ static void deprecatedLongAttributeAttributeGetter(const v8::FunctionCallbackInf
 
 static void deprecatedLongAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::LongAttribute);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::LongAttribute);
     TestObjectV8Internal::deprecatedLongAttributeAttributeGetter(info);
 }
 
@@ -2492,7 +2491,7 @@ static void deprecatedLongAttributeAttributeSetter(v8::Local<v8::Value> v8Value,
 static void deprecatedLongAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     v8::Local<v8::Value> v8Value = info[0];
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::LongAttribute);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::LongAttribute);
     TestObjectV8Internal::deprecatedLongAttributeAttributeSetter(v8Value, info);
 }
 
@@ -4326,218 +4325,6 @@ static void treatNullAsNullStringStringAttributeAttributeSetterCallback(const v8
     TestObjectV8Internal::treatNullAsNullStringStringAttributeAttributeSetter(v8Value, info);
 }
 
-static void treatReturnedNullStringAsNullStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    v8SetReturnValueStringOrNull(info, impl->treatReturnedNullStringAsNullStringAttribute(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsNullStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsNullStringAttributeAttributeGetter(info);
-}
-
-static void treatReturnedNullStringAsNullStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = v8Value;
-    if (!cppValue.prepare())
-        return;
-    impl->setTreatReturnedNullStringAsNullStringAttribute(cppValue);
-}
-
-static void treatReturnedNullStringAsNullStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::treatReturnedNullStringAsNullStringAttributeAttributeSetter(v8Value, info);
-}
-
-static void treatReturnedNullStringAsUndefinedStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    v8SetReturnValueStringOrUndefined(info, impl->treatReturnedNullStringAsUndefinedStringAttribute(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsUndefinedStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedStringAttributeAttributeGetter(info);
-}
-
-static void treatReturnedNullStringAsUndefinedStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = v8Value;
-    if (!cppValue.prepare())
-        return;
-    impl->setTreatReturnedNullStringAsUndefinedStringAttribute(cppValue);
-}
-
-static void treatReturnedNullStringAsUndefinedStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedStringAttributeAttributeSetter(v8Value, info);
-}
-
-static void cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    v8::Local<v8::String> propertyName = v8AtomicString(info.GetIsolate(), "cachedTreatReturnedNullStringAsUndefinedStringAttribute");
-    TestObject* impl = V8TestObject::toImpl(holder);
-    if (!impl->isStringDirty()) {
-        v8::Local<v8::Value> v8Value = V8HiddenValue::getHiddenValue(ScriptState::current(info.GetIsolate()), holder, propertyName);
-        if (!v8Value.IsEmpty() && !v8Value->IsUndefined()) {
-            v8SetReturnValue(info, v8Value);
-            return;
-        }
-    }
-    String cppValue(impl->cachedTreatReturnedNullStringAsUndefinedStringAttribute());
-    v8::Local<v8::Value> v8Value(cppValue.isNull() ? v8Undefined() : v8String(info.GetIsolate(), cppValue));
-    V8HiddenValue::setHiddenValue(ScriptState::current(info.GetIsolate()), holder, propertyName, v8Value);
-    v8SetReturnValue(info, v8Value);
-}
-
-static void cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeGetter(info);
-}
-
-static void cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = v8Value;
-    if (!cppValue.prepare())
-        return;
-    impl->setCachedTreatReturnedNullStringAsUndefinedStringAttribute(cppValue);
-    V8HiddenValue::deleteHiddenValue(ScriptState::current(info.GetIsolate()), holder, v8AtomicString(info.GetIsolate(), "cachedTreatReturnedNullStringAsUndefinedStringAttribute")); // Invalidate the cached value.
-}
-
-static void cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeSetter(v8Value, info);
-}
-
-static void treatReturnedNullStringAsNullByteStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    v8SetReturnValueStringOrNull(info, impl->treatReturnedNullStringAsNullByteStringAttribute(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsNullByteStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsNullByteStringAttributeAttributeGetter(info);
-}
-
-static void treatReturnedNullStringAsNullByteStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    ExceptionState exceptionState(ExceptionState::SetterContext, "treatReturnedNullStringAsNullByteStringAttribute", "TestObject", holder, info.GetIsolate());
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = toByteString(info.GetIsolate(), v8Value, exceptionState);
-    if (exceptionState.throwIfNeeded())
-        return;
-    impl->setTreatReturnedNullStringAsNullByteStringAttribute(cppValue);
-}
-
-static void treatReturnedNullStringAsNullByteStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::treatReturnedNullStringAsNullByteStringAttributeAttributeSetter(v8Value, info);
-}
-
-static void treatReturnedNullStringAsUndefinedByteStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    v8SetReturnValueStringOrUndefined(info, impl->treatReturnedNullStringAsUndefinedByteStringAttribute(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsUndefinedByteStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedByteStringAttributeAttributeGetter(info);
-}
-
-static void treatReturnedNullStringAsUndefinedByteStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    ExceptionState exceptionState(ExceptionState::SetterContext, "treatReturnedNullStringAsUndefinedByteStringAttribute", "TestObject", holder, info.GetIsolate());
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = toByteString(info.GetIsolate(), v8Value, exceptionState);
-    if (exceptionState.throwIfNeeded())
-        return;
-    impl->setTreatReturnedNullStringAsUndefinedByteStringAttribute(cppValue);
-}
-
-static void treatReturnedNullStringAsUndefinedByteStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedByteStringAttributeAttributeSetter(v8Value, info);
-}
-
-static void treatReturnedNullStringAsNullUSVStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    v8SetReturnValueStringOrNull(info, impl->treatReturnedNullStringAsNullUSVStringAttribute(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsNullUSVStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsNullUSVStringAttributeAttributeGetter(info);
-}
-
-static void treatReturnedNullStringAsNullUSVStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    ExceptionState exceptionState(ExceptionState::SetterContext, "treatReturnedNullStringAsNullUSVStringAttribute", "TestObject", holder, info.GetIsolate());
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = toUSVString(info.GetIsolate(), v8Value, exceptionState);
-    if (exceptionState.throwIfNeeded())
-        return;
-    impl->setTreatReturnedNullStringAsNullUSVStringAttribute(cppValue);
-}
-
-static void treatReturnedNullStringAsNullUSVStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::treatReturnedNullStringAsNullUSVStringAttributeAttributeSetter(v8Value, info);
-}
-
-static void treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    TestObject* impl = V8TestObject::toImpl(holder);
-    v8SetReturnValueStringOrUndefined(info, impl->treatReturnedNullStringAsUndefinedUSVStringAttribute(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeGetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeGetter(info);
-}
-
-static void treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeSetter(v8::Local<v8::Value> v8Value, const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Object> holder = info.Holder();
-    ExceptionState exceptionState(ExceptionState::SetterContext, "treatReturnedNullStringAsUndefinedUSVStringAttribute", "TestObject", holder, info.GetIsolate());
-    TestObject* impl = V8TestObject::toImpl(holder);
-    V8StringResource<> cppValue = toUSVString(info.GetIsolate(), v8Value, exceptionState);
-    if (exceptionState.throwIfNeeded())
-        return;
-    impl->setTreatReturnedNullStringAsUndefinedUSVStringAttribute(cppValue);
-}
-
-static void treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeSetterCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    v8::Local<v8::Value> v8Value = info[0];
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeSetter(v8Value, info);
-}
-
 static void legacyInterfaceTypeCheckingFloatAttributeAttributeGetter(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     v8::Local<v8::Object> holder = info.Holder();
@@ -5221,7 +5008,7 @@ static void enumForPrivateScriptAttributeSetterCallback(const v8::FunctionCallba
 
 static void testInterfaceEmptyConstructorAttributeConstructorGetterCallback(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::deprecatedTestInterfaceEmptyConstructorAttribute);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::deprecatedTestInterfaceEmptyConstructorAttribute);
     v8ConstructorAttributeGetter(property, info);
 }
 
@@ -9668,7 +9455,7 @@ static void deprecatedVoidMethodMethod(const v8::FunctionCallbackInfo<v8::Value>
 
 static void deprecatedVoidMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::voidMethod);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::voidMethod);
     TestObjectV8Internal::deprecatedVoidMethodMethod(info);
 }
 
@@ -10025,14 +9812,14 @@ static void DeprecateAsOverloadedMethodMethod(const v8::FunctionCallbackInfo<v8:
     switch (std::min(1, info.Length())) {
     case 0:
         if (true) {
-            UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureA);
+            Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureA);
             DeprecateAsOverloadedMethod1Method(info);
             return;
         }
         break;
     case 1:
         if (true) {
-            UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureB);
+            Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureB);
             DeprecateAsOverloadedMethod2Method(info);
             return;
         }
@@ -10072,7 +9859,7 @@ static void DeprecateAsSameValueOverloadedMethod2Method(const v8::FunctionCallba
 static void DeprecateAsSameValueOverloadedMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     ExceptionState exceptionState(ExceptionState::ExecutionContext, "DeprecateAsSameValueOverloadedMethod", "TestObject", info.Holder(), info.GetIsolate());
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeature);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeature);
     switch (std::min(1, info.Length())) {
     case 0:
         if (true) {
@@ -10225,7 +10012,7 @@ static void deprecateAsMeasureAsSameValueOverloadedMethodMethod(const v8::Functi
     case 0:
         if (true) {
             UseCounter::countIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeature);
-            UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureA);
+            Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureA);
             deprecateAsMeasureAsSameValueOverloadedMethod1Method(info);
             return;
         }
@@ -10233,7 +10020,7 @@ static void deprecateAsMeasureAsSameValueOverloadedMethodMethod(const v8::Functi
     case 1:
         if (true) {
             UseCounter::countIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeature);
-            UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureB);
+            Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureB);
             deprecateAsMeasureAsSameValueOverloadedMethod2Method(info);
             return;
         }
@@ -10273,7 +10060,7 @@ static void deprecateAsSameValueMeasureAsOverloadedMethod2Method(const v8::Funct
 static void deprecateAsSameValueMeasureAsOverloadedMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     ExceptionState exceptionState(ExceptionState::ExecutionContext, "deprecateAsSameValueMeasureAsOverloadedMethod", "TestObject", info.Holder(), info.GetIsolate());
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeature);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeature);
     switch (std::min(1, info.Length())) {
     case 0:
         if (true) {
@@ -10324,7 +10111,7 @@ static void deprecateAsSameValueMeasureAsSameValueOverloadedMethod2Method(const 
 static void deprecateAsSameValueMeasureAsSameValueOverloadedMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     ExceptionState exceptionState(ExceptionState::ExecutionContext, "deprecateAsSameValueMeasureAsSameValueOverloadedMethod", "TestObject", info.Holder(), info.GetIsolate());
-    UseCounter::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureA);
+    Deprecation::countDeprecationIfNotPrivateScript(info.GetIsolate(), currentExecutionContext(info.GetIsolate()), UseCounter::TestFeatureA);
     switch (std::min(1, info.Length())) {
     case 0:
         if (true) {
@@ -10947,72 +10734,6 @@ static void partiallyRuntimeEnabledOverloadedVoidMethodMethod(const v8::Function
 static void partiallyRuntimeEnabledOverloadedVoidMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
 {
     TestObjectV8Internal::partiallyRuntimeEnabledOverloadedVoidMethodMethod(info);
-}
-
-static void treatReturnedNullStringAsNullStringMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObject* impl = V8TestObject::toImpl(info.Holder());
-    v8SetReturnValueStringOrNull(info, impl->treatReturnedNullStringAsNullStringMethod(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsNullStringMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsNullStringMethodMethod(info);
-}
-
-static void treatReturnedNullStringAsUndefinedStringMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObject* impl = V8TestObject::toImpl(info.Holder());
-    v8SetReturnValueStringOrUndefined(info, impl->treatReturnedNullStringAsUndefinedStringMethod(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsUndefinedStringMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedStringMethodMethod(info);
-}
-
-static void treatReturnedNullStringAsNullByteStringMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObject* impl = V8TestObject::toImpl(info.Holder());
-    v8SetReturnValueStringOrNull(info, impl->treatReturnedNullStringAsNullByteStringMethod(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsNullByteStringMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsNullByteStringMethodMethod(info);
-}
-
-static void treatReturnedNullStringAsUndefinedByteStringMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObject* impl = V8TestObject::toImpl(info.Holder());
-    v8SetReturnValueStringOrUndefined(info, impl->treatReturnedNullStringAsUndefinedByteStringMethod(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsUndefinedByteStringMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedByteStringMethodMethod(info);
-}
-
-static void treatReturnedNullStringAsNullUSVStringMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObject* impl = V8TestObject::toImpl(info.Holder());
-    v8SetReturnValueStringOrNull(info, impl->treatReturnedNullStringAsNullUSVStringMethod(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsNullUSVStringMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsNullUSVStringMethodMethod(info);
-}
-
-static void treatReturnedNullStringAsUndefinedUSVStringMethodMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObject* impl = V8TestObject::toImpl(info.Holder());
-    v8SetReturnValueStringOrUndefined(info, impl->treatReturnedNullStringAsUndefinedUSVStringMethod(), info.GetIsolate());
-}
-
-static void treatReturnedNullStringAsUndefinedUSVStringMethodMethodCallback(const v8::FunctionCallbackInfo<v8::Value>& info)
-{
-    TestObjectV8Internal::treatReturnedNullStringAsUndefinedUSVStringMethodMethod(info);
 }
 
 static void legacyInterfaceTypeCheckingVoidMethodTestInterfaceEmptyArgMethod(const v8::FunctionCallbackInfo<v8::Value>& info)
@@ -12016,13 +11737,6 @@ const V8DOMConfiguration::AccessorConfiguration V8TestObjectAccessors[] = {
     {"setterCallWithExecutionContextStringAttribute", TestObjectV8Internal::setterCallWithExecutionContextStringAttributeAttributeGetterCallback, TestObjectV8Internal::setterCallWithExecutionContextStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"treatNullAsEmptyStringStringAttribute", TestObjectV8Internal::treatNullAsEmptyStringStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatNullAsEmptyStringStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"treatNullAsNullStringStringAttribute", TestObjectV8Internal::treatNullAsNullStringStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatNullAsNullStringStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"treatReturnedNullStringAsNullStringAttribute", TestObjectV8Internal::treatReturnedNullStringAsNullStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatReturnedNullStringAsNullStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"treatReturnedNullStringAsUndefinedStringAttribute", TestObjectV8Internal::treatReturnedNullStringAsUndefinedStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatReturnedNullStringAsUndefinedStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"cachedTreatReturnedNullStringAsUndefinedStringAttribute", TestObjectV8Internal::cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeGetterCallback, TestObjectV8Internal::cachedTreatReturnedNullStringAsUndefinedStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"treatReturnedNullStringAsNullByteStringAttribute", TestObjectV8Internal::treatReturnedNullStringAsNullByteStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatReturnedNullStringAsNullByteStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"treatReturnedNullStringAsUndefinedByteStringAttribute", TestObjectV8Internal::treatReturnedNullStringAsUndefinedByteStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatReturnedNullStringAsUndefinedByteStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"treatReturnedNullStringAsNullUSVStringAttribute", TestObjectV8Internal::treatReturnedNullStringAsNullUSVStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatReturnedNullStringAsNullUSVStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
-    {"treatReturnedNullStringAsUndefinedUSVStringAttribute", TestObjectV8Internal::treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeGetterCallback, TestObjectV8Internal::treatReturnedNullStringAsUndefinedUSVStringAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"legacyInterfaceTypeCheckingFloatAttribute", TestObjectV8Internal::legacyInterfaceTypeCheckingFloatAttributeAttributeGetterCallback, TestObjectV8Internal::legacyInterfaceTypeCheckingFloatAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"legacyInterfaceTypeCheckingTestInterfaceAttribute", TestObjectV8Internal::legacyInterfaceTypeCheckingTestInterfaceAttributeAttributeGetterCallback, TestObjectV8Internal::legacyInterfaceTypeCheckingTestInterfaceAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
     {"legacyInterfaceTypeCheckingTestInterfaceOrNullAttribute", TestObjectV8Internal::legacyInterfaceTypeCheckingTestInterfaceOrNullAttributeAttributeGetterCallback, TestObjectV8Internal::legacyInterfaceTypeCheckingTestInterfaceOrNullAttributeAttributeSetterCallback, 0, 0, 0, v8::DEFAULT, static_cast<v8::PropertyAttribute>(v8::None), V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype, V8DOMConfiguration::CheckHolder},
@@ -12262,12 +11976,6 @@ const V8DOMConfiguration::MethodConfiguration V8TestObjectMethods[] = {
     {"raisesExceptionTestInterfaceEmptyVoidMethod", TestObjectV8Internal::raisesExceptionTestInterfaceEmptyVoidMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
     {"raisesExceptionXPathNSResolverVoidMethod", TestObjectV8Internal::raisesExceptionXPathNSResolverVoidMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
     {"callWithExecutionContextRaisesExceptionVoidMethodLongArg", TestObjectV8Internal::callWithExecutionContextRaisesExceptionVoidMethodLongArgMethodCallback, 0, 1, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
-    {"treatReturnedNullStringAsNullStringMethod", TestObjectV8Internal::treatReturnedNullStringAsNullStringMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
-    {"treatReturnedNullStringAsUndefinedStringMethod", TestObjectV8Internal::treatReturnedNullStringAsUndefinedStringMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
-    {"treatReturnedNullStringAsNullByteStringMethod", TestObjectV8Internal::treatReturnedNullStringAsNullByteStringMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
-    {"treatReturnedNullStringAsUndefinedByteStringMethod", TestObjectV8Internal::treatReturnedNullStringAsUndefinedByteStringMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
-    {"treatReturnedNullStringAsNullUSVStringMethod", TestObjectV8Internal::treatReturnedNullStringAsNullUSVStringMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
-    {"treatReturnedNullStringAsUndefinedUSVStringMethod", TestObjectV8Internal::treatReturnedNullStringAsUndefinedUSVStringMethodMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
     {"legacyInterfaceTypeCheckingVoidMethodTestInterfaceEmptyArg", TestObjectV8Internal::legacyInterfaceTypeCheckingVoidMethodTestInterfaceEmptyArgMethodCallback, 0, 1, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
     {"legacyInterfaceTypeCheckingVoidMethodTestInterfaceEmptyVariadicArg", TestObjectV8Internal::legacyInterfaceTypeCheckingVoidMethodTestInterfaceEmptyVariadicArgMethodCallback, 0, 0, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},
     {"useToImpl4ArgumentsCheckingIfPossibleWithOptionalArg", TestObjectV8Internal::useToImpl4ArgumentsCheckingIfPossibleWithOptionalArgMethodCallback, 0, 1, v8::None, V8DOMConfiguration::ExposedToAllScripts, V8DOMConfiguration::OnPrototype},

@@ -80,6 +80,44 @@ FrameTree::NodeIterator FrameTree::NodeRange::end() {
 FrameTree::NodeRange::NodeRange(FrameTree* tree, FrameTreeNode* node_to_skip)
     : tree_(tree), node_to_skip_(node_to_skip) {}
 
+FrameTree::ConstNodeIterator::~ConstNodeIterator() {}
+
+FrameTree::ConstNodeIterator& FrameTree::ConstNodeIterator::operator++() {
+  for (size_t i = 0; i < current_node_->child_count(); ++i) {
+    const FrameTreeNode* child = current_node_->child_at(i);
+    queue_.push(child);
+  }
+
+  if (!queue_.empty()) {
+    current_node_ = queue_.front();
+    queue_.pop();
+  } else {
+    current_node_ = nullptr;
+  }
+
+  return *this;
+}
+
+bool FrameTree::ConstNodeIterator::operator==(
+    const ConstNodeIterator& rhs) const {
+  return current_node_ == rhs.current_node_;
+}
+
+FrameTree::ConstNodeIterator::ConstNodeIterator(
+    const FrameTreeNode* starting_node)
+    : current_node_(starting_node) {}
+
+FrameTree::ConstNodeIterator FrameTree::ConstNodeRange::begin() {
+  return ConstNodeIterator(tree_->root());
+}
+
+FrameTree::ConstNodeIterator FrameTree::ConstNodeRange::end() {
+  return ConstNodeIterator(nullptr);
+}
+
+FrameTree::ConstNodeRange::ConstNodeRange(const FrameTree* tree)
+    : tree_(tree) {}
+
 FrameTree::FrameTree(Navigator* navigator,
                      RenderFrameHostDelegate* render_frame_delegate,
                      RenderViewHostDelegate* render_view_delegate,
@@ -98,6 +136,7 @@ FrameTree::FrameTree(Navigator* navigator,
                               // The top-level frame must always be in a
                               // document scope.
                               blink::WebTreeScopeType::Document,
+                              std::string(),
                               std::string(),
                               blink::WebFrameOwnerProperties())),
       focused_frame_tree_node_id_(-1),
@@ -156,12 +195,17 @@ FrameTree::NodeRange FrameTree::NodesExcept(FrameTreeNode* node_to_skip) {
   return NodeRange(this, node_to_skip);
 }
 
+FrameTree::ConstNodeRange FrameTree::ConstNodes() const {
+  return ConstNodeRange(this);
+}
+
 bool FrameTree::AddFrame(
     FrameTreeNode* parent,
     int process_id,
     int new_routing_id,
     blink::WebTreeScopeType scope,
     const std::string& frame_name,
+    const std::string& frame_unique_name,
     blink::WebSandboxFlags sandbox_flags,
     const blink::WebFrameOwnerProperties& frame_owner_properties) {
   CHECK_NE(new_routing_id, MSG_ROUTING_NONE);
@@ -178,7 +222,7 @@ bool FrameTree::AddFrame(
       make_scoped_ptr(new FrameTreeNode(
           this, parent->navigator(), render_frame_delegate_,
           render_view_delegate_, render_widget_delegate_, manager_delegate_,
-          scope, frame_name, frame_owner_properties)),
+          scope, frame_name, frame_unique_name, frame_owner_properties)),
       process_id, new_routing_id);
 
   // Set sandbox flags and make them effective immediately, since initial
@@ -425,8 +469,8 @@ void FrameTree::ResetLoadProgress() {
   load_progress_ = 0.0;
 }
 
-bool FrameTree::IsLoading() {
-  for (FrameTreeNode* node : Nodes()) {
+bool FrameTree::IsLoading() const {
+  for (const FrameTreeNode* node : ConstNodes()) {
     if (node->IsLoading())
       return true;
   }

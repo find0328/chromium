@@ -28,11 +28,11 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/common/renderer_preferences.h"
 #include "content/public/common/webrtc_ip_handling_policy.h"
-#include "content/shell/browser/blink_test_controller.h"
+#include "content/shell/browser/layout_test/blink_test_controller.h"
 #include "content/shell/browser/layout_test/layout_test_bluetooth_chooser_factory.h"
 #include "content/shell/browser/layout_test/layout_test_devtools_frontend.h"
 #include "content/shell/browser/layout_test/layout_test_javascript_dialog_manager.h"
-#include "content/shell/browser/notify_done_forwarder.h"
+#include "content/shell/browser/layout_test/notify_done_forwarder.h"
 #include "content/shell/browser/shell_browser_main_parts.h"
 #include "content/shell/browser/shell_content_browser_client.h"
 #include "content/shell/browser/shell_devtools_frontend.h"
@@ -204,8 +204,40 @@ void Shell::LoadURLForFrame(const GURL& url, const std::string& frame_name) {
 
 void Shell::LoadDataWithBaseURL(const GURL& url, const std::string& data,
     const GURL& base_url) {
-  const GURL data_url = GURL("data:text/html;charset=utf-8," + data);
-  NavigationController::LoadURLParams params(data_url);
+  bool load_as_string = false;
+  LoadDataWithBaseURLInternal(url, data, base_url, load_as_string);
+}
+
+#if defined(OS_ANDROID)
+void Shell::LoadDataAsStringWithBaseURL(const GURL& url,
+                                        const std::string& data,
+                                        const GURL& base_url) {
+  bool load_as_string = true;
+  LoadDataWithBaseURLInternal(url, data, base_url, load_as_string);
+}
+#endif
+
+void Shell::LoadDataWithBaseURLInternal(const GURL& url,
+                                        const std::string& data,
+                                        const GURL& base_url,
+                                        bool load_as_string) {
+#if !defined(OS_ANDROID)
+  DCHECK(!load_as_string);  // Only supported on Android.
+#endif
+
+  NavigationController::LoadURLParams params(GURL::EmptyGURL());
+  const std::string data_url_header = "data:text/html;charset=utf-8,";
+  if (load_as_string) {
+    params.url = GURL(data_url_header);
+    std::string data_url_as_string = data_url_header + data;
+#if defined(OS_ANDROID)
+    params.data_url_as_string =
+        base::RefCountedString::TakeString(&data_url_as_string);
+#endif
+  } else {
+    params.url = GURL(data_url_header + data);
+  }
+
   params.load_type = NavigationController::LOAD_TYPE_DATA;
   params.base_url_for_data_url = base_url;
   params.virtual_url_for_data_url = url;
@@ -384,14 +416,13 @@ JavaScriptDialogManager* Shell::GetJavaScriptDialogManager(
 }
 
 scoped_ptr<BluetoothChooser> Shell::RunBluetoothChooser(
-    WebContents* web_contents,
-    const BluetoothChooser::EventHandler& event_handler,
-    const url::Origin& origin) {
+    RenderFrameHost* frame,
+    const BluetoothChooser::EventHandler& event_handler) {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kRunLayoutTest)) {
-    return BlinkTestController::Get()->RunBluetoothChooser(
-        web_contents, event_handler, origin);
+    return BlinkTestController::Get()->RunBluetoothChooser(frame,
+                                                           event_handler);
   }
   return nullptr;
 }

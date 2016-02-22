@@ -457,6 +457,8 @@ class CONTENT_EXPORT RenderViewImpl
   gfx::RectF ElementBoundsInWindow(const blink::WebElement& element) override;
   float GetDeviceScaleFactorForTest() const override;
 
+  gfx::Point ConvertWindowPointToViewport(const gfx::Point& point);
+
   bool uses_temporary_zoom_level() const { return uses_temporary_zoom_level_; }
 
   // Please do not add your stuff randomly to the end here. If there is an
@@ -802,11 +804,6 @@ class CONTENT_EXPORT RenderViewImpl
 
   // Used for popups.
   bool opened_by_user_gesture_;
-
-  // Whether this RenderView was created by a frame that was suppressing its
-  // opener. If so, we may want to load pages in a separate process.  See
-  // decidePolicyForNavigation for details.
-  bool opener_suppressed_;
 
   // Whether we must stop creating nested message loops for modal dialogs until
   // OnSwapOut is called.  This is necessary because modal dialogs have a

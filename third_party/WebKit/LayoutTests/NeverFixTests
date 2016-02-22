@@ -44,13 +44,6 @@ fast/harness/sample-fail-mismatch-reftest.html [ WontFix ]
 # <progress> on Mac is always animated. So it's hard to get a reliable pixel result.
 [ Mac ] fast/dom/HTMLProgressElement/progress-element.html [ WontFix ]
 
-# These test the CoreAnimation plugin model which we never intend to support on
-# Windows and Linux.
-[ Win Linux ] compositing/plugins/1x1-composited-plugin.html [ WontFix ]
-[ Win Linux ] compositing/plugins/composited-plugin.html [ WontFix ]
-[ Win Linux ] compositing/plugins/large-to-small-composited-plugin.html [ WontFix ]
-[ Win Linux ] compositing/plugins/small-to-large-composited-plugin.html [ WontFix ]
-
 # Mac's popup behavior is different.
 [ Mac ] fast/forms/select/menulist-onchange-fired-with-key-up-down.html [ WontFix ]
 [ Mac ] fast/forms/select/popup-with-display-none-optgroup.html [ WontFix ]
@@ -212,6 +205,11 @@ imported/csswg-test/css21/linebox/line-height-126.xht [ WontFix ]
 # We could fix this test for us and upstream it if the test shell user agent
 # would let us differentiate test_shell and WebKit DumpTreeNode.
 crbug.com/7482 [ Win Mac ] http/tests/misc/timer-vs-loading.html [ WontFix ]
+
+# On Linux bold emoji are already supported.
+crbug.com/551843 [ Linux ] fast/text/fallback-traits-fixup.html [ WontFix ]
+# Max 10.6 did not have any emoji support.
+crbug.com/551843 [ Linux Win Mac10.6 ] fast/text/emoji-font-weight-mac.html [ WontFix ]
 
 # These tests are too slow with our MESA backend.  We can re-enable when we have
 # bots running tests on real hardware. Don't want to just delete these because they

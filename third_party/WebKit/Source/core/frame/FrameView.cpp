@@ -64,6 +64,8 @@
 #include "core/layout/ScrollAlignment.h"
 #include "core/layout/TextAutosizer.h"
 #include "core/layout/TracedLayoutObject.h"
+#include "core/layout/api/LayoutBoxModel.h"
+#include "core/layout/api/LayoutItem.h"
 #include "core/layout/compositing/CompositedLayerMapping.h"
 #include "core/layout/compositing/CompositedSelection.h"
 #include "core/layout/compositing/PaintLayerCompositor.h"
@@ -79,6 +81,7 @@
 #include "core/paint/FramePainter.h"
 #include "core/paint/PaintLayer.h"
 #include "core/paint/PaintPropertyTreeBuilder.h"
+#include "core/plugins/PluginView.h"
 #include "core/style/ComputedStyle.h"
 #include "core/svg/SVGDocumentExtensions.h"
 #include "core/svg/SVGSVGElement.h"
@@ -271,9 +274,6 @@ void FrameView::dispose()
     if (ScrollAnimatorBase* scrollAnimator = existingScrollAnimator())
         scrollAnimator->cancelAnimation();
     cancelProgrammaticScrollAnimation();
-
-    if (RuntimeEnabledFeatures::scrollAnchoringEnabled())
-        m_scrollAnchor.clear();
 
     detachScrollbars();
 
@@ -869,8 +869,8 @@ void FrameView::performLayout(bool inSubtreeLayout)
             // We need to ensure that we mark up all layoutObjects up to the LayoutView
             // for paint invalidation. This simplifies our code as we just always
             // do a full tree walk.
-            if (LayoutObject* container = root->container())
-                container->setMayNeedPaintInvalidation();
+            if (LayoutItem container = LayoutItem(root->container()))
+                container.setMayNeedPaintInvalidation();
         }
         m_layoutSubtreeRootList.clear();
     } else {
@@ -956,7 +956,7 @@ void FrameView::layout()
     bool inSubtreeLayout = isSubtreeLayout();
 
     // FIXME: The notion of a single root for layout is no longer applicable. Remove or update this code. crbug.com/460596
-    LayoutObject* rootForThisLayout = inSubtreeLayout ? m_layoutSubtreeRootList.randomRoot() : layoutView();
+    LayoutItem rootForThisLayout(inSubtreeLayout ? m_layoutSubtreeRootList.randomRoot() : layoutView());
     if (!rootForThisLayout) {
         // FIXME: Do we need to set m_size here?
         ASSERT_NOT_REACHED();
@@ -1361,9 +1361,10 @@ bool FrameView::invalidateViewportConstrainedObjects()
 {
     for (const auto& viewportConstrainedObject : *m_viewportConstrainedObjects) {
         LayoutObject* layoutObject = viewportConstrainedObject;
-        ASSERT(layoutObject->style()->hasViewportConstrainedPosition());
-        ASSERT(layoutObject->hasLayer());
-        PaintLayer* layer = toLayoutBoxModelObject(layoutObject)->layer();
+        LayoutItem layoutItem = LayoutItem(layoutObject);
+        ASSERT(layoutItem.style()->hasViewportConstrainedPosition());
+        ASSERT(layoutItem.hasLayer());
+        PaintLayer* layer = LayoutBoxModel(layoutItem).layer();
 
         if (layer->isPaintInvalidationContainer())
             continue;
@@ -1383,7 +1384,7 @@ bool FrameView::invalidateViewportConstrainedObjects()
             "data",
             InspectorScrollInvalidationTrackingEvent::data(*layoutObject));
 
-        layoutObject->setShouldDoFullPaintInvalidationIncludingNonCompositingDescendants();
+        layoutItem.setShouldDoFullPaintInvalidationIncludingNonCompositingDescendants();
     }
     return true;
 }
@@ -2362,6 +2363,7 @@ void FrameView::updateScrollCorner()
     if (cornerStyle) {
         if (!m_scrollCorner)
             m_scrollCorner = LayoutScrollbarPart::createAnonymous(doc);
+        m_scrollCorner->adjustStyleBeforeSet(cornerStyle.get());
         m_scrollCorner->setStyle(cornerStyle.release());
         setScrollCornerNeedsPaintInvalidation();
     } else if (m_scrollCorner) {
@@ -2434,6 +2436,7 @@ void FrameView::scheduleVisualUpdateForPaintInvalidationIfNeeded()
     // Otherwise the paint invalidation will be handled in paint invalidation phase of this cycle.
 }
 
+// TODO(leviw): We don't assert lifecycle information from documents in child PluginViews.
 void FrameView::updateLifecyclePhasesInternal(LifeCycleUpdateOption phases)
 {
     Optional<TemporaryChange<bool>> isUpdatingAllLifecyclePhasesScope;
@@ -2621,6 +2624,17 @@ void FrameView::updateStyleAndLayoutIfNeededRecursive()
     if (needsLayout())
         layout();
 
+    // WebView plugins need to update regardless of whether the LayoutEmbeddedObject
+    // that owns them needed layout.
+    // TODO(leviw): This currently runs the entire lifecycle on plugin WebViews. We
+    // should have a way to only run these other Documents to the same lifecycle stage
+    // as this frame.
+    const ChildrenWidgetSet* viewChildren = children();
+    for (const RefPtrWillBeMember<Widget>& child : *viewChildren) {
+        if ((*child).isPluginContainer())
+            toPluginView(child.get())->layoutIfNeeded();
+    }
+
     // FIXME: Calling layout() shouldn't trigger script execution or have any
     // observable effects on the frame tree but we're not quite there yet.
     WillBeHeapVector<RefPtrWillBeMember<FrameView>> frameViews;
@@ -2767,7 +2781,7 @@ void FrameView::forceLayoutForPagination(const FloatSize& pageSize, const FloatS
             LayoutUnit docLogicalRight = horizontalWritingMode ? updatedDocumentRect.maxX() : updatedDocumentRect.maxY();
             LayoutUnit clippedLogicalLeft;
             if (!layoutView->style()->isLeftToRightDirection())
-                clippedLogicalLeft = docLogicalRight - pageLogicalWidth;
+                clippedLogicalLeft = LayoutUnit(docLogicalRight - pageLogicalWidth);
             LayoutRect overflow(clippedLogicalLeft, docLogicalTop, pageLogicalWidth, docLogicalHeight);
 
             if (!horizontalWritingMode)

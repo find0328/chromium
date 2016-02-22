@@ -119,8 +119,6 @@ public:
         UnprefixedUserTiming = 67,
         WindowEvent = 69,
         ContentSecurityPolicyWithBaseElement = 70,
-        PrefixedMediaAddKey = 71,
-        PrefixedMediaGenerateKeyRequest = 72,
         DocumentClear = 74,
         XMLDocument = 77,
         XSLProcessingInstruction = 78,
@@ -130,7 +128,6 @@ public:
         FormElement = 84,
         DemotedFormElement = 85,
         SVGAnimationElement = 90,
-        KeyboardEventKeyLocation = 91,
         LineClamp = 96,
         SubFrameBeforeUnloadRegistered = 97,
         SubFrameBeforeUnloadFired = 98,
@@ -223,8 +220,6 @@ public:
         // The above items are available in M33 branch.
 
         InitMessageEvent = 222,
-        PrefixedMediaCancelKeyRequest = 229,
-        CanPlayTypeKeySystem = 232,
         PrefixedDevicePixelRatioMediaFeature = 233,
         PrefixedMaxDevicePixelRatioMediaFeature = 234,
         PrefixedMinDevicePixelRatioMediaFeature = 235,
@@ -353,7 +348,6 @@ public:
         DocumentPointerLockElement = 422,
         PrefixedCursorZoomIn = 424,
         PrefixedCursorZoomOut = 425,
-        DocumentDefaultCharset = 428,
         TextEncoderConstructor = 429,
         TextEncoderEncode = 430,
         TextDecoderConstructor = 431,
@@ -788,8 +782,6 @@ public:
         // The above items are available in M46 branch.
 
         HTMLImportsHasStyleSheets = 940,
-        WebkitTextInClipProperty = 941,
-        WebkitTextInColorProperty = 942,
         ClipPathOfPositionedElement = 944,
         ClipCssOfPositionedElement = 945,
         NetInfoType = 946,
@@ -1080,6 +1072,20 @@ public:
         DocumentCreateEventMIDIMessageEvent = 1226,
         DocumentCreateEventCloseEvent = 1227,
         DocumentCreateEventKeyboardEvents = 1228,
+        HTMLMediaElement = 1229,
+        HTMLMediaElementInDocument = 1230,
+        HTMLMediaElementControlsAttribute = 1231,
+        SVGZoomEvent = 1232,
+        V8Animation_Oncancel_AttributeGetter = 1233,
+        V8Animation_Oncancel_AttributeSetter = 1234,
+        V8HTMLCommentInExternalScript = 1235,
+        V8HTMLComment = 1236,
+        V8SloppyModeBlockScopedFunctionRedefinition = 1237,
+        V8ForInInitializer = 1238,
+        V8Animation_Id_AttributeGetter = 1239,
+        V8Animation_Id_AttributeSetter = 1240,
+        MediaStreamOnEnded = 1241,
+        DocumentCreateEventInputEvent = 1242,
 
         // Add new features immediately above this line. Don't change assigned
         // numbers of any item, and don't reuse removed slots.
@@ -1104,30 +1110,9 @@ public:
     void count(CSSParserMode, CSSPropertyID);
     void count(Feature);
 
-    // "countDeprecation" sets the bit for this feature to 1, and sends a deprecation
-    // warning to the console. Repeated calls are ignored.
-    //
-    // Be considerate to developers' consoles: features should only send
-    // deprecation warnings when we're actively interested in removing them from
-    // the platform.
-    //
-    // For shared workers and service workers, the ExecutionContext* overload
-    // doesn't count the usage but only sends a console warning.
-    static void countDeprecation(const LocalFrame*, Feature);
-    static void countDeprecation(ExecutionContext*, Feature);
-    static void countDeprecation(const Document&, Feature);
-    // Use countDeprecationIfNotPrivateScript() instead of countDeprecation()
-    // if you don't want to count metrics in private scripts. You should use
-    // countDeprecationIfNotPrivateScript() in a binding layer.
-    static void countDeprecationIfNotPrivateScript(v8::Isolate*, ExecutionContext*, Feature);
-    static String deprecationMessage(Feature);
-
     // Count only features if they're being used in an iframe which does not
     // have script access into the top level document.
     static void countCrossOriginIframe(const Document&, Feature);
-
-    // TODO (nainar): Migrate all console message functions to Deprecation
-    static String willBeRemoved(const char* feature, int milestone, const char* details);
 
     // Return whether the Feature was previously counted for this document.
     // NOTE: only for use in testing.
@@ -1143,6 +1128,11 @@ public:
 
     static void muteForInspector();
     static void unmuteForInspector();
+
+    void recordMeasurement(Feature feature) { m_countBits.recordMeasurement(feature); }
+    void updateMeasurements();
+
+    bool hasRecordedMeasurement(Feature feature) const { return m_countBits.hasRecordedMeasurement(feature); }
 
     class CountBits {
         DISALLOW_NEW();
@@ -1178,11 +1168,6 @@ public:
 protected:
     friend class UseCounterTest;
     static int m_muteCount;
-
-    void recordMeasurement(Feature feature) { m_countBits.recordMeasurement(feature); }
-    void updateMeasurements();
-
-    bool hasRecordedMeasurement(Feature feature) const { return m_countBits.hasRecordedMeasurement(feature); }
 
     CountBits m_countBits;
     BitVector m_CSSFeatureBits;

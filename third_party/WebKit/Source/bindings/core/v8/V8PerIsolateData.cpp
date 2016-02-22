@@ -32,8 +32,9 @@
 #include "bindings/core/v8/V8ObjectConstructor.h"
 #include "bindings/core/v8/V8RecursionScope.h"
 #include "bindings/core/v8/V8ScriptRunner.h"
-#include "core/frame/UseCounter.h"
+#include "core/frame/Deprecation.h"
 #include "core/inspector/MainThreadDebugger.h"
+#include "platform/ScriptForbiddenScope.h"
 #include "public/platform/Platform.h"
 #include "wtf/LeakAnnotations.h"
 #include "wtf/MainThread.h"
@@ -42,10 +43,15 @@ namespace blink {
 
 static V8PerIsolateData* mainThreadPerIsolateData = 0;
 
-#if ENABLE(ASSERT)
-static void assertV8RecursionScope()
+static void beforeCallEnteredCallback(v8::Isolate* isolate)
 {
-    ASSERT(V8RecursionScope::properlyUsed(v8::Isolate::GetCurrent()));
+    RELEASE_ASSERT(!ScriptForbiddenScope::isScriptForbidden());
+}
+
+#if ENABLE(ASSERT)
+static void assertV8RecursionScope(v8::Isolate* isolate)
+{
+    ASSERT(V8RecursionScope::properlyUsed(isolate));
 }
 
 static bool runningUnitTest()
@@ -108,13 +114,25 @@ static void useCounterCallback(v8::Isolate* isolate, v8::Isolate::UseCounterFeat
     case v8::Isolate::kPromiseDefer:
         blinkFeature = UseCounter::V8PromiseDefer;
         break;
+    case v8::Isolate::kHtmlCommentInExternalScript:
+        blinkFeature = UseCounter::V8HTMLCommentInExternalScript;
+        break;
+    case v8::Isolate::kHtmlComment:
+        blinkFeature = UseCounter::V8HTMLComment;
+        break;
+    case v8::Isolate::kSloppyModeBlockScopedFunctionRedefinition:
+        blinkFeature = UseCounter::V8SloppyModeBlockScopedFunctionRedefinition;
+        break;
+    case v8::Isolate::kForInInitializer:
+        blinkFeature = UseCounter::V8ForInInitializer;
+        break;
     default:
         // This can happen if V8 has added counters that this version of Blink
         // does not know about. It's harmless.
         return;
     }
     if (deprecated)
-        UseCounter::countDeprecation(currentExecutionContext(isolate), blinkFeature);
+        Deprecation::countDeprecation(currentExecutionContext(isolate), blinkFeature);
     else
         UseCounter::count(currentExecutionContext(isolate), blinkFeature);
 }
@@ -139,6 +157,7 @@ V8PerIsolateData::V8PerIsolateData()
     if (!runningUnitTest())
         isolate()->AddCallCompletedCallback(&assertV8RecursionScope);
 #endif
+    isolate()->AddBeforeCallEnteredCallback(&beforeCallEnteredCallback);
     if (isMainThread())
         mainThreadPerIsolateData = this;
     isolate()->SetUseCounterCallback(&useCounterCallback);
@@ -198,6 +217,7 @@ void V8PerIsolateData::destroy(v8::Isolate* isolate)
     if (!runningUnitTest())
         isolate->RemoveCallCompletedCallback(&assertV8RecursionScope);
 #endif
+    isolate->RemoveBeforeCallEnteredCallback(&beforeCallEnteredCallback);
     V8PerIsolateData* data = from(isolate);
 
     // Clear everything before exiting the Isolate.

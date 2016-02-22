@@ -220,7 +220,7 @@ void PushMessagingServiceImpl::OnMessage(const std::string& app_id,
   // The payload of a push message can be valid with content, valid with empty
   // content, or null. Only set the payload data if it is non-null.
   content::PushEventPayload payload;
-  if (AreMessagePayloadsEnabled() && message.decrypted)
+  if (message.decrypted)
     payload.setData(message.raw_data);
 
   // Dispatch the message to the appropriate Service Worker.
@@ -378,7 +378,7 @@ void PushMessagingServiceImpl::SubscribeFromDocument(
   // Push does not allow permission requests from iframes.
   profile_->GetPermissionManager()->RequestPermission(
       content::PermissionType::PUSH_MESSAGING, web_contents->GetMainFrame(),
-      requesting_origin, true /* user_gesture */,
+      requesting_origin,
       base::Bind(&PushMessagingServiceImpl::DidRequestPermission,
                  weak_factory_.GetWeakPtr(), app_identifier, sender_id,
                  callback));
@@ -401,10 +401,10 @@ void PushMessagingServiceImpl::SubscribeFromWorker(
     return;
   }
 
-  GURL embedding_origin = requesting_origin;
   blink::WebPushPermissionStatus permission_status =
-      PushMessagingServiceImpl::GetPermissionStatus(
-          requesting_origin, embedding_origin, user_visible);
+      PushMessagingServiceImpl::GetPermissionStatus(requesting_origin,
+                                                    user_visible);
+
   if (permission_status != blink::WebPushPermissionStatusGranted) {
     SubscribeEndWithError(register_callback,
                           content::PUSH_REGISTRATION_STATUS_PERMISSION_DENIED);
@@ -420,15 +420,16 @@ void PushMessagingServiceImpl::SubscribeFromWorker(
 }
 
 blink::WebPushPermissionStatus PushMessagingServiceImpl::GetPermissionStatus(
-    const GURL& requesting_origin,
-    const GURL& embedding_origin,
+    const GURL& origin,
     bool user_visible) {
   if (!user_visible)
     return blink::WebPushPermissionStatusDenied;
 
+  // Because the Push API is tied to Service Workers, many usages of the API
+  // won't have an embedding origin at all. Only consider the requesting
+  // |origin| when checking whether permission to use the API has been granted.
   return ToPushPermission(profile_->GetPermissionManager()->GetPermissionStatus(
-      content::PermissionType::PUSH_MESSAGING, requesting_origin,
-      embedding_origin));
+      content::PermissionType::PUSH_MESSAGING, origin, origin));
 }
 
 bool PushMessagingServiceImpl::SupportNonVisibleMessages() {
@@ -464,14 +465,6 @@ void PushMessagingServiceImpl::DidSubscribe(
 
   switch (result) {
     case gcm::GCMClient::SUCCESS:
-      // Do not get a certificate if message payloads have not been enabled.
-      if (!AreMessagePayloadsEnabled()) {
-        DidSubscribeWithEncryptionInfo(
-            app_identifier, callback, subscription_id,
-            std::string() /* p256dh */, std::string() /* auth_secret */);
-        return;
-      }
-
       // Make sure that this subscription has associated encryption keys prior
       // to returning it to the developer - they'll need this information in
       // order to send payloads to the user.
@@ -504,7 +497,7 @@ void PushMessagingServiceImpl::DidSubscribeWithEncryptionInfo(
     const std::string& subscription_id,
     const std::string& p256dh,
     const std::string& auth_secret) {
-  if (!p256dh.size() && AreMessagePayloadsEnabled()) {
+  if (!p256dh.size()) {
     SubscribeEndWithError(
         callback, content::PUSH_REGISTRATION_STATUS_PUBLIC_KEY_UNAVAILABLE);
     return;
@@ -545,13 +538,6 @@ void PushMessagingServiceImpl::GetEncryptionInfo(
     const GURL& origin,
     int64_t service_worker_registration_id,
     const PushMessagingService::EncryptionInfoCallback& callback) {
-  // An empty public key will be returned if payloads are not enabled.
-  if (!AreMessagePayloadsEnabled()) {
-    callback.Run(true /* success */, std::vector<uint8_t>() /* p256dh */,
-                 std::vector<uint8_t>() /* auth */);
-    return;
-  }
-
   PushMessagingAppIdentifier app_identifier =
       PushMessagingAppIdentifier::FindByServiceWorker(
           profile_, origin, service_worker_registration_id);
@@ -764,13 +750,8 @@ void PushMessagingServiceImpl::OnMenuClick() {
 // Assumes user_visible always since this is just meant to check
 // if the permission was previously granted and not revoked.
 bool PushMessagingServiceImpl::IsPermissionSet(const GURL& origin) {
-  return GetPermissionStatus(origin, origin, true /* user_visible */) ==
+  return GetPermissionStatus(origin, true /* user_visible */) ==
          blink::WebPushPermissionStatusGranted;
-}
-
-bool PushMessagingServiceImpl::AreMessagePayloadsEnabled() const {
-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kEnableExperimentalWebPlatformFeatures);
 }
 
 gcm::GCMDriver* PushMessagingServiceImpl::GetGCMDriver() const {

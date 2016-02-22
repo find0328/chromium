@@ -107,20 +107,19 @@ MojoResult WaitSetDispatcher::AddWaitingDispatcher(
 MojoResult WaitSetDispatcher::RemoveWaitingDispatcher(
     const scoped_refptr<Dispatcher>& dispatcher) {
   uintptr_t dispatcher_handle = reinterpret_cast<uintptr_t>(dispatcher.get());
-  {
-    base::AutoLock lock(lock_);
-    if (is_closed_)
-      return MOJO_RESULT_INVALID_ARGUMENT;
 
-    auto it = waiting_dispatchers_.find(dispatcher_handle);
-    if (it == waiting_dispatchers_.end())
-      return MOJO_RESULT_NOT_FOUND;
+  base::AutoLock lock(lock_);
+  if (is_closed_)
+    return MOJO_RESULT_INVALID_ARGUMENT;
 
-    dispatcher->RemoveAwakable(waiter_.get(), nullptr);
-    // At this point, it should not be possible for |waiter_| to be woken with
-    // |dispatcher|.
-    waiting_dispatchers_.erase(it);
-  }
+  auto it = waiting_dispatchers_.find(dispatcher_handle);
+  if (it == waiting_dispatchers_.end())
+    return MOJO_RESULT_NOT_FOUND;
+
+  dispatcher->RemoveAwakable(waiter_.get(), nullptr);
+  // At this point, it should not be possible for |waiter_| to be woken with
+  // |dispatcher|.
+  waiting_dispatchers_.erase(it);
 
   base::AutoLock locker(awoken_lock_);
   int num_erased = 0;
@@ -247,6 +246,12 @@ MojoResult WaitSetDispatcher::AddAwakable(Awakable* awakable,
                                           uintptr_t context,
                                           HandleSignalsState* signals_state) {
   base::AutoLock lock(lock_);
+  // |awakable_lock_| is acquired here instead of immediately before adding to
+  // |awakable_list_| because we need to check the signals state and add to
+  // |awakable_list_| as an atomic operation. If the pair isn't atomic, it is
+  // possible for the signals state to change after it is checked, but before
+  // the awakable is added. In that case, the added awakable won't be signalled.
+  base::AutoLock awakable_locker(awakable_lock_);
   HandleSignalsState state(GetHandleSignalsStateNoLock());
   if (state.satisfies(signals)) {
     if (signals_state)
@@ -259,7 +264,6 @@ MojoResult WaitSetDispatcher::AddAwakable(Awakable* awakable,
     return MOJO_RESULT_FAILED_PRECONDITION;
   }
 
-  base::AutoLock locker(awakable_lock_);
   awakable_list_.Add(awakable, signals, context);
   return MOJO_RESULT_OK;
 }

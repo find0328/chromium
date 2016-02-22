@@ -18,15 +18,26 @@
 #include "components/safe_browsing_db/database_manager.h"
 #include "url/gurl.h"
 
+namespace net {
+class URLRequestContextGetter;
+}
+
 namespace safe_browsing {
+
+struct V4GetHashProtocolConfig;
 
 // An implementation that proxies requests to a service outside of Chromium.
 // Does not manage a local database.
 class RemoteSafeBrowsingDatabaseManager : public SafeBrowsingDatabaseManager {
  public:
+  // Use this constructor for testing only.
+  RemoteSafeBrowsingDatabaseManager();
+
   // Construct RemoteSafeBrowsingDatabaseManager.
   // Must be initialized by calling StartOnIOThread() before using.
-  RemoteSafeBrowsingDatabaseManager();
+  RemoteSafeBrowsingDatabaseManager(
+      net::URLRequestContextGetter* request_context_getter,
+      const V4GetHashProtocolConfig& config);
 
   //
   // SafeBrowsingDatabaseManager implementation
@@ -54,6 +65,8 @@ class RemoteSafeBrowsingDatabaseManager : public SafeBrowsingDatabaseManager {
   bool MatchDownloadWhitelistUrl(const GURL& url) override;
   bool MatchDownloadWhitelistString(const std::string& str) override;
   bool MatchInclusionWhitelistUrl(const GURL& url) override;
+  bool MatchModuleWhitelistString(const std::string& str) override;
+  bool CheckResourceUrl(const GURL& url, Client* client) override;
   bool IsMalwareKillSwitchOn() override;
   bool IsCsdWhitelistKillSwitchOn() override;
 

@@ -441,6 +441,9 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
       atoi(command_line.GetSwitchValueASCII(
       switches::kAcceleratedCanvas2dMSAASampleCount).c_str());
 
+  prefs.inert_visual_viewport =
+      command_line.HasSwitch(switches::kInertVisualViewport);
+
   prefs.pinch_overlay_scrollbar_thickness = 10;
   prefs.use_solid_color_scrollbars = ui::IsOverlayScrollbarEnabled();
 
@@ -479,8 +482,9 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
       !command_line.HasSwitch(switches::kDisableTouchAdjustment);
 
   prefs.enable_scroll_animator =
-      !command_line.HasSwitch(switches::kDisableSmoothScrolling) &&
-      gfx::Animation::ShouldRenderRichAnimation();
+      command_line.HasSwitch(switches::kEnableSmoothScrolling) ||
+      (!command_line.HasSwitch(switches::kDisableSmoothScrolling) &&
+      gfx::Animation::ScrollAnimationsEnabledBySystem());
 
   // Certain GPU features might have been blacklisted.
   GpuDataManagerImpl::GetInstance()->UpdateRendererWebPrefs(&prefs);
@@ -682,11 +686,9 @@ void RenderViewHostImpl::DragTargetDragEnter(
                  .append(register_name));
   }
 
-  const gfx::Point client_pt_in_viewport = ConvertDIPToViewport(client_pt);
-
-  Send(new DragMsg_TargetDragEnter(GetRoutingID(), filtered_data,
-                                   client_pt_in_viewport, screen_pt,
-                                   operations_allowed, key_modifiers));
+  Send(new DragMsg_TargetDragEnter(GetRoutingID(), filtered_data, client_pt,
+                                   screen_pt, operations_allowed,
+                                   key_modifiers));
 }
 
 void RenderViewHostImpl::DragTargetDragOver(
@@ -694,10 +696,8 @@ void RenderViewHostImpl::DragTargetDragOver(
     const gfx::Point& screen_pt,
     WebDragOperationsMask operations_allowed,
     int key_modifiers) {
-  const gfx::Point client_pt_in_viewport = ConvertDIPToViewport(client_pt);
-  Send(new DragMsg_TargetDragOver(GetRoutingID(), client_pt_in_viewport,
-                                  screen_pt, operations_allowed,
-                                  key_modifiers));
+  Send(new DragMsg_TargetDragOver(GetRoutingID(), client_pt, screen_pt,
+                                  operations_allowed, key_modifiers));
 }
 
 void RenderViewHostImpl::DragTargetDragLeave() {
@@ -708,18 +708,17 @@ void RenderViewHostImpl::DragTargetDrop(
     const gfx::Point& client_pt,
     const gfx::Point& screen_pt,
     int key_modifiers) {
-  const gfx::Point client_pt_in_viewport = ConvertDIPToViewport(client_pt);
-  Send(new DragMsg_TargetDrop(GetRoutingID(), client_pt_in_viewport, screen_pt,
+  Send(new DragMsg_TargetDrop(GetRoutingID(), client_pt, screen_pt,
                               key_modifiers));
 }
 
 void RenderViewHostImpl::DragSourceEndedAt(
     int client_x, int client_y, int screen_x, int screen_y,
     WebDragOperation operation) {
-  const gfx::Point client_pt_in_viewport =
-      ConvertDIPToViewport(gfx::Point(client_x, client_y));
-  Send(new DragMsg_SourceEnded(GetRoutingID(), client_pt_in_viewport,
-                               gfx::Point(screen_x, screen_y), operation));
+  Send(new DragMsg_SourceEnded(GetRoutingID(),
+                               gfx::Point(client_x, client_y),
+                               gfx::Point(screen_x, screen_y),
+                               operation));
 }
 
 void RenderViewHostImpl::DragSourceSystemDragEnded() {
@@ -1366,14 +1365,6 @@ void RenderViewHostImpl::PostRenderViewReady() {
 
 void RenderViewHostImpl::RenderViewReady() {
   delegate_->RenderViewReady(this);
-}
-
-gfx::Point RenderViewHostImpl::ConvertDIPToViewport(const gfx::Point& point) {
-  // The point in guest view is already converted.
-  if (!render_widget_host_->scale_input_to_viewport())
-    return point;
-  float scale = GetWidget()->GetView()->current_device_scale_factor();
-  return gfx::Point(point.x() * scale, point.y() * scale);
 }
 
 }  // namespace content

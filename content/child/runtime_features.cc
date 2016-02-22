@@ -31,10 +31,8 @@ namespace content {
 
 static void SetRuntimeFeatureDefaultsForPlatform() {
 #if defined(OS_ANDROID)
-  // MSE/EME implementation needs Android MediaCodec API.
+  // EME implementation needs Android MediaCodec API.
   if (!media::MediaCodecUtil::IsMediaCodecAvailable()) {
-    WebRuntimeFeatures::enableMediaSource(false);
-    WebRuntimeFeatures::enablePrefixedEncryptedMedia(false);
     WebRuntimeFeatures::enableEncryptedMedia(false);
   }
 
@@ -93,6 +91,9 @@ void SetRuntimeFeaturesDefaultsAndUpdateFromArgs(
     WebRuntimeFeatures::enablePushMessaging(false);
   }
 
+  if (command_line.HasSwitch(switches::kEnableNotificationActionIcons))
+    WebRuntimeFeatures::enableNotificationActionIcons(true);
+
   if (command_line.HasSwitch(switches::kDisableSharedWorkers))
     WebRuntimeFeatures::enableSharedWorker(false);
 
@@ -101,12 +102,6 @@ void SetRuntimeFeaturesDefaultsAndUpdateFromArgs(
 
   if (command_line.HasSwitch(switches::kDisableSpeechAPI))
     WebRuntimeFeatures::enableScriptedSpeech(false);
-
-  if (command_line.HasSwitch(switches::kDisableEncryptedMedia))
-    WebRuntimeFeatures::enableEncryptedMedia(false);
-
-  if (command_line.HasSwitch(switches::kEnablePrefixedEncryptedMedia))
-    WebRuntimeFeatures::enablePrefixedEncryptedMedia(true);
 
   if (command_line.HasSwitch(switches::kDisableFileSystem))
     WebRuntimeFeatures::enableFileSystem(false);

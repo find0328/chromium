@@ -21,25 +21,23 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeActivity;
 import org.chromium.chrome.browser.ChromeSwitches;
 import org.chromium.chrome.browser.UrlConstants;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkModelObserver;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
 import org.chromium.chrome.test.ChromeActivityTestCaseBase;
 import org.chromium.chrome.test.util.ActivityUtils;
+import org.chromium.chrome.test.util.BookmarkTestUtil;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.MenuUtils;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.bookmarks.BookmarkType;
-import org.chromium.content.browser.test.util.CallbackHelper;
 import org.chromium.content.browser.test.util.TouchCommon;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.ArrayList;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeoutException;
 
 /**
- * Tests for the enhanced bookmark manager.
+ * Tests for the bookmark manager.
  */
 public class BookmarkTest extends ChromeActivityTestCaseBase<ChromeActivity> {
 
@@ -76,52 +74,24 @@ public class BookmarkTest extends ChromeActivityTestCaseBase<ChromeActivity> {
         ThreadUtils.runOnUiThreadBlocking(new Runnable() {
             @Override
             public void run() {
-                mBookmarkModel = new BookmarkModel(
-                        getActivity().getActivityTab().getProfile());
+                mBookmarkModel = new BookmarkModel(getActivity().getActivityTab().getProfile());
             }
         });
-        waitForBookmarkModelLoaded();
-    }
-
-    private void waitForBookmarkModelLoaded() throws InterruptedException {
-        final CallbackHelper loadedCallback = new CallbackHelper();
-        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
-            @Override
-            public void run() {
-                if (mBookmarkModel.isBookmarkModelLoaded()) loadedCallback.notifyCalled();
-                else {
-                    mBookmarkModel.addObserver(new BookmarkModelObserver() {
-                        @Override
-                        public void bookmarkModelChanged() {}
-
-                        @Override
-                        public void bookmarkModelLoaded() {
-                            loadedCallback.notifyCalled();
-                            mBookmarkModel.removeObserver(this);
-                        }
-                    });
-                }
-            }
-        });
-        try {
-            loadedCallback.waitForCallback(0);
-        } catch (TimeoutException e) {
-            Assert.fail("Enhanced Bookmark model did not load: Timeout.");
-        }
+        BookmarkTestUtil.waitForBookmarkModelLoaded();
     }
 
     private void openBookmarkManager() throws InterruptedException {
         if (DeviceFormFactor.isTablet(getActivity())) {
             loadUrl(UrlConstants.BOOKMARKS_URL);
             mItemsContainer = (BookmarkRecyclerView) getActivity().findViewById(
-                    R.id.eb_items_container);
+                    R.id.bookmark_items_container);
         } else {
             // phone
             BookmarkActivity activity = ActivityUtils.waitForActivity(getInstrumentation(),
                     BookmarkActivity.class, new MenuUtils.MenuActivityTrigger(
                             getInstrumentation(), getActivity(), R.id.all_bookmarks_menu_id));
             mItemsContainer = (BookmarkRecyclerView) activity.findViewById(
-                    R.id.eb_items_container);
+                    R.id.bookmark_items_container);
         }
     }
 
@@ -129,7 +99,7 @@ public class BookmarkTest extends ChromeActivityTestCaseBase<ChromeActivity> {
         if (DeviceFormFactor.isTablet(getActivity())) {
             loadUrl(url);
             mItemsContainer = (BookmarkRecyclerView) getActivity().findViewById(
-                    R.id.eb_items_container);
+                    R.id.bookmark_items_container);
         } else {
             // phone
             BookmarkActivity activity = ActivityUtils.waitForActivity(getInstrumentation(),
@@ -143,7 +113,7 @@ public class BookmarkTest extends ChromeActivityTestCaseBase<ChromeActivity> {
                         }
                     });
             mItemsContainer = (BookmarkRecyclerView) activity.findViewById(
-                    R.id.eb_items_container);
+                    R.id.bookmark_items_container);
         }
     }
 

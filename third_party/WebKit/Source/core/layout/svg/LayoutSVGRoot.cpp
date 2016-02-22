@@ -28,6 +28,7 @@
 #include "core/layout/LayoutAnalyzer.h"
 #include "core/layout/LayoutPart.h"
 #include "core/layout/LayoutView.h"
+#include "core/layout/svg/LayoutSVGText.h"
 #include "core/layout/svg/SVGLayoutSupport.h"
 #include "core/layout/svg/SVGResourcesCache.h"
 #include "core/paint/PaintLayer.h"
@@ -276,6 +277,30 @@ void LayoutSVGRoot::willBeRemovedFromTree()
     LayoutReplaced::willBeRemovedFromTree();
 }
 
+PositionWithAffinity LayoutSVGRoot::positionForPoint(const LayoutPoint& point)
+{
+    FloatPoint absolutePoint = FloatPoint(point);
+    absolutePoint = m_localToBorderBoxTransform.inverse().mapPoint(absolutePoint);
+    LayoutObject* closestDescendant = SVGLayoutSupport::findClosestLayoutSVGText(this, absolutePoint);
+
+    if (!closestDescendant)
+        return LayoutReplaced::positionForPoint(point);
+
+    LayoutObject* layoutObject = closestDescendant;
+    AffineTransform transform = closestDescendant->localToParentTransform();
+    transform.translate(toLayoutSVGText(closestDescendant)->location().x(), toLayoutSVGText(closestDescendant)->location().y());
+    while (layoutObject) {
+        layoutObject = layoutObject->parent();
+        if (layoutObject->isSVGRoot())
+            break;
+        transform = layoutObject->localToParentTransform() * transform;
+    }
+
+    absolutePoint = transform.inverse().mapPoint(absolutePoint);
+
+    return closestDescendant->positionForPoint(LayoutPoint(absolutePoint));
+}
+
 // LayoutBox methods will expect coordinates w/o any transforms in coordinates
 // relative to our borderBox origin.  This method gives us exactly that.
 void LayoutSVGRoot::buildLocalToBorderBoxTransform()
@@ -353,7 +378,7 @@ void LayoutSVGRoot::mapToVisibleRectInAncestorSpace(const LayoutBoxModelObject* 
 // to convert from SVG viewport coordinates to local CSS box coordinates.
 void LayoutSVGRoot::mapLocalToAncestor(const LayoutBoxModelObject* ancestor, TransformState& transformState, MapCoordinatesFlags mode, bool* wasFixed, const PaintInvalidationState* paintInvalidationState) const
 {
-    ASSERT(mode & ~IsFixed); // We should have no fixed content in the SVG layout tree.
+    ASSERT(!(mode & IsFixed)); // We should have no fixed content in the SVG layout tree.
 
     LayoutReplaced::mapLocalToAncestor(ancestor, transformState, mode | ApplyContainerFlip, wasFixed, paintInvalidationState);
 }

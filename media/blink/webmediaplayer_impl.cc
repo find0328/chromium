@@ -130,7 +130,6 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
     blink::WebMediaPlayerEncryptedMediaClient* encrypted_client,
     base::WeakPtr<WebMediaPlayerDelegate> delegate,
     scoped_ptr<RendererFactory> renderer_factory,
-    CdmFactory* cdm_factory,
     linked_ptr<UrlIndex> url_index,
     const WebMediaPlayerParams& params)
     : frame_(frame),
@@ -155,9 +154,12 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
       suspending_(false),
       suspended_(false),
       resuming_(false),
+      pending_suspend_resume_cycle_(false),
       ended_(false),
       pending_seek_(false),
       should_notify_time_changed_(false),
+      fullscreen_(false),
+      decoder_requires_restart_for_fullscreen_(false),
       client_(client),
       encrypted_client_(encrypted_client),
       delegate_(delegate),
@@ -178,19 +180,14 @@ WebMediaPlayerImpl::WebMediaPlayerImpl(
           compositor_task_runner_,
           BIND_TO_RENDER_LOOP(&WebMediaPlayerImpl::OnNaturalSizeChanged),
           BIND_TO_RENDER_LOOP(&WebMediaPlayerImpl::OnOpacityChanged))),
-      encrypted_media_support_(cdm_factory,
-                               encrypted_client,
-                               params.media_permission(),
-                               base::Bind(&WebMediaPlayerImpl::SetCdm,
-                                          AsWeakPtr(),
-                                          base::Bind(&IgnoreCdmAttached))),
       is_cdm_attached_(false),
 #if defined(OS_ANDROID)  // WMPI_CAST
       cast_impl_(this, client_, params.context_3d_cb()),
 #endif
       volume_(1.0),
       volume_multiplier_(1.0),
-      renderer_factory_(std::move(renderer_factory)) {
+      renderer_factory_(std::move(renderer_factory)),
+      surface_manager_(params.surface_manager()) {
   DCHECK(!adjust_allocated_memory_cb_.is_null());
   DCHECK(renderer_factory_);
 
@@ -262,6 +259,18 @@ void WebMediaPlayerImpl::load(LoadType load_type, const blink::WebURL& url,
     return;
   }
   DoLoad(load_type, url, cors_mode);
+}
+
+void WebMediaPlayerImpl::enteredFullscreen() {
+  fullscreen_ = true;
+  if (decoder_requires_restart_for_fullscreen_)
+    ScheduleRestart();
+}
+
+void WebMediaPlayerImpl::exitedFullscreen() {
+  fullscreen_ = false;
+  if (decoder_requires_restart_for_fullscreen_)
+    ScheduleRestart();
 }
 
 void WebMediaPlayerImpl::DoLoad(LoadType load_type,
@@ -782,37 +791,6 @@ bool WebMediaPlayerImpl::copyVideoTextureToPlatformTexture(
   return true;
 }
 
-WebMediaPlayer::MediaKeyException
-WebMediaPlayerImpl::generateKeyRequest(const WebString& key_system,
-                                       const unsigned char* init_data,
-                                       unsigned init_data_length) {
-  DCHECK(main_task_runner_->BelongsToCurrentThread());
-
-  return encrypted_media_support_.GenerateKeyRequest(
-      frame_, key_system, init_data, init_data_length);
-}
-
-WebMediaPlayer::MediaKeyException WebMediaPlayerImpl::addKey(
-    const WebString& key_system,
-    const unsigned char* key,
-    unsigned key_length,
-    const unsigned char* init_data,
-    unsigned init_data_length,
-    const WebString& session_id) {
-  DCHECK(main_task_runner_->BelongsToCurrentThread());
-
-  return encrypted_media_support_.AddKey(
-      key_system, key, key_length, init_data, init_data_length, session_id);
-}
-
-WebMediaPlayer::MediaKeyException WebMediaPlayerImpl::cancelKeyRequest(
-    const WebString& key_system,
-    const WebString& session_id) {
-  DCHECK(main_task_runner_->BelongsToCurrentThread());
-
-  return encrypted_media_support_.CancelKeyRequest(key_system, session_id);
-}
-
 void WebMediaPlayerImpl::setContentDecryptionModule(
     blink::WebContentDecryptionModule* cdm,
     blink::WebContentDecryptionModuleResult result) {
@@ -851,17 +829,14 @@ void WebMediaPlayerImpl::OnEncryptedMediaInitData(
     const std::vector<uint8_t>& init_data) {
   DCHECK(init_data_type != EmeInitDataType::UNKNOWN);
 
-  // Do not fire "encrypted" event if encrypted media is not enabled.
-  // TODO(xhwang): Handle this in |client_|.
-  if (!blink::WebRuntimeFeatures::isPrefixedEncryptedMediaEnabled() &&
-      !blink::WebRuntimeFeatures::isEncryptedMediaEnabled()) {
+  // Do not fire the "encrypted" event if Encrypted Media is not enabled.
+  // EME may not be enabled on Android Jelly Bean.
+  if (!blink::WebRuntimeFeatures::isEncryptedMediaEnabled()) {
     return;
   }
 
   // TODO(xhwang): Update this UMA name.
   UMA_HISTOGRAM_COUNTS("Media.EME.NeedKey", 1);
-
-  encrypted_media_support_.SetInitDataType(init_data_type);
 
   encrypted_client_->encrypted(
       ConvertToWebInitDataType(init_data_type), init_data.data(),
@@ -972,8 +947,9 @@ void WebMediaPlayerImpl::OnPipelineSuspended(PipelineStatus status) {
   }
 #endif
 
-  if (pending_resume_) {
+  if (pending_resume_ || pending_suspend_resume_cycle_) {
     pending_resume_ = false;
+    pending_suspend_resume_cycle_ = false;
     Resume();
     return;
   }
@@ -1118,7 +1094,7 @@ void WebMediaPlayerImpl::OnHidden(bool must_suspend) {
     return;
 #endif
 
-  if (must_suspend || hasVideo())
+  if (must_suspend || paused_ || hasVideo())
     ScheduleSuspend();
 }
 
@@ -1141,7 +1117,12 @@ void WebMediaPlayerImpl::ScheduleSuspend() {
 
 void WebMediaPlayerImpl::Suspend() {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
-  CHECK(!suspended_);
+
+  // Since Pipeline::IsRunning() may be set on the media thread there are cases
+  // where two suspends might be issued concurrently.
+  if (suspended_)
+    return;
+
   suspended_ = true;
   suspending_ = true;
   pipeline_.Suspend(
@@ -1241,6 +1222,15 @@ void WebMediaPlayerImpl::Resume() {
                                         time_changed));
 }
 
+void WebMediaPlayerImpl::ScheduleRestart() {
+  // If we're suspended but not resuming there is no need to restart because
+  // there is no renderer to kill.
+  if (!suspended_ || resuming_) {
+    pending_suspend_resume_cycle_ = true;
+    ScheduleSuspend();
+  }
+}
+
 #if defined(OS_ANDROID)  // WMPI_CAST
 
 bool WebMediaPlayerImpl::isRemote() const {
@@ -1329,10 +1319,44 @@ void WebMediaPlayerImpl::NotifyDownloading(bool is_downloading) {
           "is_downloading_data", is_downloading));
 }
 
+// TODO(watk): Move this state management out of WMPI.
+void WebMediaPlayerImpl::OnSurfaceRequested(
+    const SurfaceCreatedCB& surface_created_cb) {
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  DCHECK(surface_manager_);
+
+  // A null callback indicates that the decoder is going away.
+  if (surface_created_cb.is_null()) {
+    decoder_requires_restart_for_fullscreen_ = false;
+    return;
+  }
+
+  // If we're getting a surface request it means GVD is initializing, so until
+  // we get a null surface request, GVD is the active decoder. While that's the
+  // case we should restart the pipeline on fullscreen transitions so that when
+  // we create a new GVD it will request a surface again and get the right kind
+  // of surface for the fullscreen state.
+  // TODO(watk): Don't require a pipeline restart to switch surfaces for
+  // cases where it isn't necessary.
+  decoder_requires_restart_for_fullscreen_ = true;
+  if (fullscreen_) {
+    surface_manager_->CreateFullscreenSurface(pipeline_metadata_.natural_size,
+                                              surface_created_cb);
+  } else {
+    // Tell the decoder to create its own surface.
+    surface_created_cb.Run(SurfaceManager::kNoSurfaceID);
+  }
+}
+
 scoped_ptr<Renderer> WebMediaPlayerImpl::CreateRenderer() {
+  RequestSurfaceCB request_surface_cb;
+#if defined(OS_ANDROID)
+  request_surface_cb =
+      BIND_TO_RENDER_LOOP(&WebMediaPlayerImpl::OnSurfaceRequested);
+#endif
   return renderer_factory_->CreateRenderer(
       media_task_runner_, worker_task_runner_, audio_source_provider_.get(),
-      compositor_);
+      compositor_, request_surface_cb);
 }
 
 void WebMediaPlayerImpl::StartPipeline() {
@@ -1430,8 +1454,13 @@ void WebMediaPlayerImpl::OnNaturalSizeChanged(gfx::Size size) {
 
   media_log_->AddEvent(
       media_log_->CreateVideoSizeSetEvent(size.width(), size.height()));
-  pipeline_metadata_.natural_size = size;
 
+  if (fullscreen_ && surface_manager_ &&
+      pipeline_metadata_.natural_size != size) {
+    surface_manager_->NaturalSizeChanged(size);
+  }
+
+  pipeline_metadata_.natural_size = size;
   client_->sizeChanged();
 }
 

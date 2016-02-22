@@ -7,9 +7,11 @@
 #include "base/bind.h"
 #include "base/json/json_file_value_serializer.h"
 #include "base/task_runner_util.h"
+#include "mojo/common/mojo_scheme_register.h"
 #include "mojo/common/url_type_converters.h"
 #include "mojo/util/filename_util.h"
 #include "net/base/filename_util.h"
+#include "url/url_util.h"
 
 namespace package_manager {
 namespace {
@@ -59,20 +61,37 @@ void SerializeEntry(const ApplicationInfo& entry,
   (*value)->Set("capabilities", make_scoped_ptr(capabilities));
 }
 
+scoped_ptr<base::Value> ReadManifest(const base::FilePath& manifest_path) {
+  JSONFileValueDeserializer deserializer(manifest_path);
+  int error = 0;
+  std::string message;
+  // TODO(beng): probably want to do more detailed error checking. This should
+  //             be done when figuring out if to unblock connection completion.
+  return deserializer.Deserialize(&error, &message);
 }
+
+}  // namespace
 
 ApplicationInfo::ApplicationInfo() {}
 ApplicationInfo::~ApplicationInfo() {}
 
 ApplicationCatalogStore::~ApplicationCatalogStore() {}
 
-PackageManager::PackageManager(base::TaskRunner* blocking_pool)
-    : blocking_pool_(blocking_pool) {
+PackageManager::PackageManager(base::TaskRunner* blocking_pool,
+                               bool register_schemes)
+    : blocking_pool_(blocking_pool),
+      catalog_store_(nullptr),
+      weak_factory_(this) {
+  if (register_schemes)
+    mojo::RegisterMojoSchemes();
+
   base::FilePath shell_dir;
   PathService::Get(base::DIR_MODULE, &shell_dir);
 
   system_package_dir_ =
       mojo::util::FilePathToFileURL(shell_dir).Resolve(std::string());
+  system_package_dir_ =
+      mojo::util::AddTrailingSlashIfNeeded(system_package_dir_);
 }
 PackageManager::~PackageManager() {}
 
@@ -80,6 +99,7 @@ void PackageManager::Initialize(mojo::Shell* shell, const std::string& url,
                                 uint32_t id) {}
 
 bool PackageManager::AcceptConnection(mojo::Connection* connection) {
+  connection->AddInterface<mojom::Catalog>(this);
   connection->AddInterface<mojom::Resolver>(this);
   if (connection->GetRemoteApplicationURL() == "mojo://shell/")
     connection->AddInterface<mojom::ShellResolver>(this);
@@ -94,6 +114,11 @@ void PackageManager::Create(mojo::Connection* connection,
 void PackageManager::Create(mojo::Connection* connection,
                             mojom::ShellResolverRequest request) {
   shell_resolver_bindings_.AddBinding(this, std::move(request));
+}
+
+void PackageManager::Create(mojo::Connection* connection,
+                            mojom::CatalogRequest request) {
+  catalog_bindings_.AddBinding(this, std::move(request));
 }
 
 void PackageManager::ResolveResponse(mojo::URLResponsePtr response,
@@ -121,20 +146,52 @@ void PackageManager::ResolveProtocolScheme(
 void PackageManager::ResolveMojoURL(const mojo::String& mojo_url,
                                     const ResolveMojoURLCallback& callback) {
   GURL resolved_url = mojo_url.To<GURL>();
-  CHECK(resolved_url.SchemeIs("mojo") || resolved_url.SchemeIs("exe"));
-
   auto alias_iter = mojo_url_aliases_.find(mojo_url);
-  if (alias_iter != mojo_url_aliases_.end())
+  std::string qualifier;
+  if (alias_iter != mojo_url_aliases_.end()) {
     resolved_url = GURL(alias_iter->second.first);
+    qualifier = alias_iter->second.second;
+  }
 
-  EnsureURLInCatalog(resolved_url, callback);
+  EnsureURLInCatalog(resolved_url, qualifier, callback);
+}
+
+void PackageManager::GetEntries(
+    mojo::Array<mojo::String> urls,
+    const GetEntriesCallback& callback) {
+  mojo::Map<mojo::String, mojom::CatalogEntryPtr> entries;
+  std::vector<mojo::String> urls_vec = urls.PassStorage();
+  for (const auto& url : urls_vec) {
+    if (catalog_.find(url) == catalog_.end())
+      continue;
+    const ApplicationInfo& info = catalog_[url];
+    mojom::CatalogEntryPtr entry(mojom::CatalogEntry::New());
+    entry->name = info.name;
+    entries[info.url] = std::move(entry);
+  }
+  callback.Run(std::move(entries));
 }
 
 void PackageManager::CompleteResolveMojoURL(
     const GURL& resolved_url,
+    const std::string& qualifier,
     const ResolveMojoURLCallback& callback) {
   auto info_iter = catalog_.find(resolved_url.spec());
   CHECK(info_iter != catalog_.end());
+
+  GURL file_url;
+  if (resolved_url.SchemeIs("mojo")) {
+    // It's still a mojo: URL, use the default mapping scheme.
+    const std::string host = resolved_url.host();
+    file_url = system_package_dir_.Resolve(host + "/" + host + ".mojo");
+  } else if (resolved_url.SchemeIs("exe")) {
+#if defined OS_WIN
+    std::string extension = ".exe";
+#else
+    std::string extension;
+#endif
+    file_url = system_package_dir_.Resolve(resolved_url.host() + extension);
+  }
 
   // TODO(beng): Use the actual capability filter from |info|!
   mojo::shell::mojom::CapabilityFilterPtr filter(
@@ -143,7 +200,8 @@ void PackageManager::CompleteResolveMojoURL(
   all_interfaces.push_back("*");
   filter->filter.insert("*", std::move(all_interfaces));
 
-  callback.Run(resolved_url.spec(), std::move(filter));
+  callback.Run(resolved_url.spec(), qualifier, std::move(filter),
+               file_url.spec());
 }
 
 bool PackageManager::IsURLInCatalog(const GURL& url) const {
@@ -152,23 +210,29 @@ bool PackageManager::IsURLInCatalog(const GURL& url) const {
 
 void PackageManager::EnsureURLInCatalog(
     const GURL& url,
+    const std::string& qualifier,
     const ResolveMojoURLCallback& callback) {
   if (IsURLInCatalog(url)) {
-    CompleteResolveMojoURL(url, callback);
+    CompleteResolveMojoURL(url, qualifier, callback);
     return;
   }
 
   GURL manifest_url = GetManifestURL(url);
-  if (manifest_url.is_empty())
+  if (manifest_url.is_empty()) {
+    // The URL is of some form that can't be resolved to a manifest (e.g. some
+    // scheme used for tests). Just pass it back to the caller so it can be
+    // loaded with a custom loader.
+    callback.Run(url.spec(), url.spec(), nullptr, nullptr);
     return;
+  }
+
+  CHECK(url.SchemeIs("mojo") || url.SchemeIs("exe"));
   base::FilePath manifest_path;
   CHECK(net::FileURLToFilePath(manifest_url, &manifest_path));
   base::PostTaskAndReplyWithResult(
-      blocking_pool_, FROM_HERE,
-      base::Bind(&PackageManager::ReadManifest, base::Unretained(this),
-                 manifest_path),
-      base::Bind(&PackageManager::OnReadManifest,
-                 base::Unretained(this), url, callback));
+      blocking_pool_, FROM_HERE, base::Bind(&ReadManifest, manifest_path),
+      base::Bind(&PackageManager::OnReadManifest, weak_factory_.GetWeakPtr(),
+                 url, qualifier, callback));
 }
 
 void PackageManager::DeserializeCatalog() {
@@ -204,18 +268,19 @@ void PackageManager::SerializeCatalog() {
 const ApplicationInfo& PackageManager::DeserializeApplication(
     const base::DictionaryValue* dictionary) {
   ApplicationInfo info = BuildApplicationInfoFromDictionary(*dictionary);
-  CHECK(catalog_.find(info.url) == catalog_.end());
-  catalog_[info.url] = info;
+  if (catalog_.find(info.url) == catalog_.end()) {
+    catalog_[info.url] = info;
 
-  if (dictionary->HasKey("applications")) {
-    const base::ListValue* applications = nullptr;
-    dictionary->GetList("applications", &applications);
-    for (size_t i = 0; i < applications->GetSize(); ++i) {
-      const base::DictionaryValue* child = nullptr;
-      applications->GetDictionary(i, &child);
-      const ApplicationInfo& child_info = DeserializeApplication(child);
-      mojo_url_aliases_[child_info.url] =
-          std::make_pair(info.url, GURL(child_info.url).host());
+    if (dictionary->HasKey("applications")) {
+      const base::ListValue* applications = nullptr;
+      dictionary->GetList("applications", &applications);
+      for (size_t i = 0; i < applications->GetSize(); ++i) {
+        const base::DictionaryValue* child = nullptr;
+        applications->GetDictionary(i, &child);
+        const ApplicationInfo& child_info = DeserializeApplication(child);
+        mojo_url_aliases_[child_info.url] =
+            std::make_pair(info.url, GURL(child_info.url).host());
+      }
     }
   }
   return catalog_[info.url];
@@ -223,7 +288,6 @@ const ApplicationInfo& PackageManager::DeserializeApplication(
 
 GURL PackageManager::GetManifestURL(const GURL& url) {
   // TODO(beng): think more about how this should be done for exe targets.
-
   if (url.SchemeIs("mojo"))
     return system_package_dir_.Resolve(url.host() + "/manifest.json");
   else if (url.SchemeIs("exe"))
@@ -231,27 +295,37 @@ GURL PackageManager::GetManifestURL(const GURL& url) {
   return GURL();
 }
 
-scoped_ptr<base::Value> PackageManager::ReadManifest(
-    const base::FilePath& manifest_path) {
-  JSONFileValueDeserializer deserializer(manifest_path);
-  int error = 0;
-  std::string message;
-  // TODO(beng): probably want to do more detailed error checking. This should
-  //             be done when figuring out if to unblock connection completion.
-  return deserializer.Deserialize(&error, &message);
-}
-
-void PackageManager::OnReadManifest(const GURL& url,
+// static
+void PackageManager::OnReadManifest(base::WeakPtr<PackageManager> pm,
+                                    const GURL& url,
+                                    const std::string& qualifier,
                                     const ResolveMojoURLCallback& callback,
                                     scoped_ptr<base::Value> manifest) {
+  if (!pm) {
+    // The PackageManager was destroyed, we're likely in shutdown. Run the
+    // callback so we don't trigger a DCHECK.
+    callback.Run(url.spec(), url.spec(), nullptr, nullptr);
+    return;
+  }
+  pm->OnReadManifestImpl(url, qualifier, callback, std::move(manifest));
+}
+
+void PackageManager::OnReadManifestImpl(const GURL& url,
+                                        const std::string& qualifier,
+                                        const ResolveMojoURLCallback& callback,
+                                        scoped_ptr<base::Value> manifest) {
   if (manifest) {
     base::DictionaryValue* dictionary = nullptr;
     CHECK(manifest->GetAsDictionary(&dictionary));
     DeserializeApplication(dictionary);
-    SerializeCatalog();
+  } else {
+    ApplicationInfo info;
+    info.url = url.spec();
+    info.name = url.spec();
+    catalog_[info.url] = info;
   }
-  CompleteResolveMojoURL(url, callback);
+  SerializeCatalog();
+  CompleteResolveMojoURL(url, qualifier, callback);
 }
-
 
 }  // namespace package_manager

@@ -155,9 +155,9 @@ bool CSSPropertyParser::isColorKeyword(CSSValueID id)
     //   '-internal-inactive-list-box-selection'
     //   '-internal-inactive-list-box-selection-text'
     //   '-webkit-focus-ring-color'
-    //   '-webkit-text'
+    //   '-internal-quirk-inherit'
     //
-    return (id >= CSSValueAqua && id <= CSSValueWebkitText)
+    return (id >= CSSValueAqua && id <= CSSValueInternalQuirkInherit)
         || (id >= CSSValueAliceblue && id <= CSSValueYellowgreen)
         || id == CSSValueMenu;
 }
@@ -1287,6 +1287,23 @@ static PassRefPtrWillBeRawPtr<CSSValueList> consumeSize(CSSParserTokenRange& ran
     if (orientation)
         result->append(orientation.release());
     return result.release();
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeSnapHeight(CSSParserTokenRange& range, CSSParserMode cssParserMode)
+{
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> unit = consumeLength(range, cssParserMode, ValueRangeNonNegative);
+    if (!unit)
+        return nullptr;
+    RefPtrWillBeRawPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
+    list->append(unit.release());
+
+    if (RefPtrWillBeRawPtr<CSSPrimitiveValue> position = consumePositiveInteger(range)) {
+        if (position->getIntValue() > 100)
+            return nullptr;
+        list->append(position.release());
+    }
+
+    return list.release();
 }
 
 static PassRefPtrWillBeRawPtr<CSSValue> consumeTextIndent(CSSParserTokenRange& range, CSSParserMode cssParserMode)
@@ -2745,6 +2762,8 @@ static PassRefPtrWillBeRawPtr<CSSValue> consumeGeneratedImage(CSSParserTokenRang
     RefPtrWillBeRawPtr<CSSValue> result = nullptr;
     if (id == CSSValueRadialGradient) {
         result = consumeRadialGradient(args, context.mode(), NonRepeating);
+    } else if (id == CSSValueRepeatingRadialGradient) {
+        result = consumeRadialGradient(args, context.mode(), Repeating);
     } else if (id == CSSValueWebkitLinearGradient) {
         // FIXME: This should send a deprecation message.
         if (context.useCounter())
@@ -3161,7 +3180,7 @@ static PassRefPtrWillBeRawPtr<CSSValue> consumeShapeOutside(CSSParserTokenRange&
 
 static PassRefPtrWillBeRawPtr<CSSValue> consumeContentDistributionOverflowPosition(CSSParserTokenRange& range)
 {
-    if (identMatches<CSSValueAuto, CSSValueBaseline, CSSValueLastBaseline>(range.peek().id()))
+    if (identMatches<CSSValueNormal, CSSValueBaseline, CSSValueLastBaseline>(range.peek().id()))
         return CSSContentDistributionValue::create(CSSValueInvalid, range.consumeIncludingWhitespace().id(), CSSValueInvalid);
 
     CSSValueID distribution = CSSValueInvalid;
@@ -3373,6 +3392,138 @@ static PassRefPtrWillBeRawPtr<CSSValue> consumeImageOrientation(CSSParserTokenRa
     return nullptr;
 }
 
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBackgroundBlendMode(CSSParserTokenRange& range)
+{
+    CSSValueID id = range.peek().id();
+    if (id == CSSValueNormal || id == CSSValueOverlay || (id >= CSSValueMultiply && id <= CSSValueLuminosity))
+        return consumeIdent(range);
+    return nullptr;
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBackgroundAttachment(CSSParserTokenRange& range)
+{
+    return consumeIdent<CSSValueScroll, CSSValueFixed, CSSValueLocal>(range);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBackgroundBox(CSSParserTokenRange& range)
+{
+    return consumeIdent<CSSValueBorderBox, CSSValuePaddingBox, CSSValueContentBox>(range);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBackgroundComposite(CSSParserTokenRange& range)
+{
+    return consumeIdentRange(range, CSSValueClear, CSSValuePlusLighter);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeMaskSourceType(CSSParserTokenRange& range)
+{
+    ASSERT(RuntimeEnabledFeatures::cssMaskSourceTypeEnabled());
+    return consumeIdent<CSSValueAuto, CSSValueAlpha, CSSValueLuminance>(range);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumePrefixedBackgroundBox(CSSPropertyID property, CSSParserTokenRange& range, const CSSParserContext& context)
+{
+    // The values 'border', 'padding' and 'content' are deprecated and do not apply to the version of the property that has the -webkit- prefix removed.
+    if (RefPtrWillBeRawPtr<CSSValue> value = consumeIdentRange(range, CSSValueBorder, CSSValuePaddingBox))
+        return value.release();
+    if ((property == CSSPropertyWebkitBackgroundClip || property == CSSPropertyWebkitMaskClip) && range.peek().id() == CSSValueText)
+        return consumeIdent(range);
+    return nullptr;
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBackgroundSize(CSSPropertyID unresolvedProperty, CSSParserTokenRange& range, CSSParserMode mode)
+{
+    if (identMatches<CSSValueContain, CSSValueCover>(range.peek().id()))
+        return consumeIdent(range);
+
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> horizontal = consumeIdent<CSSValueAuto>(range);
+    if (!horizontal)
+        horizontal = consumeLengthOrPercent(range, mode, ValueRangeAll, UnitlessQuirk::Forbid);
+
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> vertical = nullptr;
+    if (!range.atEnd()) {
+        if (range.peek().id() == CSSValueAuto) // `auto' is the default
+            range.consumeIncludingWhitespace();
+        else
+            vertical = consumeLengthOrPercent(range, mode, ValueRangeAll, UnitlessQuirk::Forbid);
+    } else if (unresolvedProperty == CSSPropertyAliasWebkitBackgroundSize) {
+        // Legacy syntax: "-webkit-background-size: 10px" is equivalent to "background-size: 10px 10px".
+        vertical = horizontal;
+    }
+    if (!vertical)
+        return horizontal;
+    return CSSValuePair::create(horizontal.release(), vertical.release(), CSSValuePair::KeepIdenticalValues);
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeBackgroundComponent(CSSPropertyID unresolvedProperty, CSSParserTokenRange& range, const CSSParserContext& context)
+{
+    switch (unresolvedProperty) {
+    case CSSPropertyBackgroundClip:
+        return consumeBackgroundBox(range);
+    case CSSPropertyBackgroundBlendMode:
+        return consumeBackgroundBlendMode(range);
+    case CSSPropertyBackgroundAttachment:
+        return consumeBackgroundAttachment(range);
+    case CSSPropertyBackgroundOrigin:
+        return consumeBackgroundBox(range);
+    case CSSPropertyWebkitBackgroundComposite:
+    case CSSPropertyWebkitMaskComposite:
+        return consumeBackgroundComposite(range);
+    case CSSPropertyMaskSourceType:
+        return consumeMaskSourceType(range);
+    case CSSPropertyWebkitBackgroundClip:
+    case CSSPropertyWebkitBackgroundOrigin:
+    case CSSPropertyWebkitMaskClip:
+    case CSSPropertyWebkitMaskOrigin:
+        return consumePrefixedBackgroundBox(unresolvedProperty, range, context);
+    case CSSPropertyBackgroundImage:
+    case CSSPropertyWebkitMaskImage:
+        return consumeImage(range, context);
+    case CSSPropertyBackgroundPositionX:
+    case CSSPropertyWebkitMaskPositionX:
+        return consumePositionX(range, context.mode());
+    case CSSPropertyBackgroundPositionY:
+    case CSSPropertyWebkitMaskPositionY:
+        return consumePositionY(range, context.mode());
+    case CSSPropertyBackgroundSize:
+    case CSSPropertyAliasWebkitBackgroundSize:
+    case CSSPropertyWebkitMaskSize:
+        return consumeBackgroundSize(unresolvedProperty, range, context.mode());
+    case CSSPropertyBackgroundColor:
+        return consumeColor(range, context.mode());
+    default:
+        break;
+    };
+    return nullptr;
+}
+
+static void addBackgroundValue(RefPtrWillBeRawPtr<CSSValue>& list, PassRefPtrWillBeRawPtr<CSSValue> value)
+{
+    if (list) {
+        if (!list->isBaseValueList()) {
+            RefPtrWillBeRawPtr<CSSValue> firstValue = list.release();
+            list = CSSValueList::createCommaSeparated();
+            toCSSValueList(list.get())->append(firstValue.release());
+        }
+        toCSSValueList(list.get())->append(value);
+    } else {
+        // To conserve memory we don't actually wrap a single value in a list.
+        list = value;
+    }
+}
+
+static PassRefPtrWillBeRawPtr<CSSValue> consumeCommaSeparatedBackgroundComponent(CSSPropertyID unresolvedProperty, CSSParserTokenRange& range, const CSSParserContext& context)
+{
+    RefPtrWillBeRawPtr<CSSValue> result = nullptr;
+    do {
+        RefPtrWillBeRawPtr<CSSValue> value = consumeBackgroundComponent(unresolvedProperty, range, context);
+        if (!value)
+            return nullptr;
+        addBackgroundValue(result, value);
+    } while (consumeCommaIncludingWhitespace(range));
+    return result.release();
+}
+
 PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSPropertyID unresolvedProperty)
 {
     CSSPropertyID property = resolveCSSPropertyID(unresolvedProperty);
@@ -3423,6 +3574,8 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSProperty
         return consumeCounter(m_range, m_context.mode(), property == CSSPropertyCounterIncrement ? 1 : 0);
     case CSSPropertySize:
         return consumeSize(m_range, m_context.mode());
+    case CSSPropertySnapHeight:
+        return consumeSnapHeight(m_range, m_context.mode());
     case CSSPropertyTextIndent:
         return consumeTextIndent(m_range, m_context.mode());
     case CSSPropertyMaxWidth:
@@ -3480,13 +3633,13 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSProperty
     case CSSPropertyWebkitHyphenateCharacter:
     case CSSPropertyWebkitLocale:
         return consumeLocale(m_range);
-    case CSSPropertyWebkitColumnWidth:
+    case CSSPropertyColumnWidth:
         return consumeColumnWidth(m_range);
-    case CSSPropertyWebkitColumnCount:
+    case CSSPropertyColumnCount:
         return consumeColumnCount(m_range);
-    case CSSPropertyWebkitColumnGap:
+    case CSSPropertyColumnGap:
         return consumeColumnGap(m_range, m_context.mode());
-    case CSSPropertyWebkitColumnSpan:
+    case CSSPropertyColumnSpan:
         return consumeColumnSpan(m_range, m_context.mode());
     case CSSPropertyZoom:
         return consumeZoom(m_range, m_context);
@@ -3531,9 +3684,10 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSProperty
     case CSSPropertyStopColor:
     case CSSPropertyFloodColor:
     case CSSPropertyLightingColor:
-    case CSSPropertyWebkitColumnRuleColor:
+    case CSSPropertyColumnRuleColor:
         return consumeColor(m_range, m_context.mode());
     case CSSPropertyColor:
+    case CSSPropertyBackgroundColor:
         return consumeColor(m_range, m_context.mode(), inQuirksMode());
     case CSSPropertyWebkitBorderStartWidth:
     case CSSPropertyWebkitBorderEndWidth:
@@ -3616,7 +3770,7 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSProperty
         return consumeNumber(m_range, ValueRangeNonNegative);
     case CSSPropertyStrokeDasharray:
         return consumeStrokeDasharray(m_range);
-    case CSSPropertyWebkitColumnRuleWidth:
+    case CSSPropertyColumnRuleWidth:
         return consumeColumnRuleWidth(m_range, m_context.mode());
     case CSSPropertyStrokeOpacity:
     case CSSPropertyFillOpacity:
@@ -3703,6 +3857,29 @@ PassRefPtrWillBeRawPtr<CSSValue> CSSPropertyParser::parseSingleValue(CSSProperty
     case CSSPropertyImageOrientation:
         ASSERT(RuntimeEnabledFeatures::imageOrientationEnabled());
         return consumeImageOrientation(m_range, m_context.mode());
+    case CSSPropertyBackgroundAttachment:
+    case CSSPropertyBackgroundBlendMode:
+    case CSSPropertyBackgroundClip:
+    case CSSPropertyBackgroundImage:
+    case CSSPropertyBackgroundOrigin:
+    case CSSPropertyBackgroundPositionX:
+    case CSSPropertyBackgroundPositionY:
+    case CSSPropertyBackgroundSize:
+    case CSSPropertyMaskSourceType:
+    case CSSPropertyWebkitBackgroundComposite:
+    case CSSPropertyWebkitBackgroundClip:
+    case CSSPropertyWebkitBackgroundOrigin:
+    case CSSPropertyWebkitMaskClip:
+    case CSSPropertyWebkitMaskComposite:
+    case CSSPropertyWebkitMaskImage:
+    case CSSPropertyWebkitMaskOrigin:
+    case CSSPropertyWebkitMaskPositionX:
+    case CSSPropertyWebkitMaskPositionY:
+    case CSSPropertyWebkitMaskSize:
+        return consumeCommaSeparatedBackgroundComponent(unresolvedProperty, m_range, m_context);
+    case CSSPropertyWebkitMaskRepeatX:
+    case CSSPropertyWebkitMaskRepeatY:
+        return nullptr;
     default:
         CSSParserValueList valueList(m_range);
         if (valueList.size()) {
@@ -4067,8 +4244,8 @@ bool CSSPropertyParser::consumeColumns(bool important)
         columnWidth = cssValuePool().createIdentifierValue(CSSValueAuto);
     if (!columnCount)
         columnCount = cssValuePool().createIdentifierValue(CSSValueAuto);
-    addProperty(CSSPropertyWebkitColumnWidth, columnWidth.release(), important);
-    addProperty(CSSPropertyWebkitColumnCount, columnCount.release(), important);
+    addProperty(CSSPropertyColumnWidth, columnWidth.release(), important);
+    addProperty(CSSPropertyColumnCount, columnCount.release(), important);
     return true;
 }
 
@@ -4252,6 +4429,99 @@ bool CSSPropertyParser::consumeBorderImage(CSSPropertyID property, bool importan
     return false;
 }
 
+static inline CSSValueID mapFromPageBreakBetween(CSSValueID value)
+{
+    if (value == CSSValueAlways)
+        return CSSValuePage;
+    // TODO(mstensho): "avoid" should just return "avoid", not "avoid-page", according to the spec.
+    if (value == CSSValueAvoid)
+        return CSSValueAvoidPage;
+    if (value == CSSValueAuto || value == CSSValueLeft || value == CSSValueRight)
+        return value;
+    return CSSValueInvalid;
+}
+
+static inline CSSValueID mapFromColumnBreakBetween(CSSValueID value)
+{
+    if (value == CSSValueAlways)
+        return CSSValueColumn;
+    // TODO(mstensho): "avoid" should just return "avoid", not "avoid-column".
+    if (value == CSSValueAvoid)
+        return CSSValueAvoidColumn;
+    // TODO(mstensho): column break properties shouldn't take 'left' and 'right' values (but
+    // allowing it for now, since that's what we've always done).
+    if (value == CSSValueAuto || value == CSSValueLeft || value == CSSValueRight)
+        return value;
+    return CSSValueInvalid;
+}
+
+static inline CSSValueID mapFromPageBreakInside(CSSValueID value)
+{
+    // TODO(mstensho): "avoid" should just return "avoid", not "avoid-page", according to the spec.
+    if (value == CSSValueAvoid)
+        return CSSValueAvoidPage;
+    if (value == CSSValueAuto)
+        return value;
+    return CSSValueInvalid;
+}
+
+static inline CSSValueID mapFromColumnBreakInside(CSSValueID value)
+{
+    // TODO(mstensho): "avoid" should just return "avoid", not "avoid-column".
+    if (value == CSSValueAvoid)
+        return CSSValueAvoidColumn;
+    if (value == CSSValueAuto)
+        return value;
+    return CSSValueInvalid;
+}
+
+static inline CSSPropertyID mapFromLegacyBreakProperty(CSSPropertyID property)
+{
+    if (property == CSSPropertyPageBreakAfter || property == CSSPropertyWebkitColumnBreakAfter)
+        return CSSPropertyBreakAfter;
+    if (property == CSSPropertyPageBreakBefore || property == CSSPropertyWebkitColumnBreakBefore)
+        return CSSPropertyBreakBefore;
+    ASSERT(property == CSSPropertyPageBreakInside || property == CSSPropertyWebkitColumnBreakInside);
+    return CSSPropertyBreakInside;
+}
+
+bool CSSPropertyParser::consumeLegacyBreakProperty(CSSPropertyID property, bool important)
+{
+    // The fragmentation spec says that page-break-(after|before|inside) are to be treated as
+    // shorthands for their break-(after|before|inside) counterparts. We'll do the same for the
+    // non-standard properties -webkit-column-break-(after|before|inside).
+    RefPtrWillBeRawPtr<CSSPrimitiveValue> keyword = consumeIdent(m_range);
+    if (!keyword)
+        return false;
+    if (!m_range.atEnd())
+        return false;
+    CSSValueID value = keyword->getValueID();
+    switch (property) {
+    case CSSPropertyPageBreakAfter:
+    case CSSPropertyPageBreakBefore:
+        value = mapFromPageBreakBetween(value);
+        break;
+    case CSSPropertyWebkitColumnBreakAfter:
+    case CSSPropertyWebkitColumnBreakBefore:
+        value = mapFromColumnBreakBetween(value);
+        break;
+    case CSSPropertyPageBreakInside:
+        value = mapFromPageBreakInside(value);
+        break;
+    case CSSPropertyWebkitColumnBreakInside:
+        value = mapFromColumnBreakInside(value);
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+    }
+    if (value == CSSValueInvalid)
+        return false;
+
+    CSSPropertyID genericBreakProperty = mapFromLegacyBreakProperty(property);
+    addProperty(genericBreakProperty, cssValuePool().createIdentifierValue(value), important);
+    return true;
+}
+
 bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty, bool important)
 {
     CSSPropertyID property = resolveCSSPropertyID(unresolvedProperty);
@@ -4306,7 +4576,7 @@ bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty, bool im
     }
     case CSSPropertyBorderSpacing:
         return consumeBorderSpacing(important);
-    case CSSPropertyWebkitColumns: {
+    case CSSPropertyColumns: {
         // TODO(rwlbuis): investigate if this shorthand hack can be removed.
         m_currentShorthand = oldShorthand;
         return consumeColumns(important);
@@ -4352,8 +4622,8 @@ bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty, bool im
         return consumeFlex(important);
     case CSSPropertyFlexFlow:
         return consumeShorthandGreedily(flexFlowShorthand(), important);
-    case CSSPropertyWebkitColumnRule:
-        return consumeShorthandGreedily(webkitColumnRuleShorthand(), important);
+    case CSSPropertyColumnRule:
+        return consumeShorthandGreedily(columnRuleShorthand(), important);
     case CSSPropertyListStyle:
         return consumeShorthandGreedily(listStyleShorthand(), important);
     case CSSPropertyBorderRadius: {
@@ -4386,6 +4656,13 @@ bool CSSPropertyParser::parseShorthand(CSSPropertyID unresolvedProperty, bool im
     case CSSPropertyBorderImage:
     case CSSPropertyWebkitMaskBoxImage:
         return consumeBorderImage(property, important);
+    case CSSPropertyPageBreakAfter:
+    case CSSPropertyPageBreakBefore:
+    case CSSPropertyPageBreakInside:
+    case CSSPropertyWebkitColumnBreakAfter:
+    case CSSPropertyWebkitColumnBreakBefore:
+    case CSSPropertyWebkitColumnBreakInside:
+        return consumeLegacyBreakProperty(property, important);
     default:
         m_currentShorthand = oldShorthand;
         CSSParserValueList valueList(m_range);

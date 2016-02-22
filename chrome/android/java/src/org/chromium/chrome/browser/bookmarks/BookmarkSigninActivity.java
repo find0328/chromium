@@ -22,7 +22,7 @@ import org.chromium.sync.AndroidSyncSettings.AndroidSyncSettingsObserver;
 import org.chromium.sync.signin.ChromeSigninController;
 
 /**
- * Sign in promotion activity that is triggered from enhanced bookmark UI.
+ * Sign in promotion activity that is triggered from bookmark UI.
  */
 public class BookmarkSigninActivity extends BookmarkActivityBase implements
         AndroidSyncSettingsObserver, SignInStateObserver, SyncPromoModel, UserActionListener {
@@ -129,6 +129,11 @@ public class BookmarkSigninActivity extends BookmarkActivityBase implements
         RecordUserAction.record("Stars_SignInPromoActivity_NewAccount");
         RecordUserAction.record("Signin_AddAccountToDevice");
     }
+
+    @Override
+    public void onAccountSelectionCancelled() {
+        finish();
+    };
 
     @Override
     public ProfileDataCache getProfileDataCache() {

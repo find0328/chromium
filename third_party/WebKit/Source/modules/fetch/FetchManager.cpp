@@ -526,6 +526,8 @@ void FetchManager::Loader::performHTTPFetch(bool corsFlag, bool corsPreflightFla
     ResourceRequest request(m_request->url());
     request.setRequestContext(m_request->context());
     request.setHTTPMethod(m_request->method());
+    request.setFetchRequestMode(m_request->mode());
+    request.setFetchCredentialsMode(m_request->credentials());
     const Vector<OwnPtr<FetchHeaderList::Header>>& list = m_request->headerList()->list();
     for (size_t i = 0; i < list.size(); ++i) {
         request.addHTTPHeaderField(AtomicString(list[i]->first), AtomicString(list[i]->second));
@@ -609,9 +611,8 @@ void FetchManager::Loader::performHTTPFetch(bool corsFlag, bool corsPreflightFla
         break;
     }
     InspectorInstrumentation::willStartFetch(executionContext(), this);
-    m_loader = ThreadableLoader::create(*executionContext(), this, request, threadableLoaderOptions, resourceLoaderOptions);
-    if (!m_loader)
-        performNetworkError("Can't create ThreadableLoader");
+    m_loader = ThreadableLoader::create(*executionContext(), this, threadableLoaderOptions, resourceLoaderOptions);
+    m_loader->start(request);
 }
 
 // performDataFetch() is almost the same as performHTTPFetch(), except for:
@@ -644,9 +645,8 @@ void FetchManager::Loader::performDataFetch()
     threadableLoaderOptions.crossOriginRequestPolicy = AllowCrossOriginRequests;
 
     InspectorInstrumentation::willStartFetch(executionContext(), this);
-    m_loader = ThreadableLoader::create(*executionContext(), this, request, threadableLoaderOptions, resourceLoaderOptions);
-    if (!m_loader)
-        performNetworkError("Can't create ThreadableLoader");
+    m_loader = ThreadableLoader::create(*executionContext(), this, threadableLoaderOptions, resourceLoaderOptions);
+    m_loader->start(request);
 }
 
 void FetchManager::Loader::failed(const String& message)

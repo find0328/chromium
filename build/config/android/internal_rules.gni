@@ -441,7 +441,7 @@ template("write_build_config") {
     }
 
     if (defined(invoker.apk_under_test)) {
-      deps += [ invoker.apk_under_test ]
+      deps += [ "${invoker.apk_under_test}__build_config" ]
       apk_under_test_gen_dir =
           get_label_info(invoker.apk_under_test, "target_gen_dir")
       apk_under_test_name = get_label_info(invoker.apk_under_test, "name")
@@ -1303,6 +1303,9 @@ template("java_prebuilt_impl") {
       build_config = _build_config
       jar_path = _jar_path
       script_name = _template_name
+      if (defined(invoker.wrapper_script_name)) {
+        script_name = invoker.wrapper_script_name
+      }
       deps = [
         ":$_build_config_target_name",
       ]
@@ -1540,8 +1543,12 @@ template("java_library_impl") {
 
   # Jar files can be needed at runtime (by Robolectric tests or java binaries),
   # so do not put them under gen/.
+  _jar_name = target_name
+  if (defined(invoker.jar_name)) {
+    _jar_name = invoker.jar_name
+  }
   target_dir_name = get_label_info(":$target_name", "dir")
-  _jar_path = "$root_out_dir/lib.java$target_dir_name/$target_name.jar"
+  _jar_path = "$root_out_dir/lib.java$target_dir_name/$_jar_name.jar"
   if (defined(invoker.jar_path)) {
     _jar_path = invoker.jar_path
   }
@@ -1696,6 +1703,9 @@ template("java_library_impl") {
       build_config = _build_config
       jar_path = _jar_path
       script_name = _template_name
+      if (defined(invoker.wrapper_script_name)) {
+        script_name = invoker.wrapper_script_name
+      }
       deps = build_config_deps
     }
   }
@@ -2097,6 +2107,12 @@ template("test_runner_script") {
           rebase_path("$root_out_dir/coverage", root_build_dir),
         ]
       }
+    } else if (_test_type == "junit") {
+      assert(defined(invoker.test_suite))
+      test_runner_args += [
+        "--test-suite",
+        invoker.test_suite,
+      ]
     } else {
       assert(false, "Invalid test type: $_test_type.")
     }
