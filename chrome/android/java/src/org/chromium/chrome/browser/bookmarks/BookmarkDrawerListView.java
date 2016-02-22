@@ -12,7 +12,7 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkModelObserver;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserver;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.components.bookmarks.BookmarkId;
@@ -20,7 +20,7 @@ import org.chromium.components.bookmarks.BookmarkId;
 import java.util.List;
 
 /**
- * Main drawer list view of Enhanced Bookmark UI. It is responsible for presenting different viewing
+ * Main drawer list view of bookmark UI. It is responsible for presenting different viewing
  * modes and let users to choose.
  */
 @SuppressLint("Instantiatable")
@@ -51,7 +51,7 @@ class BookmarkDrawerListView extends ListView implements BookmarkUIObserver {
 
                 if (OfflinePageBridge.isEnabled()) {
                     int currentState = mDelegate.getCurrentState();
-                    boolean isConnected = OfflinePageUtils.isConnected(context);
+                    boolean isConnected = OfflinePageUtils.isConnected();
                     if (item.mType == BookmarkDrawerListViewAdapter.TYPE_FILTER
                             && currentState != BookmarkUIState.STATE_FILTER) {
                         RecordHistogram.recordBooleanHistogram(
@@ -92,7 +92,7 @@ class BookmarkDrawerListView extends ListView implements BookmarkUIObserver {
     public void onBookmarkDelegateInitialized(BookmarkDelegate delegate) {
         mDelegate = delegate;
         delegate.getModel().addObserver(mBookmarkModelObserver);
-        mAdapter.setEnhancedBookmarkUIDelegate(delegate);
+        mAdapter.setBookmarkUIDelegate(delegate);
         delegate.addUIObserver(this);
     }
 

@@ -263,7 +263,8 @@ class SchedulerTest : public testing::Test {
     }
 
     scoped_ptr<FakeCompositorTimingHistory> fake_compositor_timing_history =
-        FakeCompositorTimingHistory::Create();
+        FakeCompositorTimingHistory::Create(
+            scheduler_settings_.using_synchronous_renderer_compositor);
     fake_compositor_timing_history_ = fake_compositor_timing_history.get();
 
     scheduler_ = TestScheduler::Create(
@@ -1479,6 +1480,93 @@ TEST_F(SchedulerTest, MainFrameNotSkippedAfterLateCommit_DrawEstimateTooLong) {
   bool expect_send_begin_main_frame = true;
   EXPECT_SCOPED(
       CheckMainFrameSkippedAfterLateCommit(expect_send_begin_main_frame));
+}
+
+// If the BeginMainFrame aborts, it doesn't actually insert a frame into the
+// queue, which means there is no latency to recover.
+TEST_F(SchedulerTest, MainFrameNotSkippedAfterLateBeginMainFrameAbort) {
+  scheduler_settings_.use_external_begin_frame_source = true;
+  SetUpScheduler(true);
+
+  // Use fast estimates so we think we can recover latency if needed.
+  fake_compositor_timing_history_->SetAllEstimatesTo(kFastDuration);
+
+  // Impl thread hits deadline before BeginMainFrame aborts.
+  scheduler_->SetNeedsBeginMainFrame();
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  EXPECT_SCOPED(AdvanceFrame());
+  EXPECT_ACTION("AddObserver(this)", client_, 0, 3);
+  EXPECT_ACTION("WillBeginImplFrame", client_, 1, 3);
+  EXPECT_ACTION("ScheduledActionSendBeginMainFrame", client_, 2, 3);
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  task_runner().RunTasksWhile(client_->ImplFrameDeadlinePending(true));
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
+  scheduler_->NotifyBeginMainFrameStarted(base::TimeTicks());
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
+
+  // After aborting the frame, make sure we don't skip the
+  // next BeginMainFrame.
+  client_->Reset();
+  scheduler_->BeginMainFrameAborted(CommitEarlyOutReason::FINISHED_NO_UPDATES);
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  scheduler_->SetNeedsBeginMainFrame();
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  EXPECT_SCOPED(AdvanceFrame());
+  EXPECT_TRUE(client_->HasAction("WillBeginImplFrame"));
+  EXPECT_TRUE(client_->HasAction("ScheduledActionSendBeginMainFrame"));
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  task_runner().RunTasksWhile(client_->ImplFrameDeadlinePending(true));
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
+}
+
+// If the BeginMainFrame aborts, it doesn't actually insert a frame into the
+// queue, which means there is no latency to recover.
+TEST_F(SchedulerTest, MainFrameNotSkippedAfterCanDrawChanges) {
+  scheduler_settings_.use_external_begin_frame_source = true;
+  SetUpScheduler(true);
+
+  // Use fast estimates so we think we can recover latency if needed.
+  fake_compositor_timing_history_->SetAllEstimatesTo(kFastDuration);
+
+  // Impl thread hits deadline before BeginMainFrame aborts.
+  scheduler_->SetNeedsBeginMainFrame();
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  EXPECT_SCOPED(AdvanceFrame());
+  EXPECT_ACTION("AddObserver(this)", client_, 0, 3);
+  EXPECT_ACTION("WillBeginImplFrame", client_, 1, 3);
+  EXPECT_ACTION("ScheduledActionSendBeginMainFrame", client_, 2, 3);
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  task_runner().RunTasksWhile(client_->ImplFrameDeadlinePending(true));
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
+  scheduler_->NotifyBeginMainFrameStarted(base::TimeTicks());
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
+
+  // Make us abort the upcoming draw.
+  client_->Reset();
+  scheduler_->NotifyReadyToCommit();
+  scheduler_->NotifyReadyToActivate();
+  EXPECT_ACTION("ScheduledActionCommit", client_, 0, 2);
+  EXPECT_ACTION("ScheduledActionActivateSyncTree", client_, 1, 2);
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
+  scheduler_->SetCanDraw(false);
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+
+  // Make CanDraw true after activation.
+  client_->Reset();
+  scheduler_->SetCanDraw(true);
+  EXPECT_NO_ACTION(client_);
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+
+  // Make sure we don't skip the next BeginMainFrame.
+  client_->Reset();
+  scheduler_->SetNeedsBeginMainFrame();
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  EXPECT_SCOPED(AdvanceFrame());
+  EXPECT_TRUE(client_->HasAction("WillBeginImplFrame"));
+  EXPECT_TRUE(client_->HasAction("ScheduledActionSendBeginMainFrame"));
+  EXPECT_FALSE(scheduler_->MainThreadMissedLastDeadline());
+  task_runner().RunTasksWhile(client_->ImplFrameDeadlinePending(true));
+  EXPECT_TRUE(scheduler_->MainThreadMissedLastDeadline());
 }
 
 void SchedulerTest::ImplFrameSkippedAfterLateSwapAck(

@@ -52,22 +52,17 @@ private:
     EditingState m_editingState;
 };
 
-// All assertion in "core/editing/commands" should use
-// |ASSERT_IN_EDITING_COMMAND()| instead of |ASSERT()|.
-// TODO(tkent): Rename this because this works without ENABLE(ASSERT).
-#define ASSERT_IN_EDITING_COMMAND(expr) \
+// Abort the editing command if the specified expression is true.
+#define ABORT_EDITING_COMMAND_IF(expr) \
     do { \
-        if (!(expr)) { \
+        if (expr) { \
             editingState->abort(); \
             return; \
         } \
-        break; \
-    } while (true)
+    } while (false)
 
 #if ENABLE(ASSERT)
-// TODO(yosin): Once all commands aware |EditingState|, we get rid of
-// |NoEditingAbortChecker| class
-// This class is inspired by |NoExceptionStateAssertionChecke|.
+// This class is inspired by |NoExceptionStateAssertionChecker|.
 class NoEditingAbortChecker final {
     STACK_ALLOCATED();
     WTF_MAKE_NONCOPYABLE(NoEditingAbortChecker);
@@ -83,9 +78,11 @@ private:
     int const m_line;
 };
 
-// A macro for default parameter of |EditingState*| parameter.
-// TODO(yosin): Once all commands aware |EditingState|, we get rid of
-// |ASSERT_NO_EDITING_ABORT| macro.
+// If a function with EditingState* argument should not be aborted,
+// ASSERT_NO_EDITING_ABORT should be specified.
+//    fooFunc(...., ASSERT_NO_EDITING_ABORT);
+// It causes an assertion failure If ENABLE(ASSERT) and the function was aborted
+// unexpectedly.
 #define ASSERT_NO_EDITING_ABORT (NoEditingAbortChecker(__FILE__, __LINE__).editingState())
 #else
 #define ASSERT_NO_EDITING_ABORT (IgnorableEditingAbortState().editingState())

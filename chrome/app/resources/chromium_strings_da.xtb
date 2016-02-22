@@ -127,7 +127,6 @@
 <translation id="5859963531214966875">Fremtidige versioner af Chromium vil ikke længere understøtte dette Linux-system.</translation>
 <translation id="5862307444128926510">Velkommen til Chromium</translation>
 <translation id="5877064549588274448">Kanalen er ændret. Genstart din enhed for at anvende ændringerne.</translation>
-<translation id="5909170354645388250">Ikke benyttet i Chromium. Pladsholder til at holde ressourcekort synkrone. Den kræver ét argument: $1.</translation>
 <translation id="5942225298871134766">Chromium gemmer denne med <ph name="SAVED_PASSWORD_LINK" /> og husker den, næste gang du skal bruge den.</translation>
 <translation id="5942520288919337908"><ph name="EXTENSION_NAME" /> er føjet til Chromium.</translation>
 <translation id="59625444380784159">Oplysninger om dine kontaktpersoner kan hjælpe dig med at udfylde formularer hurtigere i Chromium.</translation>
@@ -207,7 +206,6 @@ Chromium kan ikke gendanne dine præferencer.</translation>
 <translation id="8586442755830160949">Copyright <ph name="YEAR" /> Forfatterne bag Chromium. Alle rettigheder forbeholdes.</translation>
 <translation id="8621669128220841554">Installationen mislykkedes på grund af en uspecificeret fejl. Download Chromium igen.</translation>
 <translation id="8628626585870903697">Chromium inkluderer ikke PDF-fremviseren, som er påkrævet, for at Vis udskrift kan fungere.</translation>
-<translation id="8684913864886094367">Chromium blev ikke afsluttet korrekt.</translation>
 <translation id="8697124171261953979">Den styrer også, hvilken side der vises, når du åbner Chromium eller søger via omnifeltet.</translation>
 <translation id="8704119203788522458">Dette er din Chromium-browser</translation>
 <translation id="872034308864968620">Lad Chromium køre i baggrunden</translation>

@@ -76,9 +76,11 @@ class CONTENT_EXPORT CacheStorageCache
   void Match(scoped_ptr<ServiceWorkerFetchRequest> request,
              const ResponseCallback& callback);
 
-  // Returns CACHE_STORAGE_OK and all responses in this cache. If there are no
-  // responses, returns CACHE_STORAGE_OK and an empty vector.
-  void MatchAll(const ResponsesCallback& callback);
+  // Returns CACHE_STORAGE_OK and matched responses in this cache. If there are
+  // no responses, returns CACHE_STORAGE_OK and an empty vector.
+  void MatchAll(scoped_ptr<ServiceWorkerFetchRequest> request,
+                const CacheStorageCacheQueryParams& match_params,
+                const ResponsesCallback& callback);
 
   // Runs given batch operations. This corresponds to the Batch Cache Operations
   // algorithm in the spec.
@@ -111,6 +113,10 @@ class CONTENT_EXPORT CacheStorageCache
   // The size of the cache's contents. This runs in parallel with other Cache
   // operations.
   void Size(const SizeCallback& callback);
+
+  // Gets the cache's size, closes the backend, and then runs |callback| with
+  // the cache's size.
+  void GetSizeThenClose(const SizeCallback& callback);
 
   base::FilePath path() const { return path_; }
 
@@ -173,9 +179,9 @@ class CONTENT_EXPORT CacheStorageCache
                             scoped_ptr<CacheMetadata> headers);
 
   // MatchAll callbacks
-  void MatchAllImpl(const ResponsesCallback& callback);
+  void MatchAllImpl(scoped_ptr<MatchAllContext> context);
   void MatchAllDidOpenAllEntries(
-      const ResponsesCallback& callback,
+      scoped_ptr<MatchAllContext> context,
       scoped_ptr<OpenAllEntriesContext> entries_context,
       CacheStorageError error);
   void MatchAllProcessNextEntry(scoped_ptr<MatchAllContext> context,
@@ -238,6 +244,9 @@ class CONTENT_EXPORT CacheStorageCache
   void CloseImpl(const base::Closure& callback);
 
   void SizeImpl(const SizeCallback& callback);
+
+  void GetSizeThenCloseDidGetSize(const SizeCallback& callback,
+                                  int64_t cache_size);
 
   // Loads the backend and calls the callback with the result (true for
   // success). The callback will always be called. Virtual for tests.

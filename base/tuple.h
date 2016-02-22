@@ -196,15 +196,15 @@ inline Tuple<Ts&...> MakeRefTuple(Ts&... arg) {
 // Non-Static Dispatchers with no out params.
 
 template <typename ObjT, typename Method, typename... Ts, size_t... Ns>
-inline void DispatchToMethodImpl(ObjT* obj,
+inline void DispatchToMethodImpl(const ObjT& obj,
                                  Method method,
                                  const Tuple<Ts...>& arg,
                                  IndexSequence<Ns...>) {
-  (obj->*method)(base::internal::UnwrapTraits<Ts>::Unwrap(get<Ns>(arg))...);
+  (obj->*method)(internal::Unwrap(get<Ns>(arg))...);
 }
 
 template <typename ObjT, typename Method, typename... Ts>
-inline void DispatchToMethod(ObjT* obj,
+inline void DispatchToMethod(const ObjT& obj,
                              Method method,
                              const Tuple<Ts...>& arg) {
   DispatchToMethodImpl(obj, method, arg, MakeIndexSequence<sizeof...(Ts)>());
@@ -216,7 +216,7 @@ template <typename Function, typename... Ts, size_t... Ns>
 inline void DispatchToFunctionImpl(Function function,
                                    const Tuple<Ts...>& arg,
                                    IndexSequence<Ns...>) {
-  (*function)(base::internal::UnwrapTraits<Ts>::Unwrap(get<Ns>(arg))...);
+  (*function)(internal::Unwrap(get<Ns>(arg))...);
 }
 
 template <typename Function, typename... Ts>
@@ -232,18 +232,17 @@ template <typename ObjT,
           typename... OutTs,
           size_t... InNs,
           size_t... OutNs>
-inline void DispatchToMethodImpl(ObjT* obj,
+inline void DispatchToMethodImpl(const ObjT& obj,
                                  Method method,
                                  const Tuple<InTs...>& in,
                                  Tuple<OutTs...>* out,
                                  IndexSequence<InNs...>,
                                  IndexSequence<OutNs...>) {
-  (obj->*method)(base::internal::UnwrapTraits<InTs>::Unwrap(get<InNs>(in))...,
-                 &get<OutNs>(*out)...);
+  (obj->*method)(internal::Unwrap(get<InNs>(in))..., &get<OutNs>(*out)...);
 }
 
 template <typename ObjT, typename Method, typename... InTs, typename... OutTs>
-inline void DispatchToMethod(ObjT* obj,
+inline void DispatchToMethod(const ObjT& obj,
                              Method method,
                              const Tuple<InTs...>& in,
                              Tuple<OutTs...>* out) {

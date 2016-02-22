@@ -148,8 +148,8 @@ void HTMLLinkElement::parseSizesAttribute(const AtomicString& value, Vector<IntS
 inline HTMLLinkElement::HTMLLinkElement(Document& document, bool createdByParser)
     : HTMLElement(linkTag, document)
     , m_linkLoader(LinkLoader::create(this))
-    , m_sizes(DOMSettableTokenList::create(this))
-    , m_relList(RelList::create(this))
+    , m_sizes(DOMTokenList::create(this))
+    , m_relList(RelList::create(this).leakRef())
     , m_createdByParser(createdByParser)
     , m_isInShadowTree(false)
 {
@@ -164,6 +164,7 @@ HTMLLinkElement::~HTMLLinkElement()
 {
 #if !ENABLE(OILPAN)
     m_sizes->setObserver(nullptr);
+    m_relList->setObserver(nullptr);
     m_link.clear();
     if (inDocument())
         document().styleEngine().removeStyleSheetCandidateNode(this);
@@ -453,7 +454,7 @@ const Vector<IntSize>& HTMLLinkElement::iconSizes() const
     return m_iconSizes;
 }
 
-DOMSettableTokenList* HTMLLinkElement::sizes() const
+DOMTokenList* HTMLLinkElement::sizes() const
 {
     return m_sizes.get();
 }
@@ -466,7 +467,7 @@ DEFINE_TRACE(HTMLLinkElement)
     visitor->trace(m_relList);
     HTMLElement::trace(visitor);
     LinkLoaderClient::trace(visitor);
-    DOMSettableTokenListObserver::trace(visitor);
+    DOMTokenListObserver::trace(visitor);
 }
 
 PassOwnPtrWillBeRawPtr<LinkStyle> LinkStyle::create(HTMLLinkElement* owner)
@@ -514,7 +515,7 @@ void LinkStyle::setCSSStyleSheet(const String& href, const KURL& baseURL, const 
 
     // See the comment in PendingScript.cpp about why this check is necessary
     // here, instead of in the resource fetcher. https://crbug.com/500701.
-    if (!cachedStyleSheet->errorOccurred() && cachedStyleSheet->resourceBuffer() && !SubresourceIntegrity::CheckSubresourceIntegrity(*m_owner, cachedStyleSheet->resourceBuffer()->data(), cachedStyleSheet->resourceBuffer()->size(), KURL(baseURL, href), *cachedStyleSheet)) {
+    if (!cachedStyleSheet->errorOccurred() && m_owner->fastHasAttribute(HTMLNames::integrityAttr) && cachedStyleSheet->resourceBuffer() && !SubresourceIntegrity::CheckSubresourceIntegrity(*m_owner, cachedStyleSheet->resourceBuffer()->data(), cachedStyleSheet->resourceBuffer()->size(), KURL(baseURL, href), *cachedStyleSheet)) {
         m_loading = false;
         removePendingSheet();
         notifyLoadedSheetAndAllCriticalSubresources(Node::ErrorOccurredLoadingSubresource);
@@ -645,7 +646,7 @@ void LinkStyle::removePendingSheet()
         // Document::removePendingSheet() triggers the style selector recalc for blocking sheets.
         // FIXME: We don't have enough knowledge at this point to know if we're adding or removing a sheet
         // so we can't call addedStyleSheet() or removedStyleSheet().
-        m_owner->document().styleResolverChanged();
+        m_owner->document().styleEngine().resolverChanged(FullStyleUpdate);
         return;
     }
 
@@ -689,7 +690,7 @@ void LinkStyle::setDisabledState(bool disabled)
                 process();
         } else {
             // FIXME: We don't have enough knowledge here to know if we should call addedStyleSheet() or removedStyleSheet().
-            m_owner->document().styleResolverChanged();
+            m_owner->document().styleEngine().resolverChanged(FullStyleUpdate);
         }
     }
 }

@@ -88,7 +88,7 @@ class SearchBoxImageButton : public views::ImageButton {
     selected_ = selected;
     SchedulePaint();
     if (selected)
-      NotifyAccessibilityEvent(ui::AX_EVENT_FOCUS, true);
+      NotifyAccessibilityEvent(ui::AX_EVENT_SELECTION, true);
   }
 
   bool OnKeyPressed(const ui::KeyEvent& event) override {
@@ -404,7 +404,9 @@ void SearchBoxView::ButtonPressed(views::Button* sender,
     NOTREACHED();
 }
 
-void SearchBoxView::OnMenuButtonClicked(View* source, const gfx::Point& point) {
+void SearchBoxView::OnMenuButtonClicked(views::MenuButton* source,
+                                        const gfx::Point& point,
+                                        const ui::Event* event) {
   if (!menu_)
     menu_.reset(new AppListMenuViews(view_delegate_));
 

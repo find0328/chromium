@@ -543,8 +543,7 @@ void LaunchDevToolsHandlerIfNeeded(const base::CommandLine& command_line) {
     int port;
     if (base::StringToInt(port_str, &port) && port >= 0 && port < 65535) {
       g_browser_process->CreateDevToolsHttpProtocolHandler(
-          chrome::HOST_DESKTOP_TYPE_NATIVE, "127.0.0.1",
-          static_cast<uint16_t>(port));
+          "127.0.0.1", static_cast<uint16_t>(port));
     } else {
       DLOG(WARNING) << "Invalid http debugger port number " << port;
     }
@@ -689,7 +688,6 @@ void ChromeBrowserMainParts::SetupMetricsAndFieldTrials() {
     // consistent manner with field trials created from the server.
     bool result = base::FieldTrialList::CreateTrialsFromString(
         command_line->GetSwitchValueASCII(switches::kForceFieldTrials),
-        base::FieldTrialList::DONT_ACTIVATE_TRIALS,
         unforceable_field_trials);
     CHECK(result) << "Invalid --" << switches::kForceFieldTrials
                   << " list specified.";

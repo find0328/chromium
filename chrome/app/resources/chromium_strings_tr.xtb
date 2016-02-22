@@ -125,7 +125,6 @@
 <translation id="5859963531214966875">Chromium'un gelecek sürümleri artık bu Linux sistemini desteklemeyecek.</translation>
 <translation id="5862307444128926510">Chromium'a Hoş Geldiniz</translation>
 <translation id="5877064549588274448">Kanal değişti. Değişikliklerin uygulanması için cihazınızı yeniden başlatın.</translation>
-<translation id="5909170354645388250">Chromium'da kullanılmaz. Kaynak haritaları senkronize halde tutmak için yer tutucu. Bir bağımsız değişkenini beklemektedir: $ 1.</translation>
 <translation id="5942225298871134766">Chromium bunu <ph name="SAVED_PASSWORD_LINK" /> bölümüne kaydeder ve tekrar ihtiyacınız olduğunda hatırlar.</translation>
 <translation id="5942520288919337908"><ph name="EXTENSION_NAME" /> Chromium'a eklendi.</translation>
 <translation id="59625444380784159">Kişilerinizde kayıtlı bilgiler, Chromium'da formları daha hızlı bir şekilde doldurmanıza yardımcı olabilir.</translation>
@@ -205,7 +204,6 @@ Chromium ayarlarınızı kurtaramıyor.</translation>
 <translation id="8586442755830160949">Telif Hakkı <ph name="YEAR" /> The Chromium Authors. Tüm hakları saklıdır.</translation>
 <translation id="8621669128220841554">Yükleme belirtilmeyen bir hata nedeniyle başarısız oldu. Lütfen Chromium'u tekrar indirin.</translation>
 <translation id="8628626585870903697">Chromium, Baskı Önizleme için gerekli olan PDF görüntüleyiciyi içermez.</translation>
-<translation id="8684913864886094367">Chromium düzgün bir şekilde kapatılmadı.</translation>
 <translation id="8697124171261953979">Ayrıca Chromium'u başlattığınızda veya Çok Amaçlı Adres Çubuğu'ndan arama yaptığınızda gösterilecek sayfayı da denetler.</translation>
 <translation id="8704119203788522458">Bu sizin Chromium'unuz</translation>
 <translation id="872034308864968620">Chromium'un Arka Planda Çalışmasına İzin Ver</translation>

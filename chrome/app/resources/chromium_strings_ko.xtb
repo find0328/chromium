@@ -129,7 +129,6 @@
 <translation id="5859963531214966875">Chromium 향후 버전에서는 더 이상 이 Linux 시스템을 지원하지 않습니다.</translation>
 <translation id="5862307444128926510">Chromium에 오신 것을 환영합니다.</translation>
 <translation id="5877064549588274448">채널이 변경되었습니다. 변경사항을 적용하려면 기기를 다시 시작하세요.</translation>
-<translation id="5909170354645388250">Chromium에서 사용되지 않았습니다. 자리표시자는 리소스 맵을 동기화 상태로 유지합니다. 하나의 인수($1)가 발생할 수 있습니다.</translation>
 <translation id="5942225298871134766">Chromium은 <ph name="SAVED_PASSWORD_LINK" />을(를) 사용하여 비밀번호를 저장한 후 다음에 필요할 때 제공합니다.</translation>
 <translation id="5942520288919337908"><ph name="EXTENSION_NAME" />이(가) Chromium에 추가되었습니다.</translation>
 <translation id="59625444380784159">연락처 세부정보를 사용하면 Chromium에서 양식을 더욱 신속하게 작성할 수 있습니다.</translation>
@@ -209,7 +208,6 @@ Chromium에서 설정을 복구할 수 없습니다.</translation>
 <translation id="8586442755830160949">Copyright <ph name="YEAR" /> The Chromium Authors. All rights reserved.</translation>
 <translation id="8621669128220841554">알 수 없는 오류로 인해 설치에 실패했습니다. Chromium을 다시 다운로드하세요.</translation>
 <translation id="8628626585870903697">Chromium은 인쇄 미리보기에 필요한 PDF 뷰어가 포함되어 있지 않습니다.</translation>
-<translation id="8684913864886094367">Chromium이 제대로 종료되지 않았습니다.</translation>
 <translation id="8697124171261953979">또한 Chromium을 시작하거나 검색주소창에서 검색할 때 표시되는 페이지를 설정합니다.</translation>
 <translation id="8704119203788522458">나만의 Chromium</translation>
 <translation id="872034308864968620">백그라운드에서 Chromium을 실행</translation>

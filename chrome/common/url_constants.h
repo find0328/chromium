@@ -92,6 +92,7 @@ extern const char kChromeUIContextualSearchPromoURL[];
 extern const char kChromeUINativeScheme[];
 extern const char kChromeUINativeNewTabURL[];
 extern const char kChromeUINativeBookmarksURL[];
+extern const char kChromeUINativePhysicalWebURL[];
 extern const char kChromeUINativeRecentTabsURL[];
 #endif
 
@@ -251,6 +252,7 @@ extern const char kChromeUISandboxHost[];
 
 #if defined(OS_ANDROID)
 extern const char kChromeUIContextualSearchPromoHost[];
+extern const char kChromeUIPhysicalWebHost[];
 extern const char kChromeUIPopularSitesInternalsHost[];
 #endif
 
@@ -535,6 +537,10 @@ extern const char kChromeUIDiscardsURL[];
 extern const char kCrosScheme[];
 #endif
 
+#if defined(OS_ANDROID)
+extern const char kAndroidAppScheme[];
+#endif
+
 // "Learn more" URL for the Cloud Print section under Options.
 extern const char kCloudPrintLearnMoreURL[];
 
@@ -567,6 +573,10 @@ extern const char kMac10_678_DeprecationURL[];
 // The URL for the Windows XP/Vista deprecation help center article.
 extern const char kWindowsXPVistaDeprecationURL[];
 #endif
+
+// The URL for the Bluetooth Overview help center article in the Web Bluetooth
+// Chooser.
+extern const char kChooserBluetoothOverviewURL[];
 
 }  // namespace chrome
 

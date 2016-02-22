@@ -149,6 +149,8 @@ config("compiler") {
     # --------------------------------
     cflags += [ "-fno-strict-aliasing" ]  # See http://crbug.com/32204
     cflags_cc += [
+      # If this is removed then remove the corresponding /Zc:threadSafeInit- for
+      # Windows.
       "-fno-threadsafe-statics",
 
       # Not exporting C++ inline functions can generally be applied anywhere
@@ -591,7 +593,14 @@ config("compiler_codegen") {
         ]
       }
     } else if (current_cpu == "arm") {
-      if (!is_clang) {
+      if (is_clang) {
+        # Disable an incorrect loop optimization.
+        # See http://llvm.org/bugs/show_bug.cgi?id=26600.
+        cflags += [
+          "-mllvm",
+          "-enable-interleaved-mem-accesses=0",
+        ]
+      } else {
         # Clang doesn't support these flags.
         cflags += [
           # The tree-sra optimization (scalar replacement for
@@ -1259,7 +1268,7 @@ config("symbols") {
     } else {
       cflags = [ "/Zi" ]  # Produce PDB file, no edit and continue.
     }
-    if (is_win_fastlink) {
+    if (is_win_fastlink && visual_studio_version != "2013") {
       # Tell VS 2015+ to create a PDB that references debug
       # information in .obj and .lib files instead of copying
       # it all. This flag is incompatible with /PROFILE
@@ -1282,7 +1291,7 @@ config("minimal_symbols") {
   if (is_win) {
     # Linker symbols for backtraces only.
     cflags = []
-    if (is_win_fastlink) {
+    if (is_win_fastlink && visual_studio_version != "2013") {
       # Tell VS 2015+ to create a PDB that references debug
       # information in .obj and .lib files instead of copying
       # it all. This flag is incompatible with /PROFILE

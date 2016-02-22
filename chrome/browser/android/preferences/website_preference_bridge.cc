@@ -9,10 +9,9 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/bind.h"
 #include "base/bind_helpers.h"
-#include "base/files/file_path.h"
 #include "base/macros.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/browsing_data/browsing_data_local_storage_helper.h"
+#include "chrome/browser/browsing_data/browsing_data_quota_helper.h"
 #include "chrome/browser/browsing_data/cookies_tree_model.h"
 #include "chrome/browser/browsing_data/local_data_container.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
@@ -28,8 +27,8 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/storage_partition.h"
 #include "jni/WebsitePreferenceBridge_jni.h"
-#include "storage/browser/quota/quota_client.h"
 #include "storage/browser/quota/quota_manager.h"
+#include "storage/common/quota/quota_status_code.h"
 #include "url/url_constants.h"
 
 using base::android::ConvertJavaStringToUTF8;
@@ -308,15 +307,15 @@ static void SetProtectedMediaIdentifierSettingForOrigin(
                       (ContentSetting) value, is_incognito);
 }
 
-static void GetPushNotificationOrigins(JNIEnv* env,
-                                       const JavaParamRef<jclass>& clazz,
-                                       const JavaParamRef<jobject>& list) {
+static void GetNotificationOrigins(JNIEnv* env,
+                                   const JavaParamRef<jclass>& clazz,
+                                   const JavaParamRef<jobject>& list) {
   GetOrigins(env, CONTENT_SETTINGS_TYPE_NOTIFICATIONS,
-             &Java_WebsitePreferenceBridge_insertPushNotificationIntoList, list,
+             &Java_WebsitePreferenceBridge_insertNotificationIntoList, list,
              false);
 }
 
-static jint GetPushNotificationSettingForOrigin(
+static jint GetNotificationSettingForOrigin(
     JNIEnv* env,
     const JavaParamRef<jclass>& clazz,
     const JavaParamRef<jstring>& origin,
@@ -327,14 +326,14 @@ static jint GetPushNotificationSettingForOrigin(
       GURL(ConvertJavaStringToUTF8(env, origin)));
 }
 
-static void SetPushNotificationSettingForOrigin(
+static void SetNotificationSettingForOrigin(
     JNIEnv* env,
     const JavaParamRef<jclass>& clazz,
     const JavaParamRef<jstring>& origin,
     const JavaParamRef<jstring>& embedder,
     jint value,
     jboolean is_incognito) {
-  // TODO(peter): Web Notification permission behaves differently from all other
+  // Note: Web Notification permission behaves differently from all other
   // permission types. See https://crbug.com/416894.
   Profile* profile = GetActiveUserProfile(is_incognito);
   GURL url = GURL(ConvertJavaStringToUTF8(env, origin));

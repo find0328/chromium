@@ -9,6 +9,7 @@ import("//build/config/features.gni")
 import("//build/config/linux/pkg_config.gni")
 import("//build/config/ui.gni")
 import("//media/media_options.gni")
+import("//testing/libfuzzer/fuzzer_test.gni")
 import("//testing/test.gni")
 
 buildflag_header("media_features") {
@@ -114,6 +115,10 @@ component("media") {
     "capture/content/thread_safe_capture_oracle.h",
     "capture/content/video_capture_oracle.cc",
     "capture/content/video_capture_oracle.h",
+    "capture/video/android/video_capture_device_android.cc",
+    "capture/video/android/video_capture_device_android.h",
+    "capture/video/android/video_capture_device_factory_android.cc",
+    "capture/video/android/video_capture_device_factory_android.h",
     "capture/video/fake_video_capture_device.cc",
     "capture/video/fake_video_capture_device.h",
     "capture/video/fake_video_capture_device_factory.cc",
@@ -124,10 +129,6 @@ component("media") {
     "capture/video/file_video_capture_device_factory.h",
     "capture/video/linux/v4l2_capture_delegate.cc",
     "capture/video/linux/v4l2_capture_delegate.h",
-    "capture/video/linux/v4l2_capture_delegate_multi_plane.cc",
-    "capture/video/linux/v4l2_capture_delegate_multi_plane.h",
-    "capture/video/linux/v4l2_capture_delegate_single_plane.cc",
-    "capture/video/linux/v4l2_capture_delegate_single_plane.h",
     "capture/video/linux/video_capture_device_chromeos.cc",
     "capture/video/linux/video_capture_device_chromeos.h",
     "capture/video/linux/video_capture_device_factory_linux.cc",
@@ -168,14 +169,12 @@ component("media") {
     "capture/video/win/video_capture_device_mf_win.h",
     "capture/video/win/video_capture_device_win.cc",
     "capture/video/win/video_capture_device_win.h",
-    "capture/webm_muxer.cc",
-    "capture/webm_muxer.h",
     "cdm/aes_decryptor.cc",
     "cdm/aes_decryptor.h",
     "cdm/cdm_adapter.cc",
     "cdm/cdm_adapter.h",
-    "cdm/cdm_buffer_impl.cc",
-    "cdm/cdm_buffer_impl.h",
+    "cdm/cdm_allocator.cc",
+    "cdm/cdm_allocator.h",
     "cdm/cdm_helpers.cc",
     "cdm/cdm_helpers.h",
     "cdm/default_cdm_factory.cc",
@@ -186,8 +185,6 @@ component("media") {
     "cdm/key_system_names.h",
     "cdm/player_tracker_impl.cc",
     "cdm/player_tracker_impl.h",
-    "cdm/proxy_decryptor.cc",
-    "cdm/proxy_decryptor.h",
     "cdm/supported_cdm_versions.cc",
     "cdm/supported_cdm_versions.h",
     "ffmpeg/ffmpeg_deleters.h",
@@ -277,6 +274,8 @@ component("media") {
     "formats/webm/webm_video_client.h",
     "formats/webm/webm_webvtt_parser.cc",
     "formats/webm/webm_webvtt_parser.h",
+    "muxers/webm_muxer.cc",
+    "muxers/webm_muxer.h",
     "renderers/audio_renderer_impl.cc",
     "renderers/audio_renderer_impl.h",
     "renderers/default_renderer_factory.cc",
@@ -390,10 +389,6 @@ component("media") {
       ]
     }
     sources += [
-      "capture/video/android/video_capture_device_android.cc",
-      "capture/video/android/video_capture_device_android.h",
-      "capture/video/android/video_capture_device_factory_android.cc",
-      "capture/video/android/video_capture_device_factory_android.h",
       "filters/android/media_codec_audio_decoder.cc",
       "filters/android/media_codec_audio_decoder.h",
     ]
@@ -406,7 +401,7 @@ component("media") {
     deps += [
       "//media/base/android",
       "//media/base/android:media_jni_headers",
-      "//media/base/android:video_capture_jni_headers",
+      "//media/capture/video/android:capture_jni_headers",
     ]
 
     # Only 64 bit builds are using android-21 NDK library, check common.gypi
@@ -580,6 +575,11 @@ component("media") {
     "//third_party/opus",
   ]
 
+  # TODO(mcasas) Remove this after http://crbug.com/584797
+  if (is_android) {
+    public_deps += [ "//media/capture/video/android" ]
+  }
+
   deps += [
     "//base",
     "//base:i18n",
@@ -629,11 +629,15 @@ test("media_unittests") {
     "capture/content/video_capture_oracle_unittest.cc",
     "capture/video/fake_video_capture_device_unittest.cc",
     "capture/video/video_capture_device_unittest.cc",
-    "capture/webm_muxer_unittest.cc",
     "cdm/aes_decryptor_unittest.cc",
     "cdm/external_clear_key_test_helper.cc",
     "cdm/external_clear_key_test_helper.h",
     "cdm/json_web_key_unittest.cc",
+    "cdm/simple_cdm_allocator.cc",
+    "cdm/simple_cdm_allocator.h",
+    "cdm/simple_cdm_allocator_unittest.cc",
+    "cdm/simple_cdm_buffer.cc",
+    "cdm/simple_cdm_buffer.h",
     "filters/audio_clock_unittest.cc",
     "filters/audio_decoder_selector_unittest.cc",
     "filters/audio_renderer_algorithm_unittest.cc",
@@ -671,6 +675,7 @@ test("media_unittests") {
     "formats/webm/webm_parser_unittest.cc",
     "formats/webm/webm_tracks_parser_unittest.cc",
     "formats/webm/webm_webvtt_parser_unittest.cc",
+    "muxers/webm_muxer_unittest.cc",
     "renderers/audio_renderer_impl_unittest.cc",
     "renderers/renderer_impl_unittest.cc",
     "renderers/skcanvas_video_renderer_unittest.cc",
@@ -719,6 +724,7 @@ test("media_unittests") {
     deps += [
       "//media/base/android:media_java",
       "//media/base/android:unittests",
+      "//media/capture/video/android:capture_java",
       "//ui/android:ui_java",
     ]
   }
@@ -925,6 +931,17 @@ if (media_use_ffmpeg && !is_android) {
       "//third_party/ffmpeg",
       "//ui/gfx:test_support",
       "//ui/gfx/geometry",
+    ]
+  }
+}
+
+if (proprietary_codecs) {
+  fuzzer_test("media_cenc_utils_fuzzer") {
+    sources = [
+      "cdm/cenc_utils_fuzzertest.cc",
+    ]
+    deps = [
+      ":media",
     ]
   }
 }

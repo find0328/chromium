@@ -6,9 +6,11 @@
 #define MOJO_SERVICES_PACKAGE_MANAGER_PACKAGE_MANAGER_H_
 
 #include "base/files/file_path.h"
+#include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
 #include "base/values.h"
 #include "mojo/public/cpp/bindings/weak_binding_set.h"
+#include "mojo/services/package_manager/public/interfaces/catalog.mojom.h"
 #include "mojo/services/package_manager/public/interfaces/resolver.mojom.h"
 #include "mojo/services/package_manager/public/interfaces/shell_resolver.mojom.h"
 #include "mojo/shell/public/cpp/interface_factory.h"
@@ -52,10 +54,14 @@ class ApplicationCatalogStore {
 class PackageManager : public mojo::ShellClient,
                        public mojo::InterfaceFactory<mojom::Resolver>,
                        public mojo::InterfaceFactory<mojom::ShellResolver>,
+                       public mojo::InterfaceFactory<mojom::Catalog>,
                        public mojom::Resolver,
-                       public mojom::ShellResolver {
+                       public mojom::ShellResolver,
+                       public mojom::Catalog {
  public:
-  explicit PackageManager(base::TaskRunner* blocking_pool);
+  // If |register_schemes| is true, mojo: and exe: schemes are registered as
+  // "standard".
+  PackageManager(base::TaskRunner* blocking_pool, bool register_schemes);
   ~PackageManager() override;
 
  private:
@@ -75,6 +81,10 @@ class PackageManager : public mojo::ShellClient,
   void Create(mojo::Connection* connection,
               mojom::ShellResolverRequest request) override;
 
+  // mojo::InterfaceFactory<mojom::Catalog>:
+  void Create(mojo::Connection* connection,
+              mojom::CatalogRequest request) override;
+
   // mojom::Resolver:
   void ResolveResponse(
       mojo::URLResponsePtr response,
@@ -91,9 +101,14 @@ class PackageManager : public mojo::ShellClient,
   void ResolveMojoURL(const mojo::String& mojo_url,
                       const ResolveMojoURLCallback& callback) override;
 
+  // mojom::Catalog:
+  void GetEntries(mojo::Array<mojo::String> urls,
+                  const GetEntriesCallback& callback) override;
+
   // Completes resolving a Mojo URL from the Shell after the resolved URL has
   // been added to the catalog and the manifest read.
   void CompleteResolveMojoURL(const GURL& resolved_url,
+                              const std::string& qualifier,
                               const ResolveMojoURLCallback& callback);
 
   bool IsURLInCatalog(const GURL& url) const;
@@ -101,6 +116,7 @@ class PackageManager : public mojo::ShellClient,
   // Called from ResolveMojoURL().
   // If |url| is not in the catalog, attempts to load a manifest for it.
   void EnsureURLInCatalog(const GURL& url,
+                          const std::string& qualifier,
                           const ResolveMojoURLCallback& callback);
 
   // Populate/serialize the catalog from/to the supplied store.
@@ -113,23 +129,36 @@ class PackageManager : public mojo::ShellClient,
 
   GURL GetManifestURL(const GURL& url);
 
-  // Reads a manifest in the blocking pool and returns a base::Value with its
-  // contents via OnReadManifest().
-  scoped_ptr<base::Value> ReadManifest(const base::FilePath& manifest_path);
-  void OnReadManifest(const GURL& url,
-                      const ResolveMojoURLCallback& callback,
-                      scoped_ptr<base::Value> manifest);
+  // Called once the manifest has been read. |pm| may be null at this point,
+  // but |callback| must be run.
+  static void OnReadManifest(base::WeakPtr<PackageManager> pm,
+                             const GURL& url,
+                             const std::string& qualifier,
+                             const ResolveMojoURLCallback& callback,
+                             scoped_ptr<base::Value> manifest);
+
+  // Called once the manifest is read and |this| hasn't been deleted.
+  void OnReadManifestImpl(const GURL& url,
+                          const std::string& qualifier,
+                          const ResolveMojoURLCallback& callback,
+                          scoped_ptr<base::Value> manifest);
 
   base::TaskRunner* blocking_pool_;
   GURL system_package_dir_;
 
   mojo::WeakBindingSet<mojom::Resolver> resolver_bindings_;
   mojo::WeakBindingSet<mojom::ShellResolver> shell_resolver_bindings_;
+  mojo::WeakBindingSet<mojom::Catalog> catalog_bindings_;
 
   ApplicationCatalogStore* catalog_store_;
   std::map<std::string, ApplicationInfo> catalog_;
 
+  // Used when an app handles multiple urls. Maps from app (as url) to url of
+  // app that is responsible for handling it. The value is a pair of the
+  // url of the handler along with a qualifier.
   MojoURLAliasMap mojo_url_aliases_;
+
+  base::WeakPtrFactory<PackageManager> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(PackageManager);
 };

@@ -33,13 +33,13 @@
 #include "content/public/common/service_registry.h"
 #include "ipc/ipc_message.h"
 #include "third_party/WebKit/public/platform/modules/serviceworker/WebServiceWorkerEventResult.h"
+#include "url/gurl.h"
+#include "url/origin.h"
 
 // Windows headers will redefine SendMessage.
 #ifdef SendMessage
 #undef SendMessage
 #endif
-
-class GURL;
 
 namespace net {
 class HttpResponseInfo;
@@ -144,6 +144,13 @@ class CONTENT_EXPORT ServiceWorkerVersion
   }
   void set_foreign_fetch_scopes(const std::vector<GURL>& scopes) {
     foreign_fetch_scopes_ = scopes;
+  }
+
+  const std::vector<url::Origin>& foreign_fetch_origins() const {
+    return foreign_fetch_origins_;
+  }
+  void set_foreign_fetch_origins(const std::vector<url::Origin>& origins) {
+    foreign_fetch_origins_ = origins;
   }
 
   // This sets the new status and also run status change callbacks
@@ -316,9 +323,9 @@ class CONTENT_EXPORT ServiceWorkerVersion
     force_bypass_cache_for_scripts_ = force_bypass_cache_for_scripts;
   }
 
-  bool skip_script_comparison() const { return skip_script_comparison_; }
-  void set_skip_script_comparison(bool skip_script_comparison) {
-    skip_script_comparison_ = skip_script_comparison;
+  bool pause_after_download() const { return pause_after_download_; }
+  void set_pause_after_download(bool pause_after_download) {
+    pause_after_download_ = pause_after_download;
   }
 
   void SetDevToolsAttached(bool attached);
@@ -565,7 +572,8 @@ class CONTENT_EXPORT ServiceWorkerVersion
                              const std::string& client_uuid,
                              const ServiceWorkerClientInfo& client);
 
-  void OnRegisterForeignFetchScopes(const std::vector<GURL>& sub_scopes);
+  void OnRegisterForeignFetchScopes(const std::vector<GURL>& sub_scopes,
+                                    const std::vector<url::Origin>& origins);
 
   void DidEnsureLiveRegistrationForStartWorker(
       const StatusCallback& callback,
@@ -648,6 +656,7 @@ class CONTENT_EXPORT ServiceWorkerVersion
   const GURL script_url_;
   const GURL scope_;
   std::vector<GURL> foreign_fetch_scopes_;
+  std::vector<url::Origin> foreign_fetch_origins_;
 
   Status status_ = NEW;
   scoped_ptr<EmbeddedWorkerInstance> embedded_worker_;
@@ -699,7 +708,7 @@ class CONTENT_EXPORT ServiceWorkerVersion
   bool skip_waiting_ = false;
   bool skip_recording_startup_time_ = false;
   bool force_bypass_cache_for_scripts_ = false;
-  bool skip_script_comparison_ = false;
+  bool pause_after_download_ = false;
   bool is_update_scheduled_ = false;
   bool in_dtor_ = false;
 

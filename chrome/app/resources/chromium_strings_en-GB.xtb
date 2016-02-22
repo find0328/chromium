@@ -129,7 +129,6 @@ Some features may be unavailable and changes to preferences won't be saved.</tra
 <translation id="5859963531214966875">Future versions of Chromium will no longer support this Linux system.</translation>
 <translation id="5862307444128926510">Welcome to Chromium</translation>
 <translation id="5877064549588274448">Channel changed. Restart your device to apply changes.</translation>
-<translation id="5909170354645388250">Not used in Chromium. Placeholder to keep resource maps in sync. It expects one argument: $1.</translation>
 <translation id="5942225298871134766">Chromium will store this with <ph name="SAVED_PASSWORD_LINK" /> and remember it the next time that you need it.</translation>
 <translation id="5942520288919337908"><ph name="EXTENSION_NAME" /> has been added to Chromium.</translation>
 <translation id="59625444380784159">Details from your contacts can help you fill out forms more quickly in Chromium.</translation>
@@ -209,7 +208,6 @@ Google Chrome is unable to recover your settings.</translation>
 <translation id="8586442755830160949">Copyright <ph name="YEAR" /> The Chromium Authors. All rights reserved.</translation>
 <translation id="8621669128220841554">Installation failed due to unspecified error. Please download Chromium again.</translation>
 <translation id="8628626585870903697">Chromium does not include the PDF viewer which is required for Print Preview to function.</translation>
-<translation id="8684913864886094367">Chromium didn't shut down correctly.</translation>
 <translation id="8697124171261953979">It also controls what page is shown when you start Chromium or search from the Omnibox.</translation>
 <translation id="8704119203788522458">This is your Chromium</translation>
 <translation id="872034308864968620">Let Chromium Run In The Background</translation>

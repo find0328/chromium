@@ -30,7 +30,6 @@
 #include "third_party/skia/include/core/SkPaint.h"
 #include "third_party/skia/include/ports/SkFontMgr.h"
 #include "third_party/skia/include/ports/SkTypeface_win.h"
-#include "ui/gfx/hud_font.h"
 
 namespace content {
 
@@ -128,25 +127,6 @@ void CreateDirectWriteFactory(IDWriteFactory** factory) {
   CHECK(SUCCEEDED(dwrite_create_factory_proc(
       DWRITE_FACTORY_TYPE_ISOLATED, __uuidof(IDWriteFactory),
       reinterpret_cast<IUnknown**>(factory))));
-}
-
-HRESULT STDMETHODCALLTYPE StubFontCollection(IDWriteFactory* factory,
-                                             IDWriteFontCollection** col,
-                                             BOOL checkUpdates) {
-  // We always return pre-created font collection from here.
-  IDWriteFontCollection* custom_collection = GetCustomFontCollection(factory);
-  DCHECK(custom_collection != nullptr);
-  *col = custom_collection;
-  return S_OK;
-}
-
-void PatchDWriteFactory(IDWriteFactory* factory) {
-  const unsigned int kGetSystemFontCollectionVTableIndex = 3;
-
-  PROC* vtable = *reinterpret_cast<PROC**>(factory);
-  PROC* function_ptr = &vtable[kGetSystemFontCollectionVTableIndex];
-  void* stub_function = &StubFontCollection;
-  base::win::ModifyCode(function_ptr, &stub_function, sizeof(PROC));
 }
 
 // Class to fake out a DC or a Font object. Maintains a reference to a
@@ -478,12 +458,9 @@ SkFontMgr* GetPreSandboxWarmupFontMgr() {
     IDWriteFactory* factory;
     CreateDirectWriteFactory(&factory);
 
-    GetCustomFontCollection(factory);
-
-    PatchDWriteFactory(factory);
-
-    blink::WebFontRendering::setDirectWriteFactory(factory);
-    g_warmup_fontmgr = SkFontMgr_New_DirectWrite(factory);
+    g_warmup_fontmgr =
+        SkFontMgr_New_DirectWrite(factory, GetCustomFontCollection(factory));
+    blink::WebFontRendering::setSkiaFontManager(g_warmup_fontmgr);
   }
   return g_warmup_fontmgr;
 }
@@ -516,14 +493,12 @@ void WarmupDirectWrite() {
   // code to use these objects after warmup.
   SetDefaultSkiaFactory(GetPreSandboxWarmupFontMgr());
 
-  // We need to warm up *some* font for DirectWrite. We also need to pass one
-  // down for the CC HUD code, so use the same one here. Note that we don't use
+  // We need to warm up *some* font for DirectWrite. Note that we don't use
   // a monospace as would be nice in an attempt to avoid a small startup time
   // regression, see http://crbug.com/463613.
   skia::RefPtr<SkTypeface> hud_typeface = skia::AdoptRef(
       GetPreSandboxWarmupFontMgr()->legacyCreateTypeface("Times New Roman", 0));
   DoPreSandboxWarmupForTypeface(hud_typeface.get());
-  gfx::SetHudTypeface(hud_typeface);
 }
 
 }  // namespace content

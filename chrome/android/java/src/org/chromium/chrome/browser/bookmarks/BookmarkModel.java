@@ -4,19 +4,15 @@
 
 package org.chromium.chrome.browser.bookmarks;
 
-import android.content.Context;
-
 import org.chromium.base.ObserverList;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.chrome.browser.ChromeBrowserProviderClient;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.OfflinePageModelObserver;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.SavePageCallback;
 import org.chromium.chrome.browser.offlinepages.OfflinePageItem;
-import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.provider.ChromeBrowserProviderClient;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.bookmarks.BookmarkType;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
@@ -30,11 +26,11 @@ import java.util.HashSet;
 import java.util.List;
 
 /**
- * A class that encapsulates {@link BookmarksBridge} and provides extra features such as undo, large
+ * A class that encapsulates {@link BookmarkBridge} and provides extra features such as undo, large
  * icon fetching, reader mode url redirecting, etc. This class should serve as the single class for
  * the UI to acquire data from the backend.
  */
-public class BookmarkModel extends BookmarksBridge {
+public class BookmarkModel extends BookmarkBridge {
     private static final int FAVICON_MAX_CACHE_SIZE = 10 * 1024 * 1024; // 10MB
 
     /**
@@ -56,7 +52,7 @@ public class BookmarkModel extends BookmarksBridge {
     /**
      * Observer that listens to delete event. This interface is used by undo controllers to know
      * which bookmarks were deleted. Note this observer only listens to events that go through
-     * enhanced bookmark model.
+     * bookmark model.
      */
     public interface BookmarkDeleteObserver {
 
@@ -89,7 +85,7 @@ public class BookmarkModel extends BookmarksBridge {
     private OfflinePageModelObserver mOfflinePageModelObserver;
 
     /**
-     * Initialize enhanced bookmark model for last used non-incognito profile.
+     * Initialize bookmark model for last used non-incognito profile.
      */
     public BookmarkModel() {
         this(Profile.getLastUsedProfile().getOriginalProfile());
@@ -142,7 +138,7 @@ public class BookmarkModel extends BookmarksBridge {
     }
 
     /**
-     * Add an observer that listens to delete events that go through enhanced bookmark model.
+     * Add an observer that listens to delete events that go through the bookmark model.
      * @param observer The observer to add.
      */
     public void addDeleteObserver(BookmarkDeleteObserver observer) {
@@ -191,7 +187,7 @@ public class BookmarkModel extends BookmarksBridge {
     }
 
     /**
-     * Calls {@link BookmarksBridge#moveBookmark(BookmarkId, BookmarkId, int)} for the given
+     * Calls {@link BookmarkBridge#moveBookmark(BookmarkId, BookmarkId, int)} for the given
      * bookmark list. The bookmarks are appended at the end.
      */
     public void moveBookmarks(List<BookmarkId> bookmarkIds, BookmarkId newParentId) {
@@ -215,15 +211,15 @@ public class BookmarkModel extends BookmarksBridge {
     public void addBookmarkAsync(BookmarkId parent, int index, String title, String url,
                                  WebContents webContents, final AddBookmarkCallback callback) {
         url = DomDistillerUrlUtils.getOriginalUrlFromDistillerUrl(url);
-        final BookmarkId enhancedId = addBookmark(parent, index, title, url);
+        final BookmarkId bookmarkId = addBookmark(parent, index, title, url);
 
         // If there is no need to save offline page, return now.
         if (mOfflinePageBridge == null || webContents == null) {
-            callback.onBookmarkAdded(enhancedId, AddBookmarkCallback.SKIPPED);
+            callback.onBookmarkAdded(bookmarkId, AddBookmarkCallback.SKIPPED);
             return;
         }
 
-        saveOfflinePage(enhancedId, webContents, callback);
+        saveOfflinePage(bookmarkId, webContents, callback);
     }
 
     /**
@@ -257,7 +253,7 @@ public class BookmarkModel extends BookmarksBridge {
     }
 
     /**
-     * @see org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem#getTitle()
+     * @see org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem#getTitle()
      */
     public String getBookmarkTitle(BookmarkId bookmarkId) {
         return getBookmarkById(bookmarkId).getTitle();
@@ -267,15 +263,14 @@ public class BookmarkModel extends BookmarksBridge {
      * Retrieves the url to launch a bookmark or saved page. If latter, also marks it as being
      * accessed and reports the UMAs.
      *
-     * @param context Context for checking connection.
      * @param bookmarkId ID of the bookmark to launch.
      * @return The launch URL.
      */
-    public String getLaunchUrlAndMarkAccessed(Context context, BookmarkId bookmarkId) {
+    public String getLaunchUrlAndMarkAccessed(BookmarkId bookmarkId) {
         String url = getBookmarkById(bookmarkId).getUrl();
         if (mOfflinePageBridge == null) return url;
 
-        return OfflinePageUtils.getLaunchUrlAndMarkAccessed(context, mOfflinePageBridge,
+        return mOfflinePageBridge.getLaunchUrlAndMarkAccessed(
                 mOfflinePageBridge.getPageByBookmarkId(bookmarkId), url);
     }
 

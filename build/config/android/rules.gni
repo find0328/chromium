@@ -953,17 +953,25 @@ template("java_binary") {
 #   }
 template("junit_binary") {
   set_sources_assignment_filter([])
+  testonly = true
 
-  java_binary(target_name) {
+  _java_binary_target_name = "${target_name}__java_binary"
+  _test_runner_target_name = "${target_name}__test_runner_script"
+
+  test_runner_script(_test_runner_target_name) {
+    test_name = invoker.target_name
+    test_suite = invoker.target_name
+    test_type = "junit"
+  }
+
+  java_binary(_java_binary_target_name) {
     deps = []
+    jar_name = invoker.target_name
     forward_variables_from(invoker, "*")
+    testonly = true
     bypass_platform_checks = true
     main_class = "org.chromium.testing.local.JunitTestMain"
-    wrapper_script_args = [
-      "-test-jars",
-      "$target_name.jar",
-    ]
-    testonly = true
+    wrapper_script_name = "helper/$target_name"
 
     deps += [
       "//testing/android/junit:junit_test_support",
@@ -971,6 +979,12 @@ template("junit_binary") {
       "//third_party/mockito:mockito_java",
       "//third_party/robolectric:android-all-4.3_r2-robolectric-0",
       "//third_party/robolectric:robolectric_java",
+    ]
+  }
+  group(target_name) {
+    public_deps = [
+      ":$_java_binary_target_name",
+      ":$_test_runner_target_name",
     ]
   }
 }
@@ -1514,10 +1528,10 @@ template("android_apk") {
   }
 
   if (!defined(invoker.apk_under_test)) {
-    java_cpp_template("${_template_name}__multidex_config_java") {
-      package_name = "org/chromium/base/multidex"
+    java_cpp_template("${_template_name}__build_config_java") {
+      package_name = "org/chromium/base"
       sources = [
-        "//base/android/java/templates/ChromiumMultiDex.template",
+        "//base/android/java/templates/BuildConfig.template",
       ]
 
       defines = []
@@ -1525,7 +1539,7 @@ template("android_apk") {
         defines += [ "ENABLE_MULTIDEX" ]
       }
     }
-    _srcjar_deps += [ ":${_template_name}__multidex_config_java" ]
+    _srcjar_deps += [ ":${_template_name}__build_config_java" ]
   }
 
   java_target = "${_template_name}__java"
@@ -1556,6 +1570,9 @@ template("android_apk") {
 
     if (defined(invoker.deps)) {
       deps += invoker.deps
+    }
+    if (defined(invoker.apk_under_test)) {
+      deps += [ "${invoker.apk_under_test}__java" ]
     }
   }
 
@@ -1612,12 +1629,23 @@ template("android_apk") {
                ] + _proguard_configs
 
       output_jar_path = _proguard_jar_path
-      rebased_proguard_configs = rebase_path(_proguard_configs, root_build_dir)
+      _rebased_proguard_configs = rebase_path(_proguard_configs, root_build_dir)
       args = [
-        "--proguard-configs=$rebased_proguard_configs",
-        "--tested-apk-info=@FileArg($_rebased_build_config:proguard:tested_apk_info)",
+        "--proguard-configs=$_rebased_proguard_configs",
         "--input-paths=@FileArg($_rebased_build_config:proguard:input_paths)",
       ]
+      if (defined(invoker.apk_under_test)) {
+        deps += [
+          "${invoker.apk_under_test}__build_config",
+          "${invoker.apk_under_test}__proguard",
+        ]
+        _apk_under_test_build_config =
+            get_label_info(invoker.apk_under_test, "target_gen_dir") + "/" +
+            get_label_info(invoker.apk_under_test, "name") + ".build_config"
+        _rebased_apk_under_test_build_config =
+            rebase_path(_apk_under_test_build_config, root_build_dir)
+        args += [ "--tested-apk-info=@FileArg($_rebased_apk_under_test_build_config:deps_info:proguard_info)" ]
+      }
     }
     _dex_sources = [ _proguard_jar_path ]
     _dex_deps = [ ":$_proguard_target" ]
@@ -1890,6 +1918,9 @@ template("android_apk") {
     }
     if (_create_language_splits) {
       args += [ "--split=${_rebased_apk_path_no_ext}-language-*.apk" ]
+    }
+    if (_load_library_from_apk) {
+      args += [ "--dont-even-try=Incremental builds do not work with load_library_from_apk. Try setting is_component_build=true in your GN args." ]
     }
   }
 

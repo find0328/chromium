@@ -308,7 +308,7 @@ bool ChildThreadImpl::ChildThreadMessageRouter::Send(IPC::Message* msg) {
 
 bool ChildThreadImpl::ChildThreadMessageRouter::RouteMessage(
     const IPC::Message& msg) {
-  bool handled = MessageRouter::RouteMessage(msg);
+  bool handled = IPC::MessageRouter::RouteMessage(msg);
 #if defined(OS_ANDROID)
   if (!handled && msg.is_sync()) {
     IPC::Message* reply = IPC::SyncMessage::GenerateReply(&msg);
@@ -367,14 +367,7 @@ void ChildThreadImpl::Init(const Options& options) {
   IPC::Logging::GetInstance();
 #endif
 
-#if USE_ATTACHMENT_BROKER
-  // The only reason a global would already exist is if the thread is being run
-  // in the browser process because of a command line switch.
-  if (!IPC::AttachmentBroker::GetGlobal()) {
-    attachment_broker_.reset(
-        IPC::AttachmentBrokerUnprivileged::CreateBroker().release());
-  }
-#endif
+  IPC::AttachmentBrokerUnprivileged::CreateBrokerIfNeeded();
 
   channel_ =
       IPC::SyncChannel::Create(this, ChildProcess::current()->io_task_runner(),
@@ -460,8 +453,9 @@ void ChildThreadImpl::Init(const Options& options) {
   }
 
   ConnectChannel(options.use_mojo_channel);
-  if (attachment_broker_)
-    attachment_broker_->DesignateBrokerCommunicationChannel(channel_.get());
+  IPC::AttachmentBroker* broker = IPC::AttachmentBroker::GetGlobal();
+  if (broker && !broker->IsPrivilegedBroker())
+    broker->RegisterBrokerCommunicationChannel(channel_.get());
 
   int connection_timeout = kConnectionTimeoutS;
   std::string connection_override =
@@ -496,6 +490,10 @@ ChildThreadImpl::~ChildThreadImpl() {
 #ifdef IPC_MESSAGE_LOG_ENABLED
   IPC::Logging::GetInstance()->SetIPCSender(NULL);
 #endif
+
+  IPC::AttachmentBroker* broker = IPC::AttachmentBroker::GetGlobal();
+  if (broker && !broker->IsPrivilegedBroker())
+    broker->DeregisterBrokerCommunicationChannel(channel_.get());
 
   channel_->RemoveFilter(histogram_message_filter_.get());
   channel_->RemoveFilter(sync_message_filter_.get());
@@ -553,7 +551,7 @@ void ChildThreadImpl::ReleaseCachedFonts() {
 }
 #endif
 
-MessageRouter* ChildThreadImpl::GetRouter() {
+IPC::MessageRouter* ChildThreadImpl::GetRouter() {
   DCHECK(base::MessageLoop::current() == message_loop());
   return &router_;
 }
@@ -569,18 +567,11 @@ scoped_ptr<base::SharedMemory> ChildThreadImpl::AllocateSharedMemory(
     size_t buf_size,
     IPC::Sender* sender) {
   scoped_ptr<base::SharedMemory> shared_buf;
-#if defined(OS_WIN)
-  shared_buf.reset(new base::SharedMemory);
-  if (!shared_buf->CreateAnonymous(buf_size)) {
-    NOTREACHED();
-    return nullptr;
-  }
-#else
-  // On POSIX, we need to ask the browser to create the shared memory for us,
-  // since this is blocked by the sandbox.
+  // Ask the browser to create the shared memory, since this is blocked by the
+  // sandbox on most platforms.
   base::SharedMemoryHandle shared_mem_handle;
   if (sender->Send(new ChildProcessHostMsg_SyncAllocateSharedMemory(
-                           buf_size, &shared_mem_handle))) {
+          buf_size, &shared_mem_handle))) {
     if (base::SharedMemory::IsHandleValid(shared_mem_handle)) {
       shared_buf.reset(new base::SharedMemory(shared_mem_handle, false));
     } else {
@@ -591,7 +582,6 @@ scoped_ptr<base::SharedMemory> ChildThreadImpl::AllocateSharedMemory(
     // Send is allowed to fail during shutdown. Return null in this case.
     return nullptr;
   }
-#endif
   return shared_buf;
 }
 

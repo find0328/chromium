@@ -22,9 +22,11 @@
 #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
 #include "gpu/command_buffer/service/gpu_switches.h"
 #include "gpu/command_buffer/service/mailbox_manager.h"
+#include "media/base/android/media_codec_util.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/bitstream_buffer.h"
 #include "media/base/limits.h"
+#include "media/base/media.h"
 #include "media/base/media_switches.h"
 #include "media/base/timestamp_constants.h"
 #include "media/base/video_decoder_config.h"
@@ -371,6 +373,8 @@ bool AndroidVideoDecodeAccelerator::QueueInput() {
     TRACE_COUNTER1("media", "AVDA::PendingBitstreamBufferCount",
                    pending_bitstream_buffers_.size());
 
+    DCHECK_NE(state_, ERROR);
+    state_ = WAITING_FOR_EOS;
     media_codec_->QueueEOS(input_buf_index);
     return true;
   }
@@ -534,11 +538,23 @@ bool AndroidVideoDecodeAccelerator::DequeueOutput() {
 
   if (eos) {
     DVLOG(3) << __FUNCTION__ << ": Resetting codec state after EOS";
-    ResetCodecState();
 
-    base::MessageLoop::current()->PostTask(
-        FROM_HERE, base::Bind(&AndroidVideoDecodeAccelerator::NotifyFlushDone,
-                              weak_this_factory_.GetWeakPtr()));
+    // If we were waiting for an EOS, clear the state and reset the MediaCodec
+    // as normal. Otherwise, enter the ERROR state which will force destruction
+    // of MediaCodec during ResetCodecState().
+    //
+    // Some Android platforms seem to send an EOS buffer even when we're not
+    // expecting it. In this case, destroy and reset the codec but don't notify
+    // flush done since it violates the state machine. http://crbug.com/585959.
+    const bool was_waiting_for_eos = state_ == WAITING_FOR_EOS;
+    state_ = was_waiting_for_eos ? NO_ERROR : ERROR;
+
+    ResetCodecState();
+    if (was_waiting_for_eos) {
+      base::MessageLoop::current()->PostTask(
+          FROM_HERE, base::Bind(&AndroidVideoDecodeAccelerator::NotifyFlushDone,
+                                weak_this_factory_.GetWeakPtr()));
+    }
     return false;
   }
 
@@ -991,15 +1007,19 @@ AndroidVideoDecodeAccelerator::GetCapabilities() {
 
   SupportedProfile profile;
 
-  profile.profile = media::VP8PROFILE_ANY;
-  profile.min_resolution.SetSize(0, 0);
-  profile.max_resolution.SetSize(1920, 1088);
-  profiles.push_back(profile);
+  if (media::MediaCodecUtil::IsVp8DecoderAvailable()) {
+    profile.profile = media::VP8PROFILE_ANY;
+    profile.min_resolution.SetSize(0, 0);
+    profile.max_resolution.SetSize(1920, 1088);
+    profiles.push_back(profile);
+  }
 
-  profile.profile = media::VP9PROFILE_ANY;
-  profile.min_resolution.SetSize(0, 0);
-  profile.max_resolution.SetSize(1920, 1088);
-  profiles.push_back(profile);
+  if (media::PlatformHasVp9Support()) {
+    profile.profile = media::VP9PROFILE_ANY;
+    profile.min_resolution.SetSize(0, 0);
+    profile.max_resolution.SetSize(1920, 1088);
+    profiles.push_back(profile);
+  }
 
   for (const auto& supported_profile : kSupportedH264Profiles) {
     SupportedProfile profile;
@@ -1014,7 +1034,9 @@ AndroidVideoDecodeAccelerator::GetCapabilities() {
 
   if (UseDeferredRenderingStrategy()) {
     capabilities.flags = media::VideoDecodeAccelerator::Capabilities::
-        NEEDS_ALL_PICTURE_BUFFERS_TO_DECODE;
+                             NEEDS_ALL_PICTURE_BUFFERS_TO_DECODE |
+                         media::VideoDecodeAccelerator::Capabilities::
+                             SUPPORTS_EXTERNAL_OUTPUT_SURFACE;
   }
 
   return capabilities;

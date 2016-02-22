@@ -12,13 +12,12 @@ import org.chromium.base.annotations.SuppressFBWarnings;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.ChromeSwitches;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel.AddBookmarkCallback;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.test.util.BookmarkTestUtil;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.content.browser.test.NativeLibraryTestBase;
-import org.chromium.content.browser.test.util.Criteria;
-import org.chromium.content.browser.test.util.CriteriaHelper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Tests for {@link BookmarkModel}, the data layer of Enhanced Bookmarks.
+ * Tests for {@link BookmarkModel}, the data layer of bookmarks.
  */
 public class BookmarkModelTest extends NativeLibraryTestBase {
     private static final int TIMEOUT_MS = 5000;
@@ -53,13 +52,7 @@ public class BookmarkModelTest extends NativeLibraryTestBase {
             }
         });
 
-        CriteriaHelper.pollForUIThreadCriteria(new Criteria() {
-            @Override
-            public boolean isSatisfied() {
-                return mBookmarkModel.isBookmarkModelLoaded();
-            }
-        });
-
+        BookmarkTestUtil.waitForBookmarkModelLoaded();
         ThreadUtils.runOnUiThreadBlocking(new Runnable() {
             @Override
             public void run() {
@@ -185,7 +178,7 @@ public class BookmarkModelTest extends NativeLibraryTestBase {
                 expectedChildren);
     }
 
-    // Moved from BookmarksBridgeTest
+    // Moved from BookmarkBridgeTest
     @UiThreadTest
     @SmallTest
     @Feature({"Bookmark"})

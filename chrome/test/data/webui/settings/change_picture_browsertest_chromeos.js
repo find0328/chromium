@@ -55,6 +55,8 @@ TEST_F('SettingsChangePictureBrowserTest', 'MAYBE_ChangePicture', function() {
   assertTrue(!!changePicture);
   var settingsCamera = changePicture.$$('settings-camera');
   assertTrue(!!settingsCamera);
+  var discardControlBar = changePicture.$.discardControlBar;
+  assertTrue(!!discardControlBar);
 
   /**
    * Returns a promise that resolves once the selected item is updated.
@@ -79,7 +81,7 @@ TEST_F('SettingsChangePictureBrowserTest', 'MAYBE_ChangePicture', function() {
     });
 
     test('select camera image', function() {
-      var cameraIcon = changePicture.$$('img[data-type="camera"]');
+      var cameraIcon = changePicture.$.cameraImage;
       assertTrue(!!cameraIcon);
 
       // Force the camera to be absent, even if it's actually present.
@@ -101,10 +103,11 @@ TEST_F('SettingsChangePictureBrowserTest', 'MAYBE_ChangePicture', function() {
       expectFalse(cameraIcon.hidden);
       expectTrue(settingsCamera.cameraActive);
       expectEquals('camera', changePicture.selectedItem_.dataset.type);
+      expectTrue(discardControlBar.hidden);
     });
 
     test('select profile image', function() {
-      var profileImage = changePicture.$$('img[data-type="profile"]');
+      var profileImage = changePicture.$.profileImage;
       assertTrue(!!profileImage);
 
       return runAndResolveWhenSelectedItemChanged(function() {
@@ -113,12 +116,13 @@ TEST_F('SettingsChangePictureBrowserTest', 'MAYBE_ChangePicture', function() {
         Polymer.dom.flush();
         expectEquals('profile', changePicture.selectedItem_.dataset.type);
         expectFalse(settingsCamera.cameraActive);
+        expectTrue(discardControlBar.hidden);
       });
     });
 
     test('select old images', function() {
       // By default there is no old image and the element is hidden.
-      var oldImage = changePicture.$$('img[data-type="old"]');
+      var oldImage = changePicture.$.oldImage;
       assertTrue(!!oldImage);
       assertTrue(oldImage.hidden);
 
@@ -132,6 +136,7 @@ TEST_F('SettingsChangePictureBrowserTest', 'MAYBE_ChangePicture', function() {
         expectEquals('old', changePicture.selectedItem_.dataset.type);
         expectFalse(oldImage.hidden);
         expectFalse(settingsCamera.cameraActive);
+        expectFalse(discardControlBar.hidden);
       });
     });
 
@@ -146,7 +151,46 @@ TEST_F('SettingsChangePictureBrowserTest', 'MAYBE_ChangePicture', function() {
         expectEquals('default', changePicture.selectedItem_.dataset.type);
         expectEquals(firstDefaultImage, changePicture.selectedItem_);
         expectFalse(settingsCamera.cameraActive);
+        expectTrue(discardControlBar.hidden);
       });
+    });
+
+    test('restore image after discard', function() {
+      var firstDefaultImage = changePicture.$$('img[data-type="default"]');
+      assertTrue(!!firstDefaultImage);
+      var discardOldImage = changePicture.$.discardOldImage;
+      assertTrue(!!discardOldImage);
+
+      function tapAndVerifyFirstDefaultImage() {
+        return runAndResolveWhenSelectedItemChanged(function() {
+          MockInteractions.tap(firstDefaultImage);
+        }).then(function() {
+          Polymer.dom.flush();
+          expectEquals(firstDefaultImage, changePicture.selectedItem_);
+        });
+      }
+
+      function injectAndVerifyOldImage() {
+        return runAndResolveWhenSelectedItemChanged(function() {
+          settings.ChangePicturePage.receiveOldImage('fake-old-image.jpg');
+        }).then(function() {
+          Polymer.dom.flush();
+          expectEquals('old', changePicture.selectedItem_.dataset.type);
+        });
+      }
+
+      function discardImageAndVerifyFirstDefaultImageSelected() {
+        return runAndResolveWhenSelectedItemChanged(function() {
+          MockInteractions.tap(discardOldImage);
+        }).then(function() {
+          Polymer.dom.flush();
+          expectEquals(firstDefaultImage, changePicture.selectedItem_);
+        });
+      }
+
+      return tapAndVerifyFirstDefaultImage()
+          .then(injectAndVerifyOldImage)
+          .then(discardImageAndVerifyFirstDefaultImageSelected);
     });
   });
 

@@ -351,9 +351,6 @@ are declared in build/common.gypi.
       <message name="IDS_WEBSITE_SETTINGS_SECURE_TRANSPORT" desc="Text that is displayed in the header of the Website Settings popup if the website uses secure transport.">
         Your connection to this site is private.
       </message>
-      <message name="IDS_WEBSITE_SETTINGS_NON_SECURE_TRANSPORT" desc="Text that is displayed in the header of the Website Settings popup if the website uses non-secure transport.">
-        Your connection to this site is not private.
-      </message>
       <message name="IDS_WEBSITE_DEPRECATED_SIGNATURE_ALGORITHM" desc="Text that is displayed in the header of the Website Settings popup if the website uses SHA-1 for certificate signatures, which are no longer considered secure.">
         This site uses a weak security configuration (SHA-1 signatures), so your connection may not be private.
       </message>
@@ -448,9 +445,6 @@ are declared in build/common.gypi.
 
       <message name="IDS_DOWNLOAD_TITLE" desc="Title for the downloads tab.">
         Downloads
-      </message>
-      <message name="IDS_DEFAULT_TAB_TITLE" desc="The default title in a tab.">
-        Untitled
       </message>
       <message name="IDS_TAB_LOADING_TITLE" desc="The text to be displayed in the title of a tab before a title is discovered.">
         Loading...
@@ -723,9 +717,6 @@ are declared in build/common.gypi.
           <message name="IDS_CONTENT_CONTEXT_FORCESAVEPASSWORD" desc="The name of the Save Password command in the content area context menu">
             Save password
           </message>
-          <message name="IDS_CONTENT_CONTEXT_LANGUAGE_SETTINGS" desc="The name of the Language Settings command in the content area context menu">
-            &amp;Language settings...
-          </message>
           <message name="IDS_CONTENT_CONTEXT_GENERATEPASSWORD" desc="The name of the Generate Password command in the content area context menu">
             Generate password
           </message>
@@ -950,9 +941,6 @@ are declared in build/common.gypi.
           <message name="IDS_CONTENT_CONTEXT_FORCESAVEPASSWORD" desc="In Title Case: The name of the Save Password command in the content area context menu">
             Save Password
           </message>
-          <message name="IDS_CONTENT_CONTEXT_LANGUAGE_SETTINGS" desc="In Title Case: The name of the Language Settings command in the content area context menu">
-            &amp;Language Settings...
-          </message>
           <message name="IDS_CONTENT_CONTEXT_GENERATEPASSWORD" desc="In Title Case: The name of the Generate Password command in the content area context menu">
             Generate Password
           </message>
@@ -989,6 +977,27 @@ are declared in build/common.gypi.
         </message>
         <message name="IDS_VISIT_DESKTOP_WARNING_SHOW_DISMISS" desc="Label for checkbox dismissing show of teleportation warning dialog.">
           Got it, don't show me again.
+        </message>
+      </if>
+
+      <!-- Spelling submenu -->
+      <if expr="is_macosx">
+        <message name="IDS_CONTENT_CONTEXT_LANGUAGE_SETTINGS" desc="In Title Case: The name of the Language Settings command in the content area context menu">
+          &amp;Language Settings
+        </message>
+      </if>
+      <if expr="not is_macosx">
+        <message name="IDS_CONTENT_CONTEXT_SPELLCHECK_MENU" desc="The name of the menu item that shows the submenu for spellcheck options">
+          &amp;Spellcheck
+        </message>
+        <message name="IDS_CONTENT_CONTEXT_LANGUAGE_SETTINGS" desc="The name of the menu item that opens spellcheck settings in a new tab">
+          &amp;Language settings
+        </message>
+        <message name="IDS_CONTENT_CONTEXT_SPELLCHECK_MULTI_LINGUAL" desc="The name of the menu item that enables spellcheck in all of the languages that the user has selected in settings">
+          &amp;All your languages
+        </message>
+        <message name="IDS_CONTENT_CONTEXT_CHECK_SPELLING_WHILE_TYPING" desc="The name of the menu item that toggles spellcheck on or off">
+          &amp;Check the spelling of text fields
         </message>
       </if>
 
@@ -1644,6 +1653,14 @@ are declared in build/common.gypi.
       <message name="IDS_DOWNLOAD_INTERRUPTED_DESCRIPTION_FORBIDDEN"
                desc="Download page message: Forbidden.">
         Access to this resource was forbidden by the server.
+      </message>
+      <message name="IDS_DOWNLOAD_INTERRUPTED_STATUS_UNREACHABLE"
+               desc="An unexpected response was received which may indicate that the server is not reachable due to an intermediary.">
+        Server unreachable
+      </message>
+      <message name="IDS_DOWNLOAD_INTERRUPTED_DESCRIPTION_UNREACHABLE"
+               desc="Download page message: An unexpected response was received which may indicate that the server is not reachable due to an intermediary.">
+        The server may be unreachable. Try again later.
       </message>
 
       <message name="IDS_DOWNLOAD_NOTIFICATION_LABEL_OPEN_WHEN_COMPLETE"
@@ -5313,6 +5330,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_IGNORE_GPU_BLACKLIST_DESCRIPTION" desc="Description of the 'Ignore GPU blacklist' lab.">
         Overrides the built-in software rendering list and enables GPU-acceleration on unsupported system configurations.
       </message>
+      <message name="IDS_FLAGS_INERT_VISUAL_VIEWPORT_NAME" desc="Title of the flag to enable the inert visual viewport experiment.">
+        Inert visual viewport.
+      </message>
+      <message name="IDS_FLAGS_INERT_VISUAL_VIEWPORT_DESCRIPTION" desc="Description of the flag to enable the inert visual viewport experiment.">
+        Experiment to have all APIs reflect the layout viewport. This will make window.scroll properties relative to the layout viewport.
+      </message>
       <message name="IDS_FLAGS_THREADED_COMPOSITING_MODE_NAME" desc="Name of the 'Threaded compositing mode' lab.">
         Threaded compositing
       </message>
@@ -5570,18 +5593,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_FLAGS_MEDIA_SOURCE_DESCRIPTION" desc="Description for the flag for the Media Source API.">
         The MediaSource object allows JavaScript to send media data directly to a video element.
       </message>
-      <message name="IDS_FLAGS_ENCRYPTED_MEDIA_NAME" desc="Title for the flag for the Encrypted Media Extensions APIs.">
-        Encrypted Media Extensions
-      </message>
-      <message name="IDS_FLAGS_ENCRYPTED_MEDIA_DESCRIPTION" desc="Description for the flag for the Encrypted Media Extensions APIs.">
-        Encrypted Media Extensions on video and audio elements.
-      </message>
-      <message name="IDS_FLAGS_PREFIXED_ENCRYPTED_MEDIA_NAME" desc="Title for the flag for the prefixed Encrypted Media Extensions APIs (e.g. webkitGenerateKeyRequest()).">
-        Prefixed Encrypted Media Extensions
-      </message>
-      <message name="IDS_FLAGS_PREFIXED_ENCRYPTED_MEDIA_DESCRIPTION" desc="Description for the flag for the prefixed Encrypted Media Extensions APIs (e.g. webkitGenerateKeyRequest()).">
-        Deprecated version of Encrypted Media Extensions on video and audio elements.
-      </message>
       <message name="IDS_FLAGS_GESTURE_REQUIREMENT_FOR_MEDIA_PLAYBACK_NAME" desc="Title for the flag for gesture requiment for media playback">
         Gesture requirement for media playback
       </message>
@@ -5733,7 +5744,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Web Bluetooth
       </message>
       <message name="IDS_FLAGS_WEB_BLUETOOTH_DESCRIPTION" desc="Description for the flag to enable Web Bluetooth.">
-        Enables Web Bluetooth which could allow websites to connect to and control Bluetooth devices around you. Including keyboards, cameras, microphones, etc.
+        Enables Web Bluetooth which could allow websites to connect to and control Bluetooth devices around you.
       </message>
       <message name="IDS_FLAGS_BLE_ADVERTISING_IN_EXTENSIONS_NAME" desc="Name for the flag for BLE Advertising">
         BLE Advertising in Chrome Apps
@@ -5898,7 +5909,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Show a link in the password manager settings page to manage your synced passwords online.
       </message>
       <message name="IDS_PASSWORD_MANAGER_ACCOUNT_CHOOSER_TITLE" desc="The title of the account chooser bubble/infobar.">
-        Choose your account from <ph name="PASSWORD_MANAGER_BRAND">$1<ex>Google Chrome</ex></ph> to sign in
+        Choose your account saved with <ph name="PASSWORD_MANAGER_BRAND">$1<ex>Google Chrome</ex></ph> to sign in
       </message>
       <message name="IDS_PASSWORD_MANAGER_SAVE_PROMPT_FIRST_RUN_EXPERIENCE" desc="The message which explains to the user what is Smart Lock, when the user sees the branded title of the Save prompt for the first time.">
         Smart Lock helps you quickly sign in to apps and sites using passwords you have saved with Google.
@@ -5983,6 +5994,12 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
       <message name="IDS_FLAG_ENABLE_AUDIO_FOR_DESKTOP_SHARE_DESCRIPTION" desc="Description for the flag to enable Audio Sharing.">
         With this flag on, desktop share picker window will let the user to choose whether to share audio.
+      </message>
+      <message name="IDS_FLAG_ENABLE_TAB_FOR_DESKTOP_SHARE" desc="Title for the flag to enable tab for desktop share.">
+        Enable tab For Desktop Share.
+      </message>
+      <message name="IDS_FLAG_ENABLE_TAB_FOR_DESKTOP_SHARE_DESCRIPTION" desc="Description for the flag to enable tab for desktop share.">
+        Enables user to chose a tab for desktop share.
       </message>
       <message name="IDS_TRACE_UPLOAD_URL_CHOICE_OTHER">
         Other
@@ -6797,9 +6814,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       <message name="IDS_PLUGIN_NOT_AUTHORIZED" desc="The placeholder text for a plugin that requires user permission to run.">
         <ph name="PLUGIN_NAME">$1<ex>Java</ex></ph> needs your permission to run.
       </message>
-      <message name="IDS_PLUGIN_NOT_SUPPORTED" desc="The placeholder text for an unsupported plugin.">
-        This plugin is not supported.
-      </message>
       <message name="IDS_PLUGIN_NOT_FOUND" desc="The placeholder text for an unknown plugin that is not installed.">
         No plugin available to display this content.
       </message>
@@ -6838,9 +6852,6 @@ Keep your key file in a safe place. You will need it to create new versions of y
       </message>
 
       <!-- Session Crashed Info Bar/Bubble-->
-      <message name="IDS_SESSION_CRASHED_VIEW_RESTORE_BUTTON" desc="Title of the restore button in the session crashed view.">
-        Restore
-      </message>
       <message name="IDS_SESSION_CRASHED_BUBBLE_TITLE" desc="Title of the session crashed bubble view.">
         Restore pages?
       </message>
@@ -7247,7 +7258,7 @@ Keep your key file in a safe place. You will need it to create new versions of y
         Automatically sign in to websites using stored credential. When the feature is off, you'll be asked for verification every time before signing in to a website.
       </message>
       <message name="IDS_PASSWORDS_VIA_FEDERATION" desc="Text for federated credential's value.">
-        via <ph name="PROVIDER">$1<ex>facebook.com</ex></ph>
+        with <ph name="PROVIDER">$1<ex>facebook.com</ex></ph>
       </message>
       <message name="IDS_PASSWORDS_PAGE_SEARCH_PASSWORDS" desc="Placeholder text shown in password table search box">
         Search passwords
@@ -9026,23 +9037,8 @@ I don't think this site should be blocked!
       </message>
 
       <!-- Sad Tab Strings -->
-      <message name="IDS_SAD_TAB_TITLE" desc="The title of the sad tab page that is shown when a tab crashes. This is intended to be a humorous exclamation of dismay." formatter_data="android_java">
-        Aw, Snap!
-      </message>
-      <message name="IDS_SAD_TAB_MESSAGE" desc="The message displayed on the sad tab page." formatter_data="android_java">
-        Something went wrong while displaying this webpage.
-      </message>
-      <message name="IDS_SAD_TAB_HELP_MESSAGE" desc="The help message displayed on the sad tab page, with IDS_SAD_TAB_HELP_LINK embedded as a link to help.">
-        If you're seeing this frequently, try these <ph name="HELP_LINK">$1<ex>suggestions</ex></ph>.
-      </message>
-      <message name="IDS_SAD_TAB_HELP_LINK" desc="The link text displayed on the sad tab page pointing the users to a help article.">
-        suggestions
-      </message>
       <message name="IDS_SAD_TAB_LEARN_MORE_LINK" desc="The link text displayed on the sad tab page pointing the users to a help article.">
         Learn more
-      </message>
-      <message name="IDS_SAD_TAB_RELOAD_LABEL" desc="Button label in the sad tab page for reloading a page." formatter_data="android_java">
-        Reload
       </message>
       <message name="IDS_CRASHED_TAB_FEEDBACK_MESSAGE" desc="The text to auto-populate the feedback page with. The triple single quotes are needed to preserve the line break.">
         Tab crashed feedback.
@@ -9550,10 +9546,6 @@ I don't think this site should be blocked!
           <message name="IDS_OPTIONS_SETTINGS_CANNOT_BE_USED_FOR_SPELL_CHECKING"
                    desc="The label for a language that cannot be used for spell checking">
             This language cannot be used for spell checking
-          </message>
-          <message name="IDS_OPTIONS_SETTINGS_IS_USED_FOR_SPELL_CHECKING"
-                   desc="The label for a language that is currently used for spell checking">
-            This language is used for spell checking
           </message>
         </if>
         <if expr="not chromeos">
@@ -10324,12 +10316,6 @@ I don't think this site should be blocked!
         ecdsa_sign
       </message>
 
-      <!-- New Tab -->
-      <message name="IDS_NEW_TAB_TITLE"
-               desc="Title of the new tab page, not to be confused with the action of opening a new tab.">
-        New Tab
-      </message>
-
       <!-- Strings used for non-Android builds -->
       <if expr="not is_android">
         <message name="IDS_APP_DEFAULT_PAGE_NAME"
@@ -10339,22 +10325,6 @@ I don't think this site should be blocked!
         <message name="IDS_APP_LAUNCHER_TAB_TITLE"
                  desc="Default name for stand alone web page to serve as an App launcher when the new tab doesn't show apps.">
           Apps
-        </message>
-        <message name="IDS_NEW_TAB_OTR_HEADING"
-                 desc="Heading used when a person opens an OTR window">
-          You’ve gone incognito
-        </message>
-        <message name="IDS_NEW_TAB_OTR_DESCRIPTION"
-                 desc="Used when a person opens an OTR window">
-          Pages you view in incognito tabs won’t stick around in your browser’s history, cookie store, or search history after you’ve closed all of your incognito tabs. Any files you download or bookmarks you create will be kept.
-        </message>
-        <message name="IDS_NEW_TAB_OTR_LEARN_MORE_LINK"
-                 desc="OTR window link text to learn more">
-          Learn more
-        </message>
-        <message name="IDS_NEW_TAB_OTR_MESSAGE_WARNING"
-                 desc="OTR window warning message. This follows the IDS_NEW_TAB_OTR_DESCRIPTION paragraph">
-          However, you aren’t invisible. Going incognito doesn’t hide your browsing from your employer, your internet service provider, or the websites you visit.
         </message>
         <message name="IDS_NEW_TAB_GUEST_SESSION_HEADING"
               desc="Heading used when a person enters Guest Session">
@@ -10401,10 +10371,6 @@ I don't think this site should be blocked!
       <message name="IDS_NEW_TAB_THUMBNAIL_REMOVED_NOTIFICATION"
                desc="Notification text shown when a thumbnail has been removed from the most visited section.">
         Thumbnail removed.
-      </message>
-      <message name="IDS_NEW_TAB_UNDO_THUMBNAIL_REMOVE"
-         desc="Action link text to undo removing a thumbnail from the most visited section.">
-        Undo
       </message>
       <message name="IDS_NEW_TAB_REMOVE_THUMBNAIL_TOOLTIP"
          desc="Tooltip text for the button that removes/blacklists the thumbnail. Once removed the thumbnail will not show up on the new tab page again.">
@@ -11059,9 +11025,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
       </message>
 
       <!-- Advanced Section Titles -->
-      <message name="IDS_OPTIONS_ADVANCED_SECTION_TITLE_PRIVACY">
-        Privacy
-      </message>
       <message name="IDS_OPTIONS_ADVANCED_SECTION_TITLE_CONTENT">
         Web content
       </message>
@@ -11104,9 +11067,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
         <message name="IDS_RECENT_TABS_MENU" desc="In Title Case: The title of the Recent Tabs menu in the wrench menu.">
           Recent Tabs
         </message>
-        <message name="IDS_RECENTLY_CLOSED" desc="In Title Case: The section header for the Recently Closed section of the Recent Tabs menu.">
-          Recently Closed
-        </message>
         <message name="IDS_RECENTLY_CLOSED_WINDOW" desc="In Title Case: Title of recently closed windows in Recent Tabs menu. [ICU_Syntax]">
           {NUM_TABS, plural, =1 {1 Tab} other {# Tabs}}
         </message>
@@ -11117,9 +11077,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
       <if expr="not use_titlecase">
         <message name="IDS_RECENT_TABS_MENU" desc="The title of the Recent Tabs menu in the wrench menu.">
           Recent tabs
-        </message>
-        <message name="IDS_RECENTLY_CLOSED" desc="The section header for the Recently Closed section of the Recent Tabs menu.">
-          Recently closed
         </message>
         <message name="IDS_RECENTLY_CLOSED_WINDOW" desc="Title of recently closed windows in Recent Tabs menu. [ICU_Syntax]">
           {NUM_TABS, plural, =1 {1 tab} other {# tabs}}
@@ -11639,6 +11596,12 @@ Some features may be unavailable.  Please check that the profile exists and you 
         </message>
         <message name="IDS_FLAGS_ENABLE_WEB_NOTIFICATION_CUSTOM_LAYOUTS_DESCRIPTION" desc="Description for the flag to enable custom layouts for Web Notifications.">
           Enable custom layouts for Web Notifications. They will have subtle layout improvements that are otherwise not possible.
+        </message>
+        <message name="IDS_FLAGS_ENABLE_NOTIFICATION_ACTION_ICONS_NAME" desc="Name of the flag to enable action icons for Web Notifications.">
+          Enable action icons for Web Notifications.
+        </message>
+        <message name="IDS_FLAGS_ENABLE_NOTIFICATION_ACTION_ICONS_DESCRIPTION" desc="Description of the flag to enable action icons for Web Notifications.">
+          Enable icons in action buttons for Web Notifications.
         </message>
       </if>
 
@@ -12258,9 +12221,6 @@ Some features may be unavailable.  Please check that the profile exists and you 
       </message>
       <message name="IDS_MANAGE_PASSWORDS_AUTO_SIGNIN_TITLE" desc="The title of the auto-signin toast.">
         Signing in as <ph name="username">$1<ex>chef@google.com</ex></ph>
-      </message>
-      <message name="IDS_MANAGE_PASSWORDS_AUTO_SIGNIN_FIRST_RUN_TITLE" desc="The title of the auto-signin first run dialog.">
-        Automatically sign in across your devices.
       </message>
       <message name="IDS_MANAGE_PASSWORDS_AUTO_SIGNIN_SMART_LOCK_WELCOME" desc="A warm welcome in the auto-signin toast appearing for users with Google Smart Lock enabled.">
         <ph name="PASSWORD_MANAGER_BRAND">$1<ex>Google Smart Lock</ex></ph> remembers your passwords and signs you in to apps and sites automatically across devices.
@@ -13488,12 +13448,15 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
         <ph name="APP_NAME">$1<ex>Google Hangouts</ex></ph> would like to share the content of your screen with <ph name="TARGET_NAME">$2<ex>https://google.com</ex></ph>. Choose what you'd like to share.
       </message>
       <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE" desc="Text for the checkbox on the window picker dialog, when checked, audio will be shared, otherwise just video sharing">
-        Also share audio
+        Share audio
       </message>
-      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_WINDOW" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox is disabled">
-        Audio sharing is not supported for individual windows.
+      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_MAC" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox to share audio is disabled">
+        To share audio, select a tab.
       </message>
-      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_NONE" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox is disabled">
+      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_WINDOW" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox to share audio is disabled">
+        To share audio, select a tab or entire screen.
+      </message>
+      <message name="IDS_DESKTOP_MEDIA_PICKER_AUDIO_SHARE_TOOLTIP_NONE" desc="Tooltip text for the checkbox on the window picker dialog, explaining why the checkbox for audio sharing is disabled">
         Please select what to share first.
       </message>
       <message name="IDS_DESKTOP_MEDIA_PICKER_SINGLE_SCREEN_NAME" desc="Name for screens in the desktop media picker UI when there is only one monitor.">
@@ -14239,11 +14202,6 @@ Please check your email at <ph name="ACCOUNT_EMAIL">$2<ex>jane.doe@gmail.com</ex
       </message>
       <message name="IDS_FLAGS_TOUCH_HOVER_DESCRIPTION" desc="Description of the 'Enable support for hover capable touchscreens' flag.">
         Enables hover feature by holding your finger just over the screen to experience a mouseover event.
-      </message>
-
-      <!-- Credential management account chooser -->
-      <message name="IDS_CREDENTIAL_MANAGEMENT_ACCOUNT_CHOOSER_NO_THANKS" desc="Text of the button to dismiss the account chooser.">
-        No thanks
       </message>
 
       <message name="IDS_ALLOW_INSECURE_LOCALHOST" desc="Name of the 'Allow insecure localhost' flag.">

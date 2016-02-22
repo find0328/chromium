@@ -9,6 +9,21 @@
 # Chromium specific modifications. To launch the script you need 'bower' and
 # 'crisper' installed on your system.
 
+check_dep() {
+  eval "$1" >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo >&2 "This script requires $2."
+    echo >&2 "Have you tried $3?"
+    exit 1
+  fi
+}
+
+check_dep "which npm" "npm" "visiting https://nodejs.org/en/"
+check_dep "which bower" "bower" "npm install -g bower"
+check_dep "which crisper" "crisper" "npm install -g crisper"
+check_dep "which rsync" "rsync" "apt-get install rsync"
+check_dep "python -c 'import bs4'" "bs4" "apt-get install python-bs4"
+
 set -e
 
 cd "$(dirname "$0")"
@@ -83,3 +98,5 @@ if [[ ! -z "${new}${deleted}" ]]; then
 fi
 
 python create_components_summary.py > components_summary.txt
+
+./generate_gyp.sh

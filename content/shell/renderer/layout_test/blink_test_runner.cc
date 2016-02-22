@@ -57,6 +57,7 @@
 #include "net/base/filename_util.h"
 #include "net/base/net_errors.h"
 #include "skia/ext/platform_canvas.h"
+#include "third_party/WebKit/public/platform/FilePathConversion.h"
 #include "third_party/WebKit/public/platform/Platform.h"
 #include "third_party/WebKit/public/platform/WebCString.h"
 #include "third_party/WebKit/public/platform/WebPoint.h"
@@ -327,7 +328,7 @@ WebString BlinkTestRunner::RegisterIsolatedFileSystem(
     const blink::WebVector<blink::WebString>& absolute_filenames) {
   std::vector<base::FilePath> files;
   for (size_t i = 0; i < absolute_filenames.size(); ++i)
-    files.push_back(base::FilePath::FromUTF16Unsafe(absolute_filenames[i]));
+    files.push_back(blink::WebStringToFilePath(absolute_filenames[i]));
   std::string filesystem_id;
   Send(new LayoutTestHostMsg_RegisterIsolatedFileSystem(
       routing_id(), files, &filesystem_id));
@@ -1014,8 +1015,8 @@ void BlinkTestRunner::OnNotifyDone() {
 }
 
 void BlinkTestRunner::OnTryLeakDetection() {
-  WebLocalFrame* main_frame =
-      render_view()->GetWebView()->mainFrame()->toWebLocalFrame();
+  blink::WebFrame* main_frame =
+      render_view()->GetWebView()->mainFrame();
   DCHECK_EQ(GURL(url::kAboutBlankURL), GURL(main_frame->document().url()));
   DCHECK(!main_frame->isLoading());
 

@@ -8,6 +8,7 @@
 
 #include "ash/ash_switches.h"
 #include "ash/display/display_info.h"
+#include "ash/display/display_layout_builder.h"
 #include "ash/display/display_layout_store.h"
 #include "ash/display/display_manager.h"
 #include "ash/display/display_util.h"
@@ -81,8 +82,7 @@ DisplayManagerTestApi::DisplayManagerTestApi()
 
 DisplayManagerTestApi::~DisplayManagerTestApi() {}
 
-void DisplayManagerTestApi::UpdateDisplay(
-    const std::string& display_specs) {
+void DisplayManagerTestApi::UpdateDisplay(const std::string& display_specs) {
   std::vector<DisplayInfo> display_info_list =
       CreateDisplayInfoListFromString(display_specs, display_manager_);
   bool is_host_origin_set = false;
@@ -112,9 +112,12 @@ void DisplayManagerTestApi::UpdateDisplay(
     }
   }
 
+// TODO(msw): This seems to cause test hangs on Windows. http://crbug.com/584038
+#if !defined(OS_WIN)
   display_manager_->OnNativeDisplaysChanged(display_info_list);
   display_manager_->UpdateInternalDisplayModeListForTest();
   display_manager_->RunPendingTasksForTest();
+#endif
 }
 
 int64_t DisplayManagerTestApi::SetFirstDisplayAsInternalDisplay() {
@@ -167,27 +170,21 @@ bool SetDisplayResolution(int64_t display_id, const gfx::Size& resolution) {
 void SwapPrimaryDisplay() {
   if (gfx::Screen::GetScreen()->GetNumDisplays() <= 1)
     return;
-  Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplay(
-      ScreenUtil::GetSecondaryDisplay());
+  Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplayId(
+      ScreenUtil::GetSecondaryDisplay().id());
 }
 
-DisplayLayout CreateDisplayLayout(DisplayPlacement::Position position,
-                                  int offset) {
+scoped_ptr<DisplayLayout> CreateDisplayLayout(
+    DisplayPlacement::Position position,
+    int offset) {
   DisplayManager* display_manager = Shell::GetInstance()->display_manager();
   DisplayIdList list = display_manager->GetCurrentDisplayIdList();
 
-  DisplayLayout layout;
-  layout.primary_id = gfx::Screen::GetScreen()->GetPrimaryDisplay().id();
-  layout.placement.position = position;
-  layout.placement.offset = offset;
-  if (list[0] == layout.primary_id) {
-    layout.placement.display_id = list[1];
-    layout.placement.parent_display_id = list[0];
-  } else {
-    layout.placement.display_id = list[0];
-    layout.placement.parent_display_id = list[1];
-  }
-  return layout;
+  DisplayLayoutBuilder builder(
+      gfx::Screen::GetScreen()->GetPrimaryDisplay().id());
+  builder.SetSecondaryPlacement(ScreenUtil::GetSecondaryDisplay().id(),
+                                position, offset);
+  return builder.Build();
 }
 
 }  // namespace test

@@ -39,9 +39,6 @@
 #define ENABLE_FORM_DEBUG_DUMP
 #endif
 
-class ChromeUIWebViewWebTest;
-class ChromeWKWebViewWebTest;
-
 namespace gfx {
 class Rect;
 class RectF;
@@ -63,7 +60,6 @@ class AutofillProfile;
 class AutofillType;
 class CreditCard;
 class FormStructureBrowserTest;
-template <class WebTestT> class FormStructureBrowserTestIos;
 
 struct FormData;
 struct FormFieldData;
@@ -517,8 +513,6 @@ class AutofillManager : public AutofillDownloadManager::Observer,
 
   friend class AutofillManagerTest;
   friend class FormStructureBrowserTest;
-  friend class FormStructureBrowserTestIos<ChromeUIWebViewWebTest>;
-  friend class FormStructureBrowserTestIos<ChromeWKWebViewWebTest>;
   FRIEND_TEST_ALL_PREFIXES(AutofillManagerTest,
                            DeterminePossibleFieldTypesForUpload);
   FRIEND_TEST_ALL_PREFIXES(AutofillManagerTest,

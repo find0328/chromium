@@ -650,8 +650,8 @@
       'browser/android/banners/app_banner_infobar_delegate_android.h',
       'browser/android/banners/app_banner_manager_android.cc',
       'browser/android/banners/app_banner_manager_android.h',
-      'browser/android/bookmarks/bookmarks_bridge.cc',
-      'browser/android/bookmarks/bookmarks_bridge.h',
+      'browser/android/bookmarks/bookmark_bridge.cc',
+      'browser/android/bookmarks/bookmark_bridge.h',
       'browser/android/bookmarks/partner_bookmarks_reader.cc',
       'browser/android/bookmarks/partner_bookmarks_reader.h',
       'browser/android/bookmarks/partner_bookmarks_shim.cc',
@@ -1047,6 +1047,11 @@
       'browser/browser_process.h',
       'browser/browser_process_platform_part_base.cc',
       'browser/browser_process_platform_part_base.h',
+    ],
+    # Desktop Linux, ChromeOS, and Windows.
+    'chrome_browser_non_mac_desktop_sources': [
+      'browser/renderer_context_menu/spelling_options_submenu_observer.h',
+      'browser/renderer_context_menu/spelling_options_submenu_observer.cc',
     ],
     # Desktop linux, doesn't count ChromeOS.
     'chrome_browser_linux_desktop_sources': [
@@ -1814,12 +1819,11 @@
       'android/java/src/org/chromium/chrome/browser/autofill/PersonalDataManager.java',
       'android/java/src/org/chromium/chrome/browser/BackgroundSyncLauncher.java',
       'android/java/src/org/chromium/chrome/browser/BluetoothChooserDialog.java',
-      'android/java/src/org/chromium/chrome/browser/bookmark/BookmarksBridge.java',
+      'android/java/src/org/chromium/chrome/browser/bookmarks/BookmarkBridge.java',
       'android/java/src/org/chromium/chrome/browser/banners/AppBannerManager.java',
       'android/java/src/org/chromium/chrome/browser/childaccounts/ChildAccountService.java',
       'android/java/src/org/chromium/chrome/browser/childaccounts/ChildAccountFeedbackReporter.java',
       'android/java/src/org/chromium/chrome/browser/ChromeApplication.java',
-      'android/java/src/org/chromium/chrome/browser/ChromeBrowserProvider.java',
       'android/java/src/org/chromium/chrome/browser/ChromeFeatureList.java',
       'android/java/src/org/chromium/chrome/browser/ChromeHttpAuthHandler.java',
       'android/java/src/org/chromium/chrome/browser/compositor/bottombar/OverlayPanelContent.java',
@@ -1899,6 +1903,7 @@
       'android/java/src/org/chromium/chrome/browser/profiles/ProfileDownloader.java',
       'android/java/src/org/chromium/chrome/browser/preferences/privacy/BrowsingDataCounterBridge.java',
       'android/java/src/org/chromium/chrome/browser/prerender/ExternalPrerenderHandler.java',
+      'android/java/src/org/chromium/chrome/browser/provider/ChromeBrowserProvider.java',
       'android/java/src/org/chromium/chrome/browser/push_messaging/PushMessagingServiceObserver.java',
       'android/java/src/org/chromium/chrome/browser/rappor/RapporServiceBridge.java',
       'android/java/src/org/chromium/chrome/browser/rlz/RevenueStats.java',
@@ -3918,6 +3923,9 @@
             }],
           ],
         }],
+        ['OS=="linux" or OS=="win"', {
+            'sources': [ '<@(chrome_browser_non_mac_desktop_sources)' ],
+        }],
         ['desktop_linux==1', {
           'sources': [ '<@(chrome_browser_linux_desktop_sources)' ],
         }],
@@ -4050,6 +4058,15 @@
           'type': 'none',
           'variables': {
             'source_file': 'browser/browsing_data/browsing_data_counter_utils.h',
+          },
+          'includes': [ '../build/android/java_cpp_enum.gypi' ],
+        },
+        {
+          # GN: //chrome/android:chrome_android_java_enums_srcjar
+          'target_name': 'browsing_data_time_period_java',
+          'type': 'none',
+          'variables': {
+            'source_file': 'browser/browsing_data/browsing_data_remover.h',
           },
           'includes': [ '../build/android/java_cpp_enum.gypi' ],
         },

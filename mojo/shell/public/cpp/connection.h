@@ -95,15 +95,9 @@ class Connection {
   // been established.
   virtual bool GetRemoteApplicationID(uint32_t* remote_id) const = 0;
 
-  // Returns the id of the deepest content handler used in connecting to
-  // the application. See GetRemoteApplicationID() for details about the return
-  // value. A |content_handler_id| value of Shell::kInvalidApplicationID
-  // indicates no content handler was used in connecting to the application.
-  virtual bool GetRemoteContentHandlerID(
-      uint32_t* content_handler_id) const = 0;
-
-  // See description in GetRemoteApplicationID()/GetRemoteContentHandlerID(). If
-  // the ids are available, |callback| is run immediately.
+  // See description in GetRemoteApplicationID()/
+  // GetRemoteShellClientFactoryID(). If the ids are available, |callback| is
+  // run immediately.
   virtual void AddRemoteIDCallback(const Closure& callback) = 0;
 
   // Returns true if the Shell allows |interface_name| to be exposed to the

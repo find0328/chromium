@@ -87,14 +87,20 @@ MojoResult CreateSharedBufferWrapper(
       shared_memory_handle, num_bytes, read_only, mojo_wrapper_handle);
 }
 
+MojoResult PassSharedMemoryHandle(
+    MojoHandle mojo_handle,
+    base::SharedMemoryHandle* shared_memory_handle,
+    size_t* num_bytes,
+    bool* read_only) {
+  return internal::g_core->PassSharedMemoryHandle(
+      mojo_handle, shared_memory_handle, num_bytes, read_only);
+}
+
 void InitIPCSupport(ProcessDelegate* process_delegate,
                     scoped_refptr<base::TaskRunner> io_thread_task_runner) {
   CHECK(internal::g_core);
   internal::g_core->SetIOTaskRunner(io_thread_task_runner);
   internal::g_process_delegate = process_delegate;
-}
-
-void ShutdownIPCSupportOnIOThread() {
 }
 
 void ShutdownIPCSupport() {
@@ -107,17 +113,17 @@ void ShutdownIPCSupport() {
 
 ScopedMessagePipeHandle CreateMessagePipe(
     ScopedPlatformHandle platform_handle) {
-  DCHECK(internal::g_core);
+  CHECK(internal::g_process_delegate);
   return internal::g_core->CreateMessagePipe(std::move(platform_handle));
 }
 
 ScopedMessagePipeHandle CreateParentMessagePipe(const std::string& token) {
-  DCHECK(internal::g_core);
+  CHECK(internal::g_process_delegate);
   return internal::g_core->CreateParentMessagePipe(token);
 }
 
 ScopedMessagePipeHandle CreateChildMessagePipe(const std::string& token) {
-  DCHECK(internal::g_core);
+  CHECK(internal::g_process_delegate);
   return internal::g_core->CreateChildMessagePipe(token);
 }
 

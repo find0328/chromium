@@ -264,9 +264,9 @@ TEST_F(FrameThrottlingTest, UnthrottlingTriggersRepaint)
     // Move the frame offscreen to throttle it.
     auto* frameElement = toHTMLIFrameElement(document().getElementById("frame"));
     frameElement->setAttribute(styleAttr, "transform: translateY(480px)");
-    EXPECT_FALSE(frameElement->contentDocument()->view()->shouldThrottleRendering());
+    EXPECT_FALSE(frameElement->contentDocument()->view()->canThrottleRendering());
     compositeFrame();
-    EXPECT_TRUE(frameElement->contentDocument()->view()->shouldThrottleRendering());
+    EXPECT_TRUE(frameElement->contentDocument()->view()->canThrottleRendering());
 
     // Scroll down to unthrottle the frame. The first frame we composite after
     // scrolling won't contain the frame yet, but will schedule another repaint.
@@ -292,9 +292,9 @@ TEST_F(FrameThrottlingTest, ChangeStyleInThrottledFrame)
     // Move the frame offscreen to throttle it.
     auto* frameElement = toHTMLIFrameElement(document().getElementById("frame"));
     frameElement->setAttribute(styleAttr, "transform: translateY(480px)");
-    EXPECT_FALSE(frameElement->contentDocument()->view()->shouldThrottleRendering());
+    EXPECT_FALSE(frameElement->contentDocument()->view()->canThrottleRendering());
     compositeFrame();
-    EXPECT_TRUE(frameElement->contentDocument()->view()->shouldThrottleRendering());
+    EXPECT_TRUE(frameElement->contentDocument()->view()->canThrottleRendering());
 
     // Change the background color of the frame's contents from red to green.
     frameElement->contentDocument()->body()->setAttribute(styleAttr, "background: green");
@@ -322,9 +322,8 @@ TEST(RemoteFrameThrottlingTest, ThrottledLocalRoot)
     remoteClient.frame()->setReplicatedOrigin(WebSecurityOrigin::createUnique());
 
     WebFrameOwnerProperties properties;
-    FrameTestHelpers::TestWebFrameClient localFrameClient;
     WebRemoteFrame* rootFrame = webView->mainFrame()->toWebRemoteFrame();
-    WebLocalFrame* localFrame = rootFrame->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &localFrameClient, nullptr, properties);
+    WebLocalFrame* localFrame = FrameTestHelpers::createLocalChild(rootFrame);
 
     WebString baseURL("http://internal.test/");
     URLTestHelpers::registerMockedURLFromBaseURL(baseURL, "simple_div.html");
@@ -338,7 +337,7 @@ TEST(RemoteFrameThrottlingTest, ThrottledLocalRoot)
     frameView->frame().securityContext()->setSecurityOrigin(SecurityOrigin::createUnique());
     frameView->updateAllLifecyclePhases();
     testing::runPendingTasks();
-    EXPECT_TRUE(frameView->shouldThrottleRendering());
+    EXPECT_TRUE(frameView->canThrottleRendering());
 
     Document* frameDocument = frameView->frame().document();
     EXPECT_EQ(DocumentLifecycle::PaintClean, frameDocument->lifecycle().state());
@@ -350,6 +349,7 @@ TEST(RemoteFrameThrottlingTest, ThrottledLocalRoot)
 
     // Update the lifecycle again. The frame's lifecycle should not advance
     // because of throttling even though it is the local root.
+    DocumentLifecycle::AllowThrottlingScope throttlingScope(frameDocument->lifecycle());
     frameView->updateAllLifecyclePhases();
     testing::runPendingTasks();
     EXPECT_EQ(DocumentLifecycle::VisualUpdatePending, frameDocument->lifecycle().state());

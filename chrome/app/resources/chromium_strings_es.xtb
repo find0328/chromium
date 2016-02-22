@@ -129,7 +129,6 @@ Es posible que algunas funciones no estén disponibles y que no se guarden los c
 <translation id="5859963531214966875">Las próximas versiones de Chromium dejarán de ser compatibles con este sistema Linux.</translation>
 <translation id="5862307444128926510">Te damos la bienvenida a Chromium</translation>
 <translation id="5877064549588274448">Se ha cambiado el canal. Reinicia el dispositivo para aplicar los cambios.</translation>
-<translation id="5909170354645388250">No se utiliza en Chromium. Marcador de posición para mantener sincronizados los mapas de recursos. Se espera un único argumento: $1.</translation>
 <translation id="5942225298871134766">Chromium almacenará esta contraseña en <ph name="SAVED_PASSWORD_LINK" /> y la recordará la próxima vez que la necesites.</translation>
 <translation id="5942520288919337908"><ph name="EXTENSION_NAME" /> se ha añadido a Chromium.</translation>
 <translation id="59625444380784159">Los detalles de tus contactos pueden ayudar a completar los formularios de forma más rápida en Chromium.</translation>
@@ -210,7 +209,6 @@ Chromium no puede recuperar tu configuración.</translation>
 <translation id="8586442755830160949">Copyright <ph name="YEAR" /> Los creadores de Chromium. Todos los derechos reservados.</translation>
 <translation id="8621669128220841554">La instalación ha fallado debido a un error no especificado. Vuelve a descargar Chromium.</translation>
 <translation id="8628626585870903697">Chromium no incluye el visor de PDF que se necesita para que la vista previa de impresión funcione.</translation>
-<translation id="8684913864886094367">Chromium no se ha cerrado correctamente.</translation>
 <translation id="8697124171261953979">También controla qué página se muestra al iniciar Chromium o al hacer búsquedas desde el omnibox.</translation>
 <translation id="8704119203788522458">Aquí tienes tu navegador Chromium</translation>
 <translation id="872034308864968620">Permitir que Chromium se ejecute en segundo plano</translation>

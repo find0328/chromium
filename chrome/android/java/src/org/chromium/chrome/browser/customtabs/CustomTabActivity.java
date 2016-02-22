@@ -64,6 +64,10 @@ import java.util.List;
  * The activity for custom tabs. It will be launched on top of a client's task.
  */
 public class CustomTabActivity extends ChromeActivity {
+    public static final int RESULT_BACK_PRESSED = 1;
+    public static final int RESULT_STOPPED = 2;
+    public static final int RESULT_CLOSED = 3;
+
     private static final String TAG = "CustomTabActivity";
 
     private static CustomTabContentHandler sActiveContentHandler;
@@ -167,6 +171,10 @@ public class CustomTabActivity extends ChromeActivity {
         super.onStop();
         CustomTabsConnection.getInstance(getApplication())
                 .dontKeepAliveForSession(mIntentDataProvider.getSession());
+        if (mIntentDataProvider.isOpenedByBrowser()) {
+            createHerbResultIntent(RESULT_STOPPED);
+            finish();
+        }
     }
 
     @Override
@@ -201,10 +209,11 @@ public class CustomTabActivity extends ChromeActivity {
     @Override
     public void finishNativeInitialization() {
         mSession = mIntentDataProvider.getSession();
+        CustomTabsConnection connection = CustomTabsConnection.getInstance(getApplication());
         // If extra headers have been passed, cancel any current prerender, as
         // prerendering doesn't support extra headers.
         if (IntentHandler.getExtraHeadersFromIntent(getIntent()) != null) {
-            CustomTabsConnection.getInstance(getApplication()).cancelPrerender(mSession);
+            connection.cancelPrerender(mSession);
         }
         Tab mainTab = createMainTab();
         getTabModelSelector().getModel(false).addObserver(mTabModelObserver);
@@ -225,6 +234,9 @@ public class CustomTabActivity extends ChromeActivity {
                 new OnClickListener() {
                     @Override
                     public void onClick(View v) {
+                        if (mIntentDataProvider.isOpenedByBrowser()) {
+                            createHerbResultIntent(RESULT_CLOSED);
+                        }
                         CustomTabActivity.this.finish();
                     }
                 });
@@ -264,12 +276,10 @@ public class CustomTabActivity extends ChromeActivity {
             }
         };
         DataUseTabUIManager.onCustomTabInitialNavigation(mainTab,
-                CustomTabsConnection.getInstance(getApplication())
-                        .getClientPackageNameForSession(mSession),
+                connection.getClientPackageNameForSession(mSession),
                 IntentHandler.getUrlFromIntent(getIntent()));
-        mainTab.setAppAssociatedWith(CustomTabsConnection.getInstance(getApplication())
-                .getClientPackageNameForSession(mSession));
         recordClientPackageName();
+        connection.showSignInToastIfNecessary(mSession, getIntent());
         loadUrlInCurrentTab(new LoadUrlParams(IntentHandler.getUrlFromIntent(getIntent())),
                 IntentHandler.getTimestampFromIntent(getIntent()));
         super.finishNativeInitialization();
@@ -289,6 +299,7 @@ public class CustomTabActivity extends ChromeActivity {
                 TabLaunchType.FROM_EXTERNAL_APP, null, null);
         CustomTabsConnection customTabsConnection =
                 CustomTabsConnection.getInstance(getApplication());
+        tab.setAppAssociatedWith(customTabsConnection.getClientPackageNameForSession(mSession));
         WebContents webContents =
                 customTabsConnection.takePrerenderedUrl(mSession, url, referrerUrl);
         if (webContents == null) {
@@ -389,7 +400,8 @@ public class CustomTabActivity extends ChromeActivity {
     @Override
     protected AppMenuPropertiesDelegate createAppMenuPropertiesDelegate() {
         return new CustomTabAppMenuPropertiesDelegate(this, mIntentDataProvider.getMenuTitles(),
-                mIntentDataProvider.shouldShowShareMenuItem());
+                mIntentDataProvider.shouldShowShareMenuItem(),
+                mIntentDataProvider.shouldShowBookmarkMenuItem());
     }
 
     @Override
@@ -434,6 +446,9 @@ public class CustomTabActivity extends ChromeActivity {
             if (getCurrentTabModel().getCount() > 1) {
                 getCurrentTabModel().closeTab(getActivityTab(), false, false, false);
             } else {
+                if (mIntentDataProvider.isOpenedByBrowser()) {
+                    createHerbResultIntent(RESULT_BACK_PRESSED);
+                }
                 finish();
             }
         }
@@ -561,9 +576,12 @@ public class CustomTabActivity extends ChromeActivity {
     public boolean onMenuOrKeyboardAction(int id, boolean fromMenu) {
         // Disable creating new tabs, bookmark, history, print, help, focus_url, etc.
         if (id == R.id.focus_url_bar || id == R.id.all_bookmarks_menu_id
-                || id == R.id.bookmark_this_page_id || id == R.id.print_id || id == R.id.help_id
+                || id == R.id.print_id || id == R.id.help_id
                 || id == R.id.recent_tabs_menu_id || id == R.id.new_incognito_tab_menu_id
                 || id == R.id.new_tab_menu_id || id == R.id.open_history_menu_id) {
+            return true;
+        } else if (id == R.id.bookmark_this_page_id
+                && !mIntentDataProvider.shouldShowBookmarkMenuItem()) {
             return true;
         } else if (id == R.id.open_in_browser_id) {
             openCurrentUrlInBrowser();
@@ -632,5 +650,29 @@ public class CustomTabActivity extends ChromeActivity {
         } finally {
             StrictMode.setThreadPolicy(oldPolicy);
         }
+    }
+
+    /**
+     * Lets the original Activity know how this {@link CustomTabActivity} was finished.
+     */
+    private void createHerbResultIntent(int result) {
+        Intent resultIntent = new Intent();
+
+        switch (result) {
+            case RESULT_STOPPED:
+                // Send the URL to the browser.  Should pass the Tab in the future.
+                resultIntent.setAction(Intent.ACTION_VIEW);
+                resultIntent.setData(Uri.parse(getActivityTab().getUrl()));
+                break;
+
+            case RESULT_BACK_PRESSED:
+            case RESULT_CLOSED:
+                break;
+
+            default:
+                assert false;
+        }
+
+        setResult(result, resultIntent);
     }
 }

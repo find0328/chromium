@@ -322,8 +322,6 @@
         'base/key_system_info.h',
         'base/key_systems.cc',
         'base/key_systems.h',
-        'base/key_systems_support_uma.cc',
-        'base/key_systems_support_uma.h',
         'base/keyboard_event_counter.cc',
         'base/keyboard_event_counter.h',
         'base/loopback_audio_converter.cc',
@@ -358,6 +356,8 @@
         'base/media_util.h',
         'base/mime_util.cc',
         'base/mime_util.h',
+        'base/mime_util_internal.cc',
+        'base/mime_util_internal.h',
         'base/moving_average.cc',
         'base/moving_average.h',
         'base/multi_channel_resampler.cc',
@@ -449,10 +449,10 @@
         'capture/content/feedback_signal_accumulator.h',
         'capture/content/screen_capture_device_core.cc',
         'capture/content/screen_capture_device_core.h',
-        'capture/content/thread_safe_capture_oracle.cc',
-        'capture/content/thread_safe_capture_oracle.h',
         'capture/content/smooth_event_sampler.cc',
         'capture/content/smooth_event_sampler.h',
+        'capture/content/thread_safe_capture_oracle.cc',
+        'capture/content/thread_safe_capture_oracle.h',
         'capture/content/video_capture_oracle.cc',
         'capture/content/video_capture_oracle.h',
         'capture/video/android/video_capture_device_android.cc',
@@ -469,10 +469,6 @@
         'capture/video/file_video_capture_device_factory.h',
         'capture/video/linux/v4l2_capture_delegate.cc',
         'capture/video/linux/v4l2_capture_delegate.h',
-        'capture/video/linux/v4l2_capture_delegate_multi_plane.cc',
-        'capture/video/linux/v4l2_capture_delegate_multi_plane.h',
-        'capture/video/linux/v4l2_capture_delegate_single_plane.cc',
-        'capture/video/linux/v4l2_capture_delegate_single_plane.h',
         'capture/video/linux/video_capture_device_chromeos.cc',
         'capture/video/linux/video_capture_device_chromeos.h',
         'capture/video/linux/video_capture_device_factory_linux.cc',
@@ -513,14 +509,12 @@
         'capture/video/win/video_capture_device_mf_win.h',
         'capture/video/win/video_capture_device_win.cc',
         'capture/video/win/video_capture_device_win.h',
-        'capture/webm_muxer.cc',
-        'capture/webm_muxer.h',
         'cdm/aes_decryptor.cc',
         'cdm/aes_decryptor.h',
         'cdm/cdm_adapter.cc',
         'cdm/cdm_adapter.h',
-        'cdm/cdm_buffer_impl.cc',
-        'cdm/cdm_buffer_impl.h',
+        'cdm/cdm_allocator.cc',
+        'cdm/cdm_allocator.h',
         'cdm/cdm_helpers.cc',
         'cdm/cdm_helpers.h',
         'cdm/default_cdm_factory.cc',
@@ -531,8 +525,6 @@
         'cdm/key_system_names.h',
         'cdm/player_tracker_impl.cc',
         'cdm/player_tracker_impl.h',
-        'cdm/proxy_decryptor.cc',
-        'cdm/proxy_decryptor.h',
         'cdm/supported_cdm_versions.cc',
         'cdm/supported_cdm_versions.h',
         'ffmpeg/ffmpeg_common.cc',
@@ -582,10 +574,10 @@
         'filters/h264_bit_reader.h',
         'filters/h264_parser.cc',
         'filters/h264_parser.h',
-        'filters/ivf_parser.cc',
-        'filters/ivf_parser.h',
         'filters/in_memory_url_protocol.cc',
         'filters/in_memory_url_protocol.h',
+        'filters/ivf_parser.cc',
+        'filters/ivf_parser.h',
         'filters/jpeg_parser.cc',
         'filters/jpeg_parser.h',
         'filters/media_source_state.cc',
@@ -642,6 +634,8 @@
         'formats/webm/webm_video_client.cc',
         'formats/webm/webm_video_client.h',
         'formats/webm/webm_webvtt_parser.cc',
+        'muxers/webm_muxer.cc',
+        'muxers/webm_muxer.h',
         'ozone/media_ozone_platform.cc',
         'ozone/media_ozone_platform.h',
         'renderers/audio_renderer_impl.cc',
@@ -747,6 +741,7 @@
         }],
         ['OS=="android"', {
           'dependencies': [
+            'capture_java',
             'media_android_jni_headers',
             'media_java',
             'player_android',
@@ -1294,11 +1289,15 @@
         'capture/content/video_capture_oracle_unittest.cc',
         'capture/video/fake_video_capture_device_unittest.cc',
         'capture/video/video_capture_device_unittest.cc',
-        'capture/webm_muxer_unittest.cc',
         'cdm/aes_decryptor_unittest.cc',
         'cdm/external_clear_key_test_helper.cc',
         'cdm/external_clear_key_test_helper.h',
         'cdm/json_web_key_unittest.cc',
+        'cdm/simple_cdm_allocator.cc',
+        'cdm/simple_cdm_allocator.h',
+        'cdm/simple_cdm_allocator_unittest.cc',
+        'cdm/simple_cdm_buffer.cc',
+        'cdm/simple_cdm_buffer.h',
         'ffmpeg/ffmpeg_common_unittest.cc',
         'filters/audio_clock_unittest.cc',
         'filters/audio_decoder_selector_unittest.cc',
@@ -1344,14 +1343,15 @@
         'formats/webm/webm_parser_unittest.cc',
         'formats/webm/webm_tracks_parser_unittest.cc',
         'formats/webm/webm_webvtt_parser_unittest.cc',
+        'muxers/webm_muxer_unittest.cc',
         'renderers/audio_renderer_impl_unittest.cc',
         'renderers/renderer_impl_unittest.cc',
         'renderers/skcanvas_video_renderer_unittest.cc',
         'renderers/video_renderer_impl_unittest.cc',
         'test/pipeline_integration_test.cc',
         'test/pipeline_integration_test_base.cc',
-        'video/h264_poc_unittest.cc',
         'video/gpu_memory_buffer_video_frame_pool_unittest.cc',
+        'video/h264_poc_unittest.cc',
       ],
       'include_dirs': [
         # Needed by media_drm_bridge.cc.
@@ -1817,6 +1817,7 @@
           'target_name': 'media_unittests_apk',
           'type': 'none',
           'dependencies': [
+            'capture_java',
             'media_java',
             'media_unittests',
           ],
@@ -1831,6 +1832,7 @@
           'target_name': 'media_perftests_apk',
           'type': 'none',
           'dependencies': [
+            'capture_java',
             'media_java',
             'media_perftests',
           ],
@@ -1841,7 +1843,7 @@
           'includes': ['../build/apk_test.gypi'],
         },
         {
-          # GN: //media/base/android:media_android_jni_headers
+          # GN: //media/base/android:media_jni_headers
           'target_name': 'media_android_jni_headers',
           'type': 'none',
           'sources': [
@@ -1859,12 +1861,12 @@
           'includes': ['../build/jni_generator.gypi'],
         },
         {
-          # GN: //media/base/android:video_capture_android_jni_headers
+          # GN: //media/capture/video/android:capture_jni_headers
           'target_name': 'video_capture_android_jni_headers',
           'type': 'none',
           'sources': [
-            'base/android/java/src/org/chromium/media/VideoCapture.java',
-            'base/android/java/src/org/chromium/media/VideoCaptureFactory.java',
+            'capture/video/android/java/src/org/chromium/media/VideoCapture.java',
+            'capture/video/android/java/src/org/chromium/media/VideoCaptureFactory.java',
           ],
           'variables': {
             'jni_gen_package': 'media',
@@ -1929,6 +1931,8 @@
             'base/android/video_decoder_job.h',
             'base/android/video_media_codec_decoder.cc',
             'base/android/video_media_codec_decoder.h',
+            'capture/video/android/capture_jni_registrar.cc',
+            'capture/video/android/capture_jni_registrar.h',
           ],
           'conditions': [
             # Only 64 bit builds are using android-21 NDK library, check common.gypi
@@ -1946,6 +1950,7 @@
             '../ui/gl/gl.gyp:gl',
             '../url/url.gyp:url_lib',
             'media_android_jni_headers',
+            'shared_memory_support',
           ],
           'include_dirs': [
             # Needed by media_drm_bridge.cc.
@@ -1956,13 +1961,28 @@
           ],
         },
         {
-          # GN: //media/base/android:media_java
-          'target_name': 'media_java',
+          # GN: //media/capture/video/android:capture_java
+          'target_name': 'capture_java',
           'type': 'none',
           'dependencies': [
             '../base/base.gyp:base',
             'media_android_captureapitype',
             'media_android_imageformat',
+          ],
+          'export_dependent_settings': [
+            '../base/base.gyp:base',
+          ],
+          'variables': {
+            'java_in_dir': 'capture/video/android/java',
+          },
+          'includes': ['../build/java.gypi'],
+        },
+        {
+          # GN: //media/base/android:media_java
+          'target_name': 'media_java',
+          'type': 'none',
+          'dependencies': [
+            '../base/base.gyp:base',
           ],
           'export_dependent_settings': [
             '../base/base.gyp:base',

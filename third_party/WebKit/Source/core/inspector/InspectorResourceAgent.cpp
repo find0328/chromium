@@ -284,7 +284,7 @@ static PassRefPtr<protocol::TypeBuilder::Network::Request> buildObjectForResourc
     return requestObject;
 }
 
-static PassRefPtr<protocol::TypeBuilder::Network::Response> buildObjectForResourceResponse(const ResourceResponse& response)
+static PassRefPtr<protocol::TypeBuilder::Network::Response> buildObjectForResourceResponse(const ResourceResponse& response, Resource* cachedResource = nullptr, bool* isEmpty = nullptr)
 {
     if (response.isNull())
         return nullptr;
@@ -299,10 +299,11 @@ static PassRefPtr<protocol::TypeBuilder::Network::Response> buildObjectForResour
         statusText = response.httpStatusText();
     }
     RefPtr<JSONObject> headers;
+    HTTPHeaderMap headersMap;
     if (response.resourceLoadInfo() && response.resourceLoadInfo()->responseHeaders.size())
-        headers = buildObjectForHeaders(response.resourceLoadInfo()->responseHeaders);
+        headersMap = response.resourceLoadInfo()->responseHeaders;
     else
-        headers = buildObjectForHeaders(response.httpHeaderFields());
+        headersMap = response.httpHeaderFields();
 
     int64_t encodedDataLength = response.resourceLoadInfo() ? response.resourceLoadInfo()->encodedDataLength : -1;
 
@@ -325,12 +326,20 @@ static PassRefPtr<protocol::TypeBuilder::Network::Response> buildObjectForResour
         break;
     }
 
+    // Use mime type from cached resource in case the one in response is empty.
+    String mimeType = response.mimeType();
+    if (mimeType.isEmpty() && cachedResource)
+        mimeType = cachedResource->response().mimeType();
+
+    if (isEmpty)
+        *isEmpty = !status && mimeType.isEmpty() && !headersMap.size();
+
     RefPtr<protocol::TypeBuilder::Network::Response> responseObject = protocol::TypeBuilder::Network::Response::create()
         .setUrl(urlWithoutFragment(response.url()).string())
         .setStatus(status)
         .setStatusText(statusText)
-        .setHeaders(headers)
-        .setMimeType(response.mimeType())
+        .setHeaders(buildObjectForHeaders(headersMap))
+        .setMimeType(mimeType)
         .setConnectionReused(response.connectionReused())
         .setConnectionId(response.connectionID())
         .setEncodedDataLength(encodedDataLength)
@@ -518,23 +527,9 @@ void InspectorResourceAgent::markResourceAsCached(unsigned long identifier)
     frontend()->requestServedFromCache(IdentifiersFactory::requestId(identifier));
 }
 
-bool isResponseEmpty(PassRefPtr<protocol::TypeBuilder::Network::Response> response)
-{
-    if (!response)
-        return true;
-
-    RefPtr<JSONValue> status = response->get("status");
-    RefPtr<JSONValue> mimeType = response->get("mimeType");
-    RefPtr<JSONObject> headers = response->getObject("headers");
-
-    return !status && !mimeType && (!headers || !headers->size());
-}
-
 void InspectorResourceAgent::didReceiveResourceResponse(LocalFrame* frame, unsigned long identifier, DocumentLoader* loader, const ResourceResponse& response, ResourceLoader* resourceLoader)
 {
     String requestId = IdentifiersFactory::requestId(identifier);
-    RefPtr<protocol::TypeBuilder::Network::Response> resourceResponse = buildObjectForResourceResponse(response);
-
     bool isNotModified = response.httpStatusCode() == 304;
 
     Resource* cachedResource = 0;
@@ -543,10 +538,8 @@ void InspectorResourceAgent::didReceiveResourceResponse(LocalFrame* frame, unsig
     if (!cachedResource)
         cachedResource = InspectorPageAgent::cachedResource(frame, response.url());
 
-    if (cachedResource && resourceResponse && response.mimeType().isEmpty()) {
-        // Use mime type from cached resource in case the one in response is empty.
-        resourceResponse->setString(protocol::TypeBuilder::Network::Response::MimeType, cachedResource->response().mimeType());
-    }
+    bool resourceIsEmpty = true;
+    RefPtr<protocol::TypeBuilder::Network::Response> resourceResponse = buildObjectForResourceResponse(response, cachedResource, &resourceIsEmpty);
 
     InspectorPageAgent::ResourceType type = cachedResource ? InspectorPageAgent::cachedResourceType(*cachedResource) : InspectorPageAgent::OtherResource;
     // Override with already discovered resource type.
@@ -570,7 +563,7 @@ void InspectorResourceAgent::didReceiveResourceResponse(LocalFrame* frame, unsig
     m_resourcesData->responseReceived(requestId, frameId, response);
     m_resourcesData->setResourceType(requestId, type);
 
-    if (!isResponseEmpty(resourceResponse))
+    if (resourceResponse && !resourceIsEmpty)
         frontend()->responseReceived(requestId, frameId, loaderId, monotonicallyIncreasingTime(), InspectorPageAgent::resourceTypeJson(type), resourceResponse);
     // If we revalidated the resource and got Not modified, send content length following didReceiveResponse
     // as there will be no calls to didReceiveData from the network stack.
@@ -733,12 +726,12 @@ void InspectorResourceAgent::willSendEventSourceRequest(ThreadableLoaderClient* 
     m_pendingRequestType = InspectorPageAgent::EventSourceResource;
 }
 
-void InspectorResourceAgent::willDispachEventSourceEvent(ThreadableLoaderClient* eventSource, const AtomicString& eventName, const AtomicString& eventId, const Vector<UChar>& data)
+void InspectorResourceAgent::willDispatchEventSourceEvent(ThreadableLoaderClient* eventSource, const AtomicString& eventName, const AtomicString& eventId, const String& data)
 {
     ThreadableLoaderClientRequestIdMap::iterator it = m_knownRequestIdMap.find(eventSource);
     if (it == m_knownRequestIdMap.end())
         return;
-    frontend()->eventSourceMessageReceived(IdentifiersFactory::requestId(it->value), monotonicallyIncreasingTime(), eventName.string(), eventId.string(), String(data));
+    frontend()->eventSourceMessageReceived(IdentifiersFactory::requestId(it->value), monotonicallyIncreasingTime(), eventName.string(), eventId.string(), data);
 }
 
 void InspectorResourceAgent::didFinishEventSourceRequest(ThreadableLoaderClient* eventSource)

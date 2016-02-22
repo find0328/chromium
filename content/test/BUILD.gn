@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 import("//build/config/chrome_build.gni")
+import("//build/config/compiler/compiler.gni")
 import("//build/config/crypto.gni")
 import("//build/config/features.gni")
 import("//build/config/ui.gni")
@@ -392,6 +393,10 @@ test("content_browsertests") {
         # TODO(GYP): Add this once //content/shell:copy_test_netscape_plugin
         # exists.
         #data += [ "$root_out_dir/plugins/np_test_netscape_plugin.dll" ]
+
+        if (symbol_level != 0) {
+          data += [ "$root_out_dir/content_browsertests.exe.pdb" ]
+        }
       }
     }
   }
@@ -837,6 +842,7 @@ test("content_gl_tests") {
   sources = [
     "../common/gpu/client/gl_helper_unittest.cc",
     "../common/gpu/client/gpu_in_process_context_tests.cc",
+    "run_all_gl_tests.cc",
   ]
 
   deps = [
@@ -872,6 +878,7 @@ test("content_gl_tests") {
 test("content_gl_benchmark") {
   sources = [
     "../common/gpu/client/gl_helper_benchmark.cc",
+    "run_gl_benchmark.cc",
   ]
 
   deps = [
@@ -923,6 +930,7 @@ if (is_android) {
         "//gpu:test_support",
         "//media/base/android",
         "//media/base/android:media_java",
+        "//media/capture/video/android:capture_java",
         "//testing/gmock",
         "//ui/android:ui_java",
       ]

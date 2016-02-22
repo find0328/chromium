@@ -474,7 +474,6 @@ RenderWidgetHostViewAura::RenderWidgetHostViewAura(RenderWidgetHost* host,
 #if defined(OS_WIN)
       legacy_render_widget_host_HWND_(NULL),
       legacy_window_destroyed_(false),
-      showing_context_menu_(false),
 #endif
       has_snapped_to_boundary_(false),
       is_guest_view_hack_(is_guest_view_hack),
@@ -797,12 +796,7 @@ RenderFrameHostImpl* RenderWidgetHostViewAura::GetFocusedFrame() {
 bool RenderWidgetHostViewAura::CanRendererHandleEvent(
     const ui::MouseEvent* event,
     bool mouse_locked,
-    bool selection_popup) {
-#if defined(OS_WIN)
-  bool showing_context_menu = showing_context_menu_;
-  showing_context_menu_ = false;
-#endif
-
+    bool selection_popup) const {
   if (event->type() == ui::ET_MOUSE_CAPTURE_CHANGED)
     return false;
 
@@ -813,7 +807,7 @@ bool RenderWidgetHostViewAura::CanRendererHandleEvent(
     // Don't forward the mouse leave message which is received when the context
     // menu is displayed by the page. This confuses the page and causes state
     // changes.
-    if (showing_context_menu)
+    if (IsShowingContextMenu())
       return false;
 #endif
     return true;
@@ -2038,6 +2032,11 @@ void RenderWidgetHostViewAura::OnKeyEvent(ui::KeyEvent* event) {
 void RenderWidgetHostViewAura::OnMouseEvent(ui::MouseEvent* event) {
   TRACE_EVENT0("input", "RenderWidgetHostViewAura::OnMouseEvent");
 
+  ForwardMouseEventToParent(event);
+  // TODO(mgiuca): Return if event->handled() returns true. This currently
+  // breaks drop-down lists which means something is incorrectly setting
+  // event->handled to true (http://crbug.com/577983).
+
   if (mouse_locked_) {
     aura::client::CursorClient* cursor_client =
         aura::client::GetCursorClient(window_->GetRootWindow());
@@ -2193,18 +2192,6 @@ void RenderWidgetHostViewAura::OnMouseEvent(ui::MouseEvent* event) {
       break;
     default:
       break;
-  }
-
-  // Needed to propagate mouse event to |window_->parent()->delegate()|, but
-  // note that it might be something other than a WebContentsViewAura instance.
-  // TODO(pkotwicz): Find a better way of doing this.
-  // In fullscreen mode which is typically used by flash, don't forward
-  // the mouse events to the parent. The renderer and the plugin process
-  // handle these events.
-  if (!is_fullscreen_ && window_->parent() && window_->parent()->delegate() &&
-      !(event->flags() & ui::EF_FROM_TOUCH)) {
-    event->ConvertLocationToTarget(window_, window_->parent());
-    window_->parent()->delegate()->OnMouseEvent(event);
   }
 
   if (!IsXButtonUpEvent(event))
@@ -2722,7 +2709,6 @@ bool RenderWidgetHostViewAura::OnShowContextMenu(
     *last_context_menu_params_ = params;
     return false;
   }
-  showing_context_menu_ = true;
 #endif
   return true;
 }
@@ -2968,6 +2954,33 @@ void RenderWidgetHostViewAura::HandleGestureForTouchSelection(
     default:
       break;
   }
+}
+
+void RenderWidgetHostViewAura::ForwardMouseEventToParent(
+    ui::MouseEvent* event) {
+  // Needed to propagate mouse event to |window_->parent()->delegate()|, but
+  // note that it might be something other than a WebContentsViewAura instance.
+  // TODO(pkotwicz): Find a better way of doing this.
+  // In fullscreen mode which is typically used by flash, don't forward
+  // the mouse events to the parent. The renderer and the plugin process
+  // handle these events.
+  if (is_fullscreen_)
+    return;
+
+  if (event->flags() & ui::EF_FROM_TOUCH)
+    return;
+
+  if (!window_->parent() || !window_->parent()->delegate())
+    return;
+
+  // Take a copy of |event|, to avoid ConvertLocationToTarget mutating the
+  // event.
+  scoped_ptr<ui::Event> event_copy = ui::Event::Clone(*event);
+  ui::MouseEvent* mouse_event = static_cast<ui::MouseEvent*>(event_copy.get());
+  mouse_event->ConvertLocationToTarget(window_, window_->parent());
+  window_->parent()->delegate()->OnMouseEvent(mouse_event);
+  if (mouse_event->handled())
+    event->SetHandled();
 }
 
 RenderViewHostDelegateView*

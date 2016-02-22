@@ -18,7 +18,6 @@
 #include "content/renderer/media/webrtc_audio_device_impl.h"
 #include "content/renderer/media/webrtc_logging.h"
 #include "content/renderer/render_frame_impl.h"
-#include "media/audio/audio_output_device.h"
 #include "media/audio/audio_parameters.h"
 #include "media/audio/sample_rates.h"
 #include "third_party/WebKit/public/platform/WebMediaStreamTrack.h"
@@ -221,11 +220,14 @@ bool WebRtcAudioRenderer::Initialize(WebRtcAudioRendererSource* source) {
     DCHECK(!source_);
   }
 
-  sink_ =
-      AudioDeviceFactory::NewOutputDevice(source_render_frame_id_, session_id_,
-                                          output_device_id_, security_origin_);
-  if (sink_->GetDeviceStatus() != media::OUTPUT_DEVICE_STATUS_OK)
+  sink_ = AudioDeviceFactory::NewAudioRendererSink(
+      AudioDeviceFactory::kSourceWebRtc, source_render_frame_id_, session_id_,
+      output_device_id_, security_origin_);
+
+  if (sink_->GetOutputDevice()->GetDeviceStatus() !=
+      media::OUTPUT_DEVICE_STATUS_OK) {
     return false;
+  }
 
   PrepareSink();
   {
@@ -238,6 +240,7 @@ bool WebRtcAudioRenderer::Initialize(WebRtcAudioRendererSource* source) {
     state_ = PAUSED;
   }
   sink_->Start();
+  sink_->Play();  // Not all the sinks play on start.
 
   return true;
 }
@@ -380,11 +383,13 @@ void WebRtcAudioRenderer::SwitchOutputDevice(
     DCHECK_NE(state_, UNINITIALIZED);
   }
 
-  scoped_refptr<media::AudioOutputDevice> new_sink =
-      AudioDeviceFactory::NewOutputDevice(source_render_frame_id_, session_id_,
-                                          device_id, security_origin);
-  if (new_sink->GetDeviceStatus() != media::OUTPUT_DEVICE_STATUS_OK) {
-    callback.Run(new_sink->GetDeviceStatus());
+  scoped_refptr<media::AudioRendererSink> new_sink =
+      AudioDeviceFactory::NewAudioRendererSink(
+          AudioDeviceFactory::kSourceWebRtc, source_render_frame_id_,
+          session_id_, device_id, security_origin);
+  if (new_sink->GetOutputDevice()->GetDeviceStatus() !=
+      media::OUTPUT_DEVICE_STATUS_OK) {
+    callback.Run(new_sink->GetOutputDevice()->GetDeviceStatus());
     return;
   }
 
@@ -411,7 +416,7 @@ media::AudioParameters WebRtcAudioRenderer::GetOutputParameters() {
   if (!sink_.get())
     return media::AudioParameters();
 
-  return sink_->GetOutputParameters();
+  return sink_->GetOutputDevice()->GetOutputParameters();
 }
 
 media::OutputDeviceStatus WebRtcAudioRenderer::GetDeviceStatus() {
@@ -419,16 +424,24 @@ media::OutputDeviceStatus WebRtcAudioRenderer::GetDeviceStatus() {
   if (!sink_.get())
     return media::OUTPUT_DEVICE_STATUS_ERROR_INTERNAL;
 
-  return sink_->GetDeviceStatus();
+  return sink_->GetOutputDevice()->GetDeviceStatus();
 }
 
 int WebRtcAudioRenderer::Render(media::AudioBus* audio_bus,
-                                uint32_t audio_delay_milliseconds,
+                                uint32_t frames_delayed,
                                 uint32_t frames_skipped) {
   DCHECK(audio_renderer_thread_checker_.CalledOnValidThread());
   base::AutoLock auto_lock(lock_);
   if (!source_)
     return 0;
+
+  // TODO(grunell): Converting from frames to milliseconds will potentially lose
+  // hundreds of microseconds which may cause audio video drift. Update
+  // this class and all usage of render delay msec -> frames (possibly even
+  // using a double type for frames). See http://crbug.com/586540
+  uint32_t audio_delay_milliseconds = static_cast<double>(frames_delayed) *
+                                      base::Time::kMillisecondsPerSecond /
+                                      sink_params_.sample_rate();
 
   DVLOG(2) << "WebRtcAudioRenderer::Render()";
   DVLOG(2) << "audio_delay_milliseconds: " << audio_delay_milliseconds;
@@ -481,6 +494,8 @@ void WebRtcAudioRenderer::SourceCallback(
            << audio_bus->frames() << ")";
 
   int output_delay_milliseconds = audio_delay_milliseconds_;
+  // TODO(grunell): This integer division by sample_rate will cause loss of
+  // partial milliseconds, and may cause avsync drift. http://crbug.com/586540
   output_delay_milliseconds += fifo_frame_delay *
                                base::Time::kMillisecondsPerSecond /
                                sink_params_.sample_rate();
@@ -618,7 +633,8 @@ void WebRtcAudioRenderer::PrepareSink() {
   // layer will be opened up at 192kHz but WebRTC will provide data at 48kHz
   // which will then be resampled by the audio converted on the browser side
   // to match the native audio layer.
-  int sample_rate = sink_->GetOutputParameters().sample_rate();
+  int sample_rate =
+      sink_->GetOutputDevice()->GetOutputParameters().sample_rate();
   DVLOG(1) << "Audio output hardware sample rate: " << sample_rate;
   if (sample_rate >= 192000) {
     DVLOG(1) << "Resampling from 48000 to " << sample_rate << " is required";
@@ -640,7 +656,8 @@ void WebRtcAudioRenderer::PrepareSink() {
 
   // Setup sink parameters.
   const int sink_frames_per_buffer = GetOptimalBufferSize(
-      sample_rate, sink_->GetOutputParameters().frames_per_buffer());
+      sample_rate,
+      sink_->GetOutputDevice()->GetOutputParameters().frames_per_buffer());
   new_sink_params.set_sample_rate(sample_rate);
   new_sink_params.set_frames_per_buffer(sink_frames_per_buffer);
 

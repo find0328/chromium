@@ -182,6 +182,7 @@ void LayoutBoxModelObject::styleDidChange(StyleDifference diff, const ComputedSt
     bool hadLayer = hasLayer();
     bool layerWasSelfPainting = hadLayer && layer()->isSelfPaintingLayer();
     bool wasFloatingBeforeStyleChanged = FloatStateForStyleChange::wasFloating(this);
+    bool wasHorizontalWritingMode = isHorizontalWritingMode();
 
     LayoutObject::styleDidChange(diff, oldStyle);
     updateFromStyle();
@@ -235,6 +236,21 @@ void LayoutBoxModelObject::styleDidChange(StyleDifference diff, const ComputedSt
         layer()->styleChanged(diff, oldStyle);
         if (hadLayer && layer()->isSelfPaintingLayer() != layerWasSelfPainting)
             setChildNeedsLayout();
+    }
+
+    if (oldStyle && wasHorizontalWritingMode != isHorizontalWritingMode()) {
+        // Changing the writingMode() may change isOrthogonalWritingModeRoot()
+        // of children. Make sure all children are marked/unmarked as orthogonal
+        // writing-mode roots.
+        bool newHorizontalWritingMode = isHorizontalWritingMode();
+        for (LayoutObject* child = slowFirstChild(); child; child = child->nextSibling()) {
+            if (!child->isBox())
+                continue;
+            if (newHorizontalWritingMode != child->isHorizontalWritingMode())
+                toLayoutBox(child)->markOrthogonalWritingModeRoot();
+            else
+                toLayoutBox(child)->unmarkOrthogonalWritingModeRoot();
+        }
     }
 
     // Fixed-position is painted using transform. In the case that the object
@@ -976,14 +992,23 @@ const LayoutObject* LayoutBoxModelObject::pushMappingToContainer(const LayoutBox
     LayoutSize containerOffset = offsetFromContainer(container, LayoutPoint(), &offsetDependsOnPoint);
 
     bool preserve3D = container->style()->preserves3D() || style()->preserves3D();
+    GeometryInfoFlags flags = 0;
+    if (preserve3D)
+        flags |= AccumulatingTransform;
+    if (offsetDependsOnPoint)
+        flags |= IsNonUniform;
+    if (isFixedPos)
+        flags |= IsFixedPosition;
+    if (hasTransform)
+        flags |= HasTransform;
     if (shouldUseTransformFromContainer(container)) {
         TransformationMatrix t;
         getTransformFromContainer(container, containerOffset, t);
         t.translateRight(adjustmentForSkippedAncestor.width().toFloat(), adjustmentForSkippedAncestor.height().toFloat());
-        geometryMap.push(this, t, preserve3D, offsetDependsOnPoint, isFixedPos, hasTransform);
+        geometryMap.push(this, t, flags);
     } else {
         containerOffset += adjustmentForSkippedAncestor;
-        geometryMap.push(this, containerOffset, preserve3D, offsetDependsOnPoint, isFixedPos, hasTransform);
+        geometryMap.push(this, containerOffset, flags);
     }
 
     return ancestorSkipped ? ancestorToStopAt : container;

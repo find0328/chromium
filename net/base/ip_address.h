@@ -69,8 +69,8 @@ class NET_EXPORT IPAddress {
   bool empty() const { return ip_address_.empty(); }
 
   // Returns the canonical string representation of an IP address.
-  // For example: "192.168.0.1" or "::1". The IP address must be
-  // valid, calling this on an invalid address will result in a crash.
+  // For example: "192.168.0.1" or "::1". Returns the empty string when
+  // |ip_address_| is invalid.
   std::string ToString() const;
 
   // Parses an IP address literal (either IPv4 or IPv6) to its numeric value.
@@ -112,6 +112,20 @@ NET_EXPORT IPAddress ConvertIPv4ToIPv4MappedIPv6(const IPAddress& address);
 // Converts an IPv4-mapped IPv6 address to IPv4 address. Should only be called
 // on IPv4-mapped IPv6 addresses.
 NET_EXPORT IPAddress ConvertIPv4MappedIPv6ToIPv4(const IPAddress& address);
+
+// Compares an IP address to see if it falls within the specified IP block.
+// Returns true if it does, false otherwise.
+//
+// The IP block is given by (|ip_prefix|, |prefix_length_in_bits|) -- any
+// IP address whose |prefix_length_in_bits| most significant bits match
+// |ip_prefix| will be matched.
+//
+// In cases when an IPv4 address is being compared to an IPv6 address prefix
+// and vice versa, the IPv4 addresses will be converted to IPv4-mapped
+// (IPv6) addresses.
+NET_EXPORT bool IPAddressMatchesPrefix(const IPAddress& ip_address,
+                                       const IPAddress& ip_prefix,
+                                       size_t prefix_length_in_bits);
 
 }  // namespace net
 

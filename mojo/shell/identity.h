@@ -30,6 +30,7 @@ class Identity {
 
   bool operator<(const Identity& other) const;
   bool is_null() const { return url_.is_empty(); }
+  bool operator==(const Identity& other) const;
 
   const GURL& url() const { return url_; }
   const std::string& qualifier() const { return qualifier_; }
@@ -46,6 +47,10 @@ class Identity {
   //             instance identity of an application.
   CapabilityFilter filter_;
 };
+
+// Creates an identity for the Shell, used when the Shell connects to
+// applications.
+Identity CreateShellIdentity();
 
 }  // namespace shell
 }  // namespace mojo

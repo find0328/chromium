@@ -109,7 +109,6 @@ WebInspector.Main.prototype = {
         Runtime.experiments.register("colorContrastRatio", "Contrast ratio line in color picker", true);
         Runtime.experiments.register("cpuThrottling", "CPU throttling", true);
         Runtime.experiments.register("emptySourceMapAutoStepping", "Empty sourcemap auto-stepping");
-        Runtime.experiments.register("fileSystemInspection", "FileSystem inspection");
         Runtime.experiments.register("gpuTimeline", "GPU data on timeline", true);
         Runtime.experiments.register("inputEventsOnTimelineOverview", "Input events on Timeline overview", true);
         Runtime.experiments.register("layersPanel", "Layers panel");
@@ -203,7 +202,7 @@ WebInspector.Main.prototype = {
 
         new WebInspector.OverlayController();
         new WebInspector.ExecutionContextSelector(WebInspector.targetManager, WebInspector.context);
-        new WebInspector.BlackboxManager();
+        WebInspector.blackboxManager = new WebInspector.BlackboxManager(WebInspector.debuggerWorkspaceBinding, WebInspector.networkMapping);
 
         var autoselectPanel = WebInspector.UIString("auto");
         var openAnchorLocationSetting = WebInspector.settings.createSetting("openLinkHandler", autoselectPanel);
@@ -1114,5 +1113,25 @@ WebInspector.AutoAttachToCreatedPagesSync.prototype = {
     {
     }
 }
+
+/**
+ * @constructor
+ * @implements {WebInspector.SettingUI}
+ */
+WebInspector.ShowMetricsRulersSettingUI = function()
+{
+}
+
+WebInspector.ShowMetricsRulersSettingUI.prototype = {
+    /**
+     * @override
+     * @return {?Element}
+     */
+    settingElement: function()
+    {
+        return WebInspector.SettingsUI.createSettingCheckbox(WebInspector.UIString("Show rulers"), WebInspector.moduleSetting("showMetricsRulers"));
+    }
+}
+
 
 new WebInspector.Main();

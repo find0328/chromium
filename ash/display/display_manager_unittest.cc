@@ -7,6 +7,7 @@
 #include "ash/accelerators/accelerator_commands.h"
 #include "ash/ash_switches.h"
 #include "ash/display/display_info.h"
+#include "ash/display/display_layout_builder.h"
 #include "ash/display/display_layout_store.h"
 #include "ash/display/display_util.h"
 #include "ash/display/mirror_window_controller.h"
@@ -407,8 +408,8 @@ TEST_F(DisplayManagerTest, OverscanInsetsTest) {
             updated_display_info2.GetOverscanInsetsInPixel().ToString());
 
   // Make sure switching primary display applies the overscan offset only once.
-  ash::Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplay(
-      ScreenUtil::GetSecondaryDisplay());
+  ash::Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplayId(
+      ScreenUtil::GetSecondaryDisplay().id());
   EXPECT_EQ("-500,0 500x500",
             ScreenUtil::GetSecondaryDisplay().bounds().ToString());
   EXPECT_EQ("0,0 500x500",
@@ -696,7 +697,6 @@ TEST_F(DisplayManagerTest, DisplayAddRemoveAtTheSameTime) {
 #define MAYBE_TestNativeDisplaysChangedNoInternal \
         TestNativeDisplaysChangedNoInternal
 #endif
-
 TEST_F(DisplayManagerTest, MAYBE_TestNativeDisplaysChangedNoInternal) {
   EXPECT_EQ(1U, display_manager()->GetNumDisplays());
 
@@ -737,8 +737,8 @@ TEST_F(DisplayManagerTest, NativeDisplaysChangedAfterPrimaryChange) {
             GetDisplayForId(internal_display_id).bounds().ToString());
   EXPECT_EQ("500,0 100x100", GetDisplayForId(10).bounds().ToString());
 
-  ash::Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplay(
-      GetDisplayForId(secondary_display_info.id()));
+  ash::Shell::GetInstance()->window_tree_host_manager()->SetPrimaryDisplayId(
+      secondary_display_info.id());
   EXPECT_EQ("-500,0 500x500",
             GetDisplayForId(internal_display_id).bounds().ToString());
   EXPECT_EQ("0,0 100x100", GetDisplayForId(10).bounds().ToString());
@@ -751,7 +751,13 @@ TEST_F(DisplayManagerTest, NativeDisplaysChangedAfterPrimaryChange) {
   EXPECT_EQ("0,0 100x100", GetDisplayForId(10).bounds().ToString());
 }
 
-TEST_F(DisplayManagerTest, DontRememberBestResolution) {
+#if defined(OS_WIN)
+// TODO(msw): Broken on Windows. http://crbug.com/584038
+#define MAYBE_DontRememberBestResolution DISABLED_DontRememberBestResolution
+#else
+#define MAYBE_DontRememberBestResolution DontRememberBestResolution
+#endif
+TEST_F(DisplayManagerTest, MAYBE_DontRememberBestResolution) {
   int display_id = 1000;
   DisplayInfo native_display_info =
       CreateDisplayInfo(display_id, gfx::Rect(0, 0, 1000, 500));
@@ -807,7 +813,13 @@ TEST_F(DisplayManagerTest, DontRememberBestResolution) {
       display_manager()->GetActiveModeForDisplayId(display_id)));
 }
 
-TEST_F(DisplayManagerTest, ResolutionFallback) {
+#if defined(OS_WIN)
+// TODO(msw): Broken on Windows. http://crbug.com/584038
+#define MAYBE_ResolutionFallback DISABLED_ResolutionFallback
+#else
+#define MAYBE_ResolutionFallback ResolutionFallback
+#endif
+TEST_F(DisplayManagerTest, MAYBE_ResolutionFallback) {
   int display_id = 1000;
   DisplayInfo native_display_info =
       CreateDisplayInfo(display_id, gfx::Rect(0, 0, 1000, 500));
@@ -953,7 +965,13 @@ TEST_F(DisplayManagerTest, Rotate) {
   EXPECT_EQ(gfx::Display::ROTATE_180, post_rotation_info.GetActiveRotation());
 }
 
-TEST_F(DisplayManagerTest, UIScale) {
+#if defined(OS_WIN)
+// TODO(msw): Broken on Windows. http://crbug.com/584038
+#define MAYBE_UIScale DISABLED_UIScale
+#else
+#define MAYBE_UIScale UIScale
+#endif
+TEST_F(DisplayManagerTest, MAYBE_UIScale) {
   test::ScopedDisable125DSFForUIScaling disable;
 
   UpdateDisplay("1280x800");
@@ -1106,7 +1124,13 @@ TEST_F(DisplayManagerTest, UIScaleWithDisplayMode) {
       display_manager()->GetActiveModeForDisplayId(display_id)));
 }
 
-TEST_F(DisplayManagerTest, Use125DSFForUIScaling) {
+#if defined(OS_WIN) && !defined(USE_ASH)
+// TODO(msw): Broken on Windows. http://crbug.com/584038
+#define MAYBE_Use125DSFForUIScaling DISABLED_Use125DSFForUIScaling
+#else
+#define MAYBE_Use125DSFForUIScaling Use125DSFForUIScaling
+#endif
+TEST_F(DisplayManagerTest, MAYBE_Use125DSFForUIScaling) {
   int64_t display_id = gfx::Screen::GetScreen()->GetPrimaryDisplay().id();
   test::ScopedSetInternalDisplayId set_internal(display_id);
 
@@ -1176,11 +1200,11 @@ TEST_F(DisplayManagerTest, ResolutionChangeInUnifiedMode) {
 #if defined(OS_WIN)
 // TODO(scottmg): RootWindow doesn't get resized on Windows
 // Ash. http://crbug.com/247916.
-#define MAYBE_UpdateMouseCursorAfterRotateZoom DISABLED_UpdateMouseCursorAfterRotateZoom
+#define MAYBE_UpdateMouseCursorAfterRotateZoom \
+  DISABLED_UpdateMouseCursorAfterRotateZoom
 #else
 #define MAYBE_UpdateMouseCursorAfterRotateZoom UpdateMouseCursorAfterRotateZoom
 #endif
-
 TEST_F(DisplayManagerTest, MAYBE_UpdateMouseCursorAfterRotateZoom) {
   // Make sure just rotating will not change native location.
   UpdateDisplay("300x200,200x150");
@@ -1602,11 +1626,11 @@ TEST_F(DisplayManagerTest, UnifiedDesktopWithHardwareMirroring) {
   // This is a workdaround to force the display manager to forget
   // the mirroing layout.
   DisplayIdList list = CreateDisplayIdList(1, 2);
-  DisplayLayout layout =
-      display_manager()->layout_store()->GetRegisteredDisplayLayout(list);
-  layout.mirrored = false;
-  display_manager()->layout_store()->RegisterLayoutForDisplayIdList(list,
-                                                                    layout);
+  DisplayLayoutBuilder builder(
+      display_manager()->layout_store()->GetRegisteredDisplayLayout(list));
+  builder.SetMirrored(false);
+  display_manager()->layout_store()->RegisterLayoutForDisplayIdList(
+      list, builder.Build());
 
   // Exit from hardware mirroring.
   d2.SetBounds(gfx::Rect(0, 500, 500, 500));
@@ -1626,11 +1650,11 @@ TEST_F(DisplayManagerTest, UnifiedDesktopEnabledWithExtended) {
 
   UpdateDisplay("400x500,300x200");
   DisplayIdList list = display_manager()->GetCurrentDisplayIdList();
-  DisplayLayout layout =
-      display_manager()->layout_store()->GetRegisteredDisplayLayout(list);
-  layout.default_unified = false;
-  display_manager()->layout_store()->RegisterLayoutForDisplayIdList(list,
-                                                                    layout);
+  DisplayLayoutBuilder builder(
+      display_manager()->layout_store()->GetRegisteredDisplayLayout(list));
+  builder.SetDefaultUnified(false);
+  display_manager()->layout_store()->RegisterLayoutForDisplayIdList(
+      list, builder.Build());
   display_manager()->SetUnifiedDesktopEnabled(true);
   EXPECT_FALSE(display_manager()->IsInUnifiedMode());
 }
@@ -2022,27 +2046,22 @@ TEST_F(DisplayManagerTest, RejectInvalidLayoutData) {
   int64_t id1 = 10001;
   int64_t id2 = 10002;
   ASSERT_TRUE(CompareDisplayIds(id1, id2));
-  ash::DisplayLayout good;
-  good.primary_id = id1;
-  good.placement = DisplayPlacement(DisplayPlacement::LEFT, 0);
-  good.placement.display_id = id2;
-  good.placement.parent_display_id = id1;
+  DisplayLayoutBuilder good_builder(id1);
+  good_builder.SetSecondaryPlacement(id2, DisplayPlacement::LEFT, 0);
+  scoped_ptr<DisplayLayout> good(good_builder.Build());
 
   DisplayIdList good_list = CreateDisplayIdList(id1, id2);
-  layout_store->RegisterLayoutForDisplayIdList(good_list, good);
+  layout_store->RegisterLayoutForDisplayIdList(good_list, good->Copy());
 
-  DisplayLayout bad;
-  bad.placement = DisplayPlacement(DisplayPlacement::BOTTOM, 0);
-  bad.primary_id = id1;
-  good.placement.display_id = id2;
-  good.placement.parent_display_id = id1;
+  DisplayLayoutBuilder bad(id1);
+  bad.SetSecondaryPlacement(id2, DisplayPlacement::BOTTOM, 0);
 
   DisplayIdList bad_list(2);
   bad_list[0] = id2;
   bad_list[1] = id1;
-  layout_store->RegisterLayoutForDisplayIdList(bad_list, bad);
+  layout_store->RegisterLayoutForDisplayIdList(bad_list, bad.Build());
 
-  EXPECT_EQ(good.ToString(),
+  EXPECT_EQ(good->ToString(),
             layout_store->GetRegisteredDisplayLayout(good_list).ToString());
 }
 
@@ -2050,14 +2069,14 @@ TEST_F(DisplayManagerTest, GuessDisplayIdFieldsInDisplayLayout) {
   int64_t id1 = 10001;
   int64_t id2 = 10002;
 
-  DisplayLayout old_layout;
-  old_layout.placement = DisplayPlacement(DisplayPlacement::BOTTOM, 0);
-  old_layout.primary_id = id1;
+  scoped_ptr<DisplayLayout> old_layout(new DisplayLayout);
+  old_layout->placement = DisplayPlacement(DisplayPlacement::BOTTOM, 0);
+  old_layout->primary_id = id1;
 
   DisplayLayoutStore* layout_store = display_manager()->layout_store();
   DisplayIdList list = CreateDisplayIdList(id1, id2);
-  layout_store->RegisterLayoutForDisplayIdList(list, old_layout);
-  DisplayLayout stored = layout_store->GetRegisteredDisplayLayout(list);
+  layout_store->RegisterLayoutForDisplayIdList(list, std::move(old_layout));
+  const DisplayLayout& stored = layout_store->GetRegisteredDisplayLayout(list);
 
   EXPECT_EQ(id1, stored.placement.parent_display_id);
   EXPECT_EQ(id2, stored.placement.display_id);

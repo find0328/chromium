@@ -14,8 +14,8 @@ import android.view.ViewGroup;
 import org.chromium.base.annotations.SuppressFBWarnings;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkItem;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkModelObserver;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkItem;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserver;
 import org.chromium.chrome.browser.bookmarks.BookmarkPromoHeader.PromoHeaderShowingChangeListener;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.OfflinePageModelObserver;
@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * BaseAdapter for EnhancedBookmarkItemsContainer. It manages bookmarks to list there.
+ * BaseAdapter for {@link BookmarkRecyclerView}. It manages bookmarks to list there.
  */
 class BookmarkItemsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> implements
         BookmarkUIObserver, PromoHeaderShowingChangeListener {
@@ -213,15 +213,15 @@ class BookmarkItemsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder>
                 return mOfflineStorageHeader.createHolder(parent);
             case DIVIDER_VIEW:
                 return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(
-                        R.layout.eb_divider, parent, false)) {};
+                        R.layout.bookmark_divider, parent, false)) {};
             case FOLDER_VIEW:
-                BookmarkFolderRow folder = (BookmarkFolderRow) LayoutInflater
-                        .from(parent.getContext()).inflate(R.layout.eb_folder_row, parent, false);
+                BookmarkFolderRow folder = (BookmarkFolderRow) LayoutInflater.from(
+                        parent.getContext()).inflate(R.layout.bookmark_folder_row, parent, false);
                 folder.onBookmarkDelegateInitialized(mDelegate);
                 return new ItemViewHolder(folder);
             case BOOKMARK_VIEW:
-                BookmarkBookmarkRow item = (BookmarkBookmarkRow) LayoutInflater
-                        .from(parent.getContext()).inflate(R.layout.eb_bookmark_row, parent, false);
+                BookmarkBookmarkRow item = (BookmarkBookmarkRow) LayoutInflater.from(
+                        parent.getContext()).inflate(R.layout.bookmark_bookmark_row, parent, false);
                 item.onBookmarkDelegateInitialized(mDelegate);
                 return new ItemViewHolder(item);
             default:

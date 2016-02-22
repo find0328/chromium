@@ -38,8 +38,30 @@ source_set("blimp_client") {
     "//cc",
     "//gpu/skia_bindings",
     "//net",
+    "//third_party/libwebp",
     "//ui/gfx/geometry",
     "//url:url",
+  ]
+}
+
+source_set("blimp_client_unit_tests") {
+  testonly = true
+
+  sources = []
+
+  # TODO(dtrainor): Fix the test harness to allow this to run on Android.
+  # See crbug.com/588240.
+  if (is_linux) {
+    sources += [ "session/assignment_source_unittest.cc" ]
+  }
+
+  deps = [
+    ":blimp_client",
+    "//base",
+    "//base/test:run_all_unittests",
+    "//base/test:test_support",
+    "//testing/gmock",
+    "//testing/gtest",
   ]
 }
 
@@ -76,6 +98,8 @@ source_set("feature") {
     "feature/compositor/blimp_layer_tree_settings.h",
     "feature/compositor/blimp_output_surface.cc",
     "feature/compositor/blimp_output_surface.h",
+    "feature/compositor/decoding_image_generator.cc",
+    "feature/compositor/decoding_image_generator.h",
     "feature/navigation_feature.cc",
     "feature/navigation_feature.h",
     "feature/render_widget_feature.cc",
@@ -255,7 +279,15 @@ if (is_android) {
     ]
   }
 
+  java_cpp_enum("blimp_java_enums_srcjar") {
+    sources = [
+      "session/assignment_source.h",
+    ]
+  }
+
   android_library("blimp_java") {
+    srcjar_deps = [ ":blimp_java_enums_srcjar" ]
+
     deps = [
       ":blimp_java_resources",
       "//base:base_java",
@@ -339,6 +371,7 @@ if (is_android) {
       ":blimp_java",
       ":blimp_java_resources",
       "//base:base_java",
+      "//net/android:net_java",
       google_play_services_resources,
     ]
     apk_name = "Blimp"

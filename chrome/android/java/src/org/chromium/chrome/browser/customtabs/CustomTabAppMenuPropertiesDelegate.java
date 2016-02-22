@@ -8,7 +8,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
-import android.os.StrictMode;
+import android.os.AsyncTask;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -21,24 +21,43 @@ import org.chromium.chrome.browser.tab.Tab;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 /**
  * App menu properties delegate for {@link CustomTabActivity}.
  */
 public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegate {
     private static final String SAMPLE_URL = "https://www.google.com";
+
+    private final boolean mShowShare;
+    private final boolean mShowBookmark;
+    private final List<String> mMenuEntries;
+    private final Map<MenuItem, Integer> mItemToIndexMap = new HashMap<MenuItem, Integer>();
+    private final AsyncTask<Void, Void, String> mDefaultBrowserFetcher;
+
     private boolean mIsCustomEntryAdded;
-    private boolean mShowShare;
-    private List<String> mMenuEntries;
-    private Map<MenuItem, Integer> mItemToIndexMap = new HashMap<MenuItem, Integer>();
+
     /**
      * Creates an {@link CustomTabAppMenuPropertiesDelegate} instance.
      */
-    public CustomTabAppMenuPropertiesDelegate(ChromeActivity activity, List<String> menuEntries,
-            boolean showShare) {
+    public CustomTabAppMenuPropertiesDelegate(final ChromeActivity activity,
+            List<String> menuEntries, boolean showShare, boolean showBookmark) {
         super(activity);
         mMenuEntries = menuEntries;
         mShowShare = showShare;
+        mShowBookmark = showBookmark;
+        mDefaultBrowserFetcher = new AsyncTask<Void, Void, String>() {
+            @Override
+            protected String doInBackground(Void... params) {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(SAMPLE_URL));
+                PackageManager pm = activity.getPackageManager();
+                ResolveInfo info = pm.resolveActivity(intent, 0);
+                return info != null && info.match != 0
+                        ? activity.getString(
+                                R.string.menu_open_in_product, info.loadLabel(pm).toString())
+                        : activity.getString(R.string.menu_open_in_product_default);
+            }
+        }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     @Override
@@ -56,25 +75,23 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             shareItem.setVisible(mShowShare);
             shareItem.setEnabled(mShowShare);
 
-            MenuItem openInChromeItem = menu.findItem(R.id.open_in_browser_id);
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(SAMPLE_URL));
-            PackageManager pm = mActivity.getPackageManager();
-            ResolveInfo info = null;
-
-            // Temporarily allowing disk access while fixing. TODO: http://crbug.com/581856
-            StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
-            StrictMode.allowThreadDiskWrites();
-            try {
-                info = pm.resolveActivity(intent, 0);
-            } finally {
-                StrictMode.setThreadPolicy(oldPolicy);
+            if (mShowBookmark) {
+                MenuItem bookmarkItem = menu.findItem(R.id.bookmark_this_page_id);
+                updateBookmarkMenuItem(bookmarkItem, currentTab);
+            } else {
+                // Because we have custom logic for laying out the icon row, the bookmark icon must
+                // be explicitly removed instead of just made invisible.
+                menu.findItem(R.id.icon_row_menu_id).getSubMenu().removeItem(
+                        R.id.bookmark_this_page_id);
             }
 
-            String menuItemTitle = info != null && info.match != 0
-                    ? mActivity.getString(
-                            R.string.menu_open_in_product, info.loadLabel(pm).toString())
-                    : mActivity.getString(R.string.menu_open_in_product_default);
-            openInChromeItem.setTitle(menuItemTitle);
+            MenuItem openInChromeItem = menu.findItem(R.id.open_in_browser_id);
+            try {
+                openInChromeItem.setTitle(mDefaultBrowserFetcher.get());
+            } catch (InterruptedException | ExecutionException e) {
+                openInChromeItem.setTitle(
+                        mActivity.getString(R.string.menu_open_in_product_default));
+            }
 
             // Add custom menu items. Make sure they are only added once.
             if (!mIsCustomEntryAdded) {

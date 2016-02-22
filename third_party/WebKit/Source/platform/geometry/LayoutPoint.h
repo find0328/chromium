@@ -35,6 +35,7 @@
 #include "platform/geometry/FloatPoint.h"
 #include "platform/geometry/LayoutSize.h"
 #include "wtf/Allocator.h"
+#include "wtf/Forward.h"
 #include "wtf/MathExtras.h"
 #include <algorithm>
 
@@ -45,6 +46,7 @@ class LayoutPoint {
 public:
     LayoutPoint() { }
     LayoutPoint(LayoutUnit x, LayoutUnit y) : m_x(x), m_y(y) { }
+    LayoutPoint(int x, int y) : m_x(LayoutUnit(x)), m_y(LayoutUnit(y)) { }
     LayoutPoint(const IntPoint& point) : m_x(point.x()), m_y(point.y()) { }
     explicit LayoutPoint(const FloatPoint& point) : m_x(point.x()), m_y(point.y()) { }
     explicit LayoutPoint(const DoublePoint& point) : m_x(point.x()), m_y(point.y()) { }
@@ -88,6 +90,10 @@ public:
     {
         return LayoutPoint(m_y, m_x);
     }
+
+#ifndef NDEBUG
+    String toString() const;
+#endif
 
 private:
     LayoutUnit m_x, m_y;
@@ -237,7 +243,6 @@ inline LayoutPoint flooredLayoutPoint(const FloatSize& s)
 {
     return flooredLayoutPoint(FloatPoint(s));
 }
-
 
 } // namespace blink
 

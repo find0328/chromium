@@ -630,6 +630,8 @@
           'task_runner.cc',
           'task_runner.h',
           'task_runner_util.h',
+          'task_scheduler/task_traits.cc',
+          'task_scheduler/task_traits.h',
           'template_util.h',
           'third_party/dmg_fp/dmg_fp.h',
           'third_party/dmg_fp/dtoa_wrapper.cc',
@@ -916,6 +918,7 @@
               # Exclude unsupported features on iOS.
               ['exclude', '^files/file_path_watcher.*'],
               ['exclude', '^threading/platform_thread_internal_posix\\.(h|cc)'],
+              ['exclude', '^trace_event/malloc_dump_provider\\.(h|cc)$'],
             ],
             'sources': [
               'process/memory_stubs.cc',

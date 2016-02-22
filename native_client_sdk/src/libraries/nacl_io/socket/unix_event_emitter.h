@@ -28,16 +28,18 @@ class UnixEventEmitter : public StreamEventEmitter {
   uint32_t SpaceInInputFIFO();
 
   virtual ScopedUnixEventEmitter GetPeerEmitter() = 0;
+  virtual void Shutdown_Locked(bool read, bool write) = 0;
+  virtual bool IsShutdownRead() const = 0;
+  virtual bool IsShutdownWrite() const = 0;
 
   static ScopedUnixEventEmitter MakeUnixEventEmitter(size_t size, int type);
 
  protected:
   UnixEventEmitter() {}
 
-  // Probably only need the master's lock.
-  virtual const sdk_util::SimpleLock& GetFifoLock() = 0;
   virtual FIFOInterface* in_fifo() = 0;
   virtual FIFOInterface* out_fifo() = 0;
+  void UpdateStatus_Locked();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(UnixEventEmitter);

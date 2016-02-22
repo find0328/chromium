@@ -144,6 +144,8 @@ class TEST_RUNNER_EXPORT WebTestProxyBase {
 
   void PostAccessibilityEvent(const blink::WebAXObject&, blink::WebAXEvent);
 
+  bool AnimationScheduled() { return animate_scheduled_; }
+
  protected:
   WebTestProxyBase();
   ~WebTestProxyBase();
@@ -205,17 +207,14 @@ class TEST_RUNNER_EXPORT WebTestProxyBase {
   void DidChangeLocationWithinPage(blink::WebLocalFrame* frame);
   void DidDetectXSS(const blink::WebURL& insecure_url,
                     bool did_block_entire_page);
-  void DidDispatchPingLoader(blink::WebLocalFrame* frame,
-                             const blink::WebURL& url);
+  void DidDispatchPingLoader(const blink::WebURL& url);
   void WillSendRequest(blink::WebLocalFrame* frame,
                        unsigned identifier,
                        blink::WebURLRequest& request,
                        const blink::WebURLResponse& redirect_response);
-  void DidReceiveResponse(blink::WebLocalFrame* frame,
-                          unsigned identifier,
+  void DidReceiveResponse(unsigned identifier,
                           const blink::WebURLResponse& response);
-  void DidChangeResourcePriority(blink::WebLocalFrame* frame,
-                                 unsigned identifier,
+  void DidChangeResourcePriority(unsigned identifier,
                                  const blink::WebURLRequest::Priority& priority,
                                  int intra_priority_value);
   void DidFinishResourceLoad(blink::WebLocalFrame* frame, unsigned identifier);
@@ -378,9 +377,6 @@ class WebTestProxy : public Base, public WebTestProxyBase {
                                      blink::WebTextDirection sub_message_hint) {
     WebTestProxyBase::ShowValidationMessage(main_message, main_message_hint,
                                             sub_message, sub_message_hint);
-  }
-  virtual void postSpellCheckEvent(const blink::WebString& event_name) {
-    WebTestProxyBase::PostSpellCheckEvent(event_name);
   }
   virtual blink::WebString acceptLanguages() {
     return WebTestProxyBase::acceptLanguages();

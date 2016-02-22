@@ -67,7 +67,7 @@ void GCMDriverAndroid::OnUnregisterFinished(
 
   recorder_.RecordUnregistrationResponse(app_id, success);
 
-  UnregisterFinished(app_id, result);
+  RemoveEncryptionInfoAfterUnregister(app_id, result);
 }
 
 void GCMDriverAndroid::OnMessageReceived(
@@ -259,8 +259,8 @@ void GCMDriverAndroid::SendImpl(const std::string& app_id,
 
 void GCMDriverAndroid::RecordDecryptionFailure(
     const std::string& app_id,
-    GCMEncryptionProvider::DecryptionFailure reason) {
-  recorder_.RecordDecryptionFailure(app_id, reason);
+    GCMEncryptionProvider::DecryptionResult result) {
+  recorder_.RecordDecryptionFailure(app_id, result);
 }
 
 }  // namespace gcm

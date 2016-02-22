@@ -115,16 +115,6 @@ bool WebRuntimeFeatures::isEncryptedMediaEnabled()
     return RuntimeEnabledFeatures::encryptedMediaEnabled();
 }
 
-void WebRuntimeFeatures::enablePrefixedEncryptedMedia(bool enable)
-{
-    RuntimeEnabledFeatures::setPrefixedEncryptedMediaEnabled(enable);
-}
-
-bool WebRuntimeFeatures::isPrefixedEncryptedMediaEnabled()
-{
-    return RuntimeEnabledFeatures::prefixedEncryptedMediaEnabled();
-}
-
 void WebRuntimeFeatures::enableExperimentalCanvasFeatures(bool enable)
 {
     RuntimeEnabledFeatures::setExperimentalCanvasFeaturesEnabled(enable);
@@ -173,6 +163,11 @@ void WebRuntimeFeatures::enableMediaRecorder(bool enable)
 void WebRuntimeFeatures::enableMediaSource(bool enable)
 {
     RuntimeEnabledFeatures::setMediaSourceEnabled(enable);
+}
+
+void WebRuntimeFeatures::enableNotificationActionIcons(bool enable)
+{
+    RuntimeEnabledFeatures::setNotificationActionIconsEnabled(enable);
 }
 
 void WebRuntimeFeatures::enableNotificationConstructor(bool enable)

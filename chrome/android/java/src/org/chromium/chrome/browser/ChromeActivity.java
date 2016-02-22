@@ -60,7 +60,7 @@ import org.chromium.chrome.browser.appmenu.AppMenu;
 import org.chromium.chrome.browser.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.appmenu.AppMenuObserver;
 import org.chromium.chrome.browser.appmenu.AppMenuPropertiesDelegate;
-import org.chromium.chrome.browser.bookmark.BookmarksBridge.BookmarkModelObserver;
+import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserver;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkUtils;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
@@ -185,7 +185,7 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
     private ContextReporter mContextReporter;
     protected GSAServiceClient mGSAServiceClient;
 
-    private boolean mPartnerBrowserRefreshNeeded = false;
+    private boolean mPartnerBrowserRefreshNeeded;
 
     protected IntentHandler mIntentHandler;
 
@@ -240,6 +240,12 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
     @Override
     public void preInflationStartup() {
         super.preInflationStartup();
+
+        // Force a partner customizations refresh if it has yet to be initialized.  This can happen
+        // if Chrome is killed and you refocus a previous activity from Android recents, which does
+        // not go through ChromeLauncherActivity that would have normally triggered this.
+        mPartnerBrowserRefreshNeeded = !PartnerBrowserCustomizations.isInitialized();
+
         ApplicationInitialization.enableFullscreenFlags(
                 getResources(), this, getControlContainerHeightResource());
         // TODO(twellington): Remove this work around when the underlying bug is fixed.
@@ -365,6 +371,13 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         mAppMenuHandler.addObserver(new AppMenuObserver() {
             @Override
             public void onMenuVisibilityChanged(boolean isVisible) {
+                if (isVisible && !isInOverviewMode()) {
+                    // The app menu badge should be removed the first time the menu is opened.
+                    if (mToolbarManager.getToolbar().isShowingAppMenuUpdateBadge()) {
+                        mToolbarManager.getToolbar().removeAppMenuUpdateBadge(true);
+                        mCompositorViewHolder.requestRender();
+                    }
+                }
                 if (!isVisible) {
                     mAppMenuPropertiesDelegate.onMenuDismissed();
                     MenuItem updateMenuItem = mAppMenuHandler.getAppMenu().getMenu().findItem(
@@ -862,6 +875,9 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
     protected void onAccessibilityModeChanged(boolean enabled) {
         InfoBarContainer.setIsAllowedToAutoHide(!enabled);
         if (mToolbarManager != null) mToolbarManager.onAccessibilityStatusChanged(enabled);
+        if (mContextualSearchManager != null) {
+            mContextualSearchManager.onAccessibilityModeChanged(enabled);
+        }
     }
 
     @Override
@@ -1005,7 +1021,7 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
         }
 
         // Defense in depth against the UI being erroneously enabled.
-        if (!mToolbarManager.getBookmarksBridge().isEditBookmarksEnabled()) {
+        if (!mToolbarManager.getBookmarkBridge().isEditBookmarksEnabled()) {
             assert false;
             return;
         }
@@ -1319,7 +1335,7 @@ public abstract class ChromeActivity extends AsyncInitializationActivity
             mToolbarManager.getToolbar().showAppMenuUpdateBadge();
             mCompositorViewHolder.requestRender();
         } else {
-            mToolbarManager.getToolbar().removeAppMenuUpdateBadge();
+            mToolbarManager.getToolbar().removeAppMenuUpdateBadge(false);
         }
     }
 

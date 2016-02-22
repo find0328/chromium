@@ -15,7 +15,7 @@
 #include "mojo/shell/application_loader.h"
 #include "mojo/shell/application_manager.h"
 #include "mojo/shell/capability_filter.h"
-#include "mojo/shell/connect_to_application_params.h"
+#include "mojo/shell/connect_params.h"
 #include "mojo/shell/public/cpp/shell_client.h"
 #include "mojo/shell/public/cpp/shell_connection.h"
 #include "mojo/shell/standalone/context.h"
@@ -29,27 +29,27 @@ scoped_ptr<base::MessagePump> CreateMessagePumpMojo() {
   return make_scoped_ptr(new common::MessagePumpMojo);
 }
 
-// Used to obtain the InterfaceRequest for an application.
+// Used to obtain the ShellClientRequest for an application. When
+// ApplicationLoader::Load() is called a callback is run with the
+// ShellClientRequest.
 class BackgroundApplicationLoader : public ApplicationLoader {
  public:
-  BackgroundApplicationLoader() {}
+  using Callback = base::Callback<void(mojom::ShellClientRequest)>;
+
+  explicit BackgroundApplicationLoader(const Callback& callback)
+      : callback_(callback) {}
   ~BackgroundApplicationLoader() override {}
 
-  bool got_request() const { return got_request_; }
-  InterfaceRequest<mojom::ShellClient> TakeApplicationRequest() {
-    return std::move(request_);
-  }
-
   // ApplicationLoader:
-  void Load(const GURL& url,
-            InterfaceRequest<mojom::ShellClient> request) override {
-    got_request_ = true;
-    request_ = std::move(request);
+  void Load(const GURL& url, mojom::ShellClientRequest request) override {
+    DCHECK(!callback_.is_null());  // Callback should only be run once.
+    Callback callback = callback_;
+    callback_.Reset();
+    callback.Run(std::move(request));
   }
 
  private:
-  bool got_request_ = false;
-  InterfaceRequest<mojom::ShellClient> request_;
+  Callback callback_;
 
   DISALLOW_COPY_AND_ASSIGN(BackgroundApplicationLoader);
 };
@@ -72,26 +72,28 @@ class MojoMessageLoop : public base::MessageLoop {
 // Manages the thread to startup mojo.
 class BackgroundShell::MojoThread : public base::SimpleThread {
  public:
-  MojoThread() : SimpleThread("mojo-background-shell") {}
+  explicit MojoThread(
+      const std::vector<CommandLineSwitch>& command_line_switches)
+      : SimpleThread("mojo-background-shell"),
+        command_line_switches_(command_line_switches) {}
   ~MojoThread() override {}
 
   void CreateShellClientRequest(base::WaitableEvent* signal,
-                                scoped_ptr<ConnectToApplicationParams> params,
-                                InterfaceRequest<mojom::ShellClient>* request) {
+                                scoped_ptr<ConnectParams> params,
+                                mojom::ShellClientRequest* request) {
     // Only valid to call this on the background thread.
     DCHECK_EQ(message_loop_, base::MessageLoop::current());
 
     // Ownership of |loader| passes to ApplicationManager.
-    BackgroundApplicationLoader* loader = new BackgroundApplicationLoader;
     const GURL url = params->target().url();
+    BackgroundApplicationLoader* loader = new BackgroundApplicationLoader(
+        base::Bind(&MojoThread::OnGotApplicationRequest, base::Unretained(this),
+                   url, signal, request));
     context_->application_manager()->SetLoaderForURL(make_scoped_ptr(loader),
                                                      url);
-    context_->application_manager()->ConnectToApplication(std::move(params));
-    DCHECK(loader->got_request());
-    *request = loader->TakeApplicationRequest();
-    // Trigger destruction of the loader.
-    context_->application_manager()->SetLoaderForURL(nullptr, url);
-    signal->Signal();
+    context_->application_manager()->Connect(std::move(params));
+    // The request is asynchronously processed. When processed
+    // OnGotApplicationRequest() is called and we'll signal |signal|.
   }
 
   base::MessageLoop* message_loop() { return message_loop_; }
@@ -124,6 +126,7 @@ class BackgroundShell::MojoThread : public base::SimpleThread {
 
     scoped_ptr<Context> context(new Context);
     context_ = context.get();
+    context_->set_command_line_switches(command_line_switches_);
     context_->Init(shell_dir);
 
     message_loop_->Run();
@@ -137,11 +140,23 @@ class BackgroundShell::MojoThread : public base::SimpleThread {
   }
 
  private:
+  void OnGotApplicationRequest(const GURL& url,
+                               base::WaitableEvent* signal,
+                               mojom::ShellClientRequest* request_result,
+                               mojom::ShellClientRequest actual_request) {
+    *request_result = std::move(actual_request);
+    // Trigger destruction of the loader.
+    context_->application_manager()->SetLoaderForURL(nullptr, url);
+    signal->Signal();
+  }
+
   // We own this. It's created on the main thread, but destroyed on the
   // background thread.
   MojoMessageLoop* message_loop_ = nullptr;
   // Created in Run() on the background thread.
   Context* context_ = nullptr;
+
+  const std::vector<CommandLineSwitch> command_line_switches_;
 
   DISALLOW_COPY_AND_ASSIGN(MojoThread);
 };
@@ -152,18 +167,19 @@ BackgroundShell::~BackgroundShell() {
   thread_->Stop();
 }
 
-void BackgroundShell::Init() {
+void BackgroundShell::Init(
+    const std::vector<CommandLineSwitch>& command_line_switches) {
   DCHECK(!thread_);
-  thread_.reset(new MojoThread);
+  thread_.reset(new MojoThread(command_line_switches));
   thread_->Start();
 }
 
-InterfaceRequest<mojom::ShellClient> BackgroundShell::CreateShellClientRequest(
+mojom::ShellClientRequest BackgroundShell::CreateShellClientRequest(
     const GURL& url) {
-  scoped_ptr<ConnectToApplicationParams> params(new ConnectToApplicationParams);
-  params->SetTarget(
+  scoped_ptr<ConnectParams> params(new ConnectParams);
+  params->set_target(
       Identity(url, std::string(), GetPermissiveCapabilityFilter()));
-  InterfaceRequest<mojom::ShellClient> request;
+  mojom::ShellClientRequest request;
   base::WaitableEvent signal(true, false);
   thread_->message_loop()->task_runner()->PostTask(
       FROM_HERE, base::Bind(&MojoThread::CreateShellClientRequest,
@@ -172,8 +188,6 @@ InterfaceRequest<mojom::ShellClient> BackgroundShell::CreateShellClientRequest(
   signal.Wait();
   return request;
 }
-
-void RegisterLocalAliases(PackageManagerImpl* manager) {}
 
 }  // namespace shell
 }  // namespace mojo

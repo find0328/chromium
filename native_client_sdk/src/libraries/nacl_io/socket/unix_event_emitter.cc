@@ -4,6 +4,7 @@
 
 #include "nacl_io/socket/unix_event_emitter.h"
 
+#include <poll.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 
@@ -22,7 +23,10 @@ typedef sdk_util::ScopedRef<UnixMasterEventEmitter>
 class UnixMasterEventEmitter : public UnixEventEmitter {
  public:
   explicit UnixMasterEventEmitter(size_t size, int type)
-      : child_emitter_created_(false), child_emitter_(NULL) {
+      : in_shutdown_(false),
+        out_shutdown_(false),
+        child_emitter_created_(false),
+        child_emitter_(NULL) {
     if (type == SOCK_STREAM) {
       in_fifo_ = new FIFOChar(size);
       out_fifo_ = new FIFOChar(size);
@@ -38,17 +42,25 @@ class UnixMasterEventEmitter : public UnixEventEmitter {
     delete out_fifo_;
   }
 
+  virtual void Shutdown_Locked(bool read, bool write) {
+    in_shutdown_ |= read;
+    out_shutdown_ |= write;
+  }
+
+  virtual bool IsShutdownRead() const { return in_shutdown_; }
+  virtual bool IsShutdownWrite() const { return out_shutdown_; }
+
   virtual ScopedUnixEventEmitter GetPeerEmitter();
 
  protected:
   virtual FIFOInterface* in_fifo() { return in_fifo_; }
   virtual FIFOInterface* out_fifo() { return out_fifo_; }
-  virtual const sdk_util::SimpleLock& GetFifoLock() { return fifo_lock_; }
 
  private:
   FIFOInterface* in_fifo_;
   FIFOInterface* out_fifo_;
-  sdk_util::SimpleLock fifo_lock_;
+  bool in_shutdown_;
+  bool out_shutdown_;
   bool child_emitter_created_;
   UnixChildEventEmitter* child_emitter_;
 
@@ -62,15 +74,22 @@ class UnixChildEventEmitter : public UnixEventEmitter {
     UpdateStatus_Locked();
   }
   virtual ScopedUnixEventEmitter GetPeerEmitter() { return parent_emitter_; }
+  virtual sdk_util::SimpleLock& GetLock() { return parent_emitter_->GetLock(); }
+  virtual void Shutdown_Locked(bool read, bool write) {
+    parent_emitter_->Shutdown_Locked(write, read);
+  }
+  virtual bool IsShutdownRead() const {
+    return parent_emitter_->IsShutdownWrite();
+  }
+  virtual bool IsShutdownWrite() const {
+    return parent_emitter_->IsShutdownRead();
+  }
 
  protected:
   virtual void Destroy() { parent_emitter_->child_emitter_ = NULL; }
 
   virtual FIFOInterface* in_fifo() { return parent_emitter_->out_fifo(); }
   virtual FIFOInterface* out_fifo() { return parent_emitter_->in_fifo(); }
-  virtual const sdk_util::SimpleLock& GetFifoLock() {
-    return parent_emitter_->GetFifoLock();
-  }
 
  private:
   ScopedUnixMasterEventEmitter parent_emitter_;
@@ -85,7 +104,6 @@ ScopedUnixEventEmitter UnixMasterEventEmitter::GetPeerEmitter() {
 }
 
 uint32_t UnixEventEmitter::ReadIn_Locked(char* data, uint32_t len) {
-  AUTO_LOCK(GetFifoLock());
   uint32_t count = in_fifo()->Read(data, len);
   ScopedUnixEventEmitter peer = GetPeerEmitter();
   if (peer) {
@@ -96,7 +114,6 @@ uint32_t UnixEventEmitter::ReadIn_Locked(char* data, uint32_t len) {
 }
 
 uint32_t UnixEventEmitter::WriteOut_Locked(const char* data, uint32_t len) {
-  AUTO_LOCK(GetFifoLock());
   uint32_t count = out_fifo()->Write(data, len);
   ScopedUnixEventEmitter peer = GetPeerEmitter();
   if (peer) {
@@ -104,6 +121,18 @@ uint32_t UnixEventEmitter::WriteOut_Locked(const char* data, uint32_t len) {
   }
   UpdateStatus_Locked();
   return count;
+}
+
+void UnixEventEmitter::UpdateStatus_Locked() {
+  uint32_t status = 0;
+  if (!in_fifo()->IsEmpty() || IsShutdownRead())
+    status |= POLLIN;
+
+  if (!out_fifo()->IsFull() && !IsShutdownWrite())
+    status |= POLLOUT;
+
+  ClearEvents_Locked(~status);
+  RaiseEvents_Locked(status);
 }
 
 ScopedUnixEventEmitter UnixEventEmitter::MakeUnixEventEmitter(size_t size,

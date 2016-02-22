@@ -6567,6 +6567,20 @@ TEST_F(URLRequestTestHTTP, RedirectJobWithReferenceFragment) {
   EXPECT_EQ(redirect_url, r->url());
 }
 
+TEST_F(URLRequestTestHTTP, UnsupportedReferrerScheme) {
+  ASSERT_TRUE(http_test_server()->Start());
+
+  const std::string referrer("foobar://totally.legit.referrer");
+  TestDelegate d;
+  scoped_ptr<URLRequest> req(default_context_.CreateRequest(
+      http_test_server()->GetURL("/echoheader?Referer"), DEFAULT_PRIORITY, &d));
+  req->SetReferrer(referrer);
+  req->Start();
+  base::RunLoop().Run();
+
+  EXPECT_EQ(std::string("None"), d.data_received());
+}
+
 TEST_F(URLRequestTestHTTP, NoUserPassInReferrer) {
   ASSERT_TRUE(http_test_server()->Start());
 
@@ -8397,7 +8411,8 @@ class SSLClientAuthTestDelegate : public TestDelegate {
 TEST_F(HTTPSRequestTest, ClientAuthTest) {
   EmbeddedTestServer test_server(net::EmbeddedTestServer::TYPE_HTTPS);
   net::SSLServerConfig ssl_config;
-  ssl_config.require_client_cert = true;
+  ssl_config.client_cert_type =
+      SSLServerConfig::ClientCertType::OPTIONAL_CLIENT_CERT;
   test_server.SetSSLConfig(net::EmbeddedTestServer::CERT_OK, ssl_config);
   test_server.AddDefaultHandlers(
       base::FilePath(FILE_PATH_LITERAL("net/data/ssl")));

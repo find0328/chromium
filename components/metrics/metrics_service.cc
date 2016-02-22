@@ -324,6 +324,9 @@ void MetricsService::InitializeMetricsRecordingState() {
           // MetricsReportingScheduler is tied to the lifetime of |this|.
           base::Bind(&MetricsServiceClient::GetStandardUploadInterval,
                      base::Unretained(client_))));
+
+  for (MetricsProvider* provider : metrics_providers_)
+    provider->Init();
 }
 
 void MetricsService::Start() {
@@ -390,8 +393,8 @@ void MetricsService::EnableRecording() {
   if (!log_manager_.current_log())
     OpenNewLog();
 
-  for (size_t i = 0; i < metrics_providers_.size(); ++i)
-    metrics_providers_[i]->OnRecordingEnabled();
+  for (MetricsProvider* provider : metrics_providers_)
+    provider->OnRecordingEnabled();
 
   base::RemoveActionCallback(action_callback_);
   action_callback_ = base::Bind(&MetricsService::OnUserAction,
@@ -410,8 +413,8 @@ void MetricsService::DisableRecording() {
 
   base::RemoveActionCallback(action_callback_);
 
-  for (size_t i = 0; i < metrics_providers_.size(); ++i)
-    metrics_providers_[i]->OnRecordingDisabled();
+  for (MetricsProvider* provider : metrics_providers_)
+    provider->OnRecordingDisabled();
 
   PushPendingLogsToPersistentStorage();
 }
@@ -526,8 +529,8 @@ void MetricsService::RecordBreakpadHasDebugger(bool has_debugger) {
 }
 
 void MetricsService::ClearSavedStabilityMetrics() {
-  for (size_t i = 0; i < metrics_providers_.size(); ++i)
-    metrics_providers_[i]->ClearSavedStabilityMetrics();
+  for (MetricsProvider* provider : metrics_providers_)
+    provider->ClearSavedStabilityMetrics();
 
   // Reset the prefs that are managed by MetricsService/MetricsLog directly.
   local_state_->SetInteger(prefs::kStabilityCrashCount, 0);
@@ -679,8 +682,8 @@ void MetricsService::GetUptimes(PrefService* pref,
 
 void MetricsService::NotifyOnDidCreateMetricsLog() {
   DCHECK(IsSingleThreaded());
-  for (size_t i = 0; i < metrics_providers_.size(); ++i)
-    metrics_providers_[i]->OnDidCreateMetricsLog();
+  for (MetricsProvider* provider : metrics_providers_)
+    provider->OnDidCreateMetricsLog();
 }
 
 //------------------------------------------------------------------------------
@@ -868,8 +871,8 @@ void MetricsService::SendNextLog() {
 
 bool MetricsService::ProvidersHaveInitialStabilityMetrics() {
   // Check whether any metrics provider has initial stability metrics.
-  for (size_t i = 0; i < metrics_providers_.size(); ++i) {
-    if (metrics_providers_[i]->HasInitialStabilityMetrics())
+  for (MetricsProvider* provider : metrics_providers_) {
+    if (provider->HasInitialStabilityMetrics())
       return true;
   }
 
@@ -1107,11 +1110,17 @@ void MetricsService::RecordCurrentEnvironment(MetricsLog* log) {
 
 void MetricsService::RecordCurrentHistograms() {
   DCHECK(log_manager_.current_log());
-  // "true" indicates that StatisticsRecorder should include histograms in
-  // persistent storage.
-  histogram_snapshot_manager_.PrepareDeltas(
-      base::StatisticsRecorder::begin(true), base::StatisticsRecorder::end(),
-      base::Histogram::kNoFlags, base::Histogram::kUmaTargetedHistogramFlag);
+  histogram_snapshot_manager_.StartDeltas();
+  // "true" to the begin() call indicates that StatisticsRecorder should include
+  // histograms held in persistent storage.
+  auto end = base::StatisticsRecorder::end();
+  for (auto it = base::StatisticsRecorder::begin(true); it != end; ++it) {
+    if ((*it)->flags() & base::Histogram::kUmaTargetedHistogramFlag)
+      histogram_snapshot_manager_.PrepareDelta(*it);
+  }
+  for (MetricsProvider* provider : metrics_providers_)
+    provider->RecordHistogramSnapshots(&histogram_snapshot_manager_);
+  histogram_snapshot_manager_.FinishDeltas();
 }
 
 void MetricsService::RecordCurrentStabilityHistograms() {

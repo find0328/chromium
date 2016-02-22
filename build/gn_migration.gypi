@@ -210,6 +210,7 @@
             '../content/content_shell_and_tests.gyp:content_unittests_apk',
             '../content/content_shell_and_tests.gyp:video_decode_accelerator_unittest_apk',
             '../device/device_tests.gyp:device_unittests_apk',
+            '../gpu/gpu.gyp:command_buffer_gles2_tests_apk',
             '../gpu/gpu.gyp:gl_tests_apk',
             '../gpu/gpu.gyp:gpu_perftests_apk',
             '../gpu/gpu.gyp:gpu_unittests_apk',
@@ -268,7 +269,6 @@
             '../chrome/chrome.gyp:chromedriver',
             '../chrome/chrome.gyp:chromedriver_tests',
             '../chrome/chrome.gyp:chromedriver_unittests',
-            '../cloud_print/cloud_print.gyp:cloud_print_unittests',
             '../content/content_shell_and_tests.gyp:content_shell',
             '../courgette/courgette.gyp:courgette',
             '../courgette/courgette.gyp:courgette_fuzz',
@@ -501,11 +501,6 @@
             '../chrome/installer/mini_installer.gyp:mini_installer',
             '../chrome_elf/chrome_elf.gyp:chrome_elf_unittests',
             '../chrome_elf/chrome_elf.gyp:dll_hash_main',
-            '../cloud_print/service/win/service.gyp:cloud_print_service',
-            '../cloud_print/service/win/service.gyp:cloud_print_service_config',
-            '../cloud_print/service/win/service.gyp:cloud_print_service_setup',
-            '../cloud_print/virtual_driver/win/install/virtual_driver_install.gyp:virtual_driver_setup',
-            '../cloud_print/virtual_driver/win/virtual_driver.gyp:gcp_portmon',
             '../components/components.gyp:wifi_test',
             '../net/net.gyp:quic_client',
             '../net/net.gyp:quic_server',
@@ -592,6 +587,7 @@
             '../ui/app_list/app_list.gyp:app_list_unittests_run',
             '../ui/compositor/compositor.gyp:compositor_unittests_run',
             '../ui/events/events_unittests.gyp:events_unittests_run',
+            '../ui/gfx/gfx_tests.gyp:gfx_unittests_run',
             '../ui/message_center/message_center.gyp:message_center_unittests_run',
             '../url/url.gyp:url_unittests_run',
           ],
@@ -611,6 +607,7 @@
               'dependencies': [
                 '../chrome/chrome.gyp:installer_util_unittests_run',
                 '../chrome/chrome.gyp:setup_unittests_run',
+                '../chrome_elf/chrome_elf.gyp:chrome_elf_unittests_run',
                 '../sandbox/sandbox.gyp:sbox_integration_tests_run',
                 '../sandbox/sandbox.gyp:sbox_unittests_run',
                 '../sandbox/sandbox.gyp:sbox_validation_tests_run',
@@ -644,6 +641,11 @@
               'dependencies': [
                 '../components/nacl.gyp:nacl_loader_unittests_run',
               ]
+            }],
+            ['toolkit_views==1', {
+              'dependencies': [
+                '../ui/views/views.gyp:views_unittests_run',
+              ],
             }],
           ],
         }],
@@ -722,8 +724,6 @@
             # we decide we need for something. Owner: scottmg.
             '../chrome/tools/crash_service/caps/caps.gyp:caps',
 
-            '../cloud_print/gcp20/prototype/gcp20_device.gyp:gcp20_device',
-            '../cloud_print/gcp20/prototype/gcp20_device.gyp:gcp20_device_unittests',
             '../components/test_runner/test_runner.gyp:layout_test_helper',
             '../content/content_shell_and_tests.gyp:content_shell_crash_service',
             '../gpu/gpu.gyp:angle_end2end_tests',
@@ -749,8 +749,6 @@
             '../crypto/crypto.gyp:crypto_nacl_win64',
             '../ipc/ipc.gyp:ipc_win64',
             '../sandbox/sandbox.gyp:sandbox_win64',
-            '../cloud_print/virtual_driver/win/virtual_driver64.gyp:gcp_portmon64',
-            '../cloud_print/virtual_driver/win/virtual_driver64.gyp:virtual_driver_lib64',
           ],
         }],
         ['OS=="win" and target_arch=="ia32" and configuration_policy==1', {

@@ -48,7 +48,7 @@ namespace {
 // Space between the site info label and the buttons / link.
 const int kMiddlePaddingPx = 30;
 
-const int kOuterPaddingHorizPx = 24;
+const int kOuterPaddingHorizPx = 40;
 const int kOuterPaddingVertPx = 8;
 
 // Partially-transparent background color. Only used with
@@ -139,7 +139,9 @@ InstructionView::InstructionView(const base::string16& text,
 
   key_name_ = new views::View;
   views::BoxLayout* key_name_layout = new views::BoxLayout(
-      views::BoxLayout::kHorizontal, kKeyNamePaddingPx, kKeyNamePaddingPx, 0);
+      views::BoxLayout::kHorizontal, kKeyNamePaddingPx, 0, 0);
+  key_name_layout->set_minimum_cross_axis_size(
+      key_name_label_->GetPreferredSize().height() + kKeyNamePaddingPx * 2);
   key_name_->SetLayoutManager(key_name_layout);
   key_name_->AddChildView(key_name_label_);
   // The key name has a border around it.
@@ -258,11 +260,8 @@ ExclusiveAccessBubbleViews::ExclusiveAccessView::ExclusiveAccessView(
   SetFocusable(false);
 
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  ui::ResourceBundle::FontStyle font_style =
-      ExclusiveAccessManager::IsSimplifiedFullscreenUIEnabled()
-          ? ui::ResourceBundle::SmallFont
-          : ui::ResourceBundle::MediumFont;
-  const gfx::FontList& font_list = rb.GetFontList(font_style);
+  const gfx::FontList& font_list =
+      rb.GetFontList(ui::ResourceBundle::MediumFont);
 
   if (!ExclusiveAccessManager::IsSimplifiedFullscreenUIEnabled()) {
     message_label_ = new views::Label(base::string16(), font_list);

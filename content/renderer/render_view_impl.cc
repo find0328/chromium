@@ -48,6 +48,7 @@
 #include "content/common/frame_messages.h"
 #include "content/common/frame_replication_state.h"
 #include "content/common/gpu/client/webgraphicscontext3d_command_buffer_impl.h"
+#include "content/common/input/input_event_utils.h"
 #include "content/common/input_messages.h"
 #include "content/common/pepper_messages.h"
 #include "content/common/site_isolation_policy.h"
@@ -111,6 +112,7 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_util.h"
 #include "skia/ext/platform_canvas.h"
+#include "third_party/WebKit/public/platform/FilePathConversion.h"
 #include "third_party/WebKit/public/platform/URLConversion.h"
 #include "third_party/WebKit/public/platform/WebCString.h"
 #include "third_party/WebKit/public/platform/WebConnectionType.h"
@@ -615,7 +617,6 @@ RenderViewImpl::RenderViewImpl(CompositorDependencies* compositor_deps,
       send_preferred_size_changes_(false),
       navigation_gesture_(NavigationGestureUnknown),
       opened_by_user_gesture_(true),
-      opener_suppressed_(false),
       suppress_dialogs_until_swap_out_(false),
       page_id_(-1),
       next_page_id_(params.next_page_id),
@@ -1052,6 +1053,8 @@ void RenderView::ApplyWebPreferences(const WebPreferences& prefs,
       static_cast<WebSettings::EditingBehavior>(prefs.editing_behavior));
 
   settings->setSupportsMultipleWindows(prefs.supports_multiple_windows);
+
+  settings->setInertVisualViewport(prefs.inert_visual_viewport);
 
   settings->setSmartInsertDeleteEnabled(prefs.smart_insert_delete_enabled);
 
@@ -1700,9 +1703,6 @@ WebView* RenderViewImpl::createView(WebLocalFrame* creator,
       RenderViewImpl::Create(compositor_deps_, view_params, true);
   view->opened_by_user_gesture_ = params.user_gesture;
 
-  // Record whether the creator frame is trying to suppress the opener field.
-  view->opener_suppressed_ = params.opener_suppressed;
-
   return view->webview();
 }
 
@@ -1742,7 +1742,7 @@ bool RenderViewImpl::enumerateChosenDirectory(
   int id = enumeration_completion_id_++;
   enumeration_completions_[id] = chooser_completion;
   return Send(new ViewHostMsg_EnumerateDirectory(
-      routing_id(), id, base::FilePath::FromUTF16Unsafe(path)));
+      routing_id(), id, blink::WebStringToFilePath(path)));
 }
 
 void RenderViewImpl::FrameDidStartLoading(WebFrame* frame) {
@@ -1822,7 +1822,7 @@ bool RenderViewImpl::runFileChooser(
     ipc_params.mode = FileChooserParams::Open;
   ipc_params.title = params.title;
   ipc_params.default_file_name =
-      base::FilePath::FromUTF16Unsafe(params.initialValue).BaseName();
+      blink::WebStringToFilePath(params.initialValue).BaseName();
   ipc_params.accept_types.reserve(params.acceptTypes.size());
   for (size_t i = 0; i < params.acceptTypes.size(); ++i)
     ipc_params.accept_types.push_back(params.acceptTypes[i]);
@@ -2161,7 +2161,8 @@ void RenderViewImpl::initializeLayerTreeView() {
     if (input_handler_manager) {
       input_handler_manager->AddInputHandler(
           routing_id(), rwc->GetInputHandler(), AsWeakPtr(),
-          webkit_preferences_.enable_scroll_animator);
+          webkit_preferences_.enable_scroll_animator,
+          UseGestureBasedWheelScrolling());
     }
   }
 }
@@ -2210,6 +2211,13 @@ gfx::RectF RenderViewImpl::ElementBoundsInWindow(
 
 float RenderViewImpl::GetDeviceScaleFactorForTest() const {
   return device_scale_factor_;
+}
+
+gfx::Point RenderViewImpl::ConvertWindowPointToViewport(
+    const gfx::Point& point) {
+  blink::WebFloatRect point_in_viewport(point.x(), point.y(), 0, 0);
+  convertWindowToViewport(&point_in_viewport);
+  return gfx::Point(point_in_viewport.x, point_in_viewport.y);
 }
 
 void RenderViewImpl::didChangeIcon(WebLocalFrame* frame,
@@ -2413,7 +2421,7 @@ void RenderViewImpl::OnDragTargetDragEnter(const DropData& drop_data,
                                            int key_modifiers) {
   WebDragOperation operation = webview()->dragTargetDragEnter(
       DropDataToWebDragData(drop_data),
-      client_point,
+      ConvertWindowPointToViewport(client_point),
       screen_point,
       ops,
       key_modifiers);
@@ -2426,7 +2434,7 @@ void RenderViewImpl::OnDragTargetDragOver(const gfx::Point& client_point,
                                           WebDragOperationsMask ops,
                                           int key_modifiers) {
   WebDragOperation operation = webview()->dragTargetDragOver(
-      client_point,
+      ConvertWindowPointToViewport(client_point),
       screen_point,
       ops,
       key_modifiers);
@@ -2441,13 +2449,15 @@ void RenderViewImpl::OnDragTargetDragLeave() {
 void RenderViewImpl::OnDragTargetDrop(const gfx::Point& client_point,
                                       const gfx::Point& screen_point,
                                       int key_modifiers) {
-  webview()->dragTargetDrop(client_point, screen_point, key_modifiers);
+  webview()->dragTargetDrop(
+      ConvertWindowPointToViewport(client_point), screen_point, key_modifiers);
 }
 
 void RenderViewImpl::OnDragSourceEnded(const gfx::Point& client_point,
                                        const gfx::Point& screen_point,
                                        WebDragOperation op) {
-  webview()->dragSourceEndedAt(client_point, screen_point, op);
+  webview()->dragSourceEndedAt(
+      ConvertWindowPointToViewport(client_point), screen_point, op);
 }
 
 void RenderViewImpl::OnDragSourceSystemDragEnded() {
@@ -2533,15 +2543,18 @@ void RenderViewImpl::OnDisableAutoResize(const gfx::Size& new_size) {
   webview()->disableAutoResizeMode();
 
   if (!new_size.IsEmpty()) {
-    Resize(new_size,
-           physical_backing_size_,
-           top_controls_shrink_blink_size_,
-           top_controls_height_,
-           visible_viewport_size_,
-           resizer_rect_,
-           is_fullscreen_granted_,
-           display_mode_,
-           NO_RESIZE_ACK);
+    ResizeParams resize_params;
+    resize_params.new_size = new_size;
+    resize_params.physical_backing_size = physical_backing_size_;
+    resize_params.top_controls_shrink_blink_size =
+        top_controls_shrink_blink_size_;
+    resize_params.top_controls_height = top_controls_height_;
+    resize_params.visible_viewport_size = visible_viewport_size_;
+    resize_params.resizer_rect = resizer_rect_;
+    resize_params.is_fullscreen_granted = is_fullscreen_granted();
+    resize_params.display_mode = display_mode_;
+    resize_params.needs_resize_ack = false;
+    Resize(resize_params);
   }
 }
 

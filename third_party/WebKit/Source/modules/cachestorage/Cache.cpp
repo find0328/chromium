@@ -22,6 +22,7 @@
 #include "modules/fetch/Response.h"
 #include "platform/HTTPNames.h"
 #include "platform/Histogram.h"
+#include "platform/RuntimeEnabledFeatures.h"
 #include "public/platform/WebPassOwnPtr.h"
 #include "public/platform/modules/serviceworker/WebServiceWorkerCache.h"
 
@@ -31,7 +32,7 @@ namespace {
 
 void checkCacheQueryOptions(const CacheQueryOptions& options, ExecutionContext* context)
 {
-    if (options.ignoreSearch())
+    if (!RuntimeEnabledFeatures::cacheIgnoreSearchOptionEnabled() && options.ignoreSearch())
         context->addConsoleMessage(ConsoleMessage::create(JSMessageSource, WarningMessageLevel, "Cache.match() does not support 'ignoreSearch' option yet. See http://crbug.com/520784"));
     if (options.ignoreMethod())
         context->addConsoleMessage(ConsoleMessage::create(JSMessageSource, WarningMessageLevel, "Cache.match() does not support 'ignoreMethod' option yet. See http://crbug.com/482256"));
@@ -197,6 +198,23 @@ void RecordResponseTypeForAdd(const Member<Response>& response)
     responseTypeHistogram.count(static_cast<int>(type));
 };
 
+bool varyHeaderContainsAsterisk(const Response* response)
+{
+    const FetchHeaderList* headers = response->headers()->headerList();
+    for (size_t i = 0; i < headers->size(); ++i) {
+        const FetchHeaderList::Header& header = headers->entry(i);
+        if (header.first == "vary") {
+            Vector<String> fields;
+            header.second.split(',', fields);
+            for (size_t j = 0; j < fields.size(); ++j) {
+                if (fields[j].stripWhiteSpace() == "*")
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 // TODO(nhiroki): Unfortunately, we have to go through V8 to wait for the fetch
@@ -217,6 +235,10 @@ public:
         for (const auto& response : responses) {
             if (!response->ok()) {
                 ScriptPromise rejection = ScriptPromise::reject(scriptState(), V8ThrowException::createTypeError(scriptState()->isolate(), "Request failed"));
+                return ScriptValue(scriptState(), rejection.v8Value());
+            }
+            if (varyHeaderContainsAsterisk(response)) {
+                ScriptPromise rejection = ScriptPromise::reject(scriptState(), V8ThrowException::createTypeError(scriptState()->isolate(), "Vary header contains *"));
                 return ScriptValue(scriptState(), rejection.v8Value());
             }
         }
@@ -443,7 +465,7 @@ ScriptPromise Cache::keys(ScriptState* scriptState, const RequestInfo& request, 
 WebServiceWorkerCache::QueryParams Cache::toWebQueryParams(const CacheQueryOptions& options)
 {
     WebServiceWorkerCache::QueryParams webQueryParams;
-    webQueryParams.ignoreSearch = options.ignoreSearch();
+    webQueryParams.ignoreSearch = options.ignoreSearch() && RuntimeEnabledFeatures::cacheIgnoreSearchOptionEnabled();
     webQueryParams.ignoreMethod = options.ignoreMethod();
     webQueryParams.ignoreVary = options.ignoreVary();
     webQueryParams.cacheName = options.cacheName();
@@ -546,6 +568,11 @@ ScriptPromise Cache::putImpl(ScriptState* scriptState, const HeapVector<Member<R
             return promise;
         }
         ASSERT(!requests[i]->hasBody());
+
+        if (varyHeaderContainsAsterisk(responses[i])) {
+            barrierCallback->onError("Vary header contains *");
+            return promise;
+        }
 
         if (responses[i]->isBodyLocked() || responses[i]->bodyUsed()) {
             barrierCallback->onError("Response body is already used");

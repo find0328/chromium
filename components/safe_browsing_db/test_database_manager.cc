@@ -64,6 +64,12 @@ bool TestSafeBrowsingDatabaseManager::CheckExtensionIDs(
   return true;
 }
 
+bool TestSafeBrowsingDatabaseManager::CheckResourceUrl(const GURL& url,
+                                                       Client* client) {
+  NOTIMPLEMENTED();
+  return true;
+}
+
 bool TestSafeBrowsingDatabaseManager::MatchCsdWhitelistUrl(const GURL& url) {
   NOTIMPLEMENTED();
   return true;
@@ -89,6 +95,12 @@ bool TestSafeBrowsingDatabaseManager::MatchDownloadWhitelistString(
 
 bool TestSafeBrowsingDatabaseManager::MatchInclusionWhitelistUrl(
     const GURL& url) {
+  NOTIMPLEMENTED();
+  return true;
+}
+
+bool TestSafeBrowsingDatabaseManager::MatchModuleWhitelistString(
+    const std::string& str) {
   NOTIMPLEMENTED();
   return true;
 }

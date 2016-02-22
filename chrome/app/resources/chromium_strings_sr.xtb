@@ -129,7 +129,6 @@
 <translation id="5859963531214966875">Будуће верзије Chromium-а више неће подржавати овај Linux систем.</translation>
 <translation id="5862307444128926510">Добро дошли у Chromium</translation>
 <translation id="5877064549588274448">Канал је промењен. Покрените поново уређај да бисте применили промене.</translation>
-<translation id="5909170354645388250">Не користи се у Chromium-у. Резервисано место за очување синхронизације мапа ресурса. Очекује један аргумент: $1.</translation>
 <translation id="5942225298871134766">Chromium ће сачувати ове податке у услузи <ph name="SAVED_PASSWORD_LINK" /> и сетиће их се када вам следећи пут буду потребни.</translation>
 <translation id="5942520288919337908">Додатак <ph name="EXTENSION_NAME" /> је додат у Chromium.</translation>
 <translation id="59625444380784159">Детаљи из контаката могу да вам помогну да брже попуњавате обрасце у Chromium-у.</translation>
@@ -209,7 +208,6 @@ Chromium не може да врати подешавања.</translation>
 <translation id="8586442755830160949">Ауторска права <ph name="YEAR" />. Аутори Chromium-а. Сва права задржана.</translation>
 <translation id="8621669128220841554">Инсталација није успела због неодређене грешке. Преузмите Chromium поново.</translation>
 <translation id="8628626585870903697">Chromium не садржи PDF приказивач који је потребан да би Приказ пре штампања функционисао.</translation>
-<translation id="8684913864886094367">Chromium се није исправно затворио.</translation>
 <translation id="8697124171261953979">Контролише и страницу која се приказује када покренете Chromium или претражујете из омнибокса.</translation>
 <translation id="8704119203788522458">Ово је ваш Chromium</translation>
 <translation id="872034308864968620">Нека Chromium ради у позадини</translation>

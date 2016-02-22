@@ -135,6 +135,9 @@ struct CC_EXPORT TransformNodeData {
   // layer scale factor should include the page scale factor.
   bool in_subtree_of_page_scale_layer : 1;
 
+  // We need to track changes to to_screen transform to compute the damage rect.
+  bool transform_changed : 1;
+
   // TODO(vollick): will be moved when accelerated effects are implemented.
   float post_local_scale_factor;
 
@@ -275,6 +278,9 @@ struct CC_EXPORT ScrollNodeData {
   bool max_scroll_offset_affected_by_page_scale;
   bool is_inner_viewport_scroll_layer;
   bool is_outer_viewport_scroll_layer;
+  gfx::Vector2dF offset_to_transform_parent;
+  bool should_flatten;
+  int transform_id;
 
   bool operator==(const ScrollNodeData& other) const;
 
@@ -385,6 +391,7 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
   // aligned with respect to one another.
   bool Are2DAxisAligned(int source_id, int dest_id) const;
 
+  void ResetChangeTracking();
   // Updates the parent, target, and screen space transforms and snapping.
   void UpdateTransforms(int id);
 
@@ -474,6 +481,9 @@ class CC_EXPORT TransformTree final : public PropertyTree<TransformNode> {
                                  TransformNode* parent_node);
   void UndoSnapping(TransformNode* node);
   void UpdateSnapping(TransformNode* node);
+  void UpdateTransformChanged(TransformNode* node,
+                              TransformNode* parent_node,
+                              TransformNode* source_node);
   void UpdateNodeAndAncestorsHaveIntegerTranslations(
       TransformNode* node,
       TransformNode* parent_node);
@@ -530,6 +540,7 @@ class CC_EXPORT ScrollTree final : public PropertyTree<ScrollNode> {
   void FromProtobuf(const proto::PropertyTree& proto);
 
   gfx::ScrollOffset MaxScrollOffset(int scroll_node_id) const;
+  gfx::Transform ScreenSpaceTransform(int scroll_node_id) const;
 };
 
 class CC_EXPORT PropertyTrees final {

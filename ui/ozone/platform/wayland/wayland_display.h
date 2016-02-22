@@ -27,6 +27,7 @@ class WaylandDisplay : public PlatformEventSource,
   // Flushes the Wayland connection.
   void Flush();
 
+  wl_display* display() { return display_.get(); }
   wl_compositor* compositor() { return compositor_.get(); }
   wl_shm* shm() { return shm_.get(); }
   xdg_shell* shell() { return shell_.get(); }

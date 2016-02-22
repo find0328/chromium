@@ -204,9 +204,6 @@ PaintLayer::~PaintLayer()
 
     clearCompositedLayerMapping(true);
 
-    if (PaintLayerReflectionInfo* reflectionInfo = this->reflectionInfo())
-        reflectionInfo->destroy();
-
     if (m_scrollableArea)
         m_scrollableArea->dispose();
 }
@@ -1323,7 +1320,7 @@ static inline const PaintLayer* accumulateOffsetTowardsAncestor(const PaintLayer
     if (position == FixedPosition && (!ancestorLayer || ancestorLayer == layoutObject->view()->layer())) {
         // If the fixed layer's container is the root, just add in the offset of the view. We can obtain this by calling
         // localToAbsolute() on the LayoutView.
-        FloatPoint absPos = layoutObject->localToAbsolute(FloatPoint(), IsFixed);
+        FloatPoint absPos = layoutObject->localToAbsolute();
         location += LayoutSize(absPos.x(), absPos.y());
         return ancestorLayer;
     }
@@ -1427,7 +1424,6 @@ void PaintLayer::updateReflectionInfo(const ComputedStyle* oldStyle)
             m_rareData->reflectionInfo = adoptPtr(new PaintLayerReflectionInfo(*layoutBox()));
         m_rareData->reflectionInfo->updateAfterStyleChange(oldStyle);
     } else if (m_rareData && m_rareData->reflectionInfo) {
-        m_rareData->reflectionInfo->destroy();
         m_rareData->reflectionInfo = nullptr;
     }
 }

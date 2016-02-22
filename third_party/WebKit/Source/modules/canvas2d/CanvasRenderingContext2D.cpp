@@ -132,6 +132,9 @@ CanvasRenderingContext2D::CanvasRenderingContext2D(HTMLCanvasElement* canvas, co
         m_clipAntialiasing = AntiAliased;
     m_stateStack.append(CanvasRenderingContext2DState::create());
     setShouldAntialias(true);
+#if ENABLE(OILPAN)
+    ThreadState::current()->registerPreFinalizer(this);
+#endif
 }
 
 void CanvasRenderingContext2D::unwindStateStack()
@@ -414,6 +417,7 @@ void CanvasRenderingContext2D::setStrokeStyle(const StringOrCanvasGradientOrCanv
 
     modifiableState().setStrokeStyle(canvasStyle);
     modifiableState().setUnparsedStrokeColor(colorString);
+    modifiableState().clearResolvedFilter();
 }
 
 void CanvasRenderingContext2D::fillStyle(StringOrCanvasGradientOrCanvasPattern& returnValue) const
@@ -454,6 +458,7 @@ void CanvasRenderingContext2D::setFillStyle(const StringOrCanvasGradientOrCanvas
     ASSERT(canvasStyle);
     modifiableState().setFillStyle(canvasStyle);
     modifiableState().setUnparsedFillColor(colorString);
+    modifiableState().clearResolvedFilter();
 }
 
 double CanvasRenderingContext2D::lineWidth() const
@@ -1985,6 +1990,9 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, double x, do
         canvas()->disableDeferral(DisableDeferralReasonSubPixelTextAntiAliasingSupport);
 
     const Font& font = accessFont();
+    if (!font.primaryFont())
+        return;
+
     const FontMetrics& fontMetrics = font.fontMetrics();
 
     // FIXME: Need to turn off font smoothing.

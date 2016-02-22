@@ -88,6 +88,12 @@ class MOJO_SYSTEM_IMPL_EXPORT Core {
       bool read_only,
       MojoHandle* mojo_wrapper_handle);
 
+  MojoResult PassSharedMemoryHandle(
+      MojoHandle mojo_handle,
+      base::SharedMemoryHandle* shared_memory_handle,
+      size_t* num_bytes,
+      bool* read_only);
+
   // Requests that the EDK tear itself down. |callback| will be called once
   // the shutdown process is complete. Note that |callback| is always called
   // asynchronously on the calling thread if said thread is running a message
@@ -218,6 +224,16 @@ class MOJO_SYSTEM_IMPL_EXPORT Core {
   // event that we're torn down before said thread.
   static void PassNodeControllerToIOThread(
       scoped_ptr<NodeController> node_controller);
+
+  // Guards node_controller_.
+  //
+  // TODO(rockot): Consider removing this. It's only needed because we
+  // initialize node_controller_ lazily and that may happen on any thread.
+  // Otherwise it's effectively const and shouldn't need to be guarded.
+  //
+  // We can get rid of lazy initialization if we defer Mojo initialization far
+  // enough that zygotes don't do it. The zygote can't create a NodeController.
+  base::Lock node_controller_lock_;
 
   // This is lazily initialized on first access. Always use GetNodeController()
   // to access it.

@@ -612,7 +612,7 @@ Length StyleBuilderConverter::convertLineHeight(StyleResolverState& state, const
         return Length(primitiveValue.getDoubleValue() * 100.0, Percent);
     if (primitiveValue.isCalculated()) {
         Length zoomedLength = Length(primitiveValue.cssCalcValue()->toCalcValue(lineHeightToLengthConversionData(state)));
-        return Length(valueForLength(zoomedLength, state.style()->computedFontSize()), Fixed);
+        return Length(valueForLength(zoomedLength, LayoutUnit(state.style()->computedFontSize())), Fixed);
     }
 
     ASSERT(primitiveValue.getValueID() == CSSValueNormal);
@@ -629,6 +629,11 @@ float StyleBuilderConverter::convertNumberOrPercentage(StyleResolverState& state
 }
 
 StyleMotionRotation StyleBuilderConverter::convertMotionRotation(StyleResolverState&, const CSSValue& value)
+{
+    return convertMotionRotation(value);
+}
+
+StyleMotionRotation StyleBuilderConverter::convertMotionRotation(const CSSValue& value)
 {
     StyleMotionRotation result(0, MotionRotationFixed);
 

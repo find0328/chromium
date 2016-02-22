@@ -129,7 +129,6 @@ Nekatere funkcije morda niso na voljo in spremembe nastavitev ne bodo shranjene.
 <translation id="5859963531214966875">Prihodnje različice Chromiuma ne bodo več podpirale tega sistema Linux.</translation>
 <translation id="5862307444128926510">Pozdravljeni v Chromiumu</translation>
 <translation id="5877064549588274448">Kanal spremenjen. Znova zaženite napravo, da uveljavite spremembe.</translation>
-<translation id="5909170354645388250">Ne uporablja se v Chromiumu. Ograda za usklajenost zemljevidov sredstev. Pričakovan je en argument: $1.</translation>
 <translation id="5942225298871134766">Chromium bo shranil to s tem: <ph name="SAVED_PASSWORD_LINK" /> in priklical, ko to naslednjič potrebujete.</translation>
 <translation id="5942520288919337908">Razširitev <ph name="EXTENSION_NAME" /> je dodana v Chromium.</translation>
 <translation id="59625444380784159">S podatki iz stikov lahko hitreje izpolnjujete obrazce v Chromiumu.</translation>
@@ -209,7 +208,6 @@ Chromium ne more obnoviti vaših nastavitev.</translation>
 <translation id="8586442755830160949">Copyright <ph name="YEAR" /> Ustvarjalci Chromiuma. Vse pravice pridržane.</translation>
 <translation id="8621669128220841554">Namestitev ni uspela zaradi nenavedene napake. Znova prenesite Chromium.</translation>
 <translation id="8628626585870903697">Chromium nima pregledovalnika datotek PDF, ki je potreben za predogled tiskanja.</translation>
-<translation id="8684913864886094367">Chromium se ni pravilno zaustavil.</translation>
 <translation id="8697124171261953979">Določa tudi, katera stran je prikazana, ko zaženete Chromium ali iščete v naslovni vrstici.</translation>
 <translation id="8704119203788522458">To je vaš Chromium</translation>
 <translation id="872034308864968620">Naj se Chromium izvaja v ozadju</translation>

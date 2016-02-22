@@ -37,12 +37,31 @@ source_set("native_application_support") {
   check_includes = false
 }
 
+source_set("child_process_base") {
+  sources = [
+    "child_process_base.cc",
+    "child_process_base.h",
+  ]
+
+  deps = [
+    "//base",
+    "//mojo/edk/system",
+    "//mojo/message_pump",
+    "//mojo/platform_handle:platform_handle_impl",
+    "//mojo/shell",
+    "//mojo/shell/runner:init",
+    "//mojo/shell/runner/child:interfaces",
+    "//mojo/shell/runner/common",
+  ]
+}
+
 source_set("lib") {
   sources = [
     "child_process.cc",
     "child_process.h",
     "child_process_host.cc",
     "child_process_host.h",
+    "command_line_switch.h",
     "in_process_native_runner.cc",
     "in_process_native_runner.h",
     "out_of_process_native_runner.cc",
@@ -50,12 +69,12 @@ source_set("lib") {
   ]
 
   deps = [
+    ":child_process_base",
     ":native_application_support",
     "//base",
     "//base:base_static",
     "//base:i18n",
     "//mojo/edk/system",
-    "//mojo/gles2",
     "//mojo/message_pump",
     "//mojo/platform_handle:platform_handle_impl",
     "//mojo/shell",
@@ -90,9 +109,7 @@ test("mojo_runner_host_unittests") {
     ":lib",
     "//base",
     "//base/test:test_support",
-    "//mojo/common",
     "//mojo/edk/system",
-    "//mojo/environment:chromium",
     "//mojo/message_pump",
     "//mojo/shell/runner:init",
     "//mojo/shell/runner/common",

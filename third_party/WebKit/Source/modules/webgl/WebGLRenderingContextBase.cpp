@@ -1170,7 +1170,7 @@ WebGLRenderingContextBase::HowToClear WebGLRenderingContextBase::clearIfComposit
         clearMask |= GL_DEPTH_BUFFER_BIT;
         webContext()->depthMask(true);
     }
-    if (contextAttributes.get().stencil()) {
+    if (contextAttributes.get().stencil() || drawingBuffer()->hasImplicitStencilBuffer()) {
         if (combinedClear && (mask & GL_STENCIL_BUFFER_BIT))
             webContext()->clearStencil(m_clearStencil & m_stencilMask);
         else
@@ -1685,8 +1685,16 @@ void WebGLRenderingContextBase::clear(GLbitfield mask)
         synthesizeGLError(GL_INVALID_FRAMEBUFFER_OPERATION, "clear", reason);
         return;
     }
-    if (clearIfComposited(mask) != CombinedClear)
+    if (clearIfComposited(mask) != CombinedClear) {
+        // If clearing the default back buffer's depth buffer, also clear the stencil buffer, if one
+        // was allocated implicitly. This avoids performance problems on some GPUs.
+        if (!m_framebufferBinding && drawingBuffer()->hasImplicitStencilBuffer() && (mask & GL_DEPTH_BUFFER_BIT)) {
+            // It shouldn't matter what value it's cleared to, since in other queries in the API, we
+            // claim that the stencil buffer doesn't exist.
+            mask |= GL_STENCIL_BUFFER_BIT;
+        }
         webContext()->clear(mask);
+    }
     markContextChanged(CanvasChanged);
 }
 
@@ -3461,7 +3469,7 @@ bool WebGLRenderingContextBase::validateReadBufferAndGetInfo(const char* functio
     return true;
 }
 
-bool WebGLRenderingContextBase::validateReadPixelsFormatAndType(GLenum format, GLenum type)
+bool WebGLRenderingContextBase::validateReadPixelsFormatAndType(GLenum format, GLenum type, DOMArrayBufferView* buffer)
 {
     switch (format) {
     case GL_ALPHA:
@@ -3475,36 +3483,42 @@ bool WebGLRenderingContextBase::validateReadPixelsFormatAndType(GLenum format, G
 
     switch (type) {
     case GL_UNSIGNED_BYTE:
+        if (buffer && buffer->type() != DOMArrayBufferView::TypeUint8) {
+            synthesizeGLError(GL_INVALID_OPERATION, "readPixels", "type UNSIGNED_BYTE but ArrayBufferView not Uint8Array");
+            return false;
+        }
+        return true;
     case GL_UNSIGNED_SHORT_5_6_5:
     case GL_UNSIGNED_SHORT_4_4_4_4:
     case GL_UNSIGNED_SHORT_5_5_5_1:
+        if (buffer && buffer->type() != DOMArrayBufferView::TypeUint16) {
+            synthesizeGLError(GL_INVALID_OPERATION, "readPixels", "type UNSIGNED_SHORT but ArrayBufferView not Uint16Array");
+            return false;
+        }
+        return true;
     case GL_FLOAT:
+        if (extensionEnabled(OESTextureFloatName)) {
+            if (buffer && buffer->type() != DOMArrayBufferView::TypeFloat32) {
+                synthesizeGLError(GL_INVALID_OPERATION, "readPixels", "type FLOAT but ArrayBufferView not Float32Array");
+                return false;
+            }
+            return true;
+        }
+        synthesizeGLError(GL_INVALID_ENUM, "readPixels", "invalid type");
+        return false;
     case GL_HALF_FLOAT_OES:
-        break;
+        if (extensionEnabled(OESTextureHalfFloatName)) {
+            if (buffer && buffer->type() != DOMArrayBufferView::TypeUint16) {
+                synthesizeGLError(GL_INVALID_OPERATION, "readPixels", "type HALF_FLOAT_OES but ArrayBufferView not Uint16Array");
+                return false;
+            }
+            return true;
+        }
+        synthesizeGLError(GL_INVALID_ENUM, "readPixels", "invalid type");
+        return false;
     default:
         synthesizeGLError(GL_INVALID_ENUM, "readPixels", "invalid type");
         return false;
-    }
-
-    return true;
-}
-
-DOMArrayBufferView::ViewType WebGLRenderingContextBase::readPixelsExpectedArrayBufferViewType(GLenum type)
-{
-    switch (type) {
-    case GL_UNSIGNED_BYTE:
-        return DOMArrayBufferView::TypeUint8;
-    case GL_UNSIGNED_SHORT_5_6_5:
-    case GL_UNSIGNED_SHORT_4_4_4_4:
-    case GL_UNSIGNED_SHORT_5_5_5_1:
-        return DOMArrayBufferView::TypeUint16;
-    case GL_FLOAT:
-        return DOMArrayBufferView::TypeFloat32;
-    case GL_HALF_FLOAT_OES:
-        return DOMArrayBufferView::TypeUint16;
-    default:
-        ASSERT_NOT_REACHED();
-        return DOMArrayBufferView::TypeUint8;
     }
 }
 
@@ -3522,9 +3536,9 @@ WebGLImageConversion::PixelStoreParams WebGLRenderingContextBase::getUnpackPixel
     return params;
 }
 
-bool WebGLRenderingContextBase::validateReadPixelsFuncParameters(GLsizei width, GLsizei height, GLenum format, GLenum type, long long bufferSize)
+bool WebGLRenderingContextBase::validateReadPixelsFuncParameters(GLsizei width, GLsizei height, GLenum format, GLenum type, DOMArrayBufferView* buffer, long long bufferSize)
 {
-    if (!validateReadPixelsFormatAndType(format, type))
+    if (!validateReadPixelsFormatAndType(format, type, buffer))
         return false;
 
     // Calculate array size, taking into consideration of pack parameters.
@@ -3559,15 +3573,8 @@ void WebGLRenderingContextBase::readPixels(GLint x, GLint y, GLsizei width, GLsi
         synthesizeGLError(GL_INVALID_FRAMEBUFFER_OPERATION, "readPixels", reason);
         return;
     }
-    if (!validateReadPixelsFuncParameters(width, height, format, type, static_cast<long long>(pixels->byteLength())))
+    if (!validateReadPixelsFuncParameters(width, height, format, type, pixels, static_cast<long long>(pixels->byteLength())))
         return;
-
-    DOMArrayBufferView::ViewType expectedViewType = readPixelsExpectedArrayBufferViewType(type);
-    // Validate array type against pixel type.
-    if (pixels->type() != expectedViewType) {
-        synthesizeGLError(GL_INVALID_OPERATION, "readPixels", "ArrayBufferView was the wrong type for the pixel format");
-        return;
-    }
 
     clearIfComposited();
     void* data = pixels->baseAddress();

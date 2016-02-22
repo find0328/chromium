@@ -346,8 +346,8 @@ static jboolean GetProtectedMediaIdentifierEnabled(
       CONTENT_SETTINGS_TYPE_PROTECTED_MEDIA_IDENTIFIER);
 }
 
-static jboolean GetPushNotificationsEnabled(JNIEnv* env,
-                                            const JavaParamRef<jobject>& obj) {
+static jboolean GetNotificationsEnabled(JNIEnv* env,
+                                        const JavaParamRef<jobject>& obj) {
   return GetBooleanForContentSetting(CONTENT_SETTINGS_TYPE_NOTIFICATIONS);
 }
 
@@ -540,6 +540,21 @@ static void SetBrowsingDataDeletionPreference(
   GetOriginalProfile()->GetPrefs()->SetBoolean(pref, value);
 }
 
+static jint GetBrowsingDataDeletionTimePeriod(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& obj) {
+  return GetPrefService()->GetInteger(prefs::kDeleteTimePeriod);
+}
+
+static void SetBrowsingDataDeletionTimePeriod(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& obj,
+    jint time_period) {
+  DCHECK_GE(time_period, 0);
+  DCHECK_LE(time_period, BrowsingDataRemover::TIME_PERIOD_LAST);
+  GetPrefService()->SetInteger(prefs::kDeleteTimePeriod, time_period);
+}
+
 static void ClearBrowsingData(JNIEnv* env,
                               const JavaParamRef<jobject>& obj,
                               const JavaParamRef<jintArray>& data_types) {
@@ -571,7 +586,11 @@ static void ClearBrowsingData(JNIEnv* env,
       case FORM_DATA:
         remove_mask |= BrowsingDataRemover::REMOVE_FORM_DATA;
         break;
-      default:
+      case BOOKMARKS:
+        // Bookmarks are deleted separately on the Java side.
+        NOTREACHED();
+        break;
+      case NUM_TYPES:
         NOTREACHED();
     }
   }
@@ -666,9 +685,9 @@ static void SetFullscreenAllowed(JNIEnv* env,
       allow ? CONTENT_SETTING_ALLOW : CONTENT_SETTING_ASK);
 }
 
-static void SetPushNotificationsEnabled(JNIEnv* env,
-                                        const JavaParamRef<jobject>& obj,
-                                        jboolean allow) {
+static void SetNotificationsEnabled(JNIEnv* env,
+                                    const JavaParamRef<jobject>& obj,
+                                    jboolean allow) {
   HostContentSettingsMap* host_content_settings_map =
       HostContentSettingsMapFactory::GetForProfile(GetOriginalProfile());
   host_content_settings_map->SetDefaultContentSetting(

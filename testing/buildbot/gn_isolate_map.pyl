@@ -100,7 +100,7 @@
   },
   "ash_unittests": {
     "label": "//ash:ash_unittests",
-    "type": "unknown",
+    "type": "windowed_test_launcher",
   },
   "audio_unittests": {
     "label": "//media:audio_unittests",
@@ -172,7 +172,7 @@
   },
   "chrome_elf_unittests": {
     "label": "//chrome_elf:chrome_elf_unittests",
-    "type": "unknown",
+    "type": "raw",
   },
   "chromedriver_unittests": {
     "label": "//chrome/test/chromedriver:chromedriver_unittests",
@@ -407,7 +407,7 @@
   },
   "ppapi_unittests": {
     "label": "//ppapi:ppapi_unittests",
-    "type": "unknown",
+    "type": "console_test_launcher",
   },
   "printing_unittests": {
     "label": "//printing:printing_unittests",
@@ -536,7 +536,7 @@
   },
   "views_unittests": {
     "label": "//ui/views:views_unittests",
-    "type": "unknown",
+    "type": "windowed_test_launcher",
   },
   "webkit_unit_tests": {
     "label": "//third_party/WebKit/Source/web:webkit_unit_tests",

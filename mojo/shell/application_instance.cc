@@ -14,7 +14,6 @@
 #include "mojo/common/common_type_converters.h"
 #include "mojo/common/url_type_converters.h"
 #include "mojo/shell/application_manager.h"
-#include "mojo/shell/public/interfaces/content_handler.mojom.h"
 
 namespace mojo {
 namespace shell {
@@ -22,16 +21,12 @@ namespace shell {
 ApplicationInstance::ApplicationInstance(
     mojom::ShellClientPtr shell_client,
     ApplicationManager* manager,
-    const Identity& identity,
-    uint32_t requesting_content_handler_id,
-    const base::Closure& on_application_end)
+    const Identity& identity)
     : manager_(manager),
       id_(GenerateUniqueID()),
       identity_(identity),
       allow_any_application_(identity.filter().size() == 1 &&
                              identity.filter().count("*") == 1),
-      requesting_content_handler_id_(requesting_content_handler_id),
-      on_application_end_(on_application_end),
       shell_client_(std::move(shell_client)),
       binding_(this),
       pid_receiver_binding_(this),
@@ -42,10 +37,8 @@ ApplicationInstance::ApplicationInstance(
 }
 
 ApplicationInstance::~ApplicationInstance() {
-  for (auto request : queued_client_requests_) {
-    request->connect_callback().Run(kInvalidApplicationID,
-                                    kInvalidApplicationID);
-  }
+  for (auto request : queued_client_requests_)
+    request->connect_callback().Run(kInvalidApplicationID);
   STLDeleteElements(&queued_client_requests_);
 }
 
@@ -55,8 +48,7 @@ void ApplicationInstance::InitializeApplication() {
   binding_.set_connection_error_handler([this]() { OnConnectionError(); });
 }
 
-void ApplicationInstance::ConnectToClient(
-    scoped_ptr<ConnectToApplicationParams> params) {
+void ApplicationInstance::ConnectToClient(scoped_ptr<ConnectParams> params) {
   if (queue_requests_) {
     queued_client_requests_.push_back(params.release());
     return;
@@ -75,17 +67,16 @@ void ApplicationInstance::BindPIDReceiver(
 }
 
 // Shell implementation:
-void ApplicationInstance::ConnectToApplication(
-    URLRequestPtr app_request,
+void ApplicationInstance::Connect(
+    const String& app_url,
     shell::mojom::InterfaceProviderRequest remote_interfaces,
     shell::mojom::InterfaceProviderPtr local_interfaces,
     mojom::CapabilityFilterPtr filter,
-    const ConnectToApplicationCallback& callback) {
-  std::string url_string = app_request->url.To<std::string>();
-  GURL url(url_string);
+    const ConnectCallback& callback) {
+  GURL url = app_url.To<GURL>();
   if (!url.is_valid()) {
-    LOG(ERROR) << "Error: invalid URL: " << url_string;
-    callback.Run(kInvalidApplicationID, kInvalidApplicationID);
+    LOG(ERROR) << "Error: invalid URL: " << app_url;
+    callback.Run(kInvalidApplicationID);
     return;
   }
   if (allow_any_application_ ||
@@ -94,21 +85,17 @@ void ApplicationInstance::ConnectToApplication(
     if (!filter.is_null())
       capability_filter = filter->filter.To<CapabilityFilter>();
 
-    scoped_ptr<ConnectToApplicationParams> params(
-        new ConnectToApplicationParams);
+    scoped_ptr<ConnectParams> params(new ConnectParams);
     params->SetSource(this);
-    GURL app_url(app_request->url.get());
-    params->SetTargetURLRequest(
-        std::move(app_request),
-        Identity(app_url, std::string(), capability_filter));
+    params->set_target(Identity(url, std::string(), capability_filter));
     params->set_remote_interfaces(std::move(remote_interfaces));
     params->set_local_interfaces(std::move(local_interfaces));
     params->set_connect_callback(callback);
-    manager_->ConnectToApplication(std::move(params));
+    manager_->Connect(std::move(params));
   } else {
     LOG(WARNING) << "CapabilityFilter prevented connection from: " <<
         identity_.url() << " to: " << url.spec();
-    callback.Run(kInvalidApplicationID, kInvalidApplicationID);
+    callback.Run(kInvalidApplicationID);
   }
 }
 
@@ -132,8 +119,8 @@ uint32_t ApplicationInstance::GenerateUniqueID() const {
 }
 
 void ApplicationInstance::CallAcceptConnection(
-    scoped_ptr<ConnectToApplicationParams> params) {
-  params->connect_callback().Run(id_, requesting_content_handler_id_);
+    scoped_ptr<ConnectParams> params) {
+  params->connect_callback().Run(id_);
   AllowedInterfaces interfaces;
   interfaces.insert("*");
   if (!params->source().is_null())
@@ -149,7 +136,7 @@ void ApplicationInstance::CallAcceptConnection(
 }
 
 void ApplicationInstance::OnConnectionError() {
-  std::vector<ConnectToApplicationParams*> queued_client_requests;
+  std::vector<ConnectParams*> queued_client_requests;
   queued_client_requests_.swap(queued_client_requests);
   auto manager = manager_;
   manager_->OnApplicationInstanceError(this);
@@ -157,32 +144,8 @@ void ApplicationInstance::OnConnectionError() {
 
   // If any queued requests came to shell during time it was shutting down,
   // start them now.
-  for (auto request : queued_client_requests) {
-    // Unfortunately, it is possible that |request->target_url_request()| is
-    // null at this point. Consider the following sequence:
-    // 1) connect_request_1 arrives at the application manager; the manager
-    //    decides to fetch the app.
-    // 2) connect_request_2 arrives for the same app; because the app is not
-    //    running yet, the manager decides to fetch the app again.
-    // 3) The fetch for step (1) completes and an application instance app_a is
-    //    registered.
-    // 4) app_a goes into two-phase shutdown.
-    // 5) The fetch for step (2) completes; the manager finds that there is a
-    //    running app already, so it connects to app_a.
-    // 6) connect_request_2 is queued (and eventually gets here), but its
-    //    original_request field was already lost to NetworkFetcher at step (2).
-    //
-    // TODO(yzshen): It seems we should register a pending application instance
-    // before starting the fetch. So at step (2) the application manager knows
-    // that it can wait for the first fetch to complete instead of doing a
-    // second one directly.
-    if (!request->target_url_request()) {
-      URLRequestPtr url_request = mojo::URLRequest::New();
-      url_request->url = request->target().url().spec();
-      request->SetTargetURLRequest(std::move(url_request), request->target());
-    }
-    manager->ConnectToApplication(make_scoped_ptr(request));
-  }
+  for (auto request : queued_client_requests)
+    manager->Connect(make_scoped_ptr(request));
 }
 
 void ApplicationInstance::OnQuitRequestedResult(bool can_quit) {

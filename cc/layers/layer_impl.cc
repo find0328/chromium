@@ -492,92 +492,6 @@ void LayerImpl::ApplySentScrollDeltasFromAbortedCommit() {
   scroll_offset_->AbortCommit();
 }
 
-InputHandler::ScrollStatus LayerImpl::TryScroll(
-    const gfx::PointF& screen_space_point,
-    InputHandler::ScrollInputType type) const {
-  InputHandler::ScrollStatus scroll_status;
-  scroll_status.main_thread_scrolling_reasons =
-      MainThreadScrollingReason::kNotScrollingOnMain;
-  if (should_scroll_on_main_thread()) {
-    TRACE_EVENT0("cc", "LayerImpl::TryScroll: Failed ShouldScrollOnMainThread");
-    scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
-    scroll_status.main_thread_scrolling_reasons =
-        main_thread_scrolling_reasons_;
-    return scroll_status;
-  }
-
-  gfx::Transform screen_space_transform = ScreenSpaceTransform();
-  if (!screen_space_transform.IsInvertible()) {
-    TRACE_EVENT0("cc", "LayerImpl::TryScroll: Ignored NonInvertibleTransform");
-    scroll_status.thread = InputHandler::SCROLL_IGNORED;
-    scroll_status.main_thread_scrolling_reasons =
-        MainThreadScrollingReason::kNonInvertibleTransform;
-    return scroll_status;
-  }
-
-  if (!non_fast_scrollable_region().IsEmpty()) {
-    bool clipped = false;
-    gfx::Transform inverse_screen_space_transform(
-        gfx::Transform::kSkipInitialization);
-    if (!screen_space_transform.GetInverse(&inverse_screen_space_transform)) {
-      // TODO(shawnsingh): We shouldn't be applying a projection if screen space
-      // transform is uninvertible here. Perhaps we should be returning
-      // SCROLL_ON_MAIN_THREAD in this case?
-    }
-
-    gfx::PointF hit_test_point_in_layer_space = MathUtil::ProjectPoint(
-        inverse_screen_space_transform, screen_space_point, &clipped);
-    if (!clipped &&
-        non_fast_scrollable_region().Contains(
-            gfx::ToRoundedPoint(hit_test_point_in_layer_space))) {
-      TRACE_EVENT0("cc",
-                   "LayerImpl::tryScroll: Failed NonFastScrollableRegion");
-      scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
-      scroll_status.main_thread_scrolling_reasons =
-          MainThreadScrollingReason::kNonFastScrollableRegion;
-      return scroll_status;
-    }
-  }
-
-  if (type == InputHandler::WHEEL || type == InputHandler::ANIMATED_WHEEL) {
-    EventListenerProperties event_properties =
-        layer_tree_impl_->event_listener_properties(
-            EventListenerClass::kMouseWheel);
-    if (event_properties == EventListenerProperties::kBlocking ||
-        event_properties == EventListenerProperties::kBlockingAndPassive ||
-        (!layer_tree_impl_->settings().use_mouse_wheel_gestures &&
-         event_properties == EventListenerProperties::kPassive)) {
-      TRACE_EVENT0("cc", "LayerImpl::tryScroll: Failed WheelEventHandlers");
-      scroll_status.thread = InputHandler::SCROLL_ON_MAIN_THREAD;
-      scroll_status.main_thread_scrolling_reasons =
-          MainThreadScrollingReason::kEventHandlers;
-      return scroll_status;
-    }
-  }
-
-  if (!scrollable()) {
-    TRACE_EVENT0("cc", "LayerImpl::tryScroll: Ignored not scrollable");
-    scroll_status.thread = InputHandler::SCROLL_IGNORED;
-    scroll_status.main_thread_scrolling_reasons =
-        MainThreadScrollingReason::kNotScrollable;
-    return scroll_status;
-  }
-
-  gfx::ScrollOffset max_scroll_offset = MaxScrollOffset();
-  if (max_scroll_offset.x() <= 0 && max_scroll_offset.y() <= 0) {
-    TRACE_EVENT0("cc",
-                 "LayerImpl::tryScroll: Ignored. Technically scrollable,"
-                 " but has no affordance in either direction.");
-    scroll_status.thread = InputHandler::SCROLL_IGNORED;
-    scroll_status.main_thread_scrolling_reasons =
-        MainThreadScrollingReason::kNotScrollable;
-    return scroll_status;
-  }
-
-  scroll_status.thread = InputHandler::SCROLL_ON_IMPL_THREAD;
-  return scroll_status;
-}
-
 skia::RefPtr<SkPicture> LayerImpl::GetPicture() {
   return skia::RefPtr<SkPicture>();
 }
@@ -779,6 +693,17 @@ void LayerImpl::SetStackingOrderChanged(bool stacking_order_changed) {
   }
 }
 
+bool LayerImpl::LayerPropertyChanged() const {
+  if (layer_property_changed_)
+    return true;
+  TransformNode* node =
+      layer_tree_impl()->property_trees()->transform_tree.Node(
+          transform_tree_index());
+  if (node && node->data.transform_changed)
+    return true;
+  return false;
+}
+
 void LayerImpl::NoteLayerPropertyChanged() {
   layer_property_changed_ = true;
   layer_tree_impl()->set_needs_update_draw_properties();
@@ -821,6 +746,11 @@ const char* LayerImpl::LayerTypeAsString() const {
 
 void LayerImpl::ResetAllChangeTrackingForSubtree() {
   layer_property_changed_ = false;
+  if (TransformNode* transform_node =
+          layer_tree_impl_->property_trees()->transform_tree.Node(
+              transform_tree_index())) {
+    transform_node->data.transform_changed = false;
+  }
 
   update_rect_.SetRect(0, 0, 0, 0);
   damage_rect_.SetRect(0, 0, 0, 0);
@@ -1016,9 +946,7 @@ void LayerImpl::SetBounds(const gfx::Size& bounds) {
 
   layer_tree_impl()->DidUpdateScrollState(id());
 
-  if (masks_to_bounds())
-    NoteLayerPropertyChangedForSubtree();
-  else
+  if (!masks_to_bounds())
     NoteLayerPropertyChanged();
 }
 
@@ -1120,7 +1048,6 @@ void LayerImpl::SetTransformOrigin(const gfx::Point3F& transform_origin) {
   if (transform_origin_ == transform_origin)
     return;
   transform_origin_ = transform_origin;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetBackgroundColor(SkColor background_color) {
@@ -1297,7 +1224,6 @@ void LayerImpl::SetPosition(const gfx::PointF& position) {
     return;
 
   position_ = position;
-  NoteLayerPropertyChangedForSubtree();
 }
 
 void LayerImpl::SetShouldFlattenTransform(bool flatten) {
@@ -1797,10 +1723,8 @@ void LayerImpl::SetHasRenderSurface(bool should_have_render_surface) {
 }
 
 gfx::Transform LayerImpl::DrawTransform() const {
-  // Only drawn layers have up-to-date draw properties when property trees are
-  // enabled.
-  if (layer_tree_impl()->settings().use_property_trees &&
-      !IsDrawnRenderSurfaceLayerListMember()) {
+  // Only drawn layers have up-to-date draw properties.
+  if (!IsDrawnRenderSurfaceLayerListMember()) {
     if (layer_tree_impl()->property_trees()->non_root_surfaces_enabled) {
       return DrawTransformFromPropertyTrees(
           this, layer_tree_impl()->property_trees()->transform_tree);
@@ -1814,10 +1738,8 @@ gfx::Transform LayerImpl::DrawTransform() const {
 }
 
 gfx::Transform LayerImpl::ScreenSpaceTransform() const {
-  // Only drawn layers have up-to-date draw properties when property trees are
-  // enabled.
-  if (layer_tree_impl()->settings().use_property_trees &&
-      !IsDrawnRenderSurfaceLayerListMember()) {
+  // Only drawn layers have up-to-date draw properties.
+  if (!IsDrawnRenderSurfaceLayerListMember()) {
     return ScreenSpaceTransformFromPropertyTrees(
         this, layer_tree_impl()->property_trees()->transform_tree);
   }
@@ -1851,13 +1773,9 @@ gfx::Rect LayerImpl::GetScaledEnclosingRectInTargetSpace(float scale) const {
 }
 
 bool LayerImpl::IsHidden() const {
-  if (layer_tree_impl()->settings().use_property_trees) {
-    EffectTree& effect_tree = layer_tree_impl_->property_trees()->effect_tree;
-    EffectNode* node = effect_tree.Node(effect_tree_index_);
-    return node->data.screen_space_opacity == 0.f;
-  } else {
-    return EffectiveOpacity() == 0.f || (parent() && parent()->IsHidden());
-  }
+  EffectTree& effect_tree = layer_tree_impl_->property_trees()->effect_tree;
+  EffectNode* node = effect_tree.Node(effect_tree_index_);
+  return node->data.screen_space_opacity == 0.f;
 }
 
 float LayerImpl::GetIdealContentsScale() const {

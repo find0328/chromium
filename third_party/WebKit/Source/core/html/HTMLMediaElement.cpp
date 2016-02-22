@@ -67,6 +67,7 @@
 #include "core/page/NetworkStateNotifier.h"
 #include "platform/ContentType.h"
 #include "platform/Histogram.h"
+#include "platform/LayoutTestSupport.h"
 #include "platform/Logging.h"
 #include "platform/MIMETypeFromURL.h"
 #include "platform/MIMETypeRegistry.h"
@@ -86,25 +87,6 @@
 #include "wtf/text/CString.h"
 #include <limits>
 
-
-namespace blink {
-
-#if !LOG_DISABLED
-static String urlForLoggingMedia(const KURL& url)
-{
-    static const unsigned maximumURLLengthForLogging = 128;
-
-    if (url.string().length() < maximumURLLengthForLogging)
-        return url.string();
-    return url.string().substring(0, maximumURLLengthForLogging) + "...";
-}
-
-static const char* boolString(bool val)
-{
-    return val ? "true" : "false";
-}
-#endif
-
 #ifndef LOG_MEDIA_EVENTS
 // Default to not logging events because so many are generated they can overwhelm the rest of
 // the logging.
@@ -117,20 +99,41 @@ static const char* boolString(bool val)
 #define LOG_CACHED_TIME_WARNINGS 0
 #endif
 
-// URL protocol used to signal that the media source API is being used.
-static const char mediaSourceBlobProtocol[] = "blob";
+namespace blink {
 
 using namespace HTMLNames;
 
-typedef WillBeHeapHashSet<RawPtrWillBeWeakMember<HTMLMediaElement>> WeakMediaElementSet;
-typedef WillBeHeapHashMap<RawPtrWillBeWeakMember<Document>, WeakMediaElementSet> DocumentElementSetMap;
-static DocumentElementSetMap& documentToElementSetMap()
+using WeakMediaElementSet = WillBeHeapHashSet<RawPtrWillBeWeakMember<HTMLMediaElement>>;
+using DocumentElementSetMap = WillBeHeapHashMap<RawPtrWillBeWeakMember<Document>, WeakMediaElementSet>;
+
+namespace {
+
+// URL protocol used to signal that the media source API is being used.
+const char mediaSourceBlobProtocol[] = "blob";
+
+#if !LOG_DISABLED
+String urlForLoggingMedia(const KURL& url)
+{
+    static const unsigned maximumURLLengthForLogging = 128;
+
+    if (url.string().length() < maximumURLLengthForLogging)
+        return url.string();
+    return url.string().substring(0, maximumURLLengthForLogging) + "...";
+}
+
+const char* boolString(bool val)
+{
+    return val ? "true" : "false";
+}
+#endif
+
+DocumentElementSetMap& documentToElementSetMap()
 {
     DEFINE_STATIC_LOCAL(OwnPtrWillBePersistent<DocumentElementSetMap>, map, (adoptPtrWillBeNoop(new DocumentElementSetMap())));
     return *map;
 }
 
-static void addElementToDocumentMap(HTMLMediaElement* element, Document* document)
+void addElementToDocumentMap(HTMLMediaElement* element, Document* document)
 {
     DocumentElementSetMap& map = documentToElementSetMap();
     WeakMediaElementSet set = map.take(document);
@@ -138,7 +141,7 @@ static void addElementToDocumentMap(HTMLMediaElement* element, Document* documen
     map.add(document, set);
 }
 
-static void removeElementFromDocumentMap(HTMLMediaElement* element, Document* document)
+void removeElementFromDocumentMap(HTMLMediaElement* element, Document* document)
 {
     DocumentElementSetMap& map = documentToElementSetMap();
     WeakMediaElementSet set = map.take(document);
@@ -166,7 +169,7 @@ private:
     Member<AudioSourceProviderClient> m_client;
 };
 
-static const AtomicString& AudioKindToString(WebMediaPlayerClient::AudioTrackKind kind)
+const AtomicString& AudioKindToString(WebMediaPlayerClient::AudioTrackKind kind)
 {
     switch (kind) {
     case WebMediaPlayerClient::AudioTrackKindNone:
@@ -189,7 +192,7 @@ static const AtomicString& AudioKindToString(WebMediaPlayerClient::AudioTrackKin
     return emptyAtom;
 }
 
-static const AtomicString& VideoKindToString(WebMediaPlayerClient::VideoTrackKind kind)
+const AtomicString& VideoKindToString(WebMediaPlayerClient::VideoTrackKind kind)
 {
     switch (kind) {
     case WebMediaPlayerClient::VideoTrackKindNone:
@@ -212,7 +215,7 @@ static const AtomicString& VideoKindToString(WebMediaPlayerClient::VideoTrackKin
     return emptyAtom;
 }
 
-static bool canLoadURL(const KURL& url, const ContentType& contentType, const String& keySystem)
+bool canLoadURL(const KURL& url, const ContentType& contentType)
 {
     DEFINE_STATIC_LOCAL(const String, codecs, ("codecs"));
 
@@ -233,12 +236,14 @@ static bool canLoadURL(const KURL& url, const ContentType& contentType, const St
     // when used with parameters, e.g. "application/octet-stream;codecs=theora", is a type that the user agent knows
     // it cannot render.
     if (contentMIMEType != "application/octet-stream" || contentTypeCodecs.isEmpty()) {
-        WebMimeRegistry::SupportsType supported = Platform::current()->mimeRegistry()->supportsMediaMIMEType(contentMIMEType, contentTypeCodecs, keySystem.lower());
+        WebMimeRegistry::SupportsType supported = Platform::current()->mimeRegistry()->supportsMediaMIMEType(contentMIMEType, contentTypeCodecs);
         return supported > WebMimeRegistry::IsNotSupported;
     }
 
     return false;
 }
+
+} // anonymous namespace
 
 void HTMLMediaElement::recordAutoplayMetric(AutoplayMetrics metric)
 {
@@ -246,7 +251,7 @@ void HTMLMediaElement::recordAutoplayMetric(AutoplayMetrics metric)
     autoplayHistogram.count(metric);
 }
 
-WebMimeRegistry::SupportsType HTMLMediaElement::supportsType(const ContentType& contentType, const String& keySystem)
+WebMimeRegistry::SupportsType HTMLMediaElement::supportsType(const ContentType& contentType)
 {
     DEFINE_STATIC_LOCAL(const String, codecs, ("codecs"));
 
@@ -257,7 +262,6 @@ WebMimeRegistry::SupportsType HTMLMediaElement::supportsType(const ContentType& 
     // The codecs string is not lower-cased because MP4 values are case sensitive
     // per http://tools.ietf.org/html/rfc4281#page-7.
     String typeCodecs = contentType.parameter(codecs);
-    String system = keySystem.lower();
 
     if (type.isEmpty())
         return WebMimeRegistry::IsNotSupported;
@@ -267,7 +271,7 @@ WebMimeRegistry::SupportsType HTMLMediaElement::supportsType(const ContentType& 
     if (type == "application/octet-stream")
         return WebMimeRegistry::IsNotSupported;
 
-    return Platform::current()->mimeRegistry()->supportsMediaMIMEType(type, typeCodecs, system);
+    return Platform::current()->mimeRegistry()->supportsMediaMIMEType(type, typeCodecs);
 }
 
 URLRegistry* HTMLMediaElement::s_mediaStreamRegistry = 0;
@@ -350,6 +354,8 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document& docum
 
     setHasCustomStyleCallbacks();
     addElementToDocumentMap(this, &document);
+
+    UseCounter::count(document, UseCounter::HTMLMediaElement);
 }
 
 HTMLMediaElement::~HTMLMediaElement()
@@ -493,6 +499,7 @@ void HTMLMediaElement::parseAttribute(const QualifiedName& name, const AtomicStr
             scheduleDelayedAction(LoadMediaResource);
         }
     } else if (name == controlsAttr) {
+        UseCounter::count(document(), UseCounter::HTMLMediaElementControlsAttribute);
         configureMediaControls();
     } else if (name == preloadAttr) {
         setPlayerPreload();
@@ -527,6 +534,7 @@ Node::InsertionNotificationRequest HTMLMediaElement::insertedInto(ContainerNode*
 
     HTMLElement::insertedInto(insertionPoint);
     if (insertionPoint->inDocument()) {
+        UseCounter::count(document(), UseCounter::HTMLMediaElementInDocument);
         if (!getAttribute(srcAttr).isEmpty() && m_networkState == NETWORK_EMPTY)
             scheduleDelayedAction(LoadMediaResource);
     }
@@ -631,9 +639,9 @@ HTMLMediaElement::NetworkState HTMLMediaElement::networkState() const
     return m_networkState;
 }
 
-String HTMLMediaElement::canPlayType(const String& mimeType, const String& keySystem) const
+String HTMLMediaElement::canPlayType(const String& mimeType) const
 {
-    WebMimeRegistry::SupportsType support = supportsType(ContentType(mimeType), keySystem);
+    WebMimeRegistry::SupportsType support = supportsType(ContentType(mimeType));
     String canPlay;
 
     // 4.8.10.3
@@ -649,7 +657,7 @@ String HTMLMediaElement::canPlayType(const String& mimeType, const String& keySy
         break;
     }
 
-    WTF_LOG(Media, "HTMLMediaElement::canPlayType(%p, %s, %s) -> %s", this, mimeType.utf8().data(), keySystem.utf8().data(), canPlay.utf8().data());
+    WTF_LOG(Media, "HTMLMediaElement::canPlayType(%p, %s) -> %s", this, mimeType.utf8().data(), canPlay.utf8().data());
 
     return canPlay;
 }
@@ -871,11 +879,10 @@ void HTMLMediaElement::selectMediaResource()
             return;
         }
 
-        // No type or key system information is available when the url comes
-        // from the 'src' attribute so MediaPlayer
+        // No type is available when the url comes from the 'src' attribute so MediaPlayer
         // will have to pick a media engine based on the file extension.
         ContentType contentType((String()));
-        loadResource(mediaURL, contentType, String());
+        loadResource(mediaURL, contentType);
         WTF_LOG(Media, "HTMLMediaElement::selectMediaResource(%p), using 'src' attribute url", this);
         return;
     }
@@ -887,8 +894,7 @@ void HTMLMediaElement::selectMediaResource()
 void HTMLMediaElement::loadNextSourceChild()
 {
     ContentType contentType((String()));
-    String keySystem;
-    KURL mediaURL = selectNextSourceChild(&contentType, &keySystem, Complain);
+    KURL mediaURL = selectNextSourceChild(&contentType, Complain);
     if (!mediaURL.isValid()) {
         waitForSourceChange();
         return;
@@ -898,15 +904,15 @@ void HTMLMediaElement::loadNextSourceChild()
     resetMediaPlayerAndMediaSource();
 
     m_loadState = LoadingFromSourceElement;
-    loadResource(mediaURL, contentType, keySystem);
+    loadResource(mediaURL, contentType);
 }
 
-void HTMLMediaElement::loadResource(const KURL& url, ContentType& contentType, const String& keySystem)
+void HTMLMediaElement::loadResource(const KURL& url, ContentType& contentType)
 {
     ASSERT(isMainThread());
     ASSERT(isSafeToLoadURL(url, Complain));
 
-    WTF_LOG(Media, "HTMLMediaElement::loadResource(%p, %s, %s, %s)", this, urlForLoggingMedia(url).utf8().data(), contentType.raw().utf8().data(), keySystem.utf8().data());
+    WTF_LOG(Media, "HTMLMediaElement::loadResource(%p, %s, %s)", this, urlForLoggingMedia(url).utf8().data(), contentType.raw().utf8().data());
 
     LocalFrame* frame = document().frame();
     if (!frame) {
@@ -958,7 +964,7 @@ void HTMLMediaElement::loadResource(const KURL& url, ContentType& contentType, c
         }
     }
 
-    if (attemptLoad && canLoadURL(url, contentType, keySystem)) {
+    if (attemptLoad && canLoadURL(url, contentType)) {
         ASSERT(!webMediaPlayer());
 
         if (!m_havePreparedToPlay && effectivePreloadType() == WebMediaPlayer::PreloadNone) {
@@ -2514,7 +2520,7 @@ bool HTMLMediaElement::havePotentialSourceChild()
     RefPtrWillBeRawPtr<HTMLSourceElement> currentSourceNode = m_currentSourceNode;
     RefPtrWillBeRawPtr<Node> nextNode = m_nextChildNodeToConsider;
 
-    KURL nextURL = selectNextSourceChild(0, 0, DoNothing);
+    KURL nextURL = selectNextSourceChild(0, DoNothing);
 
     m_currentSourceNode = currentSourceNode;
     m_nextChildNodeToConsider = nextNode;
@@ -2522,7 +2528,7 @@ bool HTMLMediaElement::havePotentialSourceChild()
     return nextURL.isValid();
 }
 
-KURL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, String* keySystem, InvalidURLAction actionIfInvalid)
+KURL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, InvalidURLAction actionIfInvalid)
 {
 #if !LOG_DISABLED
     // Don't log if this was just called to find out if there are any valid <source> elements.
@@ -2543,7 +2549,6 @@ KURL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, String* k
     Node* node;
     HTMLSourceElement* source = 0;
     String type;
-    String system;
     bool lookingForStartNode = m_nextChildNodeToConsider;
     bool canUseSourceElement = false;
 
@@ -2573,15 +2578,14 @@ KURL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, String* k
             goto checkAgain;
 
         type = source->type();
-        // FIXME(82965): Add support for keySystem in <source> and set system from source.
         if (type.isEmpty() && mediaURL.protocolIsData())
             type = mimeTypeFromDataURL(mediaURL);
-        if (!type.isEmpty() || !system.isEmpty()) {
+        if (!type.isEmpty()) {
 #if !LOG_DISABLED
             if (shouldLog)
-                WTF_LOG(Media, "HTMLMediaElement::selectNextSourceChild(%p) - 'type' is '%s' - key system is '%s'", this, type.utf8().data(), system.utf8().data());
+                WTF_LOG(Media, "HTMLMediaElement::selectNextSourceChild(%p) - 'type' is '%s'", this, type.utf8().data());
 #endif
-            if (!supportsType(ContentType(type), system))
+            if (!supportsType(ContentType(type)))
                 goto checkAgain;
         }
 
@@ -2600,8 +2604,6 @@ checkAgain:
     if (canUseSourceElement) {
         if (contentType)
             *contentType = ContentType(type);
-        if (keySystem)
-            *keySystem = system;
         m_currentSourceNode = source;
         m_nextChildNodeToConsider = source->nextSibling();
     } else {
@@ -3099,6 +3101,9 @@ void HTMLMediaElement::didBecomeFullscreenElement()
 {
     if (mediaControls())
         mediaControls()->enteredFullscreen();
+    // FIXME: There is no embedder-side handling in layout test mode.
+    if (webMediaPlayer() && !LayoutTestSupport::isRunningLayoutTest())
+        webMediaPlayer()->enteredFullscreen();
     // Cache this in case the player is destroyed before leaving fullscreen.
     m_inOverlayFullscreenVideo = usesOverlayFullscreenVideo();
     if (m_inOverlayFullscreenVideo)
@@ -3109,6 +3114,8 @@ void HTMLMediaElement::willStopBeingFullscreenElement()
 {
     if (mediaControls())
         mediaControls()->exitedFullscreen();
+    if (webMediaPlayer())
+        webMediaPlayer()->exitedFullscreen();
     if (m_inOverlayFullscreenVideo)
         document().layoutView()->compositor()->setNeedsCompositingUpdate(CompositingUpdateRebuildTree);
     m_inOverlayFullscreenVideo = false;

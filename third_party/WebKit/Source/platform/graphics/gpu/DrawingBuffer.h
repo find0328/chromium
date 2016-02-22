@@ -83,6 +83,12 @@ public:
     // making the context current and setting the clear values and masks. Modifies the framebuffer binding.
     void clearFramebuffers(GLbitfield clearMask);
 
+    // Indicates whether the DrawingBuffer internally allocated a packed depth-stencil renderbuffer
+    // in the situation where the end user only asked for a depth buffer. In this case, we need to
+    // upgrade clears of the depth buffer to clears of the depth and stencil buffers in order to
+    // avoid performance problems on some GPUs.
+    bool hasImplicitStencilBuffer() const;
+
     // Given the desired buffer size, provides the largest dimensions that will fit in the pixel budget.
     static IntSize adjustSize(const IntSize& desiredSize, const IntSize& curSize, int maxTextureSize);
     bool reset(const IntSize&);
@@ -167,18 +173,11 @@ public:
     void addNewMailboxCallback(PassOwnPtr<Closure> closure) { m_newMailboxCallback = std::move(closure); }
 
 protected: // For unittests
-    struct PLATFORM_EXPORT SupportedExtensions {
-        SupportedExtensions();
-
-        bool multisample;
-        bool depth24;
-        bool discardFramebuffer;
-    };
-
     DrawingBuffer(
         PassOwnPtr<WebGraphicsContext3D>,
         PassOwnPtr<Extensions3DUtil>,
-        const SupportedExtensions&,
+        bool multisampleExtensionSupported,
+        bool discardFramebufferSupported,
         PreserveDrawingBuffer,
         WebGraphicsContext3D::Attributes requestedAttributes);
 
@@ -304,7 +303,6 @@ private:
     IntSize m_size;
     WebGraphicsContext3D::Attributes m_requestedAttributes;
     bool m_multisampleExtensionSupported;
-    bool m_depth24ExtensionSupported;
     bool m_discardFramebufferSupported;
     Platform3DObject m_fbo;
     // DrawingBuffer's output is double-buffered. m_colorBuffer is the back buffer.
@@ -317,10 +315,8 @@ private:
 
     OwnPtr<Closure> m_newMailboxCallback;
 
+    // This is used when the user requests either a depth or stencil buffer.
     Platform3DObject m_depthStencilBuffer;
-
-    // This is used when we only request depth and the OES_depth24 extension is available.
-    Platform3DObject m_depthBuffer;
 
     // For multisampling.
     Platform3DObject m_multisampleFBO;

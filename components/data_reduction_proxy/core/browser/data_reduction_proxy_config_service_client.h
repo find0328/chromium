@@ -22,9 +22,15 @@
 #include "net/url_request/url_fetcher_delegate.h"
 #include "url/gurl.h"
 
+#if defined(OS_ANDROID)
+#include "base/android/application_status_listener.h"
+#endif  // OS_ANDROID
+
 namespace net {
 class HostPortPair;
+class HttpRequestHeaders;
 class HttpResponseHeaders;
+struct LoadTimingInfo;
 class URLFetcher;
 class URLRequestContextGetter;
 class URLRequestStatus;
@@ -86,10 +92,14 @@ class DataReductionProxyConfigServiceClient
 
   // Examines |response_headers| to determine if an authentication failure
   // occurred on a Data Reduction Proxy. Returns true if authentication failure
-  // occured and fetches a new config.
+  // occured, and the session key specified in |request_headers| matches the
+  // current session in use by the client. If an authentication failure is
+  // detected,  it fetches a new config.
   bool ShouldRetryDueToAuthFailure(
+      const net::HttpRequestHeaders& request_headers,
       const net::HttpResponseHeaders* response_headers,
-      const net::HostPortPair& proxy_server);
+      const net::HostPortPair& proxy_server,
+      const net::LoadTimingInfo& load_timing_info);
 
  protected:
   // Retrieves the backoff entry object being used to throttle request failures.
@@ -104,6 +114,12 @@ class DataReductionProxyConfigServiceClient
   // configuration.
   void SetConfigRefreshTimer(const base::TimeDelta& delay);
 
+#if defined(OS_ANDROID)
+  // Returns true if Chromium is in background.
+  // Virtualized for mocking.
+  virtual bool IsApplicationStateBackground() const;
+#endif
+
  private:
   friend class TestDataReductionProxyConfigServiceClient;
 
@@ -112,7 +128,7 @@ class DataReductionProxyConfigServiceClient
   base::TimeDelta CalculateNextConfigRefreshTime(
       bool fetch_succeeded,
       const base::TimeDelta& config_expiration,
-      const base::TimeDelta& backoff_delay) const;
+      const base::TimeDelta& backoff_delay);
 
   // Override of net::NetworkChangeNotifier::IPAddressObserver.
   void OnIPAddressChanged() override;
@@ -146,6 +162,12 @@ class DataReductionProxyConfigServiceClient
   // this session belongs to. Returns true if the |config| was successfully
   // parsed and applied.
   bool ParseAndApplyProxyConfig(const ClientConfig& config);
+
+#if defined(OS_ANDROID)
+  // Listens to when Chromium comes to foreground and fetches new client config
+  // if the config fetch is pending.
+  void OnApplicationStateChange(base::android::ApplicationState new_state);
+#endif
 
   scoped_ptr<DataReductionProxyParams> params_;
 
@@ -196,6 +218,16 @@ class DataReductionProxyConfigServiceClient
   // Used to determine the latency in retrieving the Data Reduction Proxy
   // configuration.
   base::TimeTicks config_fetch_start_time_;
+
+#if defined(OS_ANDROID)
+  // Listens to the application transitions from foreground to background or
+  // vice versa.
+  scoped_ptr<base::android::ApplicationStatusListener> app_status_listener_;
+
+  // True if config needs to be fetched when the application comes to
+  // foreground.
+  bool foreground_fetch_pending_;
+#endif
 
   // Keeps track of whether the previous request to a Data Reduction Proxy
   // failed to authenticate. This is necessary in the situation where a new

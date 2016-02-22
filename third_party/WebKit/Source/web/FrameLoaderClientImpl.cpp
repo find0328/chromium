@@ -218,7 +218,7 @@ void FrameLoaderClientImpl::didChangeScrollOffset()
 void FrameLoaderClientImpl::didUpdateCurrentHistoryItem()
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didUpdateCurrentHistoryItem(m_webFrame);
+        m_webFrame->client()->didUpdateCurrentHistoryItem();
 }
 
 // TODO(dglazkov): Can this be plumbing be streamlined out?
@@ -405,14 +405,14 @@ void FrameLoaderClientImpl::dispatchDidReceiveResponse(DocumentLoader* loader,
 {
     if (m_webFrame->client()) {
         WrappedResourceResponse webresp(response);
-        m_webFrame->client()->didReceiveResponse(m_webFrame, identifier, webresp);
+        m_webFrame->client()->didReceiveResponse(identifier, webresp);
     }
 }
 
 void FrameLoaderClientImpl::dispatchDidChangeResourcePriority(unsigned long identifier, ResourceLoadPriority priority, int intraPriorityValue)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didChangeResourcePriority(m_webFrame, identifier, static_cast<WebURLRequest::Priority>(priority), intraPriorityValue);
+        m_webFrame->client()->didChangeResourcePriority(identifier, static_cast<WebURLRequest::Priority>(priority), intraPriorityValue);
 }
 
 // Called when a particular resource load completes
@@ -441,7 +441,7 @@ void FrameLoaderClientImpl::dispatchDidFinishDocumentLoad(bool documentIsEmpty)
 void FrameLoaderClientImpl::dispatchDidLoadResourceFromMemoryCache(const ResourceRequest& request, const ResourceResponse& response)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didLoadResourceFromMemoryCache(m_webFrame, WrappedResourceRequest(request), WrappedResourceResponse(response));
+        m_webFrame->client()->didLoadResourceFromMemoryCache(WrappedResourceRequest(request), WrappedResourceResponse(response));
 }
 
 void FrameLoaderClientImpl::dispatchDidHandleOnloadEvents()
@@ -608,19 +608,19 @@ bool FrameLoaderClientImpl::hasPendingNavigation()
     if (!m_webFrame->client())
         return false;
 
-    return m_webFrame->client()->hasPendingNavigation(m_webFrame);
+    return m_webFrame->client()->hasPendingNavigation();
 }
 
 void FrameLoaderClientImpl::dispatchWillSendSubmitEvent(HTMLFormElement* form)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->willSendSubmitEvent(m_webFrame, WebFormElement(form));
+        m_webFrame->client()->willSendSubmitEvent(WebFormElement(form));
 }
 
 void FrameLoaderClientImpl::dispatchWillSubmitForm(HTMLFormElement* form)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->willSubmitForm(m_webFrame, WebFormElement(form));
+        m_webFrame->client()->willSubmitForm(WebFormElement(form));
 }
 
 void FrameLoaderClientImpl::didStartLoading(LoadStartType loadStartType)
@@ -669,7 +669,7 @@ bool FrameLoaderClientImpl::navigateBackForward(int offset) const
 void FrameLoaderClientImpl::didAccessInitialDocument()
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didAccessInitialDocument(m_webFrame);
+        m_webFrame->client()->didAccessInitialDocument();
 }
 
 void FrameLoaderClientImpl::didDisplayInsecureContent()
@@ -693,7 +693,7 @@ void FrameLoaderClientImpl::didDetectXSS(const KURL& insecureURL, bool didBlockE
 void FrameLoaderClientImpl::didDispatchPingLoader(const KURL& url)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didDispatchPingLoader(m_webFrame, url);
+        m_webFrame->client()->didDispatchPingLoader(url);
 }
 
 void FrameLoaderClientImpl::didDisplayContentWithCertificateErrors(const KURL& url, const CString& securityInfo, const WebURL& mainResourceUrl, const CString& mainResourceSecurityInfo)
@@ -730,7 +730,7 @@ PassRefPtrWillBeRawPtr<DocumentLoader> FrameLoaderClientImpl::createDocumentLoad
 
 String FrameLoaderClientImpl::userAgent()
 {
-    WebString override = m_webFrame->client()->userAgentOverride(m_webFrame);
+    WebString override = m_webFrame->client()->userAgentOverride();
     if (!override.isEmpty())
         return override;
 
@@ -739,7 +739,7 @@ String FrameLoaderClientImpl::userAgent()
 
 String FrameLoaderClientImpl::doNotTrackValue()
 {
-    WebString doNotTrack = m_webFrame->client()->doNotTrackValue(m_webFrame);
+    WebString doNotTrack = m_webFrame->client()->doNotTrackValue();
     if (!doNotTrack.isEmpty())
         return doNotTrack;
     return String();
@@ -822,7 +822,7 @@ PassOwnPtr<WebMediaPlayer> FrameLoaderClientImpl::createWebMediaPlayer(
 
     HTMLMediaElementEncryptedMedia& encryptedMedia = HTMLMediaElementEncryptedMedia::from(htmlMediaElement);
     WebString sinkId(HTMLMediaElementAudioOutputDevice::sinkId(htmlMediaElement));
-    return adoptPtr(webFrame->client()->createMediaPlayer(webFrame, loadType, url,
+    return adoptPtr(webFrame->client()->createMediaPlayer(loadType, url,
         client, &encryptedMedia,
         encryptedMedia.contentDecryptionModule(), sinkId, webMediaSession));
 }
@@ -882,7 +882,7 @@ WebCookieJar* FrameLoaderClientImpl::cookieJar() const
 {
     if (!m_webFrame->client())
         return 0;
-    return m_webFrame->client()->cookieJar(m_webFrame);
+    return m_webFrame->client()->cookieJar();
 }
 
 bool FrameLoaderClientImpl::willCheckAndDispatchMessageEvent(
@@ -900,11 +900,11 @@ void FrameLoaderClientImpl::frameFocused() const
         m_webFrame->client()->frameFocused();
 }
 
-void FrameLoaderClientImpl::didChangeName(const String& name)
+void FrameLoaderClientImpl::didChangeName(const String& name, const String& uniqueName)
 {
     if (!m_webFrame->client())
         return;
-    m_webFrame->client()->didChangeName(m_webFrame, name);
+    m_webFrame->client()->didChangeName(name, uniqueName);
 }
 
 void FrameLoaderClientImpl::didEnforceStrictMixedContentChecking()
@@ -936,7 +936,7 @@ void FrameLoaderClientImpl::dispatchWillOpenWebSocket(WebSocketHandle* handle)
 
 void FrameLoaderClientImpl::dispatchWillStartUsingPeerConnectionHandler(WebRTCPeerConnectionHandler* handler)
 {
-    m_webFrame->client()->willStartUsingPeerConnectionHandler(webFrame(), handler);
+    m_webFrame->client()->willStartUsingPeerConnectionHandler(handler);
 }
 
 void FrameLoaderClientImpl::didRequestAutocomplete(HTMLFormElement* form)
@@ -948,7 +948,7 @@ void FrameLoaderClientImpl::didRequestAutocomplete(HTMLFormElement* form)
 bool FrameLoaderClientImpl::allowWebGL(bool enabledPerSettings)
 {
     if (m_webFrame->client())
-        return m_webFrame->client()->allowWebGL(m_webFrame, enabledPerSettings);
+        return m_webFrame->client()->allowWebGL(enabledPerSettings);
 
     return enabledPerSettings;
 }
@@ -956,7 +956,7 @@ bool FrameLoaderClientImpl::allowWebGL(bool enabledPerSettings)
 void FrameLoaderClientImpl::didLoseWebGLContext(int arbRobustnessContextLostReason)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didLoseWebGLContext(m_webFrame, arbRobustnessContextLostReason);
+        m_webFrame->client()->didLoseWebGLContext(arbRobustnessContextLostReason);
 }
 
 void FrameLoaderClientImpl::dispatchWillInsertBody()
@@ -980,7 +980,7 @@ PassOwnPtr<WebServiceWorkerProvider> FrameLoaderClientImpl::createServiceWorkerP
 {
     if (!m_webFrame->client())
         return nullptr;
-    return adoptPtr(m_webFrame->client()->createServiceWorkerProvider(m_webFrame));
+    return adoptPtr(m_webFrame->client()->createServiceWorkerProvider());
 }
 
 bool FrameLoaderClientImpl::isControlledByServiceWorker(DocumentLoader& loader)
@@ -1004,13 +1004,13 @@ PassOwnPtr<WebApplicationCacheHost> FrameLoaderClientImpl::createApplicationCach
 {
     if (!m_webFrame->client())
         return nullptr;
-    return adoptPtr(m_webFrame->client()->createApplicationCacheHost(m_webFrame, client));
+    return adoptPtr(m_webFrame->client()->createApplicationCacheHost(client));
 }
 
 void FrameLoaderClientImpl::dispatchDidChangeManifest()
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didChangeManifest(m_webFrame);
+        m_webFrame->client()->didChangeManifest();
 }
 
 unsigned FrameLoaderClientImpl::backForwardLength()

@@ -21,11 +21,13 @@ class Connection;
 namespace filesystem {
 class FileSystemApp;
 
+class LockTable;
+
 class FileSystemImpl : public FileSystem {
  public:
-  FileSystemImpl(FileSystemApp* app,
-                 mojo::Connection* connection,
-                 mojo::InterfaceRequest<FileSystem> request);
+  FileSystemImpl(mojo::Connection* connection,
+                 mojo::InterfaceRequest<FileSystem> request,
+                 LockTable* lock_table);
   ~FileSystemImpl() override;
 
   // |Files| implementation:
@@ -49,9 +51,9 @@ class FileSystemImpl : public FileSystem {
   void BuildSanitizedOrigin(const std::string& origin,
                             std::string* sanitized_origin);
 
-  FileSystemApp* app_;
   const std::string remote_application_url_;
   mojo::StrongBinding<FileSystem> binding_;
+  LockTable* lock_table_;
 
   DISALLOW_COPY_AND_ASSIGN(FileSystemImpl);
 };

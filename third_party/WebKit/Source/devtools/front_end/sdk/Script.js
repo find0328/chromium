@@ -61,10 +61,10 @@ WebInspector.Script = function(debuggerModel, scriptId, sourceURL, startLine, st
 
 WebInspector.Script.Events = {
     ScriptEdited: "ScriptEdited",
-    SourceMapURLAdded: "SourceMapURLAdded",
+    SourceMapURLAdded: "SourceMapURLAdded"
 }
 
-WebInspector.Script.sourceURLRegex = /^[\040\t]*\/\/# sourceURL=\s*(\S*?)\s*$/m;
+WebInspector.Script.sourceURLRegex = /^[\040\t]*\/\/[@#] sourceURL=\s*(\S*?)\s*$/m;
 
 /**
  * @param {string} source
@@ -73,8 +73,11 @@ WebInspector.Script.sourceURLRegex = /^[\040\t]*\/\/# sourceURL=\s*(\S*?)\s*$/m;
 WebInspector.Script._trimSourceURLComment = function(source)
 {
     var sourceURLIndex = source.lastIndexOf("//# sourceURL=");
-    if (sourceURLIndex === -1)
-        return source;
+    if (sourceURLIndex === -1) {
+        sourceURLIndex = source.lastIndexOf("//@ sourceURL=");
+        if (sourceURLIndex === -1)
+            return source;
+    }
     var sourceURLLineIndex = source.lastIndexOf("\n", sourceURLIndex);
     if (sourceURLLineIndex === -1)
         return source;
@@ -220,17 +223,17 @@ WebInspector.Script.prototype = {
         /**
          * @this {WebInspector.Script}
          * @param {?Protocol.Error} error
-         * @param {!DebuggerAgent.SetScriptSourceError=} errorData
          * @param {!Array.<!DebuggerAgent.CallFrame>=} callFrames
          * @param {boolean=} stackChanged
          * @param {!DebuggerAgent.StackTrace=} asyncStackTrace
+         * @param {!DebuggerAgent.SetScriptSourceError=} compileError
          */
-        function didEditScriptSource(error, errorData, callFrames, stackChanged, asyncStackTrace)
+        function didEditScriptSource(error, callFrames, stackChanged, asyncStackTrace, compileError)
         {
-            if (!error)
+            if (!error && !compileError)
                 this._source = newSource;
             var needsStepIn = !!stackChanged;
-            callback(error, errorData, callFrames, asyncStackTrace, needsStepIn);
+            callback(error, compileError, callFrames, asyncStackTrace, needsStepIn);
         }
 
         newSource = WebInspector.Script._trimSourceURLComment(newSource);
@@ -291,10 +294,30 @@ WebInspector.Script.prototype = {
 
     /**
      * @param {!Array<!DebuggerAgent.ScriptPosition>} positions
+     * @return {!Promise<boolean>}
      */
     setBlackboxedRanges: function(positions)
     {
-        this.target().debuggerAgent().setBlackboxedRanges(this.scriptId, positions);
+        return new Promise(setBlackboxedRanges.bind(this));
+
+        /**
+         * @param {function(?)} fulfill
+         * @param {function(*)} reject
+         * @this {WebInspector.Script}
+         */
+        function setBlackboxedRanges(fulfill, reject)
+        {
+            this.target().debuggerAgent().setBlackboxedRanges(this.scriptId, positions, callback);
+            /**
+             * @param {?Protocol.Error} error
+             */
+            function callback(error)
+            {
+                if (error)
+                    console.error(error);
+                fulfill(!error);
+            }
+        }
     },
 
     __proto__: WebInspector.SDKObject.prototype

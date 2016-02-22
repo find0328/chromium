@@ -41,40 +41,22 @@ source_set("sources") {
   ]
 
   deps = [
+    "//base",
     "//base:i18n",
-    "//mojo/common",
-    "//mojo/converters/network",
-    "//mojo/environment:chromium",
     "//mojo/message_pump",
   ]
 
   public_deps = [
-    "//base",
     "//mojo/public/cpp/bindings",
     "//mojo/public/cpp/system",
     "//mojo/shell/public/interfaces",
+    "//url",
   ]
 }
 
 source_set("init_commandline") {
   sources = [
     "lib/init_commandline.cc",
-  ]
-}
-
-source_set("content_handler") {
-  sources = [
-    "content_handler_factory.h",
-    "lib/content_handler_factory.cc",
-  ]
-  deps = [
-    ":cpp",
-
-    # TODO: this code should not depend on base.
-    "//base",
-    "//mojo/message_pump",
-    "//mojo/services/network/public/interfaces",
-    "//mojo/shell/public/interfaces:interfaces_cpp_sources",
   ]
 }
 
@@ -102,7 +84,4 @@ source_set("test_support") {
   ]
 
   data_deps = []
-  if (is_android) {
-    data_deps += [ "//mojo/android" ]
-  }
 }

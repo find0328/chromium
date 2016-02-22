@@ -13,6 +13,7 @@
 #include "base/thread_task_runner_handle.h"
 #include "content/browser/gpu/gpu_process_host.h"
 #include "content/common/gpu/gpu_process_launch_causes.h"
+#include "content/common/mojo/static_application_loader.h"
 #include "content/common/process_control.mojom.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
@@ -24,11 +25,9 @@
 #include "mojo/public/cpp/bindings/interface_request.h"
 #include "mojo/public/cpp/bindings/string.h"
 #include "mojo/shell/application_loader.h"
-#include "mojo/shell/connect_to_application_params.h"
+#include "mojo/shell/connect_params.h"
 #include "mojo/shell/identity.h"
-#include "mojo/shell/package_manager/package_manager_impl.h"
 #include "mojo/shell/public/cpp/shell_client.h"
-#include "mojo/shell/static_application_loader.h"
 
 namespace content {
 
@@ -161,7 +160,7 @@ class MojoShellContext::Proxy {
       mojo::shell::mojom::InterfaceProviderRequest request,
       mojo::shell::mojom::InterfaceProviderPtr exposed_services,
       const mojo::shell::CapabilityFilter& filter,
-      const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback) {
+      const mojo::shell::mojom::Shell::ConnectCallback& callback) {
     if (task_runner_ == base::ThreadTaskRunnerHandle::Get()) {
       if (shell_context_) {
         shell_context_->ConnectToApplicationOnOwnThread(
@@ -199,12 +198,9 @@ void MojoShellContext::SetApplicationsForTest(
 MojoShellContext::MojoShellContext() {
   proxy_.Get().reset(new Proxy(this));
 
-  // Construct with an empty filepath since mojo: urls can't be registered now
-  // the url scheme registry is locked.
-  scoped_ptr<mojo::shell::PackageManagerImpl> package_manager(
-      new mojo::shell::PackageManagerImpl(base::FilePath(), nullptr, nullptr));
+  bool register_mojo_url_schemes = false;
   application_manager_.reset(
-      new mojo::shell::ApplicationManager(std::move(package_manager)));
+      new mojo::shell::ApplicationManager(register_mojo_url_schemes));
 
   application_manager_->set_default_loader(
       scoped_ptr<mojo::shell::ApplicationLoader>(new DefaultApplicationLoader));
@@ -220,7 +216,7 @@ MojoShellContext::MojoShellContext() {
   for (const auto& entry : apps) {
     application_manager_->SetLoaderForURL(
         scoped_ptr<mojo::shell::ApplicationLoader>(
-            new mojo::shell::StaticApplicationLoader(entry.second)),
+            new StaticApplicationLoader(entry.second)),
         entry.first);
   }
 
@@ -263,7 +259,7 @@ void MojoShellContext::ConnectToApplication(
     mojo::shell::mojom::InterfaceProviderRequest request,
     mojo::shell::mojom::InterfaceProviderPtr exposed_services,
     const mojo::shell::CapabilityFilter& filter,
-    const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback) {
+    const mojo::shell::mojom::Shell::ConnectCallback& callback) {
   proxy_.Get()->ConnectToApplication(url, requestor_url, std::move(request),
                                      std::move(exposed_services), filter,
                                      callback);
@@ -275,18 +271,16 @@ void MojoShellContext::ConnectToApplicationOnOwnThread(
     mojo::shell::mojom::InterfaceProviderRequest request,
     mojo::shell::mojom::InterfaceProviderPtr exposed_services,
     const mojo::shell::CapabilityFilter& filter,
-    const mojo::shell::mojom::Shell::ConnectToApplicationCallback& callback) {
-  scoped_ptr<mojo::shell::ConnectToApplicationParams> params(
-      new mojo::shell::ConnectToApplicationParams);
+    const mojo::shell::mojom::Shell::ConnectCallback& callback) {
+  scoped_ptr<mojo::shell::ConnectParams> params(new mojo::shell::ConnectParams);
   params->set_source(
       mojo::shell::Identity(requestor_url, std::string(),
                             mojo::shell::GetPermissiveCapabilityFilter()));
-  params->SetTarget(mojo::shell::Identity(url, std::string(), filter));
+  params->set_target(mojo::shell::Identity(url, std::string(), filter));
   params->set_remote_interfaces(std::move(request));
   params->set_local_interfaces(std::move(exposed_services));
-  params->set_on_application_end(base::Bind(&base::DoNothing));
   params->set_connect_callback(callback);
-  application_manager_->ConnectToApplication(std::move(params));
+  application_manager_->Connect(std::move(params));
 }
 
 }  // namespace content

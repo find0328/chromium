@@ -669,11 +669,12 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAGS_SHOW_AUTOFILL_TYPE_PREDICTIONS_NAME,
      IDS_FLAGS_SHOW_AUTOFILL_TYPE_PREDICTIONS_DESCRIPTION, kOsAll,
      SINGLE_VALUE_TYPE(autofill::switches::kShowAutofillTypePredictions)},
-    {"disable-smooth-scrolling",  // FLAGS:RECORD_UMA
+    {"smooth-scrolling",  // FLAGS:RECORD_UMA
      IDS_FLAGS_SMOOTH_SCROLLING_NAME, IDS_FLAGS_SMOOTH_SCROLLING_DESCRIPTION,
      // Mac has a separate implementation with its own setting to disable.
      kOsLinux | kOsCrOS | kOsWin | kOsAndroid,
-     SINGLE_DISABLE_VALUE_TYPE(switches::kDisableSmoothScrolling)},
+     ENABLE_DISABLE_VALUE_TYPE(switches::kEnableSmoothScrolling,
+                               switches::kDisableSmoothScrolling)},
 #if defined(USE_AURA) || defined(OS_LINUX)
     {"overlay-scrollbars", IDS_FLAGS_OVERLAY_SCROLLBARS_NAME,
      IDS_FLAGS_OVERLAY_SCROLLBARS_DESCRIPTION,
@@ -699,12 +700,6 @@ const FeatureEntry kFeatureEntries[] = {
     {"disable-media-source", IDS_FLAGS_MEDIA_SOURCE_NAME,
      IDS_FLAGS_MEDIA_SOURCE_DESCRIPTION, kOsAll,
      SINGLE_DISABLE_VALUE_TYPE(switches::kDisableMediaSource)},
-    {"disable-encrypted-media", IDS_FLAGS_ENCRYPTED_MEDIA_NAME,
-     IDS_FLAGS_ENCRYPTED_MEDIA_DESCRIPTION, kOsAll,
-     SINGLE_DISABLE_VALUE_TYPE(switches::kDisableEncryptedMedia)},
-    {"enable-prefixed-encrypted-media", IDS_FLAGS_PREFIXED_ENCRYPTED_MEDIA_NAME,
-     IDS_FLAGS_PREFIXED_ENCRYPTED_MEDIA_DESCRIPTION, kOsAll,
-     SINGLE_VALUE_TYPE(switches::kEnablePrefixedEncryptedMedia)},
     {"disable-javascript-harmony-shipping",
      IDS_FLAGS_JAVASCRIPT_HARMONY_SHIPPING_NAME,
      IDS_FLAGS_JAVASCRIPT_HARMONY_SHIPPING_DESCRIPTION, kOsAll,
@@ -807,11 +802,6 @@ const FeatureEntry kFeatureEntries[] = {
          proximity_auth::switches::kEnableBluetoothLowEnergyDiscovery)},
 #endif
 #if defined(USE_ASH)
-    {"disable-minimize-on-second-launcher-item-click",
-     IDS_FLAGS_MINIMIZE_ON_SECOND_LAUNCHER_ITEM_CLICK_NAME,
-     IDS_FLAGS_MINIMIZE_ON_SECOND_LAUNCHER_ITEM_CLICK_DESCRIPTION, kOsAll,
-     SINGLE_DISABLE_VALUE_TYPE(
-         switches::kDisableMinimizeOnSecondLauncherItemClick)},
     {"show-touch-hud", IDS_FLAGS_SHOW_TOUCH_HUD_NAME,
      IDS_FLAGS_SHOW_TOUCH_HUD_DESCRIPTION, kOsAll,
      SINGLE_VALUE_TYPE(ash::switches::kAshTouchHud)},
@@ -1230,6 +1220,12 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_NOTIFICATIONS_NATIVE_FLAG_DESCRIPTION, kOsMac,
      SINGLE_VALUE_TYPE(switches::kEnableNativeNotifications)},
 #endif
+#if defined(ENABLE_NOTIFICATIONS)
+    {"enable-notification-action-icons",
+     IDS_FLAGS_ENABLE_NOTIFICATION_ACTION_ICONS_NAME,
+     IDS_FLAGS_ENABLE_NOTIFICATION_ACTION_ICONS_DESCRIPTION, kOsAll,
+     SINGLE_VALUE_TYPE(switches::kEnableNotificationActionIcons)},
+#endif
 #if defined(TOOLKIT_VIEWS)
     {"disable-views-rect-based-targeting",  // FLAGS:RECORD_UMA
      IDS_FLAGS_VIEWS_RECT_BASED_TARGETING_NAME,
@@ -1305,6 +1301,11 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAGS_SETTINGS_WINDOW_DESCRIPTION, kOsDesktop,
      ENABLE_DISABLE_VALUE_TYPE(switches::kEnableSettingsWindow,
                                switches::kDisableSettingsWindow)},
+    {"inert-visual-viewport",
+     IDS_FLAGS_INERT_VISUAL_VIEWPORT_NAME,
+     IDS_FLAGS_INERT_VISUAL_VIEWPORT_DESCRIPTION,
+     kOsAll,
+     SINGLE_VALUE_TYPE(switches::kInertVisualViewport)},
 #if defined(OS_MACOSX)
     {"enable-save-password-bubble", IDS_FLAGS_SAVE_PASSWORD_BUBBLE_NAME,
      IDS_FLAGS_SAVE_PASSWORD_BUBBLE_DESCRIPTION, kOsMac,
@@ -1781,9 +1782,9 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAGS_ENABLE_WEBFONTS_INTERVENTION_DESCRIPTION, kOsAll,
      FEATURE_VALUE_TYPE(features::kWebFontsIntervention)},
     {"enable-webfonts-intervention-trigger",
-      IDS_FLAGS_ENABLE_WEBFONTS_INTERVENTION_TRIGGER_NAME,
-      IDS_FLAGS_ENABLE_WEBFONTS_INTERVENTION_TRIGGER_DESCRIPTION, kOsAll,
-      SINGLE_VALUE_TYPE(switches::kEnableWebFontsInterventionTrigger)},
+     IDS_FLAGS_ENABLE_WEBFONTS_INTERVENTION_TRIGGER_NAME,
+     IDS_FLAGS_ENABLE_WEBFONTS_INTERVENTION_TRIGGER_DESCRIPTION, kOsAll,
+     SINGLE_VALUE_TYPE(switches::kEnableWebFontsInterventionTrigger)},
     {"enable-grouped-history", IDS_FLAGS_ENABLE_GROUPED_HISTORY_NAME,
      IDS_FLAGS_ENABLE_GROUPED_HISTORY_DESCRIPTION, kOsDesktop,
      SINGLE_VALUE_TYPE(switches::kHistoryEnableGroupByDomain)},
@@ -1810,7 +1811,11 @@ const FeatureEntry kFeatureEntries[] = {
      IDS_FLAG_ENABLE_AUDIO_FOR_DESKTOP_SHARE_DESCRIPTION,
      kOsAll,
      SINGLE_VALUE_TYPE(switches::kEnableAudioSupportForDesktopShare)},
-
+#if defined(ENABLE_EXTENSIONS)
+    {"enable-tab-for-desktop-share", IDS_FLAG_ENABLE_TAB_FOR_DESKTOP_SHARE,
+     IDS_FLAG_ENABLE_TAB_FOR_DESKTOP_SHARE_DESCRIPTION, kOsAll,
+     SINGLE_VALUE_TYPE(extensions::switches::kEnableTabForDesktopShare)}
+#endif
     // NOTE: Adding new command-line switches requires adding corresponding
     // entries to enum "LoginCustomFlags" in histograms.xml. See note in
     // histograms.xml and don't forget to run AboutFlagsHistogramTest unit test.

@@ -68,9 +68,7 @@
 #include "modules/accessibility/InspectorAccessibilityAgent.h"
 #include "modules/cachestorage/InspectorCacheStorageAgent.h"
 #include "modules/device_orientation/DeviceOrientationInspectorAgent.h"
-#include "modules/filesystem/InspectorFileSystemAgent.h"
 #include "modules/indexeddb/InspectorIndexedDBAgent.h"
-#include "modules/screen_orientation/ScreenOrientationInspectorAgent.h"
 #include "modules/storage/InspectorDOMStorageAgent.h"
 #include "modules/webdatabase/InspectorDatabaseAgent.h"
 #include "platform/JSONValues.h"
@@ -388,8 +386,6 @@ WebDevToolsAgentImpl::WebDevToolsAgentImpl(
 
     m_agents.append(workerAgentPtr.release());
     m_agents.append(pageConsoleAgentPtr.release());
-
-    m_agents.append(ScreenOrientationInspectorAgent::create(*m_webLocalFrameImpl->frame()));
 }
 
 WebDevToolsAgentImpl::~WebDevToolsAgentImpl()
@@ -469,7 +465,6 @@ void WebDevToolsAgentImpl::initializeDeferredAgents()
     m_agents.append(InspectorMemoryAgent::create());
 
     m_agents.append(InspectorApplicationCacheAgent::create(m_inspectedFrames.get()));
-    m_agents.append(InspectorFileSystemAgent::create(m_inspectedFrames.get()));
     m_agents.append(InspectorIndexedDBAgent::create(m_inspectedFrames.get()));
 
     OwnPtrWillBeRawPtr<InspectorDebuggerAgent> debuggerAgentPtr(PageDebuggerAgent::create(MainThreadDebugger::instance(), m_inspectedFrames.get(), m_pageRuntimeAgent->v8Agent()));

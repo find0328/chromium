@@ -1072,9 +1072,7 @@ class AppControllerProfileObserver : public ProfileInfoCacheObserver {
       CreateBrowser(lastProfile->GetOffTheRecordProfile());
       break;
     case IDC_RESTORE_TAB:
-      // There is only the native desktop on Mac.
-      chrome::OpenWindowWithRestoredTabs(lastProfile,
-                                         chrome::HOST_DESKTOP_TYPE_NATIVE);
+      chrome::OpenWindowWithRestoredTabs(lastProfile);
       break;
     case IDC_OPEN_FILE:
       chrome::ExecuteCommand(CreateBrowser(lastProfile), IDC_OPEN_FILE);
@@ -1389,7 +1387,7 @@ class AppControllerProfileObserver : public ProfileInfoCacheObserver {
   chrome::startup::IsFirstRun first_run = first_run::IsChromeFirstRun() ?
       chrome::startup::IS_FIRST_RUN : chrome::startup::IS_NOT_FIRST_RUN;
   StartupBrowserCreatorImpl launch(base::FilePath(), dummy, first_run);
-  launch.OpenURLsInBrowser(browser, false, urls, browser->host_desktop_type());
+  launch.OpenURLsInBrowser(browser, false, urls);
 }
 
 - (void)getUrl:(NSAppleEventDescriptor*)event

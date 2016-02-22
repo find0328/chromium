@@ -185,9 +185,10 @@ gfx::Display GetSecondaryDisplay() {
 
 void SetSecondaryDisplayLayoutAndOffset(DisplayPlacement::Position position,
                                         int offset) {
-  DisplayLayout layout(test::CreateDisplayLayout(position, offset));
+  scoped_ptr<DisplayLayout> layout(test::CreateDisplayLayout(position, offset));
   ASSERT_GT(gfx::Screen::GetScreen()->GetNumDisplays(), 1);
-  Shell::GetInstance()->display_manager()->SetLayoutForCurrentDisplays(layout);
+  Shell::GetInstance()->display_manager()->SetLayoutForCurrentDisplays(
+      std::move(layout));
 }
 
 void SetSecondaryDisplayLayout(DisplayPlacement::Position position) {
@@ -195,13 +196,13 @@ void SetSecondaryDisplayLayout(DisplayPlacement::Position position) {
 }
 
 void SetDefaultDisplayLayout(DisplayPlacement::Position position) {
-  DisplayLayout default_layout;
-  default_layout.placement = DisplayPlacement(position, 0);
+  scoped_ptr<DisplayLayout> default_layout(new DisplayLayout);
+  default_layout->placement = DisplayPlacement(position, 0);
 
   Shell::GetInstance()
       ->display_manager()
       ->layout_store()
-      ->SetDefaultDisplayLayout(default_layout);
+      ->SetDefaultDisplayLayout(std::move(default_layout));
 }
 
 class WindowTreeHostManagerShutdownTest : public test::AshTestBase {
@@ -748,7 +749,7 @@ TEST_F(WindowTreeHostManagerTest, SwapPrimary) {
             display_manager->GetCurrentDisplayLayout().ToString());
 
   // Switch primary and secondary
-  window_tree_host_manager->SetPrimaryDisplay(secondary_display);
+  window_tree_host_manager->SetPrimaryDisplayId(secondary_display.id());
   const DisplayLayout& inverted_layout =
       display_manager->GetCurrentDisplayLayout();
   EXPECT_EQ("left, -50, default_unified", inverted_layout.ToString());
@@ -1440,9 +1441,9 @@ TEST_F(WindowTreeHostManagerTest,
   // Set the 2nd display on the left.
   DisplayLayoutStore* layout_store =
       Shell::GetInstance()->display_manager()->layout_store();
-  DisplayLayout layout = layout_store->default_display_layout();
-  layout.placement.position = DisplayPlacement::LEFT;
-  layout_store->SetDefaultDisplayLayout(layout);
+  scoped_ptr<DisplayLayout> layout(new DisplayLayout);
+  layout->placement.position = DisplayPlacement::LEFT;
+  layout_store->SetDefaultDisplayLayout(std::move(layout));
 
   UpdateDisplay("200x200,300x300");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();

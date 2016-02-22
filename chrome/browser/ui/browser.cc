@@ -1415,13 +1415,12 @@ void Browser::ShowCertificateViewerInDevTools(
 }
 
 scoped_ptr<content::BluetoothChooser> Browser::RunBluetoothChooser(
-    content::WebContents* web_contents,
-    const content::BluetoothChooser::EventHandler& event_handler,
-    const url::Origin& origin) {
+    content::RenderFrameHost* frame,
+    const content::BluetoothChooser::EventHandler& event_handler) {
   scoped_ptr<BluetoothChooserDesktop> bluetooth_chooser_desktop(
       new BluetoothChooserDesktop(event_handler));
   scoped_ptr<BluetoothChooserBubbleDelegate> bubble_delegate(
-      new BluetoothChooserBubbleDelegate(web_contents->GetMainFrame()));
+      new BluetoothChooserBubbleDelegate(frame));
   BluetoothChooserBubbleDelegate* bubble_delegate_ptr = bubble_delegate.get();
 
   // Wire the ChooserBubbleDelegate to the BluetoothChooser.
@@ -1429,7 +1428,8 @@ scoped_ptr<content::BluetoothChooser> Browser::RunBluetoothChooser(
       bubble_delegate_ptr);
   bubble_delegate->set_bluetooth_chooser(bluetooth_chooser_desktop.get());
 
-  Browser* browser = chrome::FindBrowserWithWebContents(web_contents);
+  Browser* browser = chrome::FindBrowserWithWebContents(
+      WebContents::FromRenderFrameHost(frame));
   BubbleReference bubble_controller =
       browser->GetBubbleManager()->ShowBubble(std::move(bubble_delegate));
   bubble_delegate_ptr->set_bubble_controller(bubble_controller);
@@ -1628,6 +1628,8 @@ void Browser::ContentsMouseEvent(WebContents* source,
                                  const gfx::Point& location,
                                  bool motion,
                                  bool exited) {
+  exclusive_access_manager_->OnUserInput();
+
   // Mouse motion events update the status bubble, if it exists.
   if (!GetStatusBubble() || (!motion && !exited))
     return;

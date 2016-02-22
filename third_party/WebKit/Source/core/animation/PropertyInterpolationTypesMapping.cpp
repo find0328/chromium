@@ -5,12 +5,14 @@
 #include "core/animation/PropertyInterpolationTypesMapping.h"
 
 #include "core/HTMLNames.h"
+#include "core/animation/CSSClipInterpolationType.h"
 #include "core/animation/CSSColorInterpolationType.h"
 #include "core/animation/CSSFontWeightInterpolationType.h"
 #include "core/animation/CSSImageInterpolationType.h"
 #include "core/animation/CSSImageListInterpolationType.h"
 #include "core/animation/CSSLengthInterpolationType.h"
 #include "core/animation/CSSLengthListInterpolationType.h"
+#include "core/animation/CSSMotionRotationInterpolationType.h"
 #include "core/animation/CSSNumberInterpolationType.h"
 #include "core/animation/CSSPaintInterpolationType.h"
 #include "core/animation/CSSPathInterpolationType.h"
@@ -88,9 +90,9 @@ const InterpolationTypes* PropertyInterpolationTypesMapping::get(const PropertyH
         case CSSPropertyVerticalAlign:
         case CSSPropertyWebkitBorderHorizontalSpacing:
         case CSSPropertyWebkitBorderVerticalSpacing:
-        case CSSPropertyWebkitColumnGap:
-        case CSSPropertyWebkitColumnRuleWidth:
-        case CSSPropertyWebkitColumnWidth:
+        case CSSPropertyColumnGap:
+        case CSSPropertyColumnRuleWidth:
+        case CSSPropertyColumnWidth:
         case CSSPropertyWebkitPerspectiveOriginX:
         case CSSPropertyWebkitPerspectiveOriginY:
         case CSSPropertyWebkitTransformOriginX:
@@ -113,7 +115,7 @@ const InterpolationTypes* PropertyInterpolationTypesMapping::get(const PropertyH
         case CSSPropertyStopOpacity:
         case CSSPropertyStrokeMiterlimit:
         case CSSPropertyStrokeOpacity:
-        case CSSPropertyWebkitColumnCount:
+        case CSSPropertyColumnCount:
         case CSSPropertyWidows:
         case CSSPropertyZIndex:
             applicableTypes->append(adoptPtr(new CSSNumberInterpolationType(cssProperty)));
@@ -133,7 +135,7 @@ const InterpolationTypes* PropertyInterpolationTypesMapping::get(const PropertyH
         case CSSPropertyOutlineColor:
         case CSSPropertyStopColor:
         case CSSPropertyTextDecorationColor:
-        case CSSPropertyWebkitColumnRuleColor:
+        case CSSPropertyColumnRuleColor:
         case CSSPropertyWebkitTextStrokeColor:
             applicableTypes->append(adoptPtr(new CSSColorInterpolationType(cssProperty)));
             break;
@@ -165,6 +167,12 @@ const InterpolationTypes* PropertyInterpolationTypesMapping::get(const PropertyH
             break;
         case CSSPropertyVisibility:
             applicableTypes->append(adoptPtr(new CSSVisibilityInterpolationType(cssProperty)));
+            break;
+        case CSSPropertyClip:
+            applicableTypes->append(adoptPtr(new CSSClipInterpolationType(cssProperty)));
+            break;
+        case CSSPropertyMotionRotation:
+            applicableTypes->append(adoptPtr(new CSSMotionRotationInterpolationType(cssProperty)));
             break;
         default:
             // TODO(alancutter): Support all interpolable CSS properties here so we can stop falling back to the old StyleInterpolation implementation.

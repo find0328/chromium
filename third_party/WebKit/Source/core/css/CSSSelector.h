@@ -253,10 +253,9 @@ public:
 
     bool isAdjacentSelector() const { return m_relation == DirectAdjacent || m_relation == IndirectAdjacent; }
     bool isShadowSelector() const { return m_relation == ShadowPseudo || m_relation == ShadowDeep; }
-    bool isSiblingSelector() const;
     bool isAttributeSelector() const { return m_match >= FirstAttributeSelectorMatch; }
     bool isHostPseudoClass() const { return m_pseudoType == PseudoHost || m_pseudoType == PseudoHostContext; }
-    bool isInsertionPointCrossing() const { return m_pseudoType == PseudoHostContext || m_pseudoType == PseudoContent || m_pseudoType == PseudoSlotted; }
+    bool isInsertionPointCrossing() const { return m_pseudoType == PseudoHostContext || m_pseudoType == PseudoContent; }
 
     Relation relation() const { return static_cast<Relation>(m_relation); }
     void setRelation(Relation relation)
@@ -363,24 +362,6 @@ inline CSSSelector::AttributeMatchType CSSSelector::attributeMatchType() const
     ASSERT(isAttributeSelector());
     ASSERT(m_hasRareData);
     return m_data.m_rareData->m_bits.m_attributeMatchType;
-}
-
-inline bool CSSSelector::isSiblingSelector() const
-{
-    PseudoType type = pseudoType();
-    return m_relation == DirectAdjacent
-        || m_relation == IndirectAdjacent
-        || type == PseudoEmpty
-        || type == PseudoFirstChild
-        || type == PseudoFirstOfType
-        || type == PseudoLastChild
-        || type == PseudoLastOfType
-        || type == PseudoOnlyChild
-        || type == PseudoOnlyOfType
-        || type == PseudoNthChild
-        || type == PseudoNthOfType
-        || type == PseudoNthLastChild
-        || type == PseudoNthLastOfType;
 }
 
 inline bool CSSSelector::isASCIILower(const AtomicString& value)

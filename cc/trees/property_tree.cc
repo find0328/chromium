@@ -145,6 +145,7 @@ TransformNodeData::TransformNodeData()
       affected_by_outer_viewport_bounds_delta_x(false),
       affected_by_outer_viewport_bounds_delta_y(false),
       in_subtree_of_page_scale_layer(false),
+      transform_changed(false),
       post_local_scale_factor(1.0f),
       local_maximum_animation_target_scale(0.f),
       local_starting_animation_scale(0.f),
@@ -187,6 +188,7 @@ bool TransformNodeData::operator==(const TransformNodeData& other) const {
              other.affected_by_outer_viewport_bounds_delta_y &&
          in_subtree_of_page_scale_layer ==
              other.in_subtree_of_page_scale_layer &&
+         transform_changed == other.transform_changed &&
          post_local_scale_factor == other.post_local_scale_factor &&
          local_maximum_animation_target_scale ==
              other.local_maximum_animation_target_scale &&
@@ -270,6 +272,7 @@ void TransformNodeData::ToProtobuf(proto::TreeNode* proto) const {
       affected_by_outer_viewport_bounds_delta_y);
 
   data->set_in_subtree_of_page_scale_layer(in_subtree_of_page_scale_layer);
+  data->set_transform_changed(transform_changed);
   data->set_post_local_scale_factor(post_local_scale_factor);
   data->set_local_maximum_animation_target_scale(
       local_maximum_animation_target_scale);
@@ -335,6 +338,7 @@ void TransformNodeData::FromProtobuf(const proto::TreeNode& proto) {
       data.affected_by_outer_viewport_bounds_delta_y();
 
   in_subtree_of_page_scale_layer = data.in_subtree_of_page_scale_layer();
+  transform_changed = data.transform_changed();
   post_local_scale_factor = data.post_local_scale_factor();
   local_maximum_animation_target_scale =
       data.local_maximum_animation_target_scale();
@@ -479,7 +483,9 @@ ScrollNodeData::ScrollNodeData()
       contains_non_fast_scrollable_region(false),
       max_scroll_offset_affected_by_page_scale(false),
       is_inner_viewport_scroll_layer(false),
-      is_outer_viewport_scroll_layer(false) {}
+      is_outer_viewport_scroll_layer(false),
+      should_flatten(false),
+      transform_id(0) {}
 
 bool ScrollNodeData::operator==(const ScrollNodeData& other) const {
   return scrollable == other.scrollable &&
@@ -492,7 +498,11 @@ bool ScrollNodeData::operator==(const ScrollNodeData& other) const {
              other.max_scroll_offset_affected_by_page_scale &&
          is_inner_viewport_scroll_layer ==
              other.is_inner_viewport_scroll_layer &&
-         is_outer_viewport_scroll_layer == other.is_outer_viewport_scroll_layer;
+         is_outer_viewport_scroll_layer ==
+             other.is_outer_viewport_scroll_layer &&
+         offset_to_transform_parent == other.offset_to_transform_parent &&
+         should_flatten == other.should_flatten &&
+         transform_id == other.transform_id;
 }
 
 void ScrollNodeData::ToProtobuf(proto::TreeNode* proto) const {
@@ -509,6 +519,10 @@ void ScrollNodeData::ToProtobuf(proto::TreeNode* proto) const {
       max_scroll_offset_affected_by_page_scale);
   data->set_is_inner_viewport_scroll_layer(is_inner_viewport_scroll_layer);
   data->set_is_outer_viewport_scroll_layer(is_outer_viewport_scroll_layer);
+  Vector2dFToProto(offset_to_transform_parent,
+                   data->mutable_offset_to_transform_parent());
+  data->set_should_flatten(should_flatten);
+  data->set_transform_id(transform_id);
 }
 
 void ScrollNodeData::FromProtobuf(const proto::TreeNode& proto) {
@@ -525,6 +539,10 @@ void ScrollNodeData::FromProtobuf(const proto::TreeNode& proto) {
       data.max_scroll_offset_affected_by_page_scale();
   is_inner_viewport_scroll_layer = data.is_inner_viewport_scroll_layer();
   is_outer_viewport_scroll_layer = data.is_outer_viewport_scroll_layer();
+  offset_to_transform_parent =
+      ProtoToVector2dF(data.offset_to_transform_parent());
+  should_flatten = data.should_flatten();
+  transform_id = data.transform_id();
 }
 
 void TransformTree::clear() {
@@ -594,10 +612,18 @@ bool TransformTree::NeedsSourceToParentUpdate(TransformNode* node) {
           node->parent_id != node->data.source_node_id);
 }
 
+void TransformTree::ResetChangeTracking() {
+  for (int id = 1; id < static_cast<int>(size()); ++id) {
+    TransformNode* node = Node(id);
+    node->data.transform_changed = false;
+  }
+}
+
 void TransformTree::UpdateTransforms(int id) {
   TransformNode* node = Node(id);
   TransformNode* parent_node = parent(node);
   TransformNode* target_node = Node(node->data.target_id);
+  TransformNode* source_node = Node(node->data.source_node_id);
   if (node->data.needs_local_transform_update ||
       NeedsSourceToParentUpdate(node))
     UpdateLocalTransform(node);
@@ -609,6 +635,7 @@ void TransformTree::UpdateTransforms(int id) {
   UpdateAnimationProperties(node, parent_node);
   UpdateSnapping(node);
   UpdateNodeAndAncestorsHaveIntegerTranslations(node, parent_node);
+  UpdateTransformChanged(node, parent_node, source_node);
 }
 
 bool TransformTree::IsDescendant(int desc_id, int source_id) const {
@@ -968,6 +995,19 @@ void TransformTree::UpdateSnapping(TransformNode* node) {
   node->data.scroll_snap = translation;
 }
 
+void TransformTree::UpdateTransformChanged(TransformNode* node,
+                                           TransformNode* parent_node,
+                                           TransformNode* source_node) {
+  if (parent_node && parent_node->data.transform_changed) {
+    node->data.transform_changed = true;
+    return;
+  }
+
+  if (source_node && source_node->id != parent_node->id &&
+      source_to_parent_updates_allowed_ && source_node->data.transform_changed)
+    node->data.transform_changed = true;
+}
+
 void TransformTree::SetDeviceTransform(const gfx::Transform& transform,
                                        gfx::PointF root_position) {
   gfx::Transform root_post_local = transform;
@@ -1276,6 +1316,19 @@ gfx::ScrollOffset ScrollTree::MaxScrollOffset(int scroll_node_id) const {
   max_offset.Scale(1 / scale_factor);
   max_offset.SetToMax(gfx::ScrollOffset());
   return max_offset;
+}
+
+gfx::Transform ScrollTree::ScreenSpaceTransform(int scroll_node_id) const {
+  const ScrollNode* scroll_node = Node(scroll_node_id);
+  const TransformNode* transform_node =
+      property_trees()->transform_tree.Node(scroll_node->data.transform_id);
+  gfx::Transform screen_space_transform(
+      1, 0, 0, 1, scroll_node->data.offset_to_transform_parent.x(),
+      scroll_node->data.offset_to_transform_parent.y());
+  screen_space_transform.ConcatTransform(transform_node->data.to_screen);
+  if (scroll_node->data.should_flatten)
+    screen_space_transform.FlattenTo2d();
+  return screen_space_transform;
 }
 
 PropertyTrees::PropertyTrees()

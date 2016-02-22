@@ -208,13 +208,11 @@ int PermissionManager::RequestPermission(
     PermissionType permission,
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
-    bool user_gesture,
     const base::Callback<void(PermissionStatus)>& callback) {
   return RequestPermissions(
       std::vector<PermissionType>(1, permission),
       render_frame_host,
       requesting_origin,
-      user_gesture,
       base::Bind(&PermissionRequestResponseCallbackWrapper, callback));
 }
 
@@ -222,7 +220,6 @@ int PermissionManager::RequestPermissions(
     const std::vector<PermissionType>& permissions,
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
-    bool user_gesture,
     const base::Callback<void(
         const std::vector<PermissionStatus>&)>& callback) {
   if (permissions.empty()) {
@@ -254,7 +251,7 @@ int PermissionManager::RequestPermissions(
     PermissionContextBase* context = PermissionContext::Get(
         profile_, permission);
     context->RequestPermission(
-        web_contents, request, requesting_origin, user_gesture,
+        web_contents, request, requesting_origin,
         base::Bind(&ContentSettingToPermissionStatusCallbackWrapper,
             base::Bind(&PermissionManager::OnPermissionsRequestResponseStatus,
                 weak_ptr_factory_.GetWeakPtr(), request_id, i)));

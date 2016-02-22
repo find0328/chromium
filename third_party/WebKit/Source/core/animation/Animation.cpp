@@ -82,8 +82,6 @@ Animation::Animation(ExecutionContext* executionContext, AnimationTimeline& time
     , m_playbackRate(1)
     , m_startTime(nullValue())
     , m_holdTime(0)
-    , m_startClip(-std::numeric_limits<double>::infinity())
-    , m_endClip(std::numeric_limits<double>::infinity())
     , m_sequenceNumber(nextSequenceNumber())
     , m_content(content)
     , m_timeline(&timeline)
@@ -437,12 +435,6 @@ void Animation::setStartTimeInternal(double newStartTime)
     }
 }
 
-bool Animation::clipped(double time)
-{
-    ASSERT(!isNull(time));
-    return time <= m_startClip || time > m_endClip + effectEnd();
-}
-
 void Animation::setEffect(AnimationEffect* newEffect)
 {
     if (m_content == newEffect)
@@ -491,12 +483,12 @@ Animation::AnimationPlayState Animation::playStateInternal() const
 
 Animation::AnimationPlayState Animation::calculatePlayState()
 {
+    if (m_paused && !m_currentTimePending)
+        return Paused;
     if (m_playState == Idle)
         return Idle;
-    if (m_currentTimePending || (isNull(m_startTime) && !m_paused && m_playbackRate != 0))
+    if (m_currentTimePending || (isNull(m_startTime) && m_playbackRate != 0))
         return Pending;
-    if (m_paused)
-        return Paused;
     if (limited())
         return Finished;
     return Running;
@@ -509,11 +501,17 @@ void Animation::pause()
 
     PlayStateUpdateScope updateScope(*this, TimingUpdateOnDemand);
 
+    double newCurrentTime = currentTimeInternal();
+    if (calculatePlayState() == Idle) {
+        newCurrentTime = m_playbackRate < 0 ? effectEnd() : 0;
+    }
+
     if (playing()) {
         m_currentTimePending = true;
     }
+
     m_paused = true;
-    setCurrentTimeInternal(currentTimeInternal(), TimingUpdateOnDemand);
+    setCurrentTimeInternal(newCurrentTime, TimingUpdateOnDemand);
 }
 
 void Animation::unpause()
@@ -579,23 +577,25 @@ void Animation::finish(ExceptionState& exceptionState)
 {
     PlayStateUpdateScope updateScope(*this, TimingUpdateOnDemand);
 
-    if (!m_playbackRate || playStateInternal() == Idle) {
+    if (!m_playbackRate) {
+        exceptionState.throwDOMException(InvalidStateError, "Cannot finish Animation with a playbackRate of 0.");
         return;
     }
     if (m_playbackRate > 0 && effectEnd() == std::numeric_limits<double>::infinity()) {
-        exceptionState.throwDOMException(InvalidStateError, "Animation has effect whose end time is infinity.");
+        exceptionState.throwDOMException(InvalidStateError, "Cannot finish Animation with an infinite target effect end.");
         return;
     }
 
+    // Avoid updating start time when already finished.
+    if (calculatePlayState() == Finished)
+        return;
+
     double newCurrentTime = m_playbackRate < 0 ? 0 : effectEnd();
     setCurrentTimeInternal(newCurrentTime, TimingUpdateOnDemand);
-    if (!paused()) {
-        m_startTime = calculateStartTime(newCurrentTime);
-    }
-
+    m_paused = false;
     m_currentTimePending = false;
-    ASSERT(playStateInternal() != Idle);
-    ASSERT(limited());
+    m_startTime = calculateStartTime(newCurrentTime);
+    m_playState = Finished;
 }
 
 ScriptPromise Animation::finished(ScriptState* scriptState)
@@ -809,15 +809,6 @@ bool Animation::update(TimingUpdateReason reason)
             ? nullValue()
             : currentTimeInternal();
 
-        if (!isNull(inheritedTime)) {
-            double timeForClipping = m_held && (!limited(inheritedTime) || isNull(m_startTime))
-                // Use hold time when there is no start time.
-                ? inheritedTime
-                // Use calculated current time when the animation is limited.
-                : calculateCurrentTime();
-            if (clipped(timeForClipping))
-                inheritedTime = nullValue();
-        }
         // Special case for end-exclusivity when playing backwards.
         if (inheritedTime == 0 && m_playbackRate < 0)
             inheritedTime = -1;
@@ -827,7 +818,14 @@ bool Animation::update(TimingUpdateReason reason)
     if ((idle || limited()) && !m_finished) {
         if (reason == TimingUpdateForAnimationFrame && (idle || hasStartTime())) {
             if (idle) {
-                // TODO(dstockwell): Fire the cancel event.
+                const AtomicString& eventType = EventTypeNames::cancel;
+                if (executionContext() && hasEventListeners(eventType)) {
+                    double eventCurrentTime = nullValue();
+                    m_pendingCancelledEvent = AnimationPlayerEvent::create(eventType, eventCurrentTime, timeline()->currentTime());
+                    m_pendingCancelledEvent->setTarget(this);
+                    m_pendingCancelledEvent->setCurrentTarget(this);
+                    m_timeline->document()->enqueueAnimationFrameEvent(m_pendingCancelledEvent);
+                }
             } else {
                 const AtomicString& eventType = EventTypeNames::finish;
                 if (executionContext() && hasEventListeners(eventType)) {
@@ -848,19 +846,8 @@ bool Animation::update(TimingUpdateReason reason)
 double Animation::timeToEffectChange()
 {
     ASSERT(!m_outdated);
-    if (!hasStartTime())
+    if (!hasStartTime() || m_held)
         return std::numeric_limits<double>::infinity();
-
-    double currentTime = calculateCurrentTime();
-    if (m_held) {
-        if (limited(currentTime)) {
-            if (m_playbackRate > 0 && m_endClip + effectEnd() > currentTime)
-                return m_endClip + effectEnd() - currentTime;
-            if (m_playbackRate < 0 && m_startClip <= currentTime)
-                return m_startClip - currentTime;
-        }
-        return std::numeric_limits<double>::infinity();
-    }
 
     if (!m_content)
         return -currentTimeInternal() / m_playbackRate;
@@ -870,24 +857,7 @@ double Animation::timeToEffectChange()
 
     return !hasActiveAnimationsOnCompositor() && m_content->phase() == AnimationEffect::PhaseActive
         ? 0
-        : clipTimeToEffectChange(result);
-}
-
-double Animation::clipTimeToEffectChange(double result) const
-{
-    double currentTime = calculateCurrentTime();
-    if (m_playbackRate > 0) {
-        if (currentTime <= m_startClip)
-            result = std::min(result, (m_startClip - currentTime) / m_playbackRate);
-        else if (currentTime < m_endClip + effectEnd())
-            result = std::min(result, (m_endClip + effectEnd() - currentTime) / m_playbackRate);
-    } else {
-        if (currentTime >= m_endClip + effectEnd())
-            result = std::min(result, (currentTime - m_endClip + effectEnd()) / -m_playbackRate);
-        else if (currentTime > m_startClip)
-            result = std::min(result, (currentTime - m_startClip) / -m_playbackRate);
-    }
-    return result;
+        : result;
 }
 
 void Animation::cancel()
@@ -899,7 +869,7 @@ void Animation::cancel()
 
     m_holdTime = currentTimeInternal();
     m_held = true;
-    // TODO
+    m_paused = false;
     m_playState = Idle;
     m_startTime = nullValue();
     m_currentTimePending = false;
@@ -1096,6 +1066,7 @@ DEFINE_TRACE(Animation)
     visitor->trace(m_content);
     visitor->trace(m_timeline);
     visitor->trace(m_pendingFinishedEvent);
+    visitor->trace(m_pendingCancelledEvent);
     visitor->trace(m_finishedPromise);
     visitor->trace(m_readyPromise);
     RefCountedGarbageCollectedEventTargetWithInlineData<Animation>::trace(visitor);

@@ -179,6 +179,7 @@
         'branding_path_component%': '<(branding)',
         'host_arch%': '<(host_arch)',
         'target_arch%': '<(target_arch)',
+        'use_sysroot%': '<(use_sysroot)',
 
         # Set to true to instrument the code with function call logger.
         # See src/third_party/cygprofile/cyg-profile.cc for details.
@@ -375,6 +376,7 @@
       'branding_path_component%': '<(branding_path_component)',
       'arm_version%': '<(arm_version)',
       'sysroot%': '<(sysroot)',
+      'use_sysroot%': '<(use_sysroot)',
       'chroot_cmd%': '<(chroot_cmd)',
       'system_libdir%': '<(system_libdir)',
       'order_profiling%': '<(order_profiling)',
@@ -472,12 +474,8 @@
       'asan%': 0,
       'asan_blacklist%': '<(PRODUCT_DIR)/../../tools/memory/asan/blacklist.txt',
       # Enable coverage gathering instrumentation in sanitizer tools. This flag
-      # also controls coverage granularity (1 for function-level coverage, 2
-      # for block-level coverage).
-      'sanitizer_coverage%': 0,
-      # Deprecated, only works if |sanitizer_coverage| isn't set.
-      # TODO(glider): remove this flag.
-      'asan_coverage%': 0,
+      # also controls coverage granularity.
+      'sanitizer_coverage%': '',
       # Enable intra-object-overflow detection in ASan (experimental).
       'asan_field_padding%': 0,
 
@@ -488,12 +486,6 @@
       # Enable building with SyzyAsan.
       # See https://github.com/google/syzygy/wiki/SyzyASanHowTo
       'syzyasan%': 0,
-
-      # Enable crash reporting via Kasko.
-      'kasko%': 0,
-
-      # Enable hang reports in Kasko. Requires Kasko to be enabled.
-      'kasko_hang_reports%': 0,
 
       # Enable building with LSan (Clang's -fsanitize=leak option).
       # -fsanitize=leak only works with clang, but lsan=1 implies clang=1
@@ -1058,7 +1050,18 @@
           # http://crbug.com/574476
           'fastbuild%': 2,
         }],
+
+        # Enable crash reporting via Kasko.
+        ['OS=="win" and target_arch=="ia32" and branding=="Chrome"', {
+          # This needs to be enabled with kasko_hang_reports.
+          'kasko%': 0,
+        }, {
+          'kasko%': 0,
+        }],
       ],
+
+      # Enable hang reports in Kasko. Requires Kasko to be enabled.
+      'kasko_hang_reports%': 0,
 
       # Setting this to '0' will cause V8's startup snapshot to be
       # embedded in the binary instead of being a external files.
@@ -1180,6 +1183,7 @@
     'arm_neon%': '<(arm_neon)',
     'arm_neon_optional%': '<(arm_neon_optional)',
     'sysroot%': '<(sysroot)',
+    'use_sysroot%': '<(use_sysroot)',
     'pkg-config%': '<(pkg-config)',
     'chroot_cmd%': '<(chroot_cmd)',
     'system_libdir%': '<(system_libdir)',
@@ -1202,7 +1206,6 @@
     'mac_want_real_dsym%': '<(mac_want_real_dsym)',
     'asan%': '<(asan)',
     'asan_blacklist%': '<(asan_blacklist)',
-    'asan_coverage%': '<(asan_coverage)',
     'sanitizer_coverage%': '<(sanitizer_coverage)',
     'asan_field_padding%': '<(asan_field_padding)',
     'use_sanitizer_options%': '<(use_sanitizer_options)',
@@ -1683,7 +1686,7 @@
         # not using the "current" SDK.
         'ios_sdk%': '',
         'ios_sdk_path%': '',
-        'ios_deployment_target%': '7.0',
+        'ios_deployment_target%': '9.0',
 
         'conditions': [
           # ios_product_name is set to the name of the .app bundle as it should
@@ -2009,6 +2012,8 @@
           }],
           ['syzyasan==1', {
             'kasko%': 1,
+            # Disable hang reports for SyzyASAN builds.
+            'kasko_hang_reports': 0,
           }],
           ['component=="shared_library" and "<(GENERATOR)"=="ninja"', {
             # Only enabled by default for ninja because it's buggy in VS.
@@ -2277,10 +2282,6 @@
       # TODO(rnk): Kill off variables that no one else uses and just implement
       # them under a build_for_tool== condition.
       ['build_for_tool=="memcheck" or build_for_tool=="tsan"', {
-
-        # tcmalloc causes Valgrind failures. Discussion in crrev.com/1642383002.
-        'use_allocator%': 'none',
-
         # gcc flags
         'mac_debug_optimization': '1',
         'mac_release_optimization': '1',
@@ -2405,14 +2406,12 @@
               }],
             ],
           }, {  # chromecast!=1
+            # Build all platforms whose deps are in install-build-deps.sh.
+            # Only these platforms will be compile tested by buildbots.
+            'ozone_platform_egltest%': 1,
             'conditions': [
-              ['OS=="chromeos"', {
+              ['chromeos==1', {
                 'ozone_platform_gbm%': 1,
-                'ozone_platform_egltest%': 1,
-              }, {
-                # Build all platforms whose deps are in install-build-deps.sh.
-                # Only these platforms will be compile tested by buildbots.
-                'ozone_platform_egltest%': 1,
               }],
             ],
           }],
@@ -3261,7 +3260,7 @@
           },
         },
         'conditions': [
-          ['OS=="win" and win_fastlink==1', {
+          ['OS=="win" and win_fastlink==1 and MSVS_VERSION != "2013"', {
             'msvs_settings': {
               'VCLinkerTool': {
                 # /PROFILE is incompatible with /debug:fastlink
@@ -3281,6 +3280,10 @@
                 'AdditionalOptions': [
                   # Work around crbug.com/526851, bug in VS 2015 RTM compiler.
                   '/Zc:sizedDealloc-',
+                  # Disable thread-safe statics to avoid overhead and because
+                  # they are disabled on other platforms. See crbug.com/587210
+                  # and -fno-threadsafe-statics.
+                  '/Zc:threadSafeInit-',
                 ],
               },
             },
@@ -3688,6 +3691,8 @@
         'cflags_cc': [
           '-fno-exceptions',
           '-fno-rtti',
+          # If this is removed then remove the corresponding /Zc:threadSafeInit-
+          # for Windows.
           '-fno-threadsafe-statics',
           # Make inline functions have hidden visiblity by default.
           # Surprisingly, not covered by -fvisibility=hidden.
@@ -3937,6 +3942,13 @@
                       # silences those warnings, as they are not helpful and
                       # clutter legitimate warnings.
                       '-Wno-abi',
+                    ],
+                  }],
+                  ['clang==1', {
+                    'cflags': [
+                      # Disable an incorrect loop optimization.
+                      # See http://llvm.org/bugs/show_bug.cgi?id=26600.
+                      '-mllvm -enable-interleaved-mem-accesses=0',
                     ],
                   }],
                   ['clang==1 and arm_arch!="" and OS!="android"', {
@@ -4460,19 +4472,7 @@
               }],
             ],
           }],
-          ['asan_coverage!=0 and sanitizer_coverage==0', {
-            'target_conditions': [
-              ['_toolset=="target"', {
-                'cflags': [
-                  '-fsanitize-coverage=<(asan_coverage)',
-                ],
-                'defines': [
-                  'SANITIZER_COVERAGE',
-                ],
-              }],
-            ],
-          }],
-          ['sanitizer_coverage!=0', {
+          ['sanitizer_coverage!=""', {
             'target_conditions': [
               ['_toolset=="target"', {
                 'cflags': [
@@ -4484,7 +4484,7 @@
               }],
             ],
           }],
-          ['(asan_coverage>1 or sanitizer_coverage>1) and target_arch=="arm"', {
+          ['sanitizer_coverage!="" and target_arch=="arm"', {
             'target_conditions': [
               ['_toolset=="target"', {
                 'cflags': [
@@ -5126,19 +5126,7 @@
               ],
             },
           }],
-          ['asan_coverage!=0 and sanitizer_coverage==0', {
-            'target_conditions': [
-              ['_toolset=="target"', {
-                'cflags': [
-                  '-fsanitize-coverage=<(asan_coverage)',
-                ],
-                'defines': [
-                  'SANITIZER_COVERAGE',
-                ],
-              }],
-            ],
-          }],
-          ['sanitizer_coverage!=0', {
+          ['sanitizer_coverage!=""', {
             'target_conditions': [
               ['_toolset=="target"', {
                 'cflags': [
@@ -5459,6 +5447,11 @@
                 # It's not possible to achieve nullability completeness before
                 # all builders are running Xcode 7. crbug.com/499809
                 '-Wno-nullability-completeness',
+              ],
+              'OTHER_CPLUSPLUSFLAGS': [
+                '$(inherited)',
+                # TODO(ios): Remove once Xcode's libc++ has LLVM r256325
+                '-isystem <!(cd <(DEPTH) && pwd -P)/third_party/llvm-build/Release+Asserts/include/c++/v1',
               ],
             }],
 
@@ -5967,7 +5960,7 @@
                     }],
                   ],
                 }],
-                ['sanitizer_coverage!=0', {
+                ['sanitizer_coverage!=""', {
                   # TODO(asan/win): Move this down into the general
                   # win-target_defaults section once the 64-bit asan runtime
                   # exists.  See crbug.com/345874.
@@ -5980,7 +5973,7 @@
               ],
             },
             'conditions': [
-              ['sanitizer_coverage!=0', {
+              ['sanitizer_coverage!=""', {
                 # TODO(asan/win): Move this down into the general
                 # win-target_defaults section once the 64-bit asan runtime
                 # exists.  See crbug.com/345874.

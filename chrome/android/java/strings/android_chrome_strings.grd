@@ -170,6 +170,12 @@ CHAR-LIMIT guidelines:
       <message name="IDS_NEXT" desc="Generic label for a button to advance to the next item. [CHAR-LIMIT=20]">
         Next
       </message>
+      <message name="IDS_SUBMIT" desc="Generic label for a button to submit data. Used in multiple contexts. [CHAR-LIMIT=20]">
+        Submit
+      </message>
+      <message name="IDS_UNDO" desc="Generic label for a button to undo the previous action.">
+        Undo
+      </message>
 
       <!-- Main Preferences -->
       <message name="IDS_PREFERENCES" desc="Title for Chrome's Settings.">
@@ -200,9 +206,6 @@ CHAR-LIMIT guidelines:
       </message>
       <message name="IDS_SIGN_IN_TO_CHROME_SUMMARY" desc="Summary for the button to sign in to Chrome, explaining benefits of signing in.">
         Sign in to get your bookmarks, history, passwords, and other settings on all your devices
-      </message>
-      <message name="IDS_NUMBER_OF_SIGNED_IN_ACCOUNTS" desc="Summary indicating the number of accounts (always greater than 1) the user is signed in to the content area.">
-        <ph name="NUMBER_OF_ACCOUNTS">%1$d<ex>3</ex></ph> accounts
       </message>
 
       <!-- Search engine preferences -->
@@ -419,19 +422,19 @@ For example, some websites may respond to this request by showing you ads that a
         Clear browsing data
       </message>
       <message name="IDS_CLEAR_BROWSING_DATA_FOOTNOTE" desc="A summary string at the bottom of the Clear Browsing Data dialog, informing the user that not all data can be cleared through this dialog.">
-        Some settings that may reflect browsing habits will not be cleared.
+        Saved site settings will not be deleted and may reflect your browsing habits.
       </message>
-      <message name="IDS_CLEAR_BROWSING_DATA_FOOTNOTE_SYNCED" desc="A summary string at the bottom of the Clear Browsing Data dialog, informing the user that synced data types are deleted across devices, and that not all data can be cleared through this dialog.">
-        This clears synced data from all devices. Some settings that may reflect browsing habits will not be cleared.
+      <message name="IDS_CLEAR_BROWSING_DATA_FOOTNOTE_SIGNED" desc="A summary string at the bottom of the Clear Browsing Data dialog, informing the user that synced data types are deleted across devices, and that not all data can be cleared through this dialog.">
+        This clears synced data from all devices. You won’t be signed out of your Google account. Saved site settings will not be deleted and may reflect your browsing habits.
       </message>
       <message name="IDS_CLEAR_CACHE_TITLE" desc="Title for Clear Cache in Clear Browsing Data dialog">
-        Cache
+        Cached images and files
       </message>
       <message name="IDS_CLEAR_HISTORY_TITLE" desc="Title for Clear History in Clear Browsing Data dialog">
         Browsing history
       </message>
       <message name="IDS_CLEAR_COOKIES_AND_SITE_DATA_TITLE" desc="Title for Clear Cookies and site data in Clear Browsing Data dialog">
-        Cookies, site data
+        Cookies and site data
       </message>
       <message name="IDS_CLEAR_COOKIES_NO_SIGN_OUT_SUMMARY" desc="Text at the bottom of the Clear Browsing Data dialog informing that clearing cookies wouldn't sign the user out of Google Accounts. Dialog also contains a link which opens the Account Management screen.">
         You won’t be signed out of your <ph name="BEGIN_LINK">&lt;link&gt;</ph>Google Accounts<ph name="END_LINK">&lt;/link&gt;</ph>
@@ -440,7 +443,7 @@ For example, some websites may respond to this request by showing you ads that a
         Saved passwords
       </message>
       <message name="IDS_CLEAR_FORM_DATA_TITLE" desc="Title for Clear Form Data in Clear Browsing Data preference">
-        Autofill data
+        Autofill form data
       </message>
       <message name="IDS_CLEAR_BOOKMARKS_TITLE" desc="Title for Clear Bookmarks data in Clear Synced Data dialog">
         Bookmarks
@@ -449,7 +452,7 @@ For example, some websites may respond to this request by showing you ads that a
         Clearing browsing data
       </message>
       <message name="IDS_CLEAR_DATA_DELETE" desc="Button that allows the user to clear their browsing data. [CHAR-LIMIT=20]">
-        Clear
+        Clear data
       </message>
       <message name="IDS_CLEAR_BROWSING_DATA_PROGRESS_MESSAGE" desc='Message on the progress dialog used when waiting for "clear browsing data" to complete.'>
         Please wait…
@@ -457,6 +460,25 @@ For example, some websites may respond to this request by showing you ads that a
       <message name="IDS_CAN_NOT_CLEAR_BROWSING_HISTORY_TOAST" desc="Message on the toast explaining that child account users can not clear their browsing history.">
         Browsing history can’t be cleared with accounts for kids
       </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_PERIOD_TITLE" desc="Label of the dropdown that selects the time period for which browsing data will be deleted. This sentence can be followed by any option, such as 'Clear data from the past day' or 'Clear data from the past hour'.">
+        Clear data from the
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_PERIOD_HOUR" desc="The option to delete browsing data from the past hour. This is the direct object of the sentence 'Clear data from the past hour'.">
+        past hour
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_PERIOD_DAY" desc="The option to delete browsing data from the past day. This is the direct object of the sentence 'Clear data from the past day'.">
+        past day
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_PERIOD_WEEK" desc="The option to delete browsing data from the past week. This is the direct object of the sentence 'Clear data from the past week'.">
+        past week
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_PERIOD_FOUR_WEEKS" desc="The option to delete browsing data from the last 4 weeks. This is the direct object of the sentence 'Clear data from the last 4 weeks'.">
+        last 4 weeks
+      </message>
+      <message name="IDS_CLEAR_BROWSING_DATA_PERIOD_EVERYTHING" desc="The option to delete browsing data from the beginning of time. This is the direct object of the sentence 'Clear data from the beginning of time'.">
+        beginning of time
+      </message>
+
       <message name="IDS_USAGE_AND_CRASH_REPORTS_TITLE" desc="Title for 'Usage and crash reports' preference">
         Usage and crash reports
       </message>
@@ -813,16 +835,16 @@ To obtain new licenses, connect to the internet and play your downloaded content
 
       <!-- Account management UI strings. -->
       <message name="IDS_ACCOUNT_MANAGEMENT_ADD_ACCOUNT_TITLE" desc="Button text for opening the add account dialog to add a new account to a user's profile. [CHAR-LIMIT=20]">
-        Add account for <ph name="ADD_ACCOUNT_USER_NAME">%1$s<ex>Pablo Picasso</ex></ph>
+        Add account
       </message>
       <message name="IDS_ACCOUNT_MANAGEMENT_TITLE" desc="Header title for the account management screen. [CHAR-LIMIT=32]">
-        Accounts
+        Signed in to Google as
       </message>
-      <message name="IDS_ACCOUNT_MANAGEMENT_GO_INCOGNITO_TEXT" desc="Summary text for going incognito.">
-        Go incognito to browse privately or sign in temporarily
+      <message name="IDS_ACCOUNT_MANAGEMENT_SYNC_SUMMARY" desc="Description for which account the data is being synced to">
+        Syncing to <ph name="SYNC_ACCOUNT_USER_NAME">%1$s<ex>johndoe@gmail.com</ex></ph>
       </message>
-      <message name="IDS_ACCOUNT_MANAGEMENT_NOT_YOU_TEXT" desc="Title text for the section with the incognito button.">
-        Not <ph name="NOT_YOU_USER_NAME">%1$s<ex>Pablo Picasso</ex></ph>?
+      <message name="IDS_ACCOUNT_MANAGEMENT_SIGN_OUT" desc="Button text for signing out of Chrome">
+        Sign out of Chrome
       </message>
 
       <!-- Child accounts -->
@@ -872,6 +894,9 @@ To obtain new licenses, connect to the internet and play your downloaded content
       </message>
       <message name="IDS_SYNC_SETUP_PROGRESS" desc="Message indicating that sync setup is in progress">
         Setup in progress…
+      </message>
+      <message name="IDS_SYNC_ACCOUNT_HEADER" desc="Header for indicating to the user which account is being used for syncing">
+        Sync account
       </message>
 
       <!-- Confirm Sync account change dialog. -->
@@ -934,28 +959,28 @@ To obtain new licenses, connect to the internet and play your downloaded content
       <message name="IDS_ADD_ACCOUNT_CONTINUE" desc="Continue button for add Google account dialog [CHAR-LIMIT=20]">
         Continue
       </message>
-      <message name="IDS_SIGN_IN_ACCOUNTS_MESSAGE" desc="Description of the signed-in section shown below the header">
-        You’re signed in to the following Google Accounts. Add or remove accounts in Android settings.
-      </message>
-      <message name="IDS_SIGN_IN_ACCOUNTS_MESSAGE_MANAGED" desc="Description of the signed-in section shown below the header when adding or removing accounts is not allowed.">
-        You’re signed in to the following Google Accounts.
-      </message>
-      <message name="IDS_SIGN_IN_ACCOUNTS_MESSAGE_CHILD" desc="Description of the signed-in section shown below the header for child accounts">
-        You’re signed in to the following Google Account.
-      </message>
       <message name="IDS_SIGNOUT_TITLE" desc="Title for sign out of Chrome dialog [CHAR-LIMIT=40]">
-        Sign out of Chrome
+        Sign out of Chrome?
       </message>
       <message name="IDS_SIGNOUT_MESSAGE" desc="Message to display for sign out of Chrome dialog">
-        The data stored on this device as well as the data stored in your Google Account will remain in both places. However, new data or changes you make to your data will not be synchronized between them.
+        Changes to your bookmarks, history, passwords, and other settings will no longer be synced to your Google Account. However, your existing data will remain stored in your Google account.
       </message>
       <message name="IDS_SIGNOUT_MANAGED_ACCOUNT_MESSAGE" desc="Message to display for sign out of Chrome dialog when the account has enterprise management, and all user data will be erased">
         You are signing out of an account managed by <ph name="DOMAIN_NAME">%1$s<ex>google.com</ex></ph>. This will delete the Chrome data stored on this device, but the data will remain in your Google Account.
+      </message>
+      <message name="IDS_SIGNOUT_DIALOG_POSITIVE_BUTTON" desc="Button to sign out of Chrome">
+        Sign out
       </message>
 
       <!-- Sync strings -->
       <message name="IDS_SIGN_IN_SYNC" desc="Sync preference title in signed-in prefs and prefix for notification related to sync [CHAR-LIMIT=32]">
         Sync
+      </message>
+      <message name="IDS_SYNC_DESCRIPTION" desc="Describes the purpose of syncing. This will be displayed on the sync on/off toggle">
+        Get your bookmarks, history, passwords, and other settings on all your devices
+      </message>
+      <message name="IDS_SYNC_TO_ACCOUNT_HEADER" desc="Header title for selecting the account to sync to [CHAR-LIMIT=32]">
+        Sync to
       </message>
       <message name="IDS_SYNC_DATA_TYPES" desc="Preference category name for customization of synced data types. [CHAR-LIMT=32]">
         Data types
@@ -1000,13 +1025,16 @@ To obtain new licenses, connect to the internet and play your downloaded content
         Encrypt all with Google password as of <ph name="TIME">%1$s<ex>Oct 3, 2014</ex></ph>
       </message>
       <message name="IDS_SYNC_PASSPHRASE_TYPE_CUSTOM" desc="Option to encrypt all sync data with a custom passphrase.">
-        Encrypt all with passphrase
+        Encrypt all synced data with your own sync passphrase
+      </message>
+      <message name="IDS_SYNC_PASSPHRASE_TYPE_CUSTOM_DIALOG_TITLE" desc="Dialog title for custom passphrase creation.">
+        Create passphrase
       </message>
       <message name="IDS_SIGN_IN_GOOGLE_ACCOUNT" desc="Title of sign in account selection dialog. [CHAR-LIMIT=32]">
         Google Account
       </message>
       <message name="IDS_SYNC_CUSTOM_PASSPHRASE" desc="Prompt user to create a custom sync password.">
-        Only someone with your passphrase can read your encrypted data. This passphrase is not sent to or stored by Google. If you forget your passphrase, you will need to reset sync.
+        Only someone with your passphrase can read your encrypted data. The passphrase is not sent to or stored by Google. If you forget your passphrase or want to change this setting you'll need to reset sync. <ph name="BEGIN_LINK">&lt;learnmore&gt;</ph>Learn more<ph name="END_LINK">&lt;/learnmore&gt;</ph>
       </message>
       <message name="IDS_SYNC_DASHBOARD_URL" desc="URL for the sync dashboard." translateable="false">
         https://www.google.com/settings/chrome/sync
@@ -1021,10 +1049,13 @@ To obtain new licenses, connect to the internet and play your downloaded content
         This field cannot be blank
       </message>
       <message name="IDS_SYNC_PASSPHRASE_RESET_INSTRUCTIONS" desc="Inform the user how they can reset their passphrase if they have forgotten it." meaning="Android">
-        If you’ve forgotten your passphrase, stop and reset Sync via <ph name="BEGIN_LINK">&lt;link&gt;</ph>Google Dashboard<ph name="END_LINK">&lt;/link&gt;</ph>.
+        If you forgot your passphrase or want to change this setting, <ph name="BEGIN_LINK">&lt;resetlink&gt;</ph>reset sync<ph name="END_LINK">&lt;/resetlink&gt;</ph>
       </message>
       <message name="IDS_SYNC_PASSPHRASES_DO_NOT_MATCH" desc="Inform user that their sync password does not match.">
         Passphrases do not match
+      </message>
+      <message name="IDS_SYNC_PASSPHRASE_ENCRYPTION_RESET_INSTRUCTIONS" desc="Inform user how to change their encryption setting.">
+        To change this setting, <ph name="BEGIN_LINK">&lt;resetlink&gt;</ph>reset sync<ph name="END_LINK">&lt;/resetlink&gt;</ph>
       </message>
       <message name="IDS_SYNC_PASSPHRASE_INCORRECT" desc="Inform the user that the passphrase they entered for sync is incorrect. [CHAR-LIMIT=40]">
         Incorrect passphrase
@@ -1035,12 +1066,21 @@ To obtain new licenses, connect to the internet and play your downloaded content
       <message name="IDS_SYNC_LOADING" desc="Preference title to let the user change their encryption password. [CHAR-LIMIT=20]">
         Loading…
       </message>
+      <message name="IDS_SYNC_KEEP_EXISTING_DATA_SEPARATE" desc="Option to keep the existing data separate from the newly selected sync account">
+        Keep existing data separate
+      </message>
+      <message name="IDS_SYNC_KEEP_EXISTING_DATA_SEPARATE_SUBTEXT" desc="Subtext describing what happens if the user elects to keep the existing data separate">
+        Replace this device’s data with <ph name="ACCOUNT">%1$s<ex>john@doe.com</ex></ph>’s data. You can retrieve your existing data by switching back to <ph name="ACCOUNT">%1$s<ex>johndoe@gmail.com</ex></ph>
+      </message>
+      <message name="IDS_SYNC_KEEP_EXISTING_DATA_SEPARATE_VALUE" desc="Internal value for keep existing data preference" translateable="false">
+        keep_existing_data
+      </message>
 
       <!-- Bluetooth Picker UI strings -->
       <message name="IDS_BLUETOOTH_DIALOG_TITLE" desc="The header message shown on top of the dialog that lets the user pick a Bluetooth device for the site to pair with. Shown above a list of Bluetooth devices discovered. ">
-        <ph name="SITE">%1$s<ex>https://www.google.com</ex></ph> wants to <ph name="BEGIN_LINK">&lt;link&gt;</ph>pair with<ph name="END_LINK">&lt;/link&gt;</ph>:</message>
+        <ph name="SITE">%1$s<ex>https://www.google.com</ex></ph> wants to pair with:</message>
       <message name="IDS_BLUETOOTH_SEARCHING" desc="The message shown in the Bluetooth picker dialog while scanning for devices.">
-        Searching for devices…
+        Searching for devices… <ph name="BEGIN_LINK">&lt;link&gt;</ph>get help<ph name="END_LINK">&lt;/link&gt;</ph>
       </message>
       <message name="IDS_BLUETOOTH_CONFIRM_BUTTON" desc="The button to confirm association of a website with a Bluetooth device. Use the same term as in 'Pair this Bluetooth headset with your phone.'">
         Pair
@@ -1048,7 +1088,10 @@ To obtain new licenses, connect to the internet and play your downloaded content
       <message name="IDS_BLUETOOTH_NOT_SEEING_IT" desc="The message to show at the bottom of the dialog when Bluetooth scanning has uncovered some items but is still scanning for others.">
         Not seeing your device? <ph name="BEGIN_LINK">&lt;link&gt;</ph>Get help<ph name="END_LINK">&lt;/link&gt;</ph>.
       </message>
-      <message name="IDS_BLUETOOTH_NOT_SEEING_IT_IDLE" desc="The message to show at the bottom of the dialog when Bluetooth scanning has uncovered some items but is no longer discovering devices. Allows the user to restart the scan, in case their device is not listed.">
+      <message name="IDS_BLUETOOTH_NOT_SEEING_IT_IDLE_NONE_FOUND" desc="The message to show at the bottom of the dialog when Bluetooth scanning has not uncovered any devices and it is no longer discovering devices.">
+        <ph name="BEGIN_LINK">&lt;link&gt;</ph>Get help<ph name="END_LINK">&lt;/link&gt;</ph>
+      </message>
+      <message name="IDS_BLUETOOTH_NOT_SEEING_IT_IDLE_SOME_FOUND" desc="The message to show at the bottom of the dialog when Bluetooth scanning has uncovered some items but is no longer discovering devices. Allows the user to restart the scan, in case their device is not listed.">
         Not seeing your device? <ph name="BEGIN_LINK1">&lt;link1&gt;</ph>Get help<ph name="END_LINK1">&lt;/link1&gt;</ph> or <ph name="BEGIN_LINK2">&lt;link2&gt;</ph>search again<ph name="END_LINK2">&lt;/link2&gt;</ph>.
       </message>
       <message name="IDS_BLUETOOTH_NOT_FOUND" desc="The message to show when no items were found during Bluetooth device scanning.">
@@ -1586,7 +1629,10 @@ You are signing in with a managed account and giving its administrator control o
         Set up Chrome
       </message>
       <message name="IDS_FRE_ACCOUNT_CHOICE_DESCRIPTION" desc="Text for account chooser page">
-        Select an account to get your bookmarks, history, passwords, and other settings on all your devices.
+        Sign in to get your bookmarks, history, passwords, and other settings on all your devices.
+      </message>
+      <message name="IDS_FRE_ACCEPT" desc="Text for button to accept being signed in">
+        OK, got it
       </message>
       <message name="IDS_FRE_SKIP_TEXT" desc="Text for second page skip button">
         No thanks
@@ -1619,7 +1665,7 @@ You are signing in with a managed account and giving its administrator control o
         Hi, <ph name="FULL_NAME">%1$s<ex>John Smith</ex></ph>
       </message>
       <message name="IDS_FRE_SIGNED_IN_DESCRIPTION" desc="Explanation of what gets synced after the user signed in">
-        Your bookmarks, history, passwords, and other settings will be synced to your Google Account.
+        Your bookmarks, history, passwords, and other settings will be synced to your Google Account so you can use them on all your devices. You can choose what to sync in <ph name="BEGIN_LINK1">&lt;LINK1&gt;</ph>Settings<ph name="END_LINK1">&lt;/LINK1&gt;</ph>.
       </message>
       <message name="IDS_FRE_SIGNED_IN_DESCRIPTION_UCA_ADDENDUM" desc="Additional explanation for child accounts that synced settings are managed by parents.">
         Your parents help manage these settings.
@@ -1849,76 +1895,76 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       <message name="IDS_BOOKMARKS_FOLDER_EMPTY" desc="Text explaining that the currently selected bookmarks folder is empty.">
         No bookmarks here
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_SIGN_IN_PROMO_TITLE" desc="Promo title encouraging the user to sign in to Chrome to improve their bookmarks experience. It means that after signing-in, bookmarks will become synced across devices and possible to search.">
+      <message name="IDS_BOOKMARK_SIGN_IN_PROMO_TITLE" desc="Promo title encouraging the user to sign in to Chrome to improve their bookmarks experience. It means that after signing-in, bookmarks will become synced across devices and possible to search.">
         Sync your bookmarks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_SIGN_IN_PROMO_DESCRIPTION" desc="Description for enhanced bookmark UI sign-in promotion.">
+      <message name="IDS_BOOKMARK_SIGN_IN_PROMO_DESCRIPTION" desc="Description for bookmark UI sign-in promotion.">
         To get your bookmarks on all your devices, sign in to Chrome
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_SIGN_IN_PROMO_NO_THANKS" desc="Text for the decline button in the enhanced bookmark UI">
+      <message name="IDS_BOOKMARK_SIGN_IN_PROMO_NO_THANKS" desc="Text for the decline button in the bookmark UI">
         No, thanks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_SIGN_IN_PROMO_SIGN_IN" desc="Text for the sign-in button in promotion in the enhanced bookmark UI">
+      <message name="IDS_BOOKMARK_SIGN_IN_PROMO_SIGN_IN" desc="Text for the sign-in button in promotion in the bookmark UI">
         Sign in
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_PAGE_SAVED" desc="Message shown after user adds a new bookmark. [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_PAGE_SAVED" desc="Message shown after user adds a new bookmark. [CHAR-LIMIT=32]">
         Bookmarked
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_PAGE_SAVED_FOLDER" desc="Message shown after user adds a new bookmark. Also specifies in which folder the bookmark was added. [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_PAGE_SAVED_FOLDER" desc="Message shown after user adds a new bookmark. Also specifies in which folder the bookmark was added. [CHAR-LIMIT=32]">
         Bookmarked to <ph name="FOLDER_NAME">%1$s<ex>Mobile bookmarks</ex></ph>
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_DRAWER_ALL_ITEMS" desc="Menu item for showing all bookmark items in the enhanced bookmarks UI [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_DRAWER_ALL_ITEMS" desc="Menu item for showing all bookmark items in the bookmarks UI [CHAR-LIMIT=24]">
         All bookmarks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_DRAWER_FOLDERS" desc="Title for the list of folders in the drawer view. [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_DRAWER_FOLDERS" desc="Title for the list of folders in the drawer view. [CHAR-LIMIT=32]">
         Folders
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_DRAWER_FILTER_OFFLINE_PAGES" desc="Menu item for showing all bookmarks with an offline pages [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_DRAWER_FILTER_OFFLINE_PAGES" desc="Menu item for showing all bookmarks with an offline pages [CHAR-LIMIT=24]">
         Saved offline
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_TITLE_BAR_ALL_ITEMS" desc="Title bar text for showing all bookmark items in the enhanced bookmarks UI [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_TITLE_BAR_ALL_ITEMS" desc="Title bar text for showing all bookmark items in the bookmarks UI [CHAR-LIMIT=32]">
         Bookmarks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_TITLE_BAR_FILTER_OFFLINE_PAGES" desc="Title bar text for showing all save pages with offline copy in the enhanced bookmarks UI. [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_TITLE_BAR_FILTER_OFFLINE_PAGES" desc="Title bar text for showing all save pages with offline copy in the bookmarks UI. [CHAR-LIMIT=24]">
         Saved offline
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_PARENT_FOLDER" desc="Header text for title of parent folder of the bookmark [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_PARENT_FOLDER" desc="Header text for title of parent folder of the bookmark [CHAR-LIMIT=32]">
         Parent folder
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ITEM_SELECT" desc="Menu item text for selecting a bookmark [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_ITEM_SELECT" desc="Menu item text for selecting a bookmark [CHAR-LIMIT=24]">
         Select
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ITEM_EDIT" desc="Menu item text for showing bookmark editing page [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_ITEM_EDIT" desc="Menu item text for showing bookmark editing page [CHAR-LIMIT=24]">
         Edit
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ITEM_MOVE" desc="Menu item for moving a bookmark to a new folder [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_ITEM_MOVE" desc="Menu item for moving a bookmark to a new folder [CHAR-LIMIT=24]">
         Move
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ITEM_DELETE" desc="Menu item text for deleting a bookmark [CHAR-LIMIT=24]">
+      <message name="IDS_BOOKMARK_ITEM_DELETE" desc="Menu item text for deleting a bookmark [CHAR-LIMIT=24]">
         Delete
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ADD_FOLDER" desc="Title for button to add a new bookmark folder [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_ADD_FOLDER" desc="Title for button to add a new bookmark folder [CHAR-LIMIT=32]">
         New folder…
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_CHOOSE_FOLDER" desc="Title for the dialog that moves bookmarks to another folder [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_CHOOSE_FOLDER" desc="Title for the dialog that moves bookmarks to another folder [CHAR-LIMIT=32]">
         Choose folder
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ACTION_BAR_EDIT_FOLDER" desc="Button text for editing current folder action on the enhanced bookmark action bar [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_ACTION_BAR_EDIT_FOLDER" desc="Button text for editing current folder action on the bookmark action bar [CHAR-LIMIT=32]">
         Edit folder
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ACTION_BAR_MOVE" desc="Button text for bookmark move action on the enhanced bookmark action bar [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_ACTION_BAR_MOVE" desc="Button text for bookmark move action on the bookmark action bar [CHAR-LIMIT=32]">
         Move bookmarks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ACTION_BAR_DELETE" desc="Button text for bookmark delete action on the enhanced bookmark action bar [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_ACTION_BAR_DELETE" desc="Button text for bookmark delete action on the bookmark action bar [CHAR-LIMIT=32]">
         Delete bookmarks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ACTION_BAR_CLOSE" desc="Button text for closing the current enhanced bookmark dialog on the enhanced bookmark action bar [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_ACTION_BAR_CLOSE" desc="Button text for closing the current bookmark dialog on the bookmark action bar [CHAR-LIMIT=32]">
         Close dialog
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_ACTION_BAR_SEARCH" desc="Button text for bookmark search action on the enhanced bookmark action bar [CHAR-LIMIT=32]">
+      <message name="IDS_BOOKMARK_ACTION_BAR_SEARCH" desc="Button text for bookmark search action on the bookmark action bar [CHAR-LIMIT=32]">
         Search bookmarks
       </message>
-      <message name="IDS_ENHANCED_BOOKMARK_NO_RESULT" desc="Text explaining that no bookmarks are found to match a search query">
+      <message name="IDS_BOOKMARK_NO_RESULT" desc="Text explaining that no bookmarks are found to match a search query">
         No bookmarks found
       </message>
       <message name="IDS_EDIT_BOOKMARK" desc='The string prompting the user to edit the content of a bookmark. [CHAR-LIMIT=30]'>
@@ -1954,10 +2000,10 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       <message name="IDS_BOOKMARK_MISSING_URL" desc="Error message appearing when a user tries to create a bookmark without a url. [CHAR-LIMIT=32]">
         URL required
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_DRAWER_TOGGLE_BTN_OPEN" desc="Content description for the button to show the navigation drawer.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_DRAWER_TOGGLE_BTN_OPEN" desc="Content description for the button to show the navigation drawer.">
         Open navigation drawer
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_DRAWER_TOGGLE_BTN_CLOSE" desc="Content description for the button to close the navigation drawer.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_DRAWER_TOGGLE_BTN_CLOSE" desc="Content description for the button to close the navigation drawer.">
         Close navigation drawer
       </message>
 
@@ -2189,19 +2235,19 @@ Just open Chrome on your computer, go to the menu, and select “Sign in to Chro
       <message name="IDS_ACCESSIBILITY_BOOKMARK_WIDGET_THUMB_LAUNCH_CHROME" desc="Content description for the button in the bookmark widget that launches Chrome.">
         Launch Chrome
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_CANCEL_SELECTION" desc="Content description for the cancel selection button that deselects the selected bookmarks.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_CANCEL_SELECTION" desc="Content description for the cancel selection button that deselects the selected bookmarks.">
         Cancel selection
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_MORE_INFO" desc="Content description for the button that shows option menu for a bookmark.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_MORE_INFO" desc="Content description for the button that shows option menu for a bookmark.">
         Options
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_DETAIL_CLOSE_BTN" desc="Content description for the close button that allows users to close the edit bookmark dialog.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_DETAIL_CLOSE_BTN" desc="Content description for the close button that allows users to close the edit bookmark dialog.">
         Close dialog
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_DETAIL_DELETE_BTN" desc="Content description for the delete button that allows users to delete the current bookmark.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_DETAIL_DELETE_BTN" desc="Content description for the delete button that allows users to delete the current bookmark.">
         Delete bookmark
       </message>
-      <message name="IDS_ACCESSIBILITY_ENHANCED_BOOKMARK_DETAIL_SAVE_BTN" desc="Content description for the save button that allows users to save the edited bookmark.">
+      <message name="IDS_ACCESSIBILITY_BOOKMARK_DETAIL_SAVE_BTN" desc="Content description for the save button that allows users to save the edited bookmark.">
         Save bookmark
       </message>
 
@@ -2261,9 +2307,6 @@ However, you aren’t invisible. Going incognito doesn’t hide your browsing fr
       </message>
       <message name="IDS_UNDO_BAR_MULTIPLE_DELETE_MESSAGE" desc="Message shown when you can undo several bookmark delete actions.">
         <ph name="NUMBER_OF_BOOKMARKS">%1$s<ex>3</ex></ph> bookmarks deleted
-      </message>
-      <message name="IDS_UNDO_BAR_BUTTON_TEXT" desc="Button text to undo closing a tab.">
-        Undo
       </message>
 
       <!-- MultiWindow -->

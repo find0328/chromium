@@ -33,23 +33,12 @@ sys.path.append(os.path.join(_SRC_DIR, 'third_party', 'webpagereplay'))
 import adb_install_cert
 import certutils
 
+import chrome_setup
 import devtools_monitor
 import options
 
 
 OPTIONS = options.OPTIONS
-
-
-@contextlib.contextmanager
-def TemporaryDirectory():
-  """Returns a freshly-created directory that gets automatically deleted after
-  usage.
-  """
-  name = tempfile.mkdtemp()
-  try:
-    yield name
-  finally:
-    shutil.rmtree(name)
 
 
 class DeviceSetupException(Exception):
@@ -115,12 +104,16 @@ def _SetUpDevice(device, package_info):
 
 
 @contextlib.contextmanager
-def WprHost(device, wpr_archive_path, record=False):
+def WprHost(device, wpr_archive_path, record=False,
+            network_condition_name=None,
+            disable_script_injection=False):
   """Launches web page replay host.
 
   Args:
     device: Android device.
     wpr_archive_path: host sided WPR archive's path.
+    network_condition_name: Network condition name available in
+        chrome_setup.NETWORK_CONDITIONS.
     record: Enables or disables WPR archive recording.
 
   Returns:
@@ -129,6 +122,9 @@ def WprHost(device, wpr_archive_path, record=False):
   """
   assert device
   if wpr_archive_path == None:
+    assert not record, 'WPR cannot record without a specified archive.'
+    assert not network_condition_name, ('WPR cannot emulate network condition' +
+                                        ' without a specified archive.')
     yield []
     return
 
@@ -139,6 +135,21 @@ def WprHost(device, wpr_archive_path, record=False):
       os.remove(wpr_archive_path)
   else:
     assert os.path.exists(wpr_archive_path)
+  if network_condition_name:
+    condition = chrome_setup.NETWORK_CONDITIONS[network_condition_name]
+    if record:
+      logging.warning('WPR network condition is ignored when recording.')
+    else:
+      wpr_server_args.extend([
+          '--down', chrome_setup.BandwidthToString(condition['download']),
+          '--up', chrome_setup.BandwidthToString(condition['upload']),
+          '--delay_ms', str(condition['latency']),
+          '--shaping_type', 'proxy'])
+
+  if disable_script_injection:
+    # Remove default WPR injected scripts like deterministic.js which
+    # overrides Math.random.
+    wpr_server_args.extend(['--inject_scripts', ''])
 
   # Deploy certification authority to the device.
   temp_certificate_dir = tempfile.mkdtemp()
@@ -177,7 +188,33 @@ def WprHost(device, wpr_archive_path, record=False):
     device_cert_util.remove_cert()
     shutil.rmtree(temp_certificate_dir)
 
+
 @contextlib.contextmanager
+def _DevToolsConnectionOnDevice(device, flags):
+  """Returns a DevToolsConnection context manager for a given device.
+
+  Args:
+    device: Device to connect to.
+    flags: ([str]) List of flags.
+
+  Returns:
+    A DevToolsConnection context manager.
+  """
+  package_info = OPTIONS.ChromePackage()
+  command_line_path = '/data/local/chrome-command-line'
+  _SetUpDevice(device, package_info)
+  with FlagReplacer(device, command_line_path, flags):
+    start_intent = intent.Intent(
+        package=package_info.package, activity=package_info.activity,
+        data='about:blank')
+    device.StartActivity(start_intent, blocking=True)
+    time.sleep(2)
+    with ForwardPort(device, 'tcp:%d' % OPTIONS.devtools_port,
+                     'localabstract:chrome_devtools_remote'):
+      yield devtools_monitor.DevToolsConnection(
+          OPTIONS.devtools_hostname, OPTIONS.devtools_port)
+
+
 def DeviceConnection(device, additional_flags=None):
   """Context for starting recording on a device.
 
@@ -191,8 +228,6 @@ def DeviceConnection(device, additional_flags=None):
   Returns:
     A context manager type which evaluates to a DevToolsConnection.
   """
-  package_info = OPTIONS.ChromePackage()
-  command_line_path = '/data/local/chrome-command-line'
   new_flags = ['--disable-fre',
                '--enable-test-events',
                '--remote-debugging-port=%d' % OPTIONS.devtools_port]
@@ -200,36 +235,8 @@ def DeviceConnection(device, additional_flags=None):
     new_flags.append('--no-sandbox')
   if additional_flags != None:
     new_flags.extend(additional_flags)
+
   if device:
-    _SetUpDevice(device, package_info)
-  with FlagReplacer(device, command_line_path, new_flags):
-    host_process = None
-    if device:
-      start_intent = intent.Intent(
-          package=package_info.package, activity=package_info.activity,
-          data='about:blank')
-      device.StartActivity(start_intent, blocking=True)
-    else:
-      # Run on the host.
-      assert os.path.exists(OPTIONS.local_binary)
-
-      local_profile_dir = OPTIONS.local_profile_dir
-      if not local_profile_dir:
-        local_profile_dir = TemporaryDirectory()
-
-      new_flags.append('--user-data-dir=%s' % local_profile_dir)
-      host_process = subprocess.Popen([OPTIONS.local_binary] + new_flags,
-                                      shell=False)
-    if device:
-      time.sleep(2)
-    else:
-      # TODO(blundell): Figure out why a lower sleep time causes an assertion
-      # in request_track.py to fire.
-      time.sleep(10)
-    # If no device, we don't care about chrome startup so skip the about page.
-    with ForwardPort(device, 'tcp:%d' % OPTIONS.devtools_port,
-                     'localabstract:chrome_devtools_remote'):
-      yield devtools_monitor.DevToolsConnection(
-          OPTIONS.devtools_hostname, OPTIONS.devtools_port)
-    if host_process:
-      host_process.kill()
+    return _DevToolsConnectionOnDevice(device, new_flags)
+  else:
+    return chrome_setup.DevToolsConnectionForLocalBinary(new_flags)

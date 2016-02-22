@@ -80,7 +80,7 @@ private:
         RefPtrWillBeMember<Node> m_lastNodeInserted;
     };
 
-    Node* insertAsListItems(PassRefPtrWillBeRawPtr<HTMLElement> listElement, Element* insertionBlock, const Position&, InsertedNodes&);
+    Node* insertAsListItems(PassRefPtrWillBeRawPtr<HTMLElement> listElement, Element* insertionBlock, const Position&, InsertedNodes&, EditingState*);
 
     void updateNodesInserted(Node*);
     bool shouldRemoveEndBR(HTMLBRElement*, const VisiblePosition&);
@@ -89,24 +89,24 @@ private:
     bool shouldMergeEnd(bool selectionEndWasEndOfParagraph);
     bool shouldMerge(const VisiblePosition&, const VisiblePosition&);
 
-    void mergeEndIfNeeded();
+    void mergeEndIfNeeded(EditingState*);
 
     void removeUnrenderedTextNodesAtEnds(InsertedNodes&);
 
-    void removeRedundantStylesAndKeepStyleSpanInline(InsertedNodes&);
-    void makeInsertedContentRoundTrippableWithHTMLTreeBuilder(const InsertedNodes&);
-    void moveElementOutOfAncestor(PassRefPtrWillBeRawPtr<Element>, PassRefPtrWillBeRawPtr<Element> ancestor);
-    void handleStyleSpans(InsertedNodes&);
+    void removeRedundantStylesAndKeepStyleSpanInline(InsertedNodes&, EditingState*);
+    void makeInsertedContentRoundTrippableWithHTMLTreeBuilder(const InsertedNodes&, EditingState*);
+    void moveElementOutOfAncestor(PassRefPtrWillBeRawPtr<Element>, PassRefPtrWillBeRawPtr<Element> ancestor, EditingState*);
+    void handleStyleSpans(InsertedNodes&, EditingState*);
 
     VisiblePosition positionAtStartOfInsertedContent() const;
     VisiblePosition positionAtEndOfInsertedContent() const;
 
     bool shouldPerformSmartReplace() const;
-    void addSpacesForSmartReplace();
-    void completeHTMLReplacement(const Position& lastPositionToSelect);
-    void mergeTextNodesAroundPosition(Position&, Position& positionOnlyToBeUpdated);
+    void addSpacesForSmartReplace(EditingState*);
+    void completeHTMLReplacement(const Position& lastPositionToSelect, EditingState*);
+    void mergeTextNodesAroundPosition(Position&, Position& positionOnlyToBeUpdated, EditingState*);
 
-    bool performTrivialReplace(const ReplacementFragment&);
+    bool performTrivialReplace(const ReplacementFragment&, EditingState*);
 
     Position m_startOfInsertedContent;
     Position m_endOfInsertedContent;

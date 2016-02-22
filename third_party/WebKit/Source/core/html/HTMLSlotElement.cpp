@@ -31,9 +31,11 @@
 #include "core/html/HTMLSlotElement.h"
 
 #include "core/HTMLNames.h"
+#include "core/dom/Microtask.h"
 #include "core/dom/NodeTraversal.h"
 #include "core/dom/shadow/ElementShadow.h"
 #include "core/dom/shadow/InsertionPoint.h"
+#include "core/events/Event.h"
 #include "core/html/AssignedNodesOptions.h"
 
 namespace blink {
@@ -43,6 +45,7 @@ using namespace HTMLNames;
 inline HTMLSlotElement::HTMLSlotElement(Document& document)
     : HTMLElement(slotTag, document)
 {
+    setHasCustomStyleCallbacks();
 }
 
 DEFINE_NODE_FACTORY(HTMLSlotElement);
@@ -94,17 +97,28 @@ void HTMLSlotElement::appendDistributedNodesFrom(const HTMLSlotElement& other)
 {
     size_t index = m_distributedNodes.size();
     m_distributedNodes.appendVector(other.m_distributedNodes);
-    for (const auto& it : other.m_distributedIndices) {
-        const Node* node = it.key;
-        m_distributedIndices.set(node, index++);
-    }
+    for (const auto& node : other.m_distributedNodes)
+        m_distributedIndices.set(node.get(), index++);
 }
 
 void HTMLSlotElement::clearDistribution()
 {
     m_assignedNodes.clear();
+    m_oldDistributedNodes.swap(m_distributedNodes);
     m_distributedNodes.clear();
     m_distributedIndices.clear();
+}
+
+bool HTMLSlotElement::hasSlotChangeEventListener()
+{
+    return eventTargetData() && eventTargetData()->eventListenerMap.find(EventTypeNames::slotchange);
+}
+
+void HTMLSlotElement::dispatchSlotChangeEvent()
+{
+    RefPtrWillBeRawPtr<Event> event = Event::create(EventTypeNames::slotchange);
+    event->setTarget(this);
+    dispatchScopedEvent(event);
 }
 
 Node* HTMLSlotElement::distributedNodeNextTo(const Node& node) const
@@ -201,6 +215,15 @@ void HTMLSlotElement::removedFrom(ContainerNode* insertionPoint)
     HTMLElement::removedFrom(insertionPoint);
 }
 
+void HTMLSlotElement::willRecalcStyle(StyleRecalcChange change)
+{
+    if (change < Inherit && styleChangeType() < SubtreeStyleChange)
+        return;
+
+    for (auto& node : m_distributedNodes)
+        node->setNeedsStyleRecalc(LocalStyleChange, StyleChangeReasonForTracing::create(StyleChangeReason::PropagateInheritChangeToDistributedNodes));
+}
+
 void HTMLSlotElement::updateDistributedNodesWithFallback()
 {
     if (!m_distributedNodes.isEmpty())
@@ -218,12 +241,22 @@ void HTMLSlotElement::updateDistributedNodesWithFallback()
     }
 }
 
+void HTMLSlotElement::didUpdateDistribution()
+{
+    if (hasSlotChangeEventListener() && m_distributedNodes != m_oldDistributedNodes) {
+        // TODO(hayato): Do not enqueue a slotchange event for the same slot twice in the microtask queue
+        Microtask::enqueueMicrotask(WTF::bind(&HTMLSlotElement::dispatchSlotChangeEvent, PassRefPtrWillBeRawPtr<HTMLSlotElement>(this)));
+    }
+    // TODO(hayato): Call setNeedsDistributionRecalc if the distribution changes due to the fallback elements
+}
+
 DEFINE_TRACE(HTMLSlotElement)
 {
 #if ENABLE(OILPAN)
     visitor->trace(m_assignedNodes);
     visitor->trace(m_distributedNodes);
     visitor->trace(m_distributedIndices);
+    visitor->trace(m_oldDistributedNodes);
 #endif
     HTMLElement::trace(visitor);
 }

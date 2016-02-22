@@ -321,7 +321,7 @@ interface BluetoothDevice : EventTarget
     method connectGATT
     method constructor
     setter ongattserverdisconnected
-interface BluetoothGATTCharacteristic : EventTarget
+interface BluetoothRemoteGATTCharacteristic : EventTarget
     getter oncharacteristicvaluechanged
     getter properties
     getter uuid
@@ -332,14 +332,14 @@ interface BluetoothGATTCharacteristic : EventTarget
     method stopNotifications
     method writeValue
     setter oncharacteristicvaluechanged
-interface BluetoothGATTRemoteServer
+interface BluetoothRemoteGATTServer
     getter connected
     getter device
     method connect
     method constructor
     method disconnect
     method getPrimaryService
-interface BluetoothGATTService
+interface BluetoothRemoteGATTService
     getter isPrimary
     getter uuid
     method constructor
@@ -862,10 +862,6 @@ interface DOMRectReadOnly
     getter x
     getter y
     method constructor
-interface DOMSettableTokenList : DOMTokenList
-    getter value
-    method constructor
-    setter value
 interface DOMStringList
     getter length
     method constructor
@@ -875,6 +871,7 @@ interface DOMStringMap
     method constructor
 interface DOMTokenList
     getter length
+    getter value
     method add
     method constructor
     method contains
@@ -887,6 +884,7 @@ interface DOMTokenList
     method toString
     method toggle
     method values
+    setter value
 interface DataTransfer
     getter dropEffect
     getter effectAllowed
@@ -968,7 +966,6 @@ interface Document : Node
     getter contentType
     getter cookie
     getter currentScript
-    getter defaultCharset
     getter defaultView
     getter designMode
     getter dir
@@ -1347,6 +1344,7 @@ interface Element : Node
     method webkitMatchesSelector
     method webkitRequestFullScreen
     method webkitRequestFullscreen
+    setter classList
     setter className
     setter id
     setter innerHTML
@@ -1397,7 +1395,6 @@ interface Event
     getter cancelBubble
     getter cancelable
     getter currentTarget
-    getter deepPath
     getter defaultPrevented
     getter eventPhase
     getter path
@@ -1408,6 +1405,7 @@ interface Event
     getter timeStamp
     getter type
     method constructor
+    method deepPath
     method initEvent
     method preventDefault
     method stopImmediatePropagation
@@ -2368,6 +2366,7 @@ interface HTMLLinkElement : HTMLElement
     setter integrity
     setter media
     setter rel
+    setter relList
     setter rev
     setter sizes
     setter target
@@ -2431,10 +2430,6 @@ interface HTMLMediaElement : HTMLElement
     getter muted
     getter networkState
     getter onencrypted
-    getter onwebkitkeyadded
-    getter onwebkitkeyerror
-    getter onwebkitkeymessage
-    getter onwebkitneedkey
     getter paused
     getter playbackRate
     getter played
@@ -2458,9 +2453,6 @@ interface HTMLMediaElement : HTMLElement
     method play
     method setMediaKeys
     method setSinkId
-    method webkitAddKey
-    method webkitCancelKeyRequest
-    method webkitGenerateKeyRequest
     setter autoplay
     setter controls
     setter crossOrigin
@@ -2471,10 +2463,6 @@ interface HTMLMediaElement : HTMLElement
     setter loop
     setter muted
     setter onencrypted
-    setter onwebkitkeyadded
-    setter onwebkitkeyerror
-    setter onwebkitkeymessage
-    setter onwebkitneedkey
     setter playbackRate
     setter preload
     setter src
@@ -3150,6 +3138,8 @@ interface ImageData
 interface InputDeviceCapabilities
     getter firesTouchEvents
     method constructor
+interface InputEvent : UIEvent
+    method constructor
 interface IntersectionObserver
     getter root
     getter rootMargin
@@ -3178,7 +3168,6 @@ interface KeyboardEvent : UIEvent
     getter key
     getter keyCode
     getter keyIdentifier
-    getter keyLocation
     getter location
     getter metaKey
     getter repeat
@@ -3295,25 +3284,6 @@ interface MediaError
     attribute MEDIA_ERR_NETWORK
     attribute MEDIA_ERR_SRC_NOT_SUPPORTED
     getter code
-    method constructor
-interface MediaKeyError
-    attribute MEDIA_KEYERR_CLIENT
-    attribute MEDIA_KEYERR_DOMAIN
-    attribute MEDIA_KEYERR_HARDWARECHANGE
-    attribute MEDIA_KEYERR_OUTPUT
-    attribute MEDIA_KEYERR_SERVICE
-    attribute MEDIA_KEYERR_UNKNOWN
-    getter code
-    getter systemCode
-    method constructor
-interface MediaKeyEvent : Event
-    getter defaultURL
-    getter errorCode
-    getter initData
-    getter keySystem
-    getter message
-    getter sessionId
-    getter systemCode
     method constructor
 interface MediaKeyMessageEvent : Event
     getter message
@@ -5238,6 +5208,27 @@ interface Skew : TransformComponent
     getter ax
     getter ay
     method constructor
+interface SourceBuffer : EventTarget
+    getter appendWindowEnd
+    getter appendWindowStart
+    getter buffered
+    getter mode
+    getter timestampOffset
+    getter trackDefaults
+    getter updating
+    method abort
+    method appendBuffer
+    method appendStream
+    method constructor
+    method remove
+    setter appendWindowEnd
+    setter appendWindowStart
+    setter mode
+    setter timestampOffset
+    setter trackDefaults
+interface SourceBufferList : EventTarget
+    getter length
+    method constructor
 interface SpeechSynthesisEvent : Event
     getter charIndex
     getter elapsedTime
@@ -6337,6 +6328,9 @@ interface Worker : EventTarget
     method terminate
     setter onerror
     setter onmessage
+interface Worklet
+    method constructor
+    method import
 interface XMLDocument : Document
     method constructor
 interface XMLHttpRequest : XMLHttpRequestEventTarget
@@ -6851,6 +6845,7 @@ interface webkitURL
     attribute performance
     attribute personalbar
     attribute propertyNamesInGlobal
+    attribute renderWorklet
     attribute screen
     attribute screenLeft
     attribute screenTop

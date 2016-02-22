@@ -13,6 +13,7 @@
 #include "content/browser/service_worker/service_worker_context_core.h"
 #include "content/browser/service_worker/service_worker_disk_cache.h"
 #include "content/browser/service_worker/service_worker_metrics.h"
+#include "content/common/net/url_request_service_worker_data.h"
 #include "content/common/service_worker/service_worker_types.h"
 #include "content/common/service_worker/service_worker_utils.h"
 #include "net/base/io_buffer.h"
@@ -41,16 +42,10 @@ const char kRedirectError[] =
     "The script resource is behind a redirect, which is disallowed.";
 const char kServiceWorkerAllowed[] = "Service-Worker-Allowed";
 
-// The net error code used when the job fails the update attempt because the new
-// script is byte-by-byte identical to the incumbent script. This error is shown
-// in DevTools and in netlog, so we want something obscure enough that it won't
-// conflict with a legitimate network error, and not too alarming if seen by
-// developers.
-// TODO(falken): Redesign this class so we don't have to fail at the network
-// stack layer just to cancel the update.
-const net::Error kIdenticalScriptError = net::ERR_FILE_EXISTS;
-
 }  // namespace
+
+const net::Error ServiceWorkerWriteToCacheJob::kIdenticalScriptError =
+    net::ERR_FILE_EXISTS;
 
 ServiceWorkerWriteToCacheJob::ServiceWorkerWriteToCacheJob(
     net::URLRequest* request,
@@ -97,13 +92,9 @@ void ServiceWorkerWriteToCacheJob::StartAsync() {
     return;
   }
 
-  // These uses of Unretained are safe because this object is the sole owner of
-  // |cache_writer_|, which in turn is the sole user of these callbacks.
   cache_writer_.reset(new ServiceWorkerCacheWriter(
-      base::Bind(&ServiceWorkerWriteToCacheJob::CreateCacheResponseReader,
-                 base::Unretained(this)),
-      base::Bind(&ServiceWorkerWriteToCacheJob::CreateCacheResponseWriter,
-                 base::Unretained(this))));
+      CreateCacheResponseReader(), CreateCacheResponseReader(),
+      CreateCacheResponseWriter()));
   version_->script_cache_map()->NotifyStartedCaching(url_, resource_id_);
   did_notify_started_ = true;
   StartNetRequest();
@@ -194,6 +185,8 @@ void ServiceWorkerWriteToCacheJob::InitNetRequest(
       request()->first_party_for_cookies());
   net_request_->set_initiator(request()->initiator());
   net_request_->SetReferrer(request()->referrer());
+  net_request_->SetUserData(URLRequestServiceWorkerData::kUserDataKey,
+                            new URLRequestServiceWorkerData());
   if (extra_load_flags)
     net_request_->SetLoadFlags(net_request_->load_flags() | extra_load_flags);
 
@@ -472,8 +465,7 @@ net::Error ServiceWorkerWriteToCacheJob::NotifyFinishedCaching(
   // exists.
   if (status.status() == net::URLRequestStatus::SUCCESS &&
       !cache_writer_->did_replace()) {
-    result = kIdenticalScriptError;
-    status = net::URLRequestStatus::FromError(result);
+    status = net::URLRequestStatus::FromError(kIdenticalScriptError);
     version_->SetStartWorkerStatusCode(SERVICE_WORKER_ERROR_EXISTS);
     version_->script_cache_map()->NotifyFinishedCaching(url_, size, status,
                                                         std::string());
@@ -489,7 +481,7 @@ net::Error ServiceWorkerWriteToCacheJob::NotifyFinishedCaching(
 scoped_ptr<ServiceWorkerResponseReader>
 ServiceWorkerWriteToCacheJob::CreateCacheResponseReader() {
   if (incumbent_resource_id_ == kInvalidServiceWorkerResourceId ||
-      version_->skip_script_comparison()) {
+      !version_->pause_after_download()) {
     return nullptr;
   }
   return context_->storage()->CreateResponseReader(incumbent_resource_id_);

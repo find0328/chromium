@@ -24,6 +24,8 @@ sys.path.append(os.path.join(_SRC_DIR, 'build', 'android'))
 import devil_chromium
 from pylib import constants
 
+import activity_lens
+import chrome_setup
 import content_classification_lens
 import device_setup
 import frame_load_lens
@@ -98,7 +100,7 @@ def _GetPrefetchHtml(graph, name=None):
 
 
 def _LogRequests(url, clear_cache_override=None):
-  """Log requests for a web page.
+  """Logs requests for a web page.
 
   Args:
     url: url to log as string.
@@ -110,8 +112,14 @@ def _LogRequests(url, clear_cache_override=None):
   device = device_setup.GetFirstDevice() if not OPTIONS.local else None
   clear_cache = (clear_cache_override if clear_cache_override is not None
                  else OPTIONS.clear_cache)
+
   with device_setup.DeviceConnection(device) as connection:
+    additional_metadata = {}
+    if OPTIONS.local:
+      additional_metadata = chrome_setup.SetUpEmulationAndReturnMetadata(
+          connection, OPTIONS.emulate_device, OPTIONS.emulate_network)
     trace = trace_recorder.MonitorUrl(connection, url, clear_cache=clear_cache)
+    trace.metadata.update(additional_metadata)
     return trace.ToJsonDict()
 
 
@@ -158,7 +166,9 @@ def _ProcessRequests(filename):
         content_classification_lens.ContentClassificationLens.WithRulesFiles(
             trace, OPTIONS.ad_rules, OPTIONS.tracking_rules))
     frame_lens = frame_load_lens.FrameLoadLens(trace)
-    graph = loading_model.ResourceGraph(trace, content_lens, frame_lens)
+    activity = activity_lens.ActivityLens(trace)
+    graph = loading_model.ResourceGraph(
+        trace, content_lens, frame_lens, activity)
     if OPTIONS.noads:
       graph.Set(node_filter=graph.FilterAds)
     return graph

@@ -616,8 +616,9 @@ class PrepareFrameAndViewForPrint : public blink::WebViewClient,
       blink::WebLocalFrame* parent,
       blink::WebTreeScopeType scope,
       const blink::WebString& name,
-      blink::WebSandboxFlags sandboxFlags,
-      const blink::WebFrameOwnerProperties& frameOwnerProperties) override;
+      const blink::WebString& unique_name,
+      blink::WebSandboxFlags sandbox_flags,
+      const blink::WebFrameOwnerProperties& frame_owner_properties) override;
   void frameDetached(blink::WebFrame* frame, DetachType type) override;
 
   void CallOnReady();
@@ -761,8 +762,9 @@ blink::WebFrame* PrepareFrameAndViewForPrint::createChildFrame(
     blink::WebLocalFrame* parent,
     blink::WebTreeScopeType scope,
     const blink::WebString& name,
-    blink::WebSandboxFlags sandboxFlags,
-    const blink::WebFrameOwnerProperties& frameOwnerProperties) {
+    const blink::WebString& unique_name,
+    blink::WebSandboxFlags sandbox_flags,
+    const blink::WebFrameOwnerProperties& frame_owner_properties) {
   blink::WebFrame* frame = blink::WebLocalFrame::create(scope, this);
   parent->appendChild(frame);
   return frame;
@@ -1811,19 +1813,6 @@ bool PrintWebViewHelper::CopyMetafileDataToSharedMem(
   if (buf_size == 0)
     return false;
 
-#if defined(OS_WIN)
-  base::SharedMemory shared_buf;
-  // Allocate a shared memory buffer to hold the generated metafile data.
-  if (!shared_buf.CreateAndMapAnonymous(buf_size))
-    return false;
-
-  // Copy the bits into shared memory.
-  if (!metafile.GetData(shared_buf.memory(), buf_size))
-    return false;
-
-  *shared_mem_handle = base::SharedMemory::DuplicateHandle(shared_buf.handle());
-  return true;
-#else
   scoped_ptr<base::SharedMemory> shared_buf(
       content::RenderThread::Get()->HostAllocateSharedMemoryBuffer(buf_size));
   if (!shared_buf)
@@ -1835,9 +1824,9 @@ bool PrintWebViewHelper::CopyMetafileDataToSharedMem(
   if (!metafile.GetData(shared_buf->memory(), buf_size))
     return false;
 
-  return shared_buf->GiveToProcess(base::GetCurrentProcessHandle(),
-                                   shared_mem_handle);
-#endif  // defined(OS_WIN)
+  *shared_mem_handle =
+      base::SharedMemory::DuplicateHandle(shared_buf->handle());
+  return true;
 }
 
 #if defined(ENABLE_PRINT_PREVIEW)
@@ -2024,11 +2013,7 @@ bool PrintWebViewHelper::PrintPreviewContext::CreatePreviewDocument(
   }
 
   metafile_.reset(new PdfMetafileSkia);
-  if (!metafile_->Init()) {
-    set_error(PREVIEW_ERROR_METAFILE_INIT_FAILED);
-    LOG(ERROR) << "PdfMetafileSkia Init failed";
-    return false;
-  }
+  CHECK(metafile_->Init());
 
   current_page_index_ = 0;
   pages_to_render_ = pages;

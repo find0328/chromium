@@ -4,6 +4,7 @@
 
 #include "content/test/test_render_frame_host.h"
 
+#include "base/guid.h"
 #include "content/browser/frame_host/frame_tree.h"
 #include "content/browser/frame_host/navigation_handle_impl.h"
 #include "content/browser/frame_host/navigation_request.h"
@@ -75,6 +76,7 @@ MockRenderProcessHost* TestRenderFrameHost::GetProcess() {
 
 void TestRenderFrameHost::InitializeRenderFrameIfNeeded() {
   if (!render_view_host()->IsRenderViewLive()) {
+    render_view_host()->GetProcess()->Init();
     RenderViewHostTester::For(render_view_host())->CreateTestRenderView(
         base::string16(), MSG_ROUTING_NONE, MSG_ROUTING_NONE, -1, false);
   }
@@ -82,9 +84,10 @@ void TestRenderFrameHost::InitializeRenderFrameIfNeeded() {
 
 TestRenderFrameHost* TestRenderFrameHost::AppendChild(
     const std::string& frame_name) {
+  std::string frame_unique_name = base::GenerateGUID();
   OnCreateChildFrame(GetProcess()->GetNextRoutingID(),
                      blink::WebTreeScopeType::Document, frame_name,
-                     blink::WebSandboxFlags::None,
+                     frame_unique_name, blink::WebSandboxFlags::None,
                      blink::WebFrameOwnerProperties());
   return static_cast<TestRenderFrameHost*>(
       child_creation_observer_.last_created_frame());

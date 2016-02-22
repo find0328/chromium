@@ -637,7 +637,7 @@ MediaQueryMatcher& Document::mediaQueryMatcher()
 
 void Document::mediaQueryAffectingValueChanged()
 {
-    styleResolverChanged();
+    styleEngine().resolverChanged(FullStyleUpdate);
     m_evaluateMediaQueriesOnStyleRecalc = true;
     styleEngine().clearMediaQueryRuleSetStyleSheets();
     InspectorInstrumentation::mediaQueryResultChanged(this);
@@ -1107,13 +1107,6 @@ AtomicString Document::encodingName() const
     return AtomicString(encoding().name());
 }
 
-String Document::defaultCharset() const
-{
-    if (Settings* settings = this->settings())
-        return settings->defaultTextEncodingName();
-    return String();
-}
-
 void Document::setContentLanguage(const AtomicString& language)
 {
     if (m_contentLanguage == language)
@@ -1536,7 +1529,7 @@ void Document::scheduleLayoutTreeUpdate()
     ASSERT(shouldScheduleLayoutTreeUpdate());
     ASSERT(needsLayoutTreeUpdate());
 
-    if (!view()->shouldThrottleRendering())
+    if (!view()->canThrottleRendering())
         page()->animator().scheduleVisualUpdate(frame());
     m_lifecycle.ensureStateAtMost(DocumentLifecycle::VisualUpdatePending);
 
@@ -1729,6 +1722,10 @@ void Document::updateLayoutTree(StyleRecalcChange change)
     ASSERT(isMainThread());
 
     ScriptForbiddenScope forbidScript;
+    // We should forbid script execution for plugins here because update while layout is changing,
+    // HTMLPlugin element can be reattached and plugin can be destroyed. Plugin can execute scripts
+    // on destroy. It produces crash without PluginScriptForbiddenScope: crbug.com/550427.
+    PluginScriptForbiddenScope pluginForbidScript;
 
     if (!view() || !isActive())
         return;
@@ -1811,9 +1808,7 @@ void Document::updateLayoutTree(StyleRecalcChange change)
 
 void Document::updateStyle(StyleRecalcChange change)
 {
-    if (view()->shouldThrottleRendering())
-        return;
-
+    ASSERT(!view()->shouldThrottleRendering());
     TRACE_EVENT_BEGIN0("blink,blink_style", "Document::updateStyle");
     unsigned initialElementCount = styleEngine().styleForElementCount();
 
@@ -1917,7 +1912,6 @@ void Document::updateLayoutTreeForNodeIfNeeded(Node* node)
     ASSERT(node);
     if (!needsLayoutTreeUpdateForNode(*node))
         return;
-    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
     updateLayoutTreeIfNeeded();
 }
 
@@ -2002,7 +1996,6 @@ void Document::clearFocusedElementTimerFired(Timer<Document>*)
 void Document::updateLayoutTreeIgnorePendingStylesheets()
 {
     StyleEngine::IgnoringPendingStylesheet ignoring(styleEngine());
-    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
 
     if (styleEngine().hasPendingSheets()) {
         // FIXME: We are willing to attempt to suppress painting with outdated style info only once.
@@ -2015,7 +2008,7 @@ void Document::updateLayoutTreeIgnorePendingStylesheets()
         HTMLElement* bodyElement = body();
         if (bodyElement && !bodyElement->layoutObject() && m_pendingSheetLayout == NoLayoutWithPendingSheets) {
             m_pendingSheetLayout = DidLayoutWithPendingSheets;
-            styleResolverChanged();
+            styleEngine().resolverChanged(FullStyleUpdate);
         } else if (m_hasNodesWithPlaceholderStyle) {
             // If new nodes have been added or style recalc has been done with style sheets still
             // pending, some nodes may not have had their real style calculated yet. Normally this
@@ -2028,8 +2021,6 @@ void Document::updateLayoutTreeIgnorePendingStylesheets()
 
 void Document::updateLayoutIgnorePendingStylesheets(Document::RunPostLayoutTasks runPostLayoutTasks)
 {
-    DocumentLifecycle::PreventThrottlingScope preventThrottling(lifecycle());
-
     updateLayoutTreeIgnorePendingStylesheets();
     updateLayout();
 
@@ -3449,7 +3440,7 @@ String Document::selectedStylesheetSet() const
 void Document::setSelectedStylesheetSet(const String& aString)
 {
     styleEngine().setSelectedStylesheetSetName(aString);
-    styleResolverChanged();
+    styleEngine().resolverChanged(FullStyleUpdate);
 }
 
 void Document::evaluateMediaQueryListIfNeeded()
@@ -3476,9 +3467,9 @@ void Document::notifyResizeForViewportUnits()
     setNeedsStyleRecalcForViewportUnits();
 }
 
-void Document::styleResolverChanged(StyleResolverUpdateMode updateMode)
+void Document::styleResolverMayHaveChanged()
 {
-    styleEngine().resolverChanged(updateMode);
+    styleEngine().resolverChanged(hasNodesWithPlaceholderStyle() ? FullStyleUpdate : AnalyzedStyleUpdate);
 
     if (didLayoutWithPendingStylesheets() && !styleEngine().hasPendingSheets()) {
         // We need to manually repaint because we avoid doing all repaints in layout or style
@@ -3489,11 +3480,6 @@ void Document::styleResolverChanged(StyleResolverUpdateMode updateMode)
         if (layoutView())
             layoutView()->invalidatePaintForViewAndCompositedLayers();
     }
-}
-
-void Document::styleResolverMayHaveChanged()
-{
-    styleResolverChanged(hasNodesWithPlaceholderStyle() ? FullStyleUpdate : AnalyzedStyleUpdate);
 }
 
 void Document::setHoverNode(PassRefPtrWillBeRawPtr<Node> newHoverNode)
@@ -4991,7 +4977,8 @@ void Document::initContentSecurityPolicy(PassRefPtrWillBeRawPtr<ContentSecurityP
 
 bool Document::allowInlineEventHandlers(Node* node, EventListener* listener, const String& contextURL, const WTF::OrdinalNumber& contextLine)
 {
-    if (!ContentSecurityPolicy::shouldBypassMainWorld(this) && !contentSecurityPolicy()->allowInlineEventHandlers(contextURL, contextLine))
+    bool allowedByHash = contentSecurityPolicy()->experimentalFeaturesEnabled() && contentSecurityPolicy()->allowScriptWithHash(listener->code());
+    if (!ContentSecurityPolicy::shouldBypassMainWorld(this) && !allowedByHash && !contentSecurityPolicy()->allowInlineEventHandlers(contextURL, contextLine))
         return false;
 
     // HTML says that inline script needs browsing context to create its execution environment.
@@ -5688,21 +5675,31 @@ float Document::devicePixelRatio() const
 void Document::removedStyleSheet(StyleSheet* sheet, StyleResolverUpdateMode updateMode)
 {
     // If we're in document teardown, then we don't need this notification of our sheet's removal.
-    // styleResolverChanged() is needed even when the document is inactive so that
-    // imported docuements (which is inactive) notifies the change to the master document.
+    // resolverChanged() is needed even when the document is inactive so that imported documents
+    // (which are inactive) notify the change to the master document.
     if (isActive())
         styleEngine().modifiedStyleSheet(sheet);
-    styleResolverChanged(updateMode);
+    styleEngine().resolverChanged(updateMode);
+}
+
+void Document::addedStyleSheet(StyleSheet*)
+{
+    styleEngine().resolverChanged(FullStyleUpdate);
 }
 
 void Document::modifiedStyleSheet(StyleSheet* sheet, StyleResolverUpdateMode updateMode)
 {
     // If we're in document teardown, then we don't need this notification of our sheet's removal.
-    // styleResolverChanged() is needed even when the document is inactive so that
-    // imported docuements (which is inactive) notifies the change to the master document.
+    // resolverChanged() is needed even when the document is inactive so that imported documents
+    // (which are inactive) notify the change to the master document.
     if (isActive())
         styleEngine().modifiedStyleSheet(sheet);
-    styleResolverChanged(updateMode);
+    styleEngine().resolverChanged(updateMode);
+}
+
+void Document::changedSelectorWatch()
+{
+    styleEngine().resolverChanged(FullStyleUpdate);
 }
 
 TextAutosizer* Document::textAutosizer()

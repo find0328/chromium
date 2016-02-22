@@ -96,9 +96,9 @@ enum CreateRenderFrameFlags {
   CREATE_RF_HIDDEN = 1 << 1,
 };
 
-class CONTENT_EXPORT RenderFrameHostImpl
-    : public RenderFrameHost,
-      public BrowserAccessibilityDelegate {
+class CONTENT_EXPORT RenderFrameHostImpl : public RenderFrameHost,
+                                           public BrowserAccessibilityDelegate,
+                                           public SiteInstanceImpl::Observer {
  public:
   using AXTreeSnapshotCallback =
       base::Callback<void(
@@ -207,6 +207,9 @@ class CONTENT_EXPORT RenderFrameHostImpl
   gfx::AcceleratedWidget AccessibilityGetAcceleratedWidget() override;
   gfx::NativeViewAccessible AccessibilityGetNativeViewAccessible() override;
 
+  // SiteInstanceImpl::Observer
+  void RenderProcessGone(SiteInstanceImpl* site_instance) override;
+
   // Creates a RenderFrame in the renderer process.
   bool CreateRenderFrame(int proxy_routing_id,
                          int opener_routing_id,
@@ -227,6 +230,7 @@ class CONTENT_EXPORT RenderFrameHostImpl
       int new_routing_id,
       blink::WebTreeScopeType scope,
       const std::string& frame_name,
+      const std::string& frame_unique_name,
       blink::WebSandboxFlags sandbox_flags,
       const blink::WebFrameOwnerProperties& frame_owner_properties);
 
@@ -246,6 +250,12 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // FrameTreeNode. The proper way to check whether a frame is loading is to
   // call FrameTreeNode::IsLoading.
   bool is_loading() const { return is_loading_; }
+
+  // Sets this RenderFrameHost loading state. This is only used in the case of
+  // transfer navigations, where no DidStart/DidStopLoading notifications
+  // should be sent during the transfer.
+  // TODO(clamy): Remove this once PlzNavigate ships.
+  void set_is_loading(bool is_loading) { is_loading_ = is_loading; }
 
   // This returns the RenderFrameHost's owned RenderWidgetHost if it has one,
   // or else it returns nullptr.
@@ -527,6 +537,10 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // Returns the Mojo ImageDownloader service.
   const image_downloader::ImageDownloaderPtr& GetMojoImageDownloader();
 
+  // Resets the loading state. Following this call, the RenderFrameHost will be
+  // in a non-loading state.
+  void ResetLoadingState();
+
  protected:
   friend class RenderFrameHostFactory;
 
@@ -572,7 +586,6 @@ class CONTENT_EXPORT RenderFrameHostImpl
       const base::string16& error_description,
       bool was_ignored_by_handler);
   void OnDidCommitProvisionalLoad(const IPC::Message& msg);
-  void OnDidDropNavigation();
   void OnUpdateState(const PageState& state);
   void OnBeforeUnloadACK(
       bool proceed,
@@ -597,7 +610,7 @@ class CONTENT_EXPORT RenderFrameHostImpl
                                           uint32_t end_offset);
   void OnDidAccessInitialDocument();
   void OnDidChangeOpener(int32_t opener_routing_id);
-  void OnDidChangeName(const std::string& name);
+  void OnDidChangeName(const std::string& name, const std::string& unique_name);
   void OnEnforceStrictMixedContentChecking();
   void OnDidAssignPageId(int32_t page_id);
   void OnDidChangeSandboxFlags(int32_t frame_routing_id,

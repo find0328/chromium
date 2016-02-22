@@ -1581,8 +1581,7 @@ TEST_F(WebFrameTest, FrameOwnerPropertiesMargin)
     WebFrameOwnerProperties properties;
     properties.marginWidth = 11;
     properties.marginHeight = 22;
-    FrameTestHelpers::TestWebFrameClient localFrameClient;
-    WebLocalFrame* localFrame = root->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &localFrameClient, nullptr, properties);
+    WebLocalFrame* localFrame = FrameTestHelpers::createLocalChild(root, "frameName", nullptr, nullptr, properties);
 
     registerMockedHttpURLLoad("frame_owner_properties.html");
     FrameTestHelpers::loadFrame(localFrame, m_baseURL + "frame_owner_properties.html");
@@ -1614,8 +1613,7 @@ TEST_F(WebFrameTest, FrameOwnerPropertiesScrolling)
     WebFrameOwnerProperties properties;
     // Turn off scrolling in the subframe.
     properties.scrollingMode = WebFrameOwnerProperties::ScrollingMode::AlwaysOff;
-    FrameTestHelpers::TestWebFrameClient localFrameClient;
-    WebLocalFrame* localFrame = root->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &localFrameClient, nullptr, properties);
+    WebLocalFrame* localFrame = FrameTestHelpers::createLocalChild(root, "frameName", nullptr, nullptr, properties);
 
     registerMockedHttpURLLoad("frame_owner_properties.html");
     FrameTestHelpers::loadFrame(localFrame, m_baseURL + "frame_owner_properties.html");
@@ -3234,24 +3232,6 @@ TEST_P(ParameterizedWebFrameTest, ReloadDoesntSetRedirect)
     FrameTestHelpers::reloadFrameIgnoringCache(webViewHelper.webView()->mainFrame());
 }
 
-class ReloadWithOverrideURLTask : public WebTaskRunner::Task {
-public:
-    ReloadWithOverrideURLTask(WebFrame* frame, const KURL& url, bool ignoreCache)
-        : m_frame(frame), m_url(url), m_ignoreCache(ignoreCache)
-    {
-    }
-
-    void run() override
-    {
-        m_frame->reloadWithOverrideURL(m_url, m_ignoreCache);
-    }
-
-private:
-    WebFrame* const m_frame;
-    const KURL m_url;
-    const bool m_ignoreCache;
-};
-
 class ClearScrollStateOnCommitWebFrameClient : public FrameTestHelpers::TestWebFrameClient {
 public:
     void didCommitProvisionalLoad(WebLocalFrame* frame, const WebHistoryItem&, WebHistoryCommitType) override
@@ -3284,24 +3264,21 @@ TEST_F(WebFrameTest, ReloadWithOverrideURLPreservesState)
     float previousScale = webViewHelper.webViewImpl()->pageScaleFactor();
 
     // Reload the page and end up at the same url. State should be propagated.
-    Platform::current()->currentThread()->taskRunner()->postTask(
-        BLINK_FROM_HERE, new ReloadWithOverrideURLTask(webViewHelper.webViewImpl()->mainFrame(), toKURL(m_baseURL + firstURL), false));
+    webViewHelper.webViewImpl()->mainFrame()->reloadWithOverrideURL(toKURL(m_baseURL + firstURL), false);
     FrameTestHelpers::pumpPendingRequestsDoNotUse(webViewHelper.webViewImpl()->mainFrame());
     EXPECT_EQ(previousOffset.width, webViewHelper.webViewImpl()->mainFrame()->scrollOffset().width);
     EXPECT_EQ(previousOffset.height, webViewHelper.webViewImpl()->mainFrame()->scrollOffset().height);
     EXPECT_EQ(previousScale, webViewHelper.webViewImpl()->pageScaleFactor());
 
     // Reload the page using the cache. State should not be propagated.
-    Platform::current()->currentThread()->taskRunner()->postTask(
-        BLINK_FROM_HERE, new ReloadWithOverrideURLTask(webViewHelper.webViewImpl()->mainFrame(), toKURL(m_baseURL + secondURL), false));
+    webViewHelper.webViewImpl()->mainFrame()->reloadWithOverrideURL(toKURL(m_baseURL + secondURL), false);
     FrameTestHelpers::pumpPendingRequestsDoNotUse(webViewHelper.webViewImpl()->mainFrame());
     EXPECT_EQ(0, webViewHelper.webViewImpl()->mainFrame()->scrollOffset().width);
     EXPECT_EQ(0, webViewHelper.webViewImpl()->mainFrame()->scrollOffset().height);
     EXPECT_EQ(1.0f, webViewHelper.webViewImpl()->pageScaleFactor());
 
     // Reload the page while ignoring the cache. State should not be propagated.
-    Platform::current()->currentThread()->taskRunner()->postTask(
-        BLINK_FROM_HERE, new ReloadWithOverrideURLTask(webViewHelper.webViewImpl()->mainFrame(), toKURL(m_baseURL + thirdURL), true));
+    webViewHelper.webViewImpl()->mainFrame()->reloadWithOverrideURL(toKURL(m_baseURL + thirdURL), true);
     FrameTestHelpers::pumpPendingRequestsDoNotUse(webViewHelper.webViewImpl()->mainFrame());
     EXPECT_EQ(0, webViewHelper.webViewImpl()->mainFrame()->scrollOffset().width);
     EXPECT_EQ(0, webViewHelper.webViewImpl()->mainFrame()->scrollOffset().height);
@@ -3716,6 +3693,7 @@ public:
     FindUpdateWebFrameClient()
         : m_findResultsAreReady(false)
         , m_count(-1)
+        , m_activeIndex(-1)
     {
     }
 
@@ -3726,12 +3704,19 @@ public:
             m_findResultsAreReady = true;
     }
 
+    void reportFindInPageSelection(int, int activeMatchOrdinal, const WebRect&) override
+    {
+        m_activeIndex = activeMatchOrdinal;
+    }
+
     bool findResultsAreReady() const { return m_findResultsAreReady; }
     int count() const { return m_count; }
+    int activeIndex() const { return m_activeIndex; }
 
 private:
     bool m_findResultsAreReady;
     int m_count;
+    int m_activeIndex;
 };
 
 TEST_P(ParameterizedWebFrameTest, FindInPageMatchRects)
@@ -3852,6 +3837,54 @@ TEST_P(ParameterizedWebFrameTest, FindInPageMatchRects)
     webViewHelper.resize(WebSize(800, 600));
     runPendingTasks();
     EXPECT_TRUE(mainFrame->findMatchMarkersVersion() != rectsVersion);
+}
+
+TEST_F(WebFrameTest, FindInPageActiveIndex)
+{
+    registerMockedHttpURLLoad("find_match_count.html");
+
+    FindUpdateWebFrameClient client;
+    FrameTestHelpers::WebViewHelper webViewHelper;
+    webViewHelper.initializeAndLoad(m_baseURL + "find_match_count.html", true, &client);
+    webViewHelper.webView()->resize(WebSize(640, 480));
+    runPendingTasks();
+
+    const char* kFindString = "a";
+    const int kFindIdentifier = 7777;
+    const int kActiveIndex = 1;
+
+    WebFindOptions options;
+    WebString searchText = WebString::fromUTF8(kFindString);
+    WebLocalFrameImpl* mainFrame = toWebLocalFrameImpl(webViewHelper.webView()->mainFrame());
+    EXPECT_TRUE(mainFrame->find(kFindIdentifier, searchText, options, false, 0));
+    mainFrame->resetMatchCount();
+
+    for (WebFrame* frame = mainFrame; frame; frame = frame->traverseNext(false))
+        frame->toWebLocalFrame()->scopeStringMatches(kFindIdentifier, searchText, options, true);
+
+    runPendingTasks();
+    EXPECT_TRUE(mainFrame->find(kFindIdentifier, searchText, options, false, 0));
+    mainFrame->stopFinding(true);
+
+    for (WebFrame* frame = mainFrame; frame; frame = frame->traverseNext(false))
+        frame->toWebLocalFrame()->scopeStringMatches(kFindIdentifier, searchText, options, true);
+
+    runPendingTasks();
+    EXPECT_TRUE(client.findResultsAreReady());
+    EXPECT_EQ(kActiveIndex, client.activeIndex());
+
+    const char* kFindStringNew = "e";
+    WebString searchTextNew = WebString::fromUTF8(kFindStringNew);
+
+    EXPECT_TRUE(mainFrame->find(kFindIdentifier, searchTextNew, options, false, 0));
+    mainFrame->resetMatchCount();
+
+    for (WebFrame* frame = mainFrame; frame; frame = frame->traverseNext(false))
+        frame->toWebLocalFrame()->scopeStringMatches(kFindIdentifier, searchTextNew, options, true);
+
+    runPendingTasks();
+    EXPECT_TRUE(client.findResultsAreReady());
+    EXPECT_EQ(kActiveIndex, client.activeIndex());
 }
 
 TEST_P(ParameterizedWebFrameTest, FindInPageSkipsHiddenFrames)
@@ -5160,7 +5193,7 @@ TEST_P(ParameterizedWebFrameTest, ReplaceMisspelledRange)
     EXPECT_EQ(1U, document->markers().markersInRange(selectionRange, DocumentMarker::Spelling).size());
 
     frame->replaceMisspelledRange("welcome");
-    EXPECT_EQ("_welcome_.", WebFrameContentDumper::dumpFrameTreeAsText(frame->toWebLocalFrame(), std::numeric_limits<size_t>::max()).utf8());
+    EXPECT_EQ("_welcome_.", WebFrameContentDumper::dumpFrameTreeAsText(frame, std::numeric_limits<size_t>::max()).utf8());
 }
 
 TEST_P(ParameterizedWebFrameTest, RemoveSpellingMarkers)
@@ -5433,7 +5466,7 @@ public:
     {
     }
 
-    virtual void didAccessInitialDocument(WebLocalFrame* frame)
+    virtual void didAccessInitialDocument()
     {
         EXPECT_TRUE(!m_didAccessInitialDocument);
         m_didAccessInitialDocument = true;
@@ -5887,7 +5920,7 @@ public:
     int willSendRequestCallCount() const { return m_willSendRequestCallCount; }
     int childFrameCreationCount() const { return m_childFrameCreationCount; }
 
-    virtual WebFrame* createChildFrame(WebLocalFrame* parent, WebTreeScopeType scope, const WebString&, WebSandboxFlags, const WebFrameOwnerProperties& frameOwnerProperties)
+    virtual WebFrame* createChildFrame(WebLocalFrame* parent, WebTreeScopeType scope, const WebString&, const WebString&, WebSandboxFlags, const WebFrameOwnerProperties& frameOwnerProperties)
     {
         ASSERT(m_childClient);
         m_childFrameCreationCount++;
@@ -6276,7 +6309,7 @@ class FailCreateChildFrame : public FrameTestHelpers::TestWebFrameClient {
 public:
     FailCreateChildFrame() : m_callCount(0) { }
 
-    WebFrame* createChildFrame(WebLocalFrame* parent, WebTreeScopeType scope, const WebString& frameName, WebSandboxFlags sandboxFlags, const WebFrameOwnerProperties& frameOwnerProperties) override
+    WebFrame* createChildFrame(WebLocalFrame* parent, WebTreeScopeType scope, const WebString& frameName, const WebString& frameUniqueName, WebSandboxFlags sandboxFlags, const WebFrameOwnerProperties& frameOwnerProperties) override
     {
         ++m_callCount;
         return 0;
@@ -6701,7 +6734,7 @@ TEST_P(ParameterizedWebFrameTest, HasVisibleContentOnHiddenFrames)
 class ManifestChangeWebFrameClient : public FrameTestHelpers::TestWebFrameClient {
 public:
     ManifestChangeWebFrameClient() : m_manifestChangeCount(0) { }
-    void didChangeManifest(WebLocalFrame*) override
+    void didChangeManifest() override
     {
         ++m_manifestChangeCount;
     }
@@ -6934,8 +6967,7 @@ TEST_P(ParameterizedWebFrameTest, EmbedderTriggeredDetachWithRemoteMainFrame)
     FrameTestHelpers::TestWebRemoteFrameClient remoteClient;
     WebView* view = WebView::create(&viewClient);
     view->setMainFrame(remoteClient.frame());
-    FrameTestHelpers::TestWebFrameClient childFrameClient;
-    WebLocalFrame* childFrame = view->mainFrame()->toWebRemoteFrame()->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &childFrameClient, nullptr, WebFrameOwnerProperties());
+    WebLocalFrame* childFrame = FrameTestHelpers::createLocalChild(view->mainFrame()->toWebRemoteFrame());
 
     // Purposely keep the LocalFrame alive so it's the last thing to be destroyed.
     RefPtrWillBePersistent<Frame> childCoreFrame = childFrame->toImplBase()->frame();
@@ -7183,7 +7215,7 @@ TEST_F(WebFrameSwapTest, SwapParentShouldDetachChildren)
 
     // Create child frames in the target frame before testing the swap.
     FrameTestHelpers::TestWebRemoteFrameClient remoteFrameClient2;
-    WebRemoteFrame* childRemoteFrame = remoteFrame->createRemoteChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &remoteFrameClient2);
+    WebRemoteFrame* childRemoteFrame = remoteFrame->createRemoteChild(WebTreeScopeType::Document, "", "uniqueName0", WebSandboxFlags::None, &remoteFrameClient2);
 
     FrameTestHelpers::TestWebFrameClient client;
     WebLocalFrame* localFrame = WebLocalFrame::createProvisional(&client, remoteFrame, WebSandboxFlags::None, WebFrameOwnerProperties());
@@ -7332,8 +7364,7 @@ TEST_F(WebFrameSwapTest, FramesOfRemoteParentAreIndexable)
     mainFrame()->swap(remoteParentFrame);
     remoteParentFrame->setReplicatedOrigin(SecurityOrigin::createUnique());
 
-    FrameTestHelpers::TestWebFrameClient childFrameClient;
-    WebLocalFrame* childFrame = remoteParentFrame->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &childFrameClient, nullptr, WebFrameOwnerProperties());
+    WebLocalFrame* childFrame = FrameTestHelpers::createLocalChild(remoteParentFrame);
     FrameTestHelpers::loadFrame(childFrame, m_baseURL + "subframe-hello.html");
 
     v8::Local<v8::Value> window = childFrame->executeScriptAndReturnValue(WebScriptSource("window"));
@@ -7359,8 +7390,7 @@ TEST_F(WebFrameSwapTest, FrameElementInFramesWithRemoteParent)
     mainFrame()->swap(remoteParentFrame);
     remoteParentFrame->setReplicatedOrigin(SecurityOrigin::createUnique());
 
-    FrameTestHelpers::TestWebFrameClient childFrameClient;
-    WebLocalFrame* childFrame = remoteParentFrame->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &childFrameClient, nullptr, WebFrameOwnerProperties());
+    WebLocalFrame* childFrame = FrameTestHelpers::createLocalChild(remoteParentFrame);
     FrameTestHelpers::loadFrame(childFrame, m_baseURL + "subframe-hello.html");
 
     v8::Local<v8::Value> frameElement = childFrame->executeScriptAndReturnValue(WebScriptSource("window.frameElement"));
@@ -7677,7 +7707,7 @@ TEST_P(ParameterizedWebFrameTest, RemoteFrameInitialCommitType)
 
     // If an iframe has a remote main frame, ensure the inital commit is correctly identified as WebInitialCommitInChildFrame.
     CommitTypeWebFrameClient childFrameClient;
-    WebLocalFrame* childFrame = view->mainFrame()->toWebRemoteFrame()->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &childFrameClient, nullptr, WebFrameOwnerProperties());
+    WebLocalFrame* childFrame = FrameTestHelpers::createLocalChild(view->mainFrame()->toWebRemoteFrame(), "frameName", &childFrameClient);
     registerMockedHttpURLLoad("foo.html");
     FrameTestHelpers::loadFrame(childFrame, m_baseURL + "foo.html");
     EXPECT_EQ(WebInitialCommitInChildFrame, childFrameClient.historyCommitType());
@@ -7702,8 +7732,7 @@ TEST_P(ParameterizedWebFrameTest, FrameWidgetTest)
     FrameTestHelpers::TestWebRemoteFrameClient remoteClient;
     view->setMainFrame(remoteClient.frame());
 
-    FrameTestHelpers::TestWebFrameClient childFrameClient;
-    WebLocalFrame* childFrame = view->mainFrame()->toWebRemoteFrame()->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &childFrameClient, nullptr, WebFrameOwnerProperties());
+    WebLocalFrame* childFrame = FrameTestHelpers::createLocalChild(view->mainFrame()->toWebRemoteFrame());
 
     GestureEventTestWebViewClient childViewClient;
     WebFrameWidget* widget = WebFrameWidget::create(&childViewClient, childFrame);
@@ -7769,7 +7798,7 @@ TEST_P(ParameterizedWebFrameTest, DetachRemoteFrame)
     WebView* view = WebView::create(&viewClient);
     view->setMainFrame(remoteClient.frame());
     FrameTestHelpers::TestWebRemoteFrameClient childFrameClient;
-    WebRemoteFrame* childFrame = view->mainFrame()->toWebRemoteFrame()->createRemoteChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &childFrameClient);
+    WebRemoteFrame* childFrame = view->mainFrame()->toWebRemoteFrame()->createRemoteChild(WebTreeScopeType::Document, "", "uniqueName1", WebSandboxFlags::None, &childFrameClient);
     childFrame->detach();
     view->close();
     childFrame->close();
@@ -7922,10 +7951,10 @@ TEST_P(ParameterizedWebFrameTest, CreateLocalChildWithPreviousSibling)
     view->setMainFrame(remoteClient.frame());
     WebRemoteFrame* parent = view->mainFrame()->toWebRemoteFrame();
 
-    WebLocalFrameScope secondFrame(parent->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, nullptr, nullptr, WebFrameOwnerProperties()));
-    WebLocalFrameScope fourthFrame(parent->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, nullptr, secondFrame, WebFrameOwnerProperties()));
-    WebLocalFrameScope thirdFrame(parent->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, nullptr, secondFrame, WebFrameOwnerProperties()));
-    WebLocalFrameScope firstFrame(parent->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, nullptr, nullptr, WebFrameOwnerProperties()));
+    WebLocalFrameScope secondFrame(FrameTestHelpers::createLocalChild(parent, "name2"));
+    WebLocalFrameScope fourthFrame(FrameTestHelpers::createLocalChild(parent, "name4", nullptr, secondFrame));
+    WebLocalFrameScope thirdFrame(FrameTestHelpers::createLocalChild(parent, "name3", nullptr, secondFrame));
+    WebLocalFrameScope firstFrame(FrameTestHelpers::createLocalChild(parent, "name1"));
 
     EXPECT_EQ(firstFrame, parent->firstChild());
     EXPECT_EQ(nullptr, firstFrame->previousSibling());
@@ -7959,8 +7988,7 @@ TEST_P(ParameterizedWebFrameTest, SendBeaconFromChildWithRemoteMainFrame)
     WebRemoteFrame* root = view->mainFrame()->toWebRemoteFrame();
     root->setReplicatedOrigin(SecurityOrigin::createUnique());
 
-    FrameTestHelpers::TestWebFrameClient localFrameClient;
-    WebLocalFrame* localFrame = root->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &localFrameClient, nullptr, WebFrameOwnerProperties());
+    WebLocalFrame* localFrame = FrameTestHelpers::createLocalChild(root);
 
     // Finally, make sure an embedder triggered load in the local frame swapped
     // back in works.
@@ -7981,8 +8009,7 @@ TEST_P(ParameterizedWebFrameTest, RemoteToLocalSwapOnMainFrameInitializesCoreFra
     WebRemoteFrame* remoteRoot = view->mainFrame()->toWebRemoteFrame();
     remoteRoot->setReplicatedOrigin(SecurityOrigin::createUnique());
 
-    FrameTestHelpers::TestWebFrameClient localFrameClient;
-    remoteRoot->createLocalChild(WebTreeScopeType::Document, "", WebSandboxFlags::None, &localFrameClient, nullptr, WebFrameOwnerProperties());
+    FrameTestHelpers::createLocalChild(remoteRoot);
 
     // Do a remote-to-local swap of the top frame.
     FrameTestHelpers::TestWebFrameClient localClient;

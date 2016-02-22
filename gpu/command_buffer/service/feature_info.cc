@@ -654,10 +654,13 @@ void FeatureInfo::InitializeFeatures() {
     validators_.read_pixel_format.AddValue(GL_BGRA_EXT);
   }
 
-  // We only support timer queries if we also support glGetInteger64v.
-  // For GL_EXT_disjoint_timer_query, glGetInteger64v is only support under ES3.
-  if ((gl_version_info_->is_es3 &&
-       extensions.Contains("GL_EXT_disjoint_timer_query")) ||
+  // glGetInteger64v for timestamps is implemented on the client side in a way
+  // that it does not depend on a driver-level implementation of
+  // glGetInteger64v. The GPUTimer class which implements timer queries can also
+  // fallback to an implementation that does not depend on glGetInteger64v on
+  // ES2. Thus we can enable GL_EXT_disjoint_timer_query on ES2 contexts even
+  // though it does not support glGetInteger64v due to a specification bug.
+  if (extensions.Contains("GL_EXT_disjoint_timer_query") ||
       extensions.Contains("GL_ARB_timer_query") ||
       extensions.Contains("GL_EXT_timer_query")) {
     AddExtensionString("GL_EXT_disjoint_timer_query");
@@ -1005,8 +1008,12 @@ void FeatureInfo::InitializeFeatures() {
 #if defined(OS_MACOSX)
   if (gfx::GetGLImplementation() != gfx::kGLImplementationOSMesaGL) {
     AddExtensionString("GL_CHROMIUM_iosurface");
-    AddExtensionString("GL_CHROMIUM_ycbcr_420v_image");
-    feature_flags_.chromium_image_ycbcr_420v = true;
+    // TODO(dcastagna): Make this format work with GL Core Profile.
+    // crbug.com/587158
+    if (!gl_version_info_->is_desktop_core_profile) {
+      AddExtensionString("GL_CHROMIUM_ycbcr_420v_image");
+      feature_flags_.chromium_image_ycbcr_420v = true;
+    }
   }
 #endif
 
@@ -1239,13 +1246,22 @@ void FeatureInfo::InitializeFeatures() {
   }
 
   if (enable_gl_path_rendering_switch_ &&
+      extensions.Contains("GL_NV_framebuffer_mixed_samples")) {
+    AddExtensionString("GL_CHROMIUM_framebuffer_mixed_samples");
+    feature_flags_.chromium_framebuffer_mixed_samples = true;
+    validators_.g_l_state.AddValue(GL_COVERAGE_MODULATION_CHROMIUM);
+  }
+
+  if (enable_gl_path_rendering_switch_ &&
       extensions.Contains("GL_NV_path_rendering")) {
     bool has_dsa = gl_version_info_->IsAtLeastGL(4, 5) ||
                    extensions.Contains("GL_EXT_direct_state_access");
     bool has_piq = gl_version_info_->IsAtLeastGL(4, 3) ||
                    extensions.Contains("GL_ARB_program_interface_query");
-    if (gl_version_info_->IsAtLeastGLES(3, 1) ||
-        (gl_version_info_->IsAtLeastGL(3, 2) && has_dsa && has_piq)) {
+    bool has_fms = feature_flags_.chromium_framebuffer_mixed_samples;
+    if ((gl_version_info_->IsAtLeastGLES(3, 1) ||
+         (gl_version_info_->IsAtLeastGL(3, 2) && has_dsa && has_piq)) &&
+        has_fms) {
       AddExtensionString("GL_CHROMIUM_path_rendering");
       feature_flags_.chromium_path_rendering = true;
       validators_.g_l_state.AddValue(GL_PATH_MODELVIEW_MATRIX_CHROMIUM);
@@ -1254,13 +1270,6 @@ void FeatureInfo::InitializeFeatures() {
       validators_.g_l_state.AddValue(GL_PATH_STENCIL_REF_CHROMIUM);
       validators_.g_l_state.AddValue(GL_PATH_STENCIL_VALUE_MASK_CHROMIUM);
     }
-  }
-
-  if (enable_gl_path_rendering_switch_ &&
-      extensions.Contains("GL_NV_framebuffer_mixed_samples")) {
-    AddExtensionString("GL_CHROMIUM_framebuffer_mixed_samples");
-    feature_flags_.chromium_framebuffer_mixed_samples = true;
-    validators_.g_l_state.AddValue(GL_COVERAGE_MODULATION_CHROMIUM);
   }
 
   if ((gl_version_info_->is_es3 || gl_version_info_->is_desktop_core_profile ||

@@ -516,16 +516,6 @@ system call NtCreate*
 *!disk_cache::BlockFiles::Init
 *!disk_cache::BackendImpl::SyncInit
 *!disk_cache::BackendIO::ExecuteBackendOperation
-*!base::internal::Invoker<>::Run
-*!base::MessageLoop::RunTask
-*!base::MessageLoop::DeferOrRunPendingTask
-*!base::MessageLoop::DoWork
-*!base::MessagePumpForIO::DoRunLoop
-*!base::MessagePumpWin::Run
-*!base::MessageLoop::RunHandler
-*!base::Thread::Run
-*!content::BrowserThreadImpl::CacheThreadRun
-*!content::BrowserThreadImpl::Run
 
 GDI USAGE ERROR
 name=379774
@@ -807,3 +797,16 @@ mojo_system_impl.dll!mojo::edk::Channel::Message::RewriteHandles
 mojo_system_impl.dll!mojo::edk::NodeController::OnRelayPortsMessage
 mojo_system_impl.dll!mojo::edk::NodeChannel::OnChannelMessage
 mojo_system_impl.dll!mojo::edk::Channel::OnReadComplete
+
+HANDLE LEAK
+name=bug_586996_b
+system call NtDuplicateObject
+KERNELBASE.dll!DuplicateHandle
+KERNEL32.dll!DuplicateHandle
+ipc.dll!IPC::AttachmentBrokerPrivilegedWin::DuplicateWinHandle
+ipc.dll!IPC::AttachmentBrokerPrivilegedWin::OnDuplicateWinHandle
+ipc.dll!IPC::AttachmentBrokerPrivilegedWin::OnMessageReceived
+ipc.dll!IPC::internal::ChannelReader::HandleTranslatedMessage
+ipc.dll!IPC::internal::ChannelReader::TranslateInputData
+ipc.dll!IPC::internal::ChannelReader::AsyncReadComplete
+ipc.dll!IPC::ChannelWin::OnIOCompleted

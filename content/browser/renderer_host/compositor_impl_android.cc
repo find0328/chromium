@@ -21,6 +21,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/single_thread_task_runner.h"
 #include "base/synchronization/lock.h"
+#include "base/sys_info.h"
 #include "base/thread_task_runner_handle.h"
 #include "base/threading/simple_thread.h"
 #include "base/threading/thread.h"
@@ -353,8 +354,6 @@ void CompositorImpl::CreateLayerTreeHost() {
       command_line->HasSwitch(cc::switches::kEnableGpuBenchmarking));
   settings.initial_debug_state.show_fps_counter =
       command_line->HasSwitch(cc::switches::kUIShowFPSCounter);
-  if (command_line->HasSwitch(cc::switches::kDisableCompositorPropertyTrees))
-    settings.use_property_trees = false;
   settings.single_thread_proxy_scheduler = true;
 
   settings.use_compositor_animation_timelines = !command_line->HasSwitch(
@@ -522,7 +521,8 @@ void CompositorImpl::CreateOutputSurface() {
   blink::WebGraphicsContext3D::Attributes attrs;
   attrs.shareResources = true;
   attrs.noAutomaticFlushes = true;
-  attrs.alpha = has_transparent_background_;
+  if (base::SysInfo::IsLowEndDevice())
+    attrs.alpha = has_transparent_background_;
 
   pending_swapbuffers_ = 0;
 
