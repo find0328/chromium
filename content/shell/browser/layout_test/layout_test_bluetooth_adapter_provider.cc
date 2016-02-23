@@ -501,14 +501,8 @@ LayoutTestBluetoothAdapterProvider::GetHeartRateAndHIDAdapter() {
   scoped_ptr<NiceMockBluetoothDevice> device(
       GetConnectableDevice(adapter.get(), "Heart Rate And HID Device", uuids));
 
-  // Device Information Service with Serial Number String Characteristic:
-  scoped_ptr<NiceMockBluetoothGattService> device_information(
-      GetBaseGATTService(device.get(), kDeviceInformationServiceUUID));
-  device_information->AddMockCharacteristic(GetBaseGATTCharacteristic(
-      device_information.get(), kSerialNumberStringUUID,
-      BluetoothGattCharacteristic::PROPERTY_READ));
-  device->AddMockService(std::move(device_information));
-
+  device->AddMockService(
+      GetDeviceInformationService(adapter.get(), device.get()));
   device->AddMockService(GetGenericAccessService(adapter.get(), device.get()));
   device->AddMockService(GetHeartRateService(adapter.get(), device.get()));
   device->AddMockService(
@@ -708,6 +702,26 @@ LayoutTestBluetoothAdapterProvider::GetBaseGATTService(
                             &MockBluetoothGattService::GetMockCharacteristic));
 
   return service;
+}
+
+// static
+scoped_ptr<NiceMockBluetoothGattService>
+LayoutTestBluetoothAdapterProvider::GetDeviceInformationService(
+    MockBluetoothAdapter* adapter,
+    MockBluetoothDevice* device) {
+  scoped_ptr<NiceMockBluetoothGattService> device_information(
+      GetBaseGATTService(device, kDeviceInformationServiceUUID));
+
+  scoped_ptr<NiceMockBluetoothGattCharacteristic> serial_number_string(
+      GetBaseGATTCharacteristic(device_information.get(),
+                                kSerialNumberStringUUID,
+                                BluetoothGattCharacteristic::PROPERTY_READ));
+
+  EXPECT_CALL(*serial_number_string, ReadRemoteCharacteristic(_, _)).Times(0);
+
+  device_information->AddMockCharacteristic(std::move(serial_number_string));
+
+  return device_information;
 }
 
 // static

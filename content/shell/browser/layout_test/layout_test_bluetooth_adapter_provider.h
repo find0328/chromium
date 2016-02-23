@@ -213,8 +213,8 @@ class LayoutTestBluetoothAdapterProvider {
   //         - Heart Rate UUID (0x180d)
   //         - Human Interface Device UUID (0x1812) (a blacklisted service)
   //      - Services:
-  //         - Device Information Service.
-  //           - Serial Number String Characteristic (blacklisted).
+  //         - Device Information Service - Characteristics as described in
+  //           GetDeviceInformationService.
   //         - Generic Access Service - Characteristics as described in
   //           GetGenericAccessService.
   //         - Heart Rate Service - Characteristics as described in
@@ -452,6 +452,18 @@ class LayoutTestBluetoothAdapterProvider {
   static scoped_ptr<testing::NiceMock<device::MockBluetoothGattService>>
   GetBaseGATTService(device::MockBluetoothDevice* device,
                      const std::string& uuid);
+
+  // |GetDeviceInformationService|
+  // Internal Structure:
+  //  - Characteristics:
+  //     - Serial Number String: (a blacklisted characteristic)
+  //        - Mock Functions:
+  //           - Read: Fails test.
+  //           - GetProperties: Returns
+  //               BluetoothGattCharacteristic::PROPERTY_READ
+  static scoped_ptr<testing::NiceMock<device::MockBluetoothGattService>>
+  GetDeviceInformationService(device::MockBluetoothAdapter* adapter,
+                              device::MockBluetoothDevice* device);
 
   // |GenericAccessService|
   // Internal Structure:
