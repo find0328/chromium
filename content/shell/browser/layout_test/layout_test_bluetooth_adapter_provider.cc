@@ -482,7 +482,7 @@ LayoutTestBluetoothAdapterProvider::GetHeartRateAdapter() {
   // TODO(ortuno): Implement the rest of the service's characteristics
   // See: http://crbug.com/529975
 
-  device->AddMockService(GetGenericAccessService(adapter.get(), device.get()));
+  device->AddMockService(GetGenericAccessService(device.get()));
   device->AddMockService(GetHeartRateService(adapter.get(), device.get()));
   adapter->AddMockDevice(std::move(device));
 
@@ -501,9 +501,8 @@ LayoutTestBluetoothAdapterProvider::GetHeartRateAndHIDAdapter() {
   scoped_ptr<NiceMockBluetoothDevice> device(
       GetConnectableDevice(adapter.get(), "Heart Rate And HID Device", uuids));
 
-  device->AddMockService(
-      GetDeviceInformationService(adapter.get(), device.get()));
-  device->AddMockService(GetGenericAccessService(adapter.get(), device.get()));
+  device->AddMockService(GetDeviceInformationService(device.get()));
+  device->AddMockService(GetGenericAccessService(device.get()));
   device->AddMockService(GetHeartRateService(adapter.get(), device.get()));
   device->AddMockService(
       GetBaseGATTService(device.get(), kHumanInterfaceDeviceServiceUUID));
@@ -707,8 +706,7 @@ LayoutTestBluetoothAdapterProvider::GetBaseGATTService(
 // static
 scoped_ptr<NiceMockBluetoothGattService>
 LayoutTestBluetoothAdapterProvider::GetDeviceInformationService(
-    MockBluetoothAdapter* adapter,
-    MockBluetoothDevice* device) {
+    device::MockBluetoothDevice* device) {
   scoped_ptr<NiceMockBluetoothGattService> device_information(
       GetBaseGATTService(device, kDeviceInformationServiceUUID));
 
@@ -727,8 +725,7 @@ LayoutTestBluetoothAdapterProvider::GetDeviceInformationService(
 // static
 scoped_ptr<NiceMockBluetoothGattService>
 LayoutTestBluetoothAdapterProvider::GetGenericAccessService(
-    MockBluetoothAdapter* adapter,
-    MockBluetoothDevice* device) {
+    device::MockBluetoothDevice* device) {
   scoped_ptr<NiceMockBluetoothGattService> generic_access(
       GetBaseGATTService(device, kGenericAccessServiceUUID));
 

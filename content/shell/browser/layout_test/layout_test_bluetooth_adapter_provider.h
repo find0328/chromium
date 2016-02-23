@@ -462,8 +462,7 @@ class LayoutTestBluetoothAdapterProvider {
   //           - GetProperties: Returns
   //               BluetoothGattCharacteristic::PROPERTY_READ
   static scoped_ptr<testing::NiceMock<device::MockBluetoothGattService>>
-  GetDeviceInformationService(device::MockBluetoothAdapter* adapter,
-                              device::MockBluetoothDevice* device);
+  GetDeviceInformationService(device::MockBluetoothDevice* device);
 
   // |GenericAccessService|
   // Internal Structure:
@@ -476,8 +475,7 @@ class LayoutTestBluetoothAdapterProvider {
   //               BluetoothGattCharacteristic::PROPERTY_READ |
   //               BluetoothGattCharacteristic::PROPERTY_WRITE
   static scoped_ptr<testing::NiceMock<device::MockBluetoothGattService>>
-  GetGenericAccessService(device::MockBluetoothAdapter* adapter,
-                          device::MockBluetoothDevice* device);
+  GetGenericAccessService(device::MockBluetoothDevice* device);
 
   // |HeartRateService|
   // Internal Structure:
