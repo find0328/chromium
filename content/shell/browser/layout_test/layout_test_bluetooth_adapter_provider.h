@@ -213,6 +213,8 @@ class LayoutTestBluetoothAdapterProvider {
   //         - Heart Rate UUID (0x180d)
   //         - Human Interface Device UUID (0x1812) (a blacklisted service)
   //      - Services:
+  //         - Device Information Service.
+  //           - Serial Number String Characteristic (blacklisted).
   //         - Generic Access Service - Characteristics as described in
   //           GetGenericAccessService.
   //         - Heart Rate Service - Characteristics as described in

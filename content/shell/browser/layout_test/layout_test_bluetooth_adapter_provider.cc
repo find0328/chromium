@@ -61,14 +61,16 @@ typedef testing::NiceMock<MockBluetoothGattNotifySession>
 namespace {
 // Bluetooth UUIDs suitable to pass to BluetoothUUID().
 const char kBatteryServiceUUID[] = "180f";
+const char kBodySensorLocation[] = "2a38";
+const char kDeviceInformationServiceUUID[] = "180A";
+const char kDeviceNameUUID[] = "2a00";
 const char kGenericAccessServiceUUID[] = "1800";
 const char kGlucoseServiceUUID[] = "1808";
+const char kHeartRateMeasurementUUID[] = "2a37";
 const char kHeartRateServiceUUID[] = "180d";
 const char kHumanInterfaceDeviceServiceUUID[] = "1812";
+const char kSerialNumberStringUUID[] = "2A25";
 const char kTxPowerServiceUUID[] = "1804";
-const char kHeartRateMeasurementUUID[] = "2a37";
-const char kBodySensorLocation[] = "2a38";
-const char kDeviceNameUUID[] = "2a00";
 
 const int kDefaultTxPower = -10;  // TxPower of a device broadcasting at 0.1mW.
 const int kDefaultRssi = -51;     // RSSI at 1m from a device broadcasting at
@@ -498,6 +500,14 @@ LayoutTestBluetoothAdapterProvider::GetHeartRateAndHIDAdapter() {
 
   scoped_ptr<NiceMockBluetoothDevice> device(
       GetConnectableDevice(adapter.get(), "Heart Rate And HID Device", uuids));
+
+  // Device Information Service with Serial Number String Characteristic:
+  scoped_ptr<NiceMockBluetoothGattService> device_information(
+      GetBaseGATTService(device.get(), kDeviceInformationServiceUUID));
+  device_information->AddMockCharacteristic(GetBaseGATTCharacteristic(
+      device_information.get(), kSerialNumberStringUUID,
+      BluetoothGattCharacteristic::PROPERTY_READ));
+  device->AddMockService(std::move(device_information));
 
   device->AddMockService(GetGenericAccessService(adapter.get(), device.get()));
   device->AddMockService(GetHeartRateService(adapter.get(), device.get()));
